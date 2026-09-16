@@ -13,7 +13,8 @@ data class GoogleUser(
     val displayName: String?,
     val givenName: String?,
     val familyName: String?,
-    val email: String?
+    val email: String?,
+    val idToken: String
 )
 
 // Credential Manager + Google ID is the currently recommended Google Sign-In
@@ -40,7 +41,8 @@ suspend fun signInWithGoogle(context: Context, serverClientId: String): Result<G
                     displayName = googleIdTokenCredential.displayName,
                     givenName = googleIdTokenCredential.givenName,
                     familyName = googleIdTokenCredential.familyName,
-                    email = googleIdTokenCredential.id
+                    email = googleIdTokenCredential.id,
+                    idToken = googleIdTokenCredential.idToken
                 )
             )
         } else {

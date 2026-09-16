@@ -63,7 +63,7 @@ fun Button1Screen(apiBaseUrl: String, googleClientId: String, onBack: () -> Unit
                 .ifBlank { user.displayName ?: user.email ?: "Unknown user" }
 
             try {
-                val backendInfo = fetchButton1BackendInfo(apiBaseUrl)
+                val backendInfo = fetchButton1BackendInfo(apiBaseUrl, user.idToken)
                 uiState = uiState.copy(
                     isLoading = false,
                     error = null,

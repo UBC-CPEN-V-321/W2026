@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 
+import { requireGoogleAuth } from './auth';
 import { env } from './config/env';
 import { getServerPublicIp } from './server-ip';
 import { formatGmtOffsetTime } from './time';
@@ -25,16 +26,16 @@ export function createApp(): Express {
     res.json({ status: 'ok' });
   });
 
-  app.get('/api/server-ip', async (_req, res) => {
+  app.get('/api/server-ip', requireGoogleAuth, async (_req, res) => {
     const ip = await getServerPublicIp();
     res.json({ ip });
   });
 
-  app.get('/api/server-time', (_req, res) => {
+  app.get('/api/server-time', requireGoogleAuth, (_req, res) => {
     res.json({ time: formatGmtOffsetTime(new Date()) });
   });
 
-  app.get('/api/name', (_req, res) => {
+  app.get('/api/name', requireGoogleAuth, (_req, res) => {
     res.json({ first: env.developerFirstName, last: env.developerLastName });
   });
 

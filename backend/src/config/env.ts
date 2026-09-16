@@ -17,4 +17,5 @@ export const env = {
   serverPublicIp: process.env.SERVER_PUBLIC_IP,
   developerFirstName: process.env.DEVELOPER_FIRST_NAME ?? '',
   developerLastName: process.env.DEVELOPER_LAST_NAME ?? '',
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
 } as const;
