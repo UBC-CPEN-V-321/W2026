@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dev builds hit the emulator host (10.0.2.2) over plain HTTP. Production
+  hits the deployed backend over HTTPS with a self-signed cert, which is
+  trusted here explicitly instead of via system-wide cleartext/CA trust.
+  Replace res/raw/backend_cert.pem with the backend's actual public cert
+  once it's generated on the VM (see backend deployment notes).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">REPLACE_WITH_VM_PUBLIC_IP</domain>
+        <trust-anchors>
+            <certificates src="@raw/backend_cert"/>
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
