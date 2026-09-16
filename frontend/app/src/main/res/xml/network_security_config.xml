@@ -11,7 +11,7 @@
         <domain includeSubdomains="false">10.0.2.2</domain>
     </domain-config>
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="false">REPLACE_WITH_VM_PUBLIC_IP</domain>
+        <domain includeSubdomains="false">8.235.107.218</domain>
         <trust-anchors>
             <certificates src="@raw/backend_cert"/>
         </trust-anchors>
