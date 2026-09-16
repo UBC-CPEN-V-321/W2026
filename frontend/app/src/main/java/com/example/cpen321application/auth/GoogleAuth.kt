@@ -5,7 +5,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 
@@ -21,10 +21,10 @@ data class GoogleUser(
 // path on Android, replacing the deprecated GoogleSignInClient API.
 suspend fun signInWithGoogle(context: Context, serverClientId: String): Result<GoogleUser> {
     return try {
-        val option = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(serverClientId)
-            .build()
+        // GetSignInWithGoogleOption (vs. GetGoogleIdOption's minimal One Tap sheet)
+        // renders the full account-chooser UI — chevron to expand all device
+        // accounts, plus "Add account to device" — same as Chrome's picker.
+        val option = GetSignInWithGoogleOption.Builder(serverClientId).build()
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(option)
             .build()
