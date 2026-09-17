@@ -20,9 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.cpen321application.ui.button1.Button1Screen
+import com.example.cpen321application.ui.button2.Button2Screen
 import com.example.cpen321application.ui.theme.CPEN321ApplicationTheme
 
-private enum class Screen { HOME, BUTTON1 }
+private enum class Screen { HOME, BUTTON1, BUTTON2 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +46,7 @@ private fun AppRoot(modifier: Modifier = Modifier) {
     when (screen) {
         Screen.HOME -> HomeScreen(
             onButton1Click = { screen = Screen.BUTTON1 },
+            onButton2Click = { screen = Screen.BUTTON2 },
             modifier = modifier
         )
         Screen.BUTTON1 -> Button1Screen(
@@ -53,11 +55,20 @@ private fun AppRoot(modifier: Modifier = Modifier) {
             onBack = { screen = Screen.HOME },
             modifier = modifier
         )
+        Screen.BUTTON2 -> Button2Screen(
+            apiBaseUrl = BuildConfig.API_BASE_URL,
+            onBack = { screen = Screen.HOME },
+            modifier = modifier
+        )
     }
 }
 
 @Composable
-private fun HomeScreen(onButton1Click: () -> Unit, modifier: Modifier = Modifier) {
+private fun HomeScreen(
+    onButton1Click: () -> Unit,
+    onButton2Click: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -67,7 +78,7 @@ private fun HomeScreen(onButton1Click: () -> Unit, modifier: Modifier = Modifier
         Button(onClick = onButton1Click, modifier = Modifier.fillMaxWidth()) {
             Text("Login + Server")
         }
-        Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onButton2Click, modifier = Modifier.fillMaxWidth()) {
             Text("Live Updates")
         }
         Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {

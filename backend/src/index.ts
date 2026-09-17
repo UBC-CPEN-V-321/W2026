@@ -3,6 +3,7 @@ import { createServer as createHttpsServer } from 'node:https';
 
 import { createApp } from './app';
 import { env } from './config/env';
+import { attachLiveUpdates } from './live-updates';
 
 const app = createApp();
 
@@ -25,6 +26,8 @@ const server = hasSslConfig
   : app.listen(env.port, () => {
       console.log(`HTTP server listening on port ${env.port}`);
     });
+
+attachLiveUpdates(server);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
