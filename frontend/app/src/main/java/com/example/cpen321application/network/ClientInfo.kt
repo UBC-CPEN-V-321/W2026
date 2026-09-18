@@ -1,6 +1,5 @@
 package com.example.cpen321application.network
 
-import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -8,14 +7,10 @@ import kotlin.math.abs
 
 fun getClientPrivateIp(): String {
     val interfaces = NetworkInterface.getNetworkInterfaces() ?: return "unknown"
-    for (networkInterface in interfaces) {
-        for (address in networkInterface.inetAddresses) {
-            if (!address.isLoopbackAddress && address is Inet4Address) {
-                return address.hostAddress ?: "unknown"
-            }
-        }
-    }
-    return "unknown"
+    val address = interfaces.toList()
+        .flatMap { it.inetAddresses.toList() }
+        .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+    return address?.hostAddress?.substringBefore('%') ?: "unknown"
 }
 
 private val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")

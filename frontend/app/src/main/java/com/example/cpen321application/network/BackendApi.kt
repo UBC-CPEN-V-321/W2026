@@ -30,10 +30,14 @@ private suspend fun fetchJson(url: String, idToken: String): JSONObject = withCo
         readTimeout = 5_000
         setRequestProperty("Authorization", "Bearer $idToken")
     }
-    val code = connection.responseCode
-    if (code != HttpURLConnection.HTTP_OK) {
-        throw IOException("GET $url failed with HTTP $code")
+    try {
+        val code = connection.responseCode
+        if (code != HttpURLConnection.HTTP_OK) {
+            throw IOException("GET $url failed with HTTP $code")
+        }
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        JSONObject(body)
+    } finally {
+        connection.disconnect()
     }
-    val body = connection.inputStream.bufferedReader().use { it.readText() }
-    JSONObject(body)
 }

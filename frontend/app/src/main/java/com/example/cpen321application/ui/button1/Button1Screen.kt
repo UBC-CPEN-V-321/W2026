@@ -53,7 +53,7 @@ fun Button1Screen(apiBaseUrl: String, googleClientId: String, onBack: () -> Unit
             if (user == null) {
                 uiState = uiState.copy(
                     isLoading = false,
-                    error = "Sign-in failed: ${userResult.exceptionOrNull()?.message ?: "unknown error"}"
+                    error = "Sign-in failed. Please try again."
                 )
                 return@launch
             }
@@ -77,7 +77,7 @@ fun Button1Screen(apiBaseUrl: String, googleClientId: String, onBack: () -> Unit
             } catch (e: IOException) {
                 uiState = uiState.copy(
                     isLoading = false,
-                    error = "Backend request failed: ${e.message}",
+                    error = "Couldn't reach the server. Please try again.",
                     signedInUserName = signedInName
                 )
             }
