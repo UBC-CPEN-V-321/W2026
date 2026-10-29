@@ -90,6 +90,7 @@ function sendError(response: Response, error: unknown): void {
       error: {
         code: 'ITINERARY_TIME_CONFLICT',
         message: error.message,
+        conflicts: error.conflicts,
       },
     });
     return;
@@ -204,6 +205,7 @@ export function createItineraryRouter(
         userId,
         itineraryId,
         activityInput,
+        request.query.replaceConflicts === 'true',
       );
       response.status(201).json({ activity });
     } catch (error: unknown) {
@@ -225,6 +227,7 @@ export function createItineraryRouter(
           itineraryId,
           itemId,
           update,
+          request.query.replaceConflicts === 'true',
         );
         response.json({ activity });
       } catch (error: unknown) {
@@ -260,6 +263,7 @@ export function createItineraryRouter(
             userId,
             itineraryId,
             segmentInput,
+            request.query.replaceConflicts === 'true',
           );
         response.status(201).json({ transportationSegment });
       } catch (error: unknown) {
@@ -283,6 +287,7 @@ export function createItineraryRouter(
             itineraryId,
             itemId,
             update,
+            request.query.replaceConflicts === 'true',
           );
         response.json({ transportationSegment });
       } catch (error: unknown) {
