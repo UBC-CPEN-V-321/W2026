@@ -67,6 +67,7 @@ fun ProfileRoute(
     userId: String?,
     usersRepository: UsersRepository,
     modifier: Modifier = Modifier,
+    onPreferencesSaved: () -> Unit = {},
 ) {
     val state = remember(userId) { ProfileRouteState(userId) }
     val scope = rememberCoroutineScope()
@@ -83,7 +84,12 @@ fun ProfileRoute(
         state = state.screenState,
         isLoading = state.isLoading,
         hasUser = state.hasUser,
-        actions = createProfileActions(state, scope, usersRepository),
+        actions = createProfileActions(
+            state,
+            scope,
+            usersRepository,
+            onPreferencesSaved,
+        ),
         modifier = modifier,
     )
 }
@@ -126,6 +132,7 @@ private fun createProfileActions(
     state: ProfileRouteState,
     scope: CoroutineScope,
     usersRepository: UsersRepository,
+    onPreferencesSaved: () -> Unit,
 ) = ProfileScreenActions(
     onEditProfile = { state.isEditingProfile = true },
     onCancelProfileEdit = { state.isEditingProfile = false },
@@ -139,8 +146,12 @@ private fun createProfileActions(
         }
     },
     onSavePreferences = { update ->
+        val preferencesChanged = update.preferences != null &&
+            update.preferences != state.preferences
         if (state.hasUser) {
-            saveRouteUpdate(state, scope, usersRepository, update, "Preferences saved.")
+            saveRouteUpdate(state, scope, usersRepository, update, "Preferences saved.") {
+                if (preferencesChanged) onPreferencesSaved()
+            }
         } else {
             state.saveLocally(update, "Preferences selected.")
         }
