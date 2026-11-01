@@ -11,7 +11,8 @@ import com.exploreUBC.cpen321application.data.itineraries.CreateItineraryInput
 import com.exploreUBC.cpen321application.data.itineraries.CreateTransportationInput
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
 import com.exploreUBC.cpen321application.data.itineraries.Itinerary
-import com.exploreUBC.cpen321application.data.itineraries.ItineraryDetails
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryMap
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryUpdate
 import com.exploreUBC.cpen321application.data.itineraries.TransportationItem
 import com.exploreUBC.cpen321application.data.itineraries.TransportationSegmentUpdate
 import com.exploreUBC.cpen321application.data.users.BudgetPreference
@@ -27,7 +28,6 @@ import com.exploreUBC.cpen321application.data.users.UsersRepository
 fun AccessibilityTestApp() {
     CPEN321ApplicationApp(
         userId = "test-user",
-        displayName = "Test User",
         usersRepository = TestRepositories.users,
         itinerariesRepository = TestRepositories.itineraries,
         eventsRepository = TestRepositories.events,
@@ -58,18 +58,35 @@ object TestRepositories {
             itineraryId: String,
         ): Itinerary = testItinerary(userId)
 
-        override suspend fun updateItineraryDetails(
+        override suspend fun generateRecommendations(userId: String): List<Itinerary> =
+            emptyList()
+
+        override suspend fun getItineraryMap(
             userId: String,
             itineraryId: String,
-            details: ItineraryDetails,
-        ): Itinerary = testItinerary(
-            userId = userId,
-            input = CreateItineraryInput(
-                name = details.name,
-                description = details.description,
-                startingLocation = details.startingLocation,
-            ),
+        ): ItineraryMap = ItineraryMap(
+            itineraryId = itineraryId,
+            ownerId = userId,
+            itineraryUpdatedAt = "2026-01-01T00:00:00.000Z",
+            markers = emptyList(),
+            routes = emptyList(),
+            unmappedActivities = emptyList(),
+            generatedAt = "2026-01-01T00:00:00.000Z",
         )
+
+        override suspend fun updateItinerary(
+            userId: String,
+            itineraryId: String,
+            update: ItineraryUpdate,
+        ): Itinerary = testItinerary(userId).copy(
+            name = update.name ?: "Test itinerary",
+            description = update.description,
+            startingLocation = update.startingLocation,
+            saved = update.saved ?: true,
+            inRecommendation = update.inRecommendation ?: false,
+        )
+
+        override suspend fun deleteItinerary(userId: String, itineraryId: String) = Unit
 
         override suspend fun addActivity(
             userId: String,
