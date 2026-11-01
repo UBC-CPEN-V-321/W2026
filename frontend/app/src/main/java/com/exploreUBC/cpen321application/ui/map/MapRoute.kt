@@ -205,12 +205,14 @@ private fun MapBackground(selectedItineraryId: String?, uiState: MapRouteUiState
         } else {
             MapLayerMode.TRIP_ROUTES
         },
-        itineraryMap = (uiState.itineraryMapState as? SelectedMapState.Ready)?.map,
-        overlayTitle = uiState.selectedItinerary?.name,
-        travelMode = uiState.travelMode,
-        selectedRouteKey = uiState.selectedRouteKey,
-        controlsBottomInsetPx = uiState.overlayHeightPx,
-        popularPlacesEnabled = uiState.popularPlacesEnabled,
+        options = CampusMapViewOptions(
+            itineraryMap = (uiState.itineraryMapState as? SelectedMapState.Ready)?.map,
+            overlayTitle = uiState.selectedItinerary?.name,
+            travelMode = uiState.travelMode,
+            selectedRouteKey = uiState.selectedRouteKey,
+            controlsBottomInsetPx = uiState.overlayHeightPx,
+            popularPlacesEnabled = uiState.popularPlacesEnabled,
+        ),
         modifier = Modifier.fillMaxSize(),
     )
 }
