@@ -33,15 +33,22 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.exploreUBC.cpen321application.data.events.Event
 import com.exploreUBC.cpen321application.data.events.EventsRepository
+import com.exploreUBC.cpen321application.data.location.UserLocation
 import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
 import com.exploreUBC.cpen321application.data.itineraries.CreateItineraryInput
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
 import com.exploreUBC.cpen321application.data.itineraries.Itinerary
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryTimeConflict
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryTimeConflictException
+import com.exploreUBC.cpen321application.ui.trips.DateTimePickerField
+import com.exploreUBC.cpen321application.ui.trips.TimeConflictDialog
+import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.launch
+import org.json.JSONException
 
 private const val EVENTS_PAGE_SIZE = 20
 
@@ -50,178 +57,329 @@ fun LiveEventsScreen(
     userId: String?,
     eventsRepository: EventsRepository,
     itinerariesRepository: ItinerariesRepository,
+    location: UserLocation = UserLocation.UBC,
+    initialEvents: List<Event> = emptyList(),
+    onFirstPageLoaded: (List<Event>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var events by remember { mutableStateOf<List<Event>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var isLoadingMore by remember { mutableStateOf(false) }
-    var hasMoreEvents by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var currentPage by remember { mutableStateOf(1) }
-    var requestCount by remember { mutableStateOf(0) }
-    var eventToAdd by remember { mutableStateOf<Event?>(null) }
-    var itineraries by remember { mutableStateOf<List<Itinerary>>(emptyList()) }
-    var isLoadingItineraries by remember { mutableStateOf(false) }
-    var isAddingToItinerary by remember { mutableStateOf(false) }
-    var itineraryError by remember { mutableStateOf<String?>(null) }
-    var itineraryStatus by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+    val state = remember(userId, location) { LiveEventsScreenState(initialEvents) }
+    LoadEventsEffect(userId, location, eventsRepository, state, onFirstPageLoaded)
+    LoadItinerariesEffect(userId, itinerariesRepository, state)
+    LiveEventsContent(state, modifier)
+    EventItineraryDialog(userId, itinerariesRepository, state)
+}
 
-    LaunchedEffect(userId, eventsRepository, currentPage, requestCount) {
-        val isFirstPage = currentPage == 1
-        isLoading = isFirstPage
-        isLoadingMore = !isFirstPage
-        errorMessage = null
+private class LiveEventsScreenState(initialEvents: List<Event>) {
+    var events by mutableStateOf(initialEvents)
+    var isLoading by mutableStateOf(initialEvents.isEmpty())
+    var isLoadingMore by mutableStateOf(false)
+    var hasMoreEvents by mutableStateOf(
+        initialEvents.isEmpty() || initialEvents.size == EVENTS_PAGE_SIZE,
+    )
+    var errorMessage by mutableStateOf<String?>(null)
+    var currentPage by mutableStateOf(1)
+    var requestCount by mutableStateOf(0)
+    var eventToAdd by mutableStateOf<Event?>(null)
+    var itineraries by mutableStateOf<List<Itinerary>>(emptyList())
+    var isLoadingItineraries by mutableStateOf(false)
+    var isAddingToItinerary by mutableStateOf(false)
+    var itineraryError by mutableStateOf<String?>(null)
+    var itineraryStatus by mutableStateOf<String?>(null)
+    var pendingReplacement by mutableStateOf<PendingEventReplacement?>(null)
+
+    fun selectEvent(event: Event) {
+        itineraryStatus = null
+        eventToAdd = event
+    }
+
+    fun loadMore() {
+        if (errorMessage == null) currentPage++ else requestCount++
+    }
+
+    fun refresh() {
+        events = emptyList()
+        hasMoreEvents = true
+        if (currentPage == 1) requestCount++ else currentPage = 1
+    }
+}
+
+private data class PendingEventReplacement(
+    val itinerary: Itinerary,
+    val activity: CreateActivityInput,
+    val conflicts: List<ItineraryTimeConflict>,
+)
+
+@Composable
+private fun LoadEventsEffect(
+    userId: String?,
+    location: UserLocation,
+    repository: EventsRepository,
+    state: LiveEventsScreenState,
+    onFirstPageLoaded: (List<Event>) -> Unit,
+) {
+    LaunchedEffect(
+        userId,
+        location,
+        repository,
+        state.currentPage,
+        state.requestCount,
+    ) {
+        val isFirstPage = state.currentPage == 1
+        state.isLoading = isFirstPage
+        state.isLoadingMore = !isFirstPage
+        state.errorMessage = null
         if (userId.isNullOrBlank()) {
-            errorMessage = "User is unavailable"
-            isLoading = false
-            isLoadingMore = false
-            return@LaunchedEffect
-        }
-        try {
-            val newEvents = eventsRepository.getEvents(
-                userId = userId,
-                latitude = 49.2606,
-                longitude = -123.2460,
-                page = currentPage,
-                limit = EVENTS_PAGE_SIZE,
-            )
-            events = if (isFirstPage) {
-                newEvents
-            } else {
-                (events + newEvents).distinctBy { it.id }
+            state.errorMessage = "User is unavailable"
+            state.isLoading = false
+            state.isLoadingMore = false
+        } else {
+            try {
+                val newEvents = repository.getEvents(
+                    userId,
+                    location.latitude,
+                    location.longitude,
+                    state.currentPage,
+                    EVENTS_PAGE_SIZE,
+                )
+                state.events = if (isFirstPage) {
+                    newEvents
+                } else {
+                    (state.events + newEvents).distinctBy { it.id }
+                }
+                if (isFirstPage) onFirstPageLoaded(newEvents)
+                state.hasMoreEvents = newEvents.size == EVENTS_PAGE_SIZE
+            } catch (error: IOException) {
+                state.errorMessage = error.message ?: "Unable to load events"
+            } catch (error: JSONException) {
+                state.errorMessage = error.message ?: "Unable to load events"
+            } finally {
+                state.isLoading = false
+                state.isLoadingMore = false
             }
-            hasMoreEvents = newEvents.size == EVENTS_PAGE_SIZE
-        } catch (error: Exception) {
-            errorMessage = error.message ?: "Unable to load events"
-        } finally {
-            isLoading = false
-            isLoadingMore = false
         }
     }
+}
 
-    LaunchedEffect(eventToAdd, userId, itinerariesRepository) {
-        if (eventToAdd == null || userId.isNullOrBlank()) {
-            return@LaunchedEffect
+@Composable
+private fun LoadItinerariesEffect(
+    userId: String?,
+    repository: ItinerariesRepository,
+    state: LiveEventsScreenState,
+) {
+    LaunchedEffect(state.eventToAdd, userId, repository) {
+        if (state.eventToAdd != null && !userId.isNullOrBlank()) {
+            state.isLoadingItineraries = true
+            state.itineraryError = null
+            runCatching { repository.getItineraries(userId, saved = true) }
+                .onSuccess { state.itineraries = it }
+                .onFailure {
+                    state.itineraryError = it.message ?: "Unable to load itineraries"
+                }
+            state.isLoadingItineraries = false
         }
-        isLoadingItineraries = true
-        itineraryError = null
-        runCatching {
-            itinerariesRepository.getItineraries(userId, saved = true)
-        }.onSuccess {
-            itineraries = it
-        }.onFailure {
-            itineraryError = it.message ?: "Unable to load itineraries"
-        }
-        isLoadingItineraries = false
     }
+}
 
+@Composable
+private fun LiveEventsContent(state: LiveEventsScreenState, modifier: Modifier) {
     when {
-        isLoading -> Column(
+        state.isLoading -> Column(
             modifier = modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CircularProgressIndicator()
         }
-        errorMessage != null && events.isEmpty() -> MessageWithButton(
-            message = errorMessage ?: "Unable to load events",
+        state.errorMessage != null && state.events.isEmpty() -> MessageWithButton(
+            message = state.errorMessage ?: "Unable to load events",
             buttonText = "Retry",
-            onClick = { requestCount++ },
-            modifier = modifier
+            onClick = { state.requestCount++ },
+            modifier = modifier,
         )
-        events.isEmpty() -> MessageWithButton(
+        state.events.isEmpty() -> MessageWithButton(
             message = "No events found",
             buttonText = "Refresh",
-            onClick = { requestCount++ },
-            modifier = modifier
+            onClick = { state.requestCount++ },
+            modifier = modifier,
         )
         else -> EventList(
-            events = events,
-            hasMoreEvents = hasMoreEvents,
-            isLoadingMore = isLoadingMore,
-            loadMoreError = errorMessage,
-            itineraryStatus = itineraryStatus,
-            onAddToItinerary = {
-                itineraryStatus = null
-                eventToAdd = it
-            },
-            onLoadMore = {
-                if (errorMessage == null) {
-                    currentPage++
-                } else {
-                    requestCount++
-                }
-            },
-            onRefresh = {
-                events = emptyList()
-                hasMoreEvents = true
-                if (currentPage == 1) {
-                    requestCount++
-                } else {
-                    currentPage = 1
-                }
-            },
-            modifier = modifier
+            state = EventListState(
+                events = state.events,
+                hasMoreEvents = state.hasMoreEvents,
+                isLoadingMore = state.isLoadingMore,
+                loadMoreError = state.errorMessage,
+                itineraryStatus = state.itineraryStatus,
+            ),
+            onAddToItinerary = state::selectEvent,
+            onLoadMore = state::loadMore,
+            onRefresh = state::refresh,
+            modifier = modifier,
         )
     }
+}
 
-    val selectedEvent = eventToAdd
-    if (selectedEvent != null) {
-        AddToItineraryDialog(
-            event = selectedEvent,
-            itineraries = itineraries,
-            isLoading = isLoadingItineraries,
-            isWorking = isAddingToItinerary,
-            errorMessage = itineraryError,
-            onDismiss = { eventToAdd = null },
-            onSelect = { itinerary ->
-                val currentUserId = userId ?: return@AddToItineraryDialog
-                scope.launch {
-                    isAddingToItinerary = true
-                    itineraryError = null
-                    runCatching {
-                        itinerariesRepository.addActivity(
-                            currentUserId,
-                            itinerary.id,
-                            selectedEvent.toActivityInput(),
-                        )
-                    }.onSuccess {
-                        itineraryStatus = "Added to ${itinerary.name}."
-                        eventToAdd = null
-                    }.onFailure {
-                        itineraryError = it.message ?: "Unable to add event"
-                    }
-                    isAddingToItinerary = false
-                }
-            },
-            onCreate = { itineraryName ->
-                val currentUserId = userId ?: return@AddToItineraryDialog
-                scope.launch {
-                    isAddingToItinerary = true
-                    itineraryError = null
-                    runCatching {
-                        val itinerary = itinerariesRepository.createItinerary(
-                            currentUserId,
-                            CreateItineraryInput(name = itineraryName),
-                        )
-                        itinerariesRepository.addActivity(
-                            currentUserId,
-                            itinerary.id,
-                            selectedEvent.toActivityInput(),
-                        )
-                        itinerary
-                    }.onSuccess {
-                        itineraryStatus = "Created ${it.name} and added the event."
-                        eventToAdd = null
-                    }.onFailure {
-                        itineraryError = it.message ?: "Unable to create itinerary"
-                    }
-                    isAddingToItinerary = false
-                }
-            },
+@Composable
+private fun EventItineraryDialog(
+    userId: String?,
+    repository: ItinerariesRepository,
+    state: LiveEventsScreenState,
+) {
+    val pendingReplacement = state.pendingReplacement
+    if (pendingReplacement != null) {
+        EventReplacementDialog(
+            userId = userId,
+            repository = repository,
+            state = state,
+            replacement = pendingReplacement,
         )
+        return
     }
+    val selectedEvent = state.eventToAdd ?: return
+    EventSelectionDialog(userId, repository, state, selectedEvent)
+}
+
+@Composable
+private fun EventReplacementDialog(
+    userId: String?,
+    repository: ItinerariesRepository,
+    state: LiveEventsScreenState,
+    replacement: PendingEventReplacement,
+) {
+    val scope = rememberCoroutineScope()
+    TimeConflictDialog(
+        conflicts = replacement.conflicts,
+        isWorking = state.isAddingToItinerary,
+        onKeepExisting = {
+            state.pendingReplacement = null
+            state.eventToAdd = null
+        },
+        onReplace = {
+            if (userId.isNullOrBlank()) {
+                state.itineraryError = "User is unavailable"
+            } else {
+                scope.launch {
+                    addEventToItinerary(
+                        repository,
+                        userId,
+                        replacement.itinerary,
+                        replacement.activity,
+                        state,
+                        replaceConflicts = true,
+                    )
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun EventSelectionDialog(
+    userId: String?,
+    repository: ItinerariesRepository,
+    state: LiveEventsScreenState,
+    selectedEvent: Event,
+) {
+    val scope = rememberCoroutineScope()
+    AddEventToItineraryDialog(
+        state = AddToItineraryDialogState(
+            selectedEvent,
+            state.itineraries,
+            state.isLoadingItineraries,
+            state.isAddingToItinerary,
+            state.itineraryError,
+        ),
+        onDismiss = { state.eventToAdd = null },
+        onSelect = { itinerary, endTime ->
+            if (userId.isNullOrBlank()) {
+                state.itineraryError = "User is unavailable"
+            } else {
+                scope.launch {
+                    addEventToItinerary(
+                        repository,
+                        userId,
+                        itinerary,
+                        selectedEvent.toActivityInput(endTime),
+                        state,
+                    )
+                }
+            }
+        },
+        onCreate = { name, endTime ->
+            if (userId.isNullOrBlank()) {
+                state.itineraryError = "User is unavailable"
+            } else {
+                scope.launch {
+                    createItineraryWithEvent(
+                        repository,
+                        userId,
+                        name,
+                        selectedEvent.toActivityInput(endTime),
+                        state,
+                    )
+                }
+            }
+        },
+    )
+}
+
+private suspend fun addEventToItinerary(
+    repository: ItinerariesRepository,
+    userId: String,
+    itinerary: Itinerary,
+    activity: CreateActivityInput,
+    state: LiveEventsScreenState,
+    replaceConflicts: Boolean = false,
+) {
+    state.isAddingToItinerary = true
+    state.itineraryError = null
+    runCatching {
+        repository.addActivity(
+            userId,
+            itinerary.id,
+            activity,
+            replaceConflicts,
+        )
+    }.onSuccess {
+        state.itineraryStatus = "Added to ${itinerary.name}."
+        state.pendingReplacement = null
+        state.eventToAdd = null
+    }.onFailure {
+        if (it is ItineraryTimeConflictException) {
+            state.pendingReplacement = PendingEventReplacement(
+                itinerary,
+                activity,
+                it.conflicts,
+            )
+        } else {
+            state.itineraryError = it.message ?: "Unable to add event"
+        }
+    }
+    state.isAddingToItinerary = false
+}
+
+private suspend fun createItineraryWithEvent(
+    repository: ItinerariesRepository,
+    userId: String,
+    itineraryName: String,
+    activity: CreateActivityInput,
+    state: LiveEventsScreenState,
+) {
+    state.isAddingToItinerary = true
+    state.itineraryError = null
+    runCatching {
+        val itinerary = repository.createItinerary(
+            userId,
+            CreateItineraryInput(name = itineraryName),
+        )
+        repository.addActivity(userId, itinerary.id, activity)
+        itinerary
+    }.onSuccess {
+        state.itineraryStatus = "Created ${it.name} and added the event."
+        state.eventToAdd = null
+    }.onFailure {
+        state.itineraryError = it.message ?: "Unable to create itinerary"
+    }
+    state.isAddingToItinerary = false
 }
 
 @Composable
@@ -245,13 +403,17 @@ private fun MessageWithButton(
     }
 }
 
+private data class EventListState(
+    val events: List<Event>,
+    val hasMoreEvents: Boolean,
+    val isLoadingMore: Boolean,
+    val loadMoreError: String?,
+    val itineraryStatus: String?,
+)
+
 @Composable
 private fun EventList(
-    events: List<Event>,
-    hasMoreEvents: Boolean,
-    isLoadingMore: Boolean,
-    loadMoreError: String?,
-    itineraryStatus: String?,
+    state: EventListState,
     onAddToItinerary: (Event) -> Unit,
     onLoadMore: () -> Unit,
     onRefresh: () -> Unit,
@@ -275,33 +437,33 @@ private fun EventList(
                 }
             }
         }
-        if (itineraryStatus != null) {
+        if (state.itineraryStatus != null) {
             item {
-                Text(itineraryStatus, color = MaterialTheme.colorScheme.primary)
+                Text(state.itineraryStatus, color = MaterialTheme.colorScheme.primary)
             }
         }
-        items(events, key = { it.id }) { event ->
+        items(state.events, key = { it.id }) { event ->
             EventCard(event, onAddToItinerary)
         }
-        if (loadMoreError != null) {
+        if (state.loadMoreError != null) {
             item {
                 Text(
-                    text = loadMoreError,
+                    text = state.loadMoreError,
                     color = MaterialTheme.colorScheme.error
                 )
             }
         }
-        if (hasMoreEvents) {
+        if (state.hasMoreEvents) {
             item {
                 Button(
                     onClick = onLoadMore,
-                    enabled = !isLoadingMore,
+                    enabled = !state.isLoadingMore,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         when {
-                            isLoadingMore -> "Loading..."
-                            loadMoreError != null -> "Retry loading"
+                            state.isLoadingMore -> "Loading..."
+                            state.loadMoreError != null -> "Retry loading"
                             else -> "Load more"
                         }
                     )
@@ -356,73 +518,129 @@ private fun EventCard(
     }
 }
 
-/** Displays itinerary choices for an event. */
+private data class AddToItineraryDialogState(
+    val event: Event,
+    val itineraries: List<Itinerary>,
+    val isLoading: Boolean,
+    val isWorking: Boolean,
+    val errorMessage: String?,
+)
+
+private data class AddEventFormState(
+    val itineraryName: String,
+    val endTime: String,
+    val hasValidEndTime: Boolean,
+)
+
 @Composable
-private fun AddToItineraryDialog(
-    event: Event,
-    itineraries: List<Itinerary>,
-    isLoading: Boolean,
-    isWorking: Boolean,
-    errorMessage: String?,
+private fun AddEventToItineraryDialog(
+    state: AddToItineraryDialogState,
     onDismiss: () -> Unit,
-    onSelect: (Itinerary) -> Unit,
-    onCreate: (String) -> Unit,
+    onSelect: (Itinerary, String) -> Unit,
+    onCreate: (String, String) -> Unit,
 ) {
-    var itineraryName by remember(event.id) { mutableStateOf("") }
+    var itineraryName by remember(state.event.id) { mutableStateOf("") }
+    var endTime by remember(state.event.id) {
+        mutableStateOf(state.event.suggestedEndTime())
+    }
+    val hasValidEndTime = endTime.isAfter(state.event.startDateTime)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add ${event.title}") },
+        title = { Text("Add ${state.event.title}") },
         text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                when {
-                    isLoading -> CircularProgressIndicator()
-                    itineraries.isEmpty() -> {
-                        Text("You do not have an itinerary yet.")
-                        OutlinedTextField(
-                            value = itineraryName,
-                            onValueChange = { itineraryName = it },
-                            label = { Text("Itinerary name") },
-                            enabled = !isWorking,
-                        )
-                        Button(
-                            onClick = { onCreate(itineraryName.trim()) },
-                            enabled = itineraryName.isNotBlank() && !isWorking,
-                        ) {
-                            Text(if (isWorking) "Creating..." else "Create and add")
-                        }
-                    }
-                    else -> itineraries.forEach { itinerary ->
-                        OutlinedButton(
-                            onClick = { onSelect(itinerary) },
-                            enabled = !isWorking,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(itinerary.name)
-                        }
-                    }
-                }
-                if (errorMessage != null) {
-                    Text(errorMessage, color = MaterialTheme.colorScheme.error)
-                }
-            }
+            AddEventDialogBody(
+                state = state,
+                form = AddEventFormState(itineraryName, endTime, hasValidEndTime),
+                onNameChange = { itineraryName = it },
+                onEndTimeChange = { endTime = it },
+                onSelect = onSelect,
+                onCreate = onCreate,
+            )
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isWorking) {
+            TextButton(onClick = onDismiss, enabled = !state.isWorking) {
                 Text("Cancel")
             }
         },
     )
 }
 
-/** Converts an event into a two-hour itinerary activity. */
-private fun Event.toActivityInput(): CreateActivityInput {
-    val endTime = Instant.parse(startDateTime).plusSeconds(2 * 60 * 60).toString()
-    return CreateActivityInput(
+@Composable
+private fun AddEventDialogBody(
+    state: AddToItineraryDialogState,
+    form: AddEventFormState,
+    onNameChange: (String) -> Unit,
+    onEndTimeChange: (String) -> Unit,
+    onSelect: (Itinerary, String) -> Unit,
+    onCreate: (String, String) -> Unit,
+) {
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Starts: ${formatDate(state.event.startDateTime)}")
+        DateTimePickerField(
+            label = "End time",
+            value = form.endTime,
+            onValueChange = onEndTimeChange,
+            tag = "event_end_time",
+        )
+        if (!form.hasValidEndTime) {
+            Text(
+                "End time must be after the event start time.",
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        when {
+            state.isLoading -> CircularProgressIndicator()
+            state.itineraries.isEmpty() -> {
+                Text("You do not have an itinerary yet.")
+                OutlinedTextField(
+                    value = form.itineraryName,
+                    onValueChange = onNameChange,
+                    label = { Text("Itinerary name") },
+                    enabled = !state.isWorking,
+                )
+                Button(
+                    onClick = { onCreate(form.itineraryName.trim(), form.endTime) },
+                    enabled = form.itineraryName.isNotBlank() &&
+                        form.hasValidEndTime && !state.isWorking,
+                ) {
+                    Text(if (state.isWorking) "Creating..." else "Create and add")
+                }
+            }
+            else -> state.itineraries.forEach { itinerary ->
+                OutlinedButton(
+                    onClick = { onSelect(itinerary, form.endTime) },
+                    enabled = form.hasValidEndTime && !state.isWorking,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(itinerary.name)
+                }
+            }
+        }
+        if (state.errorMessage != null) {
+            Text(state.errorMessage, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+private fun Event.suggestedEndTime(): String {
+    val providedEndTime = endDateTime
+    return if (providedEndTime != null && providedEndTime.isAfter(startDateTime)) {
+        providedEndTime
+    } else {
+        Instant.parse(startDateTime).plusSeconds(2 * 60 * 60).toString()
+    }
+}
+
+private fun String.isAfter(startTime: String): Boolean =
+    runCatching { Instant.parse(this).isAfter(Instant.parse(startTime)) }.getOrDefault(false)
+
+private fun Event.toActivityInput(endTime: String): CreateActivityInput =
+    CreateActivityInput(
         name = title,
         image = imageUrl,
         description = description,
@@ -431,7 +649,6 @@ private fun Event.toActivityInput(): CreateActivityInput {
         startTime = startDateTime,
         endTime = endTime,
     )
-}
 
 private fun formatDate(value: String): String = try {
     val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a")

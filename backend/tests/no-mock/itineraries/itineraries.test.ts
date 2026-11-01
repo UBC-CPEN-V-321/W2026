@@ -115,7 +115,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await database.dropCollection('itineraries');
+  await database.collection('itineraries').deleteMany({});
   await client.close();
 });
 
@@ -591,7 +591,7 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities — no 
       });
 
     expect(response.status).toBe(409);
-    expect(response.body.error.message).toContain('transportation segment');
+    expect(response.body.error.message).toContain('overlaps');
   });
 
   test.each([

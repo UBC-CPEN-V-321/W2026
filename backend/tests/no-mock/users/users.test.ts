@@ -53,7 +53,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await database.dropCollection('users');
+  await database.collection('users').deleteMany({});
   await client.close();
 });
 

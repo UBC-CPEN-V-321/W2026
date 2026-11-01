@@ -15,6 +15,8 @@ import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
 import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.data.itineraries.ItineraryDetails
 import com.exploreUBC.cpen321application.data.itineraries.ItineraryItem
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryTimeConflict
+import com.exploreUBC.cpen321application.data.itineraries.ItineraryTimeConflictException
 import com.exploreUBC.cpen321application.data.itineraries.ItineraryUpdate
 import com.exploreUBC.cpen321application.data.itineraries.TransportationItem
 import com.exploreUBC.cpen321application.data.itineraries.TransportationSegmentUpdate
@@ -27,6 +29,13 @@ internal enum class NewItemType {
     ACTIVITY,
     TRANSPORTATION,
 }
+
+internal data class PendingTimeReplacement(
+    val conflicts: List<ItineraryTimeConflict>,
+    val editedItemId: String?,
+    val successMessage: String,
+    val replace: suspend () -> Itinerary,
+)
 
 internal class TripsRouteState(
     private val userId: String?,
@@ -54,6 +63,8 @@ internal class TripsRouteState(
     var showGenerateConfirmation by mutableStateOf(false)
         private set
     var statusMessage by mutableStateOf<String?>(null)
+        private set
+    var pendingReplacement by mutableStateOf<PendingTimeReplacement?>(null)
         private set
 
     val hasUser: Boolean get() = !userId.isNullOrBlank()
@@ -145,8 +156,23 @@ internal class TripsRouteState(
 
     val updateActivity: (ActivityUpdate) -> Unit = { update ->
         editableItemContext()?.let { context ->
-            saveRequest(
+            saveRequestWithReplacement(
                 failureMessage = "Could not save the activity.",
+                replacement = PendingTimeReplacement(
+                    conflicts = emptyList(),
+                    editedItemId = context.item.id,
+                    successMessage = "Activity saved.",
+                    replace = {
+                        repository.updateActivity(
+                            context.ownerId,
+                            context.itinerary.id,
+                            context.item.id,
+                            update,
+                            true,
+                        )
+                        repository.getItinerary(context.ownerId, context.itinerary.id)
+                    },
+                ),
                 request = {
                     repository.updateActivity(
                         context.ownerId,
@@ -161,8 +187,23 @@ internal class TripsRouteState(
 
     val updateTransportation: (TransportationSegmentUpdate) -> Unit = { update ->
         editableItemContext()?.let { context ->
-            saveRequest(
+            saveRequestWithReplacement(
                 failureMessage = "Could not save transportation.",
+                replacement = PendingTimeReplacement(
+                    conflicts = emptyList(),
+                    editedItemId = context.item.id,
+                    successMessage = "Transportation saved.",
+                    replace = {
+                        repository.updateTransportationSegment(
+                            context.ownerId,
+                            context.itinerary.id,
+                            context.item.id,
+                            update,
+                            true,
+                        )
+                        repository.getItinerary(context.ownerId, context.itinerary.id)
+                    },
+                ),
                 request = {
                     repository.updateTransportationSegment(
                         context.ownerId,
@@ -204,8 +245,22 @@ internal class TripsRouteState(
 
     val addActivity: (CreateActivityInput) -> Unit = { input ->
         itineraryContext()?.let { context ->
-            saveRequest(
+            saveRequestWithReplacement(
                 failureMessage = "Could not add the activity.",
+                replacement = PendingTimeReplacement(
+                    conflicts = emptyList(),
+                    editedItemId = null,
+                    successMessage = "Activity added.",
+                    replace = {
+                        repository.addActivity(
+                            context.ownerId,
+                            context.itinerary.id,
+                            input,
+                            true,
+                        )
+                        repository.getItinerary(context.ownerId, context.itinerary.id)
+                    },
+                ),
                 request = { repository.addActivity(context.ownerId, context.itinerary.id, input) },
             ) { addedItem -> addItem(addedItem, "Activity added.") }
         }
@@ -213,8 +268,22 @@ internal class TripsRouteState(
 
     val addTransportation: (CreateTransportationInput) -> Unit = { input ->
         itineraryContext()?.let { context ->
-            saveRequest(
+            saveRequestWithReplacement(
                 failureMessage = "Could not add transportation.",
+                replacement = PendingTimeReplacement(
+                    conflicts = emptyList(),
+                    editedItemId = null,
+                    successMessage = "Transportation added.",
+                    replace = {
+                        repository.addTransportationSegment(
+                            context.ownerId,
+                            context.itinerary.id,
+                            input,
+                            true,
+                        )
+                        repository.getItinerary(context.ownerId, context.itinerary.id)
+                    },
+                ),
                 request = {
                     repository.addTransportationSegment(
                         context.ownerId,
@@ -300,6 +369,38 @@ internal class TripsRouteState(
         showGenerateConfirmation = false
     }
 
+    val dismissReplacement: () -> Unit = {
+        if (!isSaving) pendingReplacement = null
+    }
+
+    val confirmReplacement: () -> Unit = {
+        val replacement = pendingReplacement
+        if (replacement != null && !isSaving) {
+            scope.launch {
+                isSaving = true
+                statusMessage = null
+                runCatching { replacement.replace() }
+                    .onSuccess { updated ->
+                        updateSelectedItinerary(updated)
+                        selectedItem = replacement.editedItemId?.let { itemId ->
+                            updated.items.find { it.id == itemId }
+                        }
+                        newItemType = null
+                        statusMessage = replacement.successMessage
+                        pendingReplacement = null
+                    }
+                    .onFailure { error ->
+                        if (error is ItineraryTimeConflictException) {
+                            pendingReplacement = replacement.copy(conflicts = error.conflicts)
+                        } else {
+                            statusMessage = error.message ?: "Could not replace schedule items."
+                        }
+                    }
+                isSaving = false
+            }
+        }
+    }
+
     val generateRecommendations: () -> Unit = {
         val ownerId = userId?.takeIf(String::isNotBlank)
         if (ownerId != null) {
@@ -369,6 +470,28 @@ internal class TripsRouteState(
             runCatching { request() }
                 .onSuccess(onSuccess)
                 .onFailure { statusMessage = it.message ?: failureMessage }
+            isSaving = false
+        }
+    }
+
+    private fun <T> saveRequestWithReplacement(
+        failureMessage: String,
+        replacement: PendingTimeReplacement,
+        request: suspend () -> T,
+        onSuccess: (T) -> Unit,
+    ) {
+        scope.launch {
+            isSaving = true
+            statusMessage = null
+            runCatching { request() }
+                .onSuccess(onSuccess)
+                .onFailure { error ->
+                    if (error is ItineraryTimeConflictException) {
+                        pendingReplacement = replacement.copy(conflicts = error.conflicts)
+                    } else {
+                        statusMessage = error.message ?: failureMessage
+                    }
+                }
             isSaving = false
         }
     }

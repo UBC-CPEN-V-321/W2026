@@ -3,6 +3,7 @@ package com.exploreUBC.cpen321application.ui.trips
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -304,9 +305,10 @@ class ItineraryScreenTest {
             )
         }
 
-        composeRule.onNodeWithText("4.9/5").assertIsDisplayed()
-        composeRule.onNodeWithTag("recommended_itinerary_score_itinerary-1")
+        composeRule.onNodeWithTag("recommended_itinerary_itinerary-1")
+            .performScrollTo()
             .assertIsDisplayed()
+            .assertTextContains("4.9/5")
     }
 
     private fun itinerary(saved: Boolean, inRecommendation: Boolean) = Itinerary(

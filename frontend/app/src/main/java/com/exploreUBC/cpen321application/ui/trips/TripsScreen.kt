@@ -70,6 +70,14 @@ fun TripsRoute(
 
     TripsRouteContent(state, onViewMap, modifier)
     if (state.showGenerateConfirmation) GenerateRecommendationsDialog(state)
+    state.pendingReplacement?.let { replacement ->
+        TimeConflictDialog(
+            conflicts = replacement.conflicts,
+            isWorking = state.isSaving,
+            onKeepExisting = state.dismissReplacement,
+            onReplace = state.confirmReplacement,
+        )
+    }
 }
 
 @Composable

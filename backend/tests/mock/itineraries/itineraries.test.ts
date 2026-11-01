@@ -319,6 +319,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-seg
     // Input: valid segment. Expect: 500 INTERNAL_SERVER_ERROR.
     // Mock: insertEmbeddedTransportationSegment rejects.
     const repository = createMockRepository();
+    repository.findItinerary.mockResolvedValue({
+      ...STORED_ITINERARY,
+      items: [],
+    });
     repository.insertEmbeddedTransportationSegment.mockRejectedValue(
       new Error('write failed'),
     );
@@ -336,6 +340,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-seg
     // Input: valid segment. Expect: 404 ITINERARY_NOT_FOUND.
     // Mock: insertEmbeddedTransportationSegment resolves false.
     const repository = createMockRepository();
+    repository.findItinerary.mockResolvedValue({
+      ...STORED_ITINERARY,
+      items: [],
+    });
     repository.insertEmbeddedTransportationSegment.mockResolvedValue(false);
     const app = createApp({ itineraryRepository: repository });
 
