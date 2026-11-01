@@ -18,7 +18,7 @@ const ITINERARY_ID = new ObjectId();
 const MISSING_ITINERARY_ID = new ObjectId();
 const ACTIVITY_ID = 'activity-1';
 const SEGMENT_ID = 'transportation-1';
-const DATABASE_NAME = `exploreubc_jest_itineraries_${new ObjectId().toHexString()}`;
+const DATABASE_NAME = 'cpen321_test_itineraries';
 
 const ACTIVITY_INPUT = {
   type: 'activity',
@@ -115,7 +115,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await database.dropDatabase();
+  await database.collection('itineraries').deleteMany({});
   await client.close();
 });
 
@@ -591,7 +591,7 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities — no 
       });
 
     expect(response.status).toBe(409);
-    expect(response.body.error.message).toContain('transportation segment');
+    expect(response.body.error.message).toContain('overlaps');
   });
 
   test.each([
