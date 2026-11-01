@@ -61,6 +61,8 @@ fun CPEN321ApplicationApp(
     eventsRepository: EventsRepository,
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.EVENTS) }
+    var selectedMapItineraryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var itineraryToOpenInTrips by rememberSaveable { mutableStateOf<String?>(null) }
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
@@ -89,6 +91,12 @@ fun CPEN321ApplicationApp(
                 AppDestinations.TRIPS -> TripsRoute(
                     userId = userId,
                     itinerariesRepository = itinerariesRepository,
+                    itineraryIdToOpen = itineraryToOpenInTrips,
+                    onItineraryOpenRequested = { itineraryToOpenInTrips = null },
+                    onViewMap = { itinerary ->
+                        selectedMapItineraryId = itinerary.id
+                        currentDestination = AppDestinations.MAP
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
                 AppDestinations.EVENTS -> LiveEventsScreen(
@@ -98,6 +106,14 @@ fun CPEN321ApplicationApp(
                     modifier = Modifier.padding(innerPadding),
                 )
                 AppDestinations.MAP -> MapRoute(
+                    userId = userId,
+                    itinerariesRepository = itinerariesRepository,
+                    selectedItineraryId = selectedMapItineraryId,
+                    onItinerarySelected = { selectedMapItineraryId = it },
+                    onVisitItinerary = {
+                        itineraryToOpenInTrips = selectedMapItineraryId
+                        currentDestination = AppDestinations.TRIPS
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
