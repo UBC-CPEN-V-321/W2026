@@ -4,6 +4,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
+import com.exploreUBC.cpen321application.testutil.E2E_RECOMMENDATION_ID
+import com.exploreUBC.cpen321application.testutil.E2E_USER_ID
+import com.exploreUBC.cpen321application.testutil.InMemoryItinerariesRepository
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import org.junit.Rule
 import org.junit.Test

@@ -14,6 +14,8 @@ import com.exploreUBC.cpen321application.data.users.BudgetPreference
 import com.exploreUBC.cpen321application.data.users.InterestPreference
 import com.exploreUBC.cpen321application.data.users.TransportationMode
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
+import com.exploreUBC.cpen321application.testutil.E2E_PROFILE_USER_ID
+import com.exploreUBC.cpen321application.testutil.InMemoryUsersRepository
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule

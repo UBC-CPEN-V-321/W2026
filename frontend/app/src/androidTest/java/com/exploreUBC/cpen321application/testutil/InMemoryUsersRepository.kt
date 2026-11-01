@@ -1,4 +1,4 @@
-package com.exploreUBC.cpen321application.e2e.users
+package com.exploreUBC.cpen321application.testutil
 
 import com.exploreUBC.cpen321application.data.users.BudgetPreference
 import com.exploreUBC.cpen321application.data.users.InterestPreference

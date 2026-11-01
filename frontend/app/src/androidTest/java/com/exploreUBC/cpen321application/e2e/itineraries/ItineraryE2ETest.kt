@@ -14,6 +14,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import com.exploreUBC.cpen321application.testutil.E2E_ACTIVITY_ID
+import com.exploreUBC.cpen321application.testutil.E2E_ITINERARY_ID
+import com.exploreUBC.cpen321application.testutil.E2E_TRANSPORTATION_ID
+import com.exploreUBC.cpen321application.testutil.E2E_USER_ID
+import com.exploreUBC.cpen321application.testutil.InMemoryItinerariesRepository
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

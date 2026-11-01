@@ -1,4 +1,4 @@
-package com.exploreUBC.cpen321application.e2e.itineraries
+package com.exploreUBC.cpen321application.testutil
 
 import com.exploreUBC.cpen321application.data.itineraries.ActivityItem
 import com.exploreUBC.cpen321application.data.itineraries.ActivityUpdate
