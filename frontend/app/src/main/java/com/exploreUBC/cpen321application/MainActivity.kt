@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +116,7 @@ private suspend fun fetchHealthStatus(apiBaseUrl: String): String = withContext(
                 "Backend error ($healthUrl): HTTP $code${errorBody?.let { " — $it" } ?: ""}"
             }
         }
-    } catch (e: Exception) {
+    } catch (e: IOException) {
         "Backend unreachable ($healthUrl): ${e.message ?: e.javaClass.simpleName}"
     }
 }

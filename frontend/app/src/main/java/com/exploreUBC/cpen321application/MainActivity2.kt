@@ -80,28 +80,45 @@ fun CPEN321ApplicationApp(
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.PROFILE -> ProfileRoute(
-                        userId = userId,
-                        usersRepository = usersRepository,
-                        modifier = Modifier.padding(innerPadding),
-                    )
-                AppDestinations.TRIPS -> TripsRoute(
-                    userId = userId,
-                    itinerariesRepository = itinerariesRepository,
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.EVENTS -> LiveEventsScreen(
-                    userId = userId,
-                    eventsRepository = eventsRepository,
-                    itinerariesRepository = itinerariesRepository,
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.MAP -> MapRoute(
-                    modifier = Modifier.padding(innerPadding),
-                )
-            }
+            AppDestinationContent(
+                currentDestination = currentDestination,
+                userId = userId,
+                usersRepository = usersRepository,
+                itinerariesRepository = itinerariesRepository,
+                eventsRepository = eventsRepository,
+                modifier = Modifier.padding(innerPadding),
+            )
         }
+    }
+}
+
+@Composable
+private fun AppDestinationContent(
+    currentDestination: AppDestinations,
+    userId: String?,
+    usersRepository: UsersRepository,
+    itinerariesRepository: ItinerariesRepository,
+    eventsRepository: EventsRepository,
+    modifier: Modifier = Modifier,
+) {
+    when (currentDestination) {
+        AppDestinations.PROFILE -> ProfileRoute(
+            userId = userId,
+            usersRepository = usersRepository,
+            modifier = modifier,
+        )
+        AppDestinations.TRIPS -> TripsRoute(
+            userId = userId,
+            itinerariesRepository = itinerariesRepository,
+            modifier = modifier,
+        )
+        AppDestinations.EVENTS -> LiveEventsScreen(
+            userId = userId,
+            eventsRepository = eventsRepository,
+            itinerariesRepository = itinerariesRepository,
+            modifier = modifier,
+        )
+        AppDestinations.MAP -> MapRoute(modifier = modifier)
     }
 }
 

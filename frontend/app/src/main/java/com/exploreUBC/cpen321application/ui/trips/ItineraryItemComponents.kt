@@ -259,10 +259,19 @@ private fun EditActivityForm(
         required = true,
     )
     TimeOrderErrorMessage(hasTimeOrderError(startTime, endTime))
+    ActivityFormSaveButton(isValid, isSaving) {
+        onSave(ActivityUpdate(name, image, description, category, location, startTime, endTime))
+    }
+}
+
+@Composable
+private fun ActivityFormSaveButton(
+    isValid: Boolean,
+    isSaving: Boolean,
+    onClick: () -> Unit,
+) {
     Button(
-        onClick = {
-            onSave(ActivityUpdate(name, image, description, category, location, startTime, endTime))
-        },
+        onClick = onClick,
         enabled = isValid && !isSaving,
         modifier = Modifier.fillMaxWidth().testTag("edit_activity_save"),
     ) { Text(if (isSaving) "Saving…" else "Save") }
@@ -328,14 +337,23 @@ private fun EditTransportationForm(
     )
     DistanceErrorMessage(hasDistanceError(distanceMeters))
     TimeOrderErrorMessage(hasTimeOrderError(startTime, endTime))
+    TransportationFormSaveButton(isValid, isSaving) {
+        onSave(
+            TransportationSegmentUpdate(
+                mode, startLocation, endLocation, requireNotNull(distance), startTime, endTime,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun TransportationFormSaveButton(
+    isValid: Boolean,
+    isSaving: Boolean,
+    onClick: () -> Unit,
+) {
     Button(
-        onClick = {
-            onSave(
-                TransportationSegmentUpdate(
-                    mode, startLocation, endLocation, requireNotNull(distance), startTime, endTime,
-                ),
-            )
-        },
+        onClick = onClick,
         enabled = isValid && !isSaving,
         modifier = Modifier.fillMaxWidth().testTag("edit_transportation_save"),
     ) { Text(if (isSaving) "Saving…" else "Save") }

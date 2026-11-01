@@ -656,27 +656,35 @@ fun ItineraryScreen(
         Spacer(Modifier.height(16.dp))
     }
     if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete itinerary?") },
-            text = { Text("This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        actions.onDelete()
-                    },
-                    modifier = Modifier.testTag("confirm_delete_itinerary"),
-                ) { Text("Yes") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteConfirmation = false },
-                    modifier = Modifier.testTag("cancel_delete_itinerary"),
-                ) { Text("No") }
+        ItineraryDeleteDialog(
+            onDismiss = { showDeleteConfirmation = false },
+            onConfirm = {
+                showDeleteConfirmation = false
+                actions.onDelete()
             },
         )
     }
+}
+
+@Composable
+private fun ItineraryDeleteDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete itinerary?") },
+        text = { Text("This action cannot be undone.") },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag("confirm_delete_itinerary"),
+            ) { Text("Yes") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("cancel_delete_itinerary"),
+            ) { Text("No") }
+        },
+    )
 }
 
 @Composable

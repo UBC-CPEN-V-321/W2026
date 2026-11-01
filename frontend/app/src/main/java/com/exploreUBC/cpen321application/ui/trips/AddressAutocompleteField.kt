@@ -8,6 +8,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuBoxScope
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -108,104 +109,165 @@ private fun AddressAutocompleteContent(
 ) {
     val exceedsMaxLength = options.maxLength != null && value.length > options.maxLength
     Column(modifier = options.modifier.fillMaxWidth()) {
-        ExposedDropdownMenuBox(
+        AddressAutocompleteDropdown(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            tag = tag,
+            options = options,
+            state = state,
+            exceedsMaxLength = exceedsMaxLength,
+        )
+        AddressAutocompleteFeedback(
+            label = label,
+            tag = tag,
+            options = options,
+            state = state,
+            exceedsMaxLength = exceedsMaxLength,
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun AddressAutocompleteDropdown(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    tag: String,
+    options: AddressAutocompleteOptions,
+    state: AddressAutocompleteState,
+    exceedsMaxLength: Boolean,
+) {
+    ExposedDropdownMenuBox(
+        expanded = state.isDropdownExpanded && state.suggestions.isNotEmpty(),
+        onExpandedChange = { state.isDropdownExpanded = it },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        AddressAutocompleteTextField(
+            value = value,
+            onValueChange = {
+                state.selectedSuggestion = false
+                onValueChange(it)
+            },
+            label = label,
+            tag = tag,
+            options = options,
+            state = state,
+            exceedsMaxLength = exceedsMaxLength,
+        )
+        ExposedDropdownMenu(
             expanded = state.isDropdownExpanded && state.suggestions.isNotEmpty(),
-            onExpandedChange = { state.isDropdownExpanded = it },
-            modifier = Modifier.fillMaxWidth(),
+            onDismissRequest = { state.isDropdownExpanded = false },
         ) {
-            OutlinedTextField(
-                value = value,
-                onValueChange = {
-                    state.selectedSuggestion = false
-                    onValueChange(it)
-                },
-                label = { Text(if (options.required) "$label *" else label) },
-                placeholder = { Text(options.placeholder) },
-                supportingText = {
-                    Text(options.supportingText ?: "Recommended addresses appear as you type")
-                },
-                trailingIcon = {
-                    when {
-                        state.isSearching -> CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        state.selectedSuggestion -> Icon(
-                            painter = painterResource(R.drawable.place_verified_24px),
-                            contentDescription = "Address selected from Places",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .testTag("${tag}_places_verified"),
-                        )
-                        state.suggestions.isNotEmpty() -> ExposedDropdownMenuDefaults.TrailingIcon(
-                            expanded = state.isDropdownExpanded,
-                        )
-                        else -> Unit
-                    }
-                },
-                isError = exceedsMaxLength,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(MenuAnchorType.PrimaryEditable)
-                    .testTag(tag),
-            )
-            ExposedDropdownMenu(
-                expanded = state.isDropdownExpanded && state.suggestions.isNotEmpty(),
-                onDismissRequest = { state.isDropdownExpanded = false },
-            ) {
-                state.suggestions.forEach { suggestion ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(suggestion.primaryText)
-                                if (suggestion.fullAddress != suggestion.primaryText) {
-                                    Text(
-                                        suggestion.fullAddress,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+            state.suggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(suggestion.primaryText)
+                            if (suggestion.fullAddress != suggestion.primaryText) {
+                                Text(
+                                    suggestion.fullAddress,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
-                        },
-                        onClick = {
-                            state.selectedSuggestion = true
-                            state.suggestions = emptyList()
-                            state.isDropdownExpanded = false
-                            onValueChange(suggestion.fullAddress)
-                        },
-                        modifier = Modifier.testTag("${tag}_suggestion"),
-                    )
-                }
+                        }
+                    },
+                    onClick = {
+                        state.selectedSuggestion = true
+                        state.suggestions = emptyList()
+                        state.isDropdownExpanded = false
+                        onValueChange(suggestion.fullAddress)
+                    },
+                    modifier = Modifier.testTag("${tag}_suggestion"),
+                )
             }
         }
-        if (exceedsMaxLength) {
-            Text(
-                text = "$label must be at most ${options.maxLength} characters.",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.testTag("${tag}_length_error"),
-            )
-        }
-        state.errorMessage?.let { message ->
-            Text(
-                text = message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .testTag("${tag}_suggestion_error"),
-            )
-        }
-        if (state.noResults) {
-            Text(
-                text = "No matching address recommendations.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .testTag("${tag}_suggestion_empty"),
-            )
-        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ExposedDropdownMenuBoxScope.AddressAutocompleteTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    tag: String,
+    options: AddressAutocompleteOptions,
+    state: AddressAutocompleteState,
+    exceedsMaxLength: Boolean,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(if (options.required) "$label *" else label) },
+        placeholder = { Text(options.placeholder) },
+        supportingText = {
+            Text(options.supportingText ?: "Recommended addresses appear as you type")
+        },
+        trailingIcon = {
+            when {
+                state.isSearching -> CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+                state.selectedSuggestion -> Icon(
+                    painter = painterResource(R.drawable.place_verified_24px),
+                    contentDescription = "Address selected from Places",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .testTag("${tag}_places_verified"),
+                )
+                state.suggestions.isNotEmpty() -> ExposedDropdownMenuDefaults.TrailingIcon(
+                    expanded = state.isDropdownExpanded,
+                )
+                else -> Unit
+            }
+        },
+        isError = exceedsMaxLength,
+        modifier = Modifier
+            .fillMaxWidth()
+            .menuAnchor(MenuAnchorType.PrimaryEditable)
+            .testTag(tag),
+    )
+}
+
+@Composable
+private fun AddressAutocompleteFeedback(
+    label: String,
+    tag: String,
+    options: AddressAutocompleteOptions,
+    state: AddressAutocompleteState,
+    exceedsMaxLength: Boolean,
+) {
+    if (exceedsMaxLength) {
+        Text(
+            text = "$label must be at most ${options.maxLength} characters.",
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("${tag}_length_error"),
+        )
+    }
+    state.errorMessage?.let { message ->
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .testTag("${tag}_suggestion_error"),
+        )
+    }
+    if (state.noResults) {
+        Text(
+            text = "No matching address recommendations.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .testTag("${tag}_suggestion_empty"),
+        )
     }
 }
