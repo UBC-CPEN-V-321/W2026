@@ -28,16 +28,20 @@ private val locationPermissions = arrayOf(
     Manifest.permission.ACCESS_COARSE_LOCATION,
 )
 
+data class CampusMapViewOptions(
+    val itineraryMap: ItineraryMap? = null,
+    val overlayTitle: String? = null,
+    val travelMode: TripTravelMode = TripTravelMode.DRIVING,
+    val selectedRouteKey: String? = null,
+    val controlsBottomInsetPx: Int = 0,
+    val popularPlacesEnabled: Boolean = true,
+)
+
 @Composable
 fun CampusMapView(
     mode: MapLayerMode,
     modifier: Modifier = Modifier,
-    itineraryMap: ItineraryMap? = null,
-    overlayTitle: String? = null,
-    travelMode: TripTravelMode = TripTravelMode.DRIVING,
-    selectedRouteKey: String? = null,
-    controlsBottomInsetPx: Int = 0,
-    popularPlacesEnabled: Boolean = true,
+    options: CampusMapViewOptions = CampusMapViewOptions(),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -53,15 +57,11 @@ fun CampusMapView(
     RequestCampusMapLocation(controller)
     ShowItineraryOnMap(
         mode,
-        itineraryMap,
-        overlayTitle,
-        travelMode,
-        selectedRouteKey,
-        controlsBottomInsetPx,
+        options,
         controller,
     )
-    LaunchedEffect(controller, popularPlacesEnabled) {
-        controller.setPopularPlacesEnabled(popularPlacesEnabled)
+    LaunchedEffect(controller, options.popularPlacesEnabled) {
+        controller.setPopularPlacesEnabled(options.popularPlacesEnabled)
     }
     AndroidView(
         factory = { binding.root },
@@ -143,29 +143,25 @@ private fun RequestCampusMapLocation(controller: CampusMapController) {
 @Composable
 private fun ShowItineraryOnMap(
     mode: MapLayerMode,
-    itineraryMap: ItineraryMap?,
-    overlayTitle: String?,
-    travelMode: TripTravelMode,
-    selectedRouteKey: String?,
-    controlsBottomInsetPx: Int,
+    options: CampusMapViewOptions,
     controller: CampusMapController,
 ) {
-    LaunchedEffect(controlsBottomInsetPx) {
-        controller.setControlBottomInset(controlsBottomInsetPx)
+    LaunchedEffect(options.controlsBottomInsetPx) {
+        controller.setControlBottomInset(options.controlsBottomInsetPx)
     }
-    LaunchedEffect(mode, itineraryMap, overlayTitle) {
-        if (mode == MapLayerMode.TRIP_ROUTES && itineraryMap != null) {
-            controller.showItineraryMap(itineraryMap, overlayTitle.orEmpty())
+    LaunchedEffect(mode, options.itineraryMap, options.overlayTitle) {
+        if (mode == MapLayerMode.TRIP_ROUTES && options.itineraryMap != null) {
+            controller.showItineraryMap(options.itineraryMap, options.overlayTitle.orEmpty())
         }
     }
-    LaunchedEffect(travelMode) {
+    LaunchedEffect(options.travelMode) {
         if (mode == MapLayerMode.TRIP_ROUTES) {
-            controller.setTravelMode(travelMode)
+            controller.setTravelMode(options.travelMode)
         }
     }
-    LaunchedEffect(selectedRouteKey) {
+    LaunchedEffect(options.selectedRouteKey) {
         if (mode == MapLayerMode.TRIP_ROUTES) {
-            controller.setSelectedRoute(selectedRouteKey)
+            controller.setSelectedRoute(options.selectedRouteKey)
         }
     }
 }
