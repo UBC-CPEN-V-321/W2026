@@ -303,25 +303,11 @@ private fun EditTransportationForm(
         "Mode", transportationModes, mode, { mode = it }, "edit_transportation_mode",
         required = true,
     )
-    AddressAutocompleteField(
-        value = startLocation,
-        onValueChange = { startLocation = it },
-        label = "Start location",
-        tag = "edit_transportation_start_location",
-        options = AddressAutocompleteOptions(
-            required = true,
-            maxLength = LOCATION_MAX_LENGTH,
-        ),
-    )
-    AddressAutocompleteField(
-        value = endLocation,
-        onValueChange = { endLocation = it },
-        label = "End location",
-        tag = "edit_transportation_end_location",
-        options = AddressAutocompleteOptions(
-            required = true,
-            maxLength = LOCATION_MAX_LENGTH,
-        ),
+    TransportationLocationFields(
+        startLocation = startLocation,
+        onStartLocationChange = { startLocation = it },
+        endLocation = endLocation,
+        onEndLocationChange = { endLocation = it },
     )
     FormField(
         distanceMeters, { distanceMeters = it }, "Distance in meters",
@@ -344,6 +330,35 @@ private fun EditTransportationForm(
             ),
         )
     }
+}
+
+@Composable
+private fun TransportationLocationFields(
+    startLocation: String,
+    onStartLocationChange: (String) -> Unit,
+    endLocation: String,
+    onEndLocationChange: (String) -> Unit,
+) {
+    AddressAutocompleteField(
+        value = startLocation,
+        onValueChange = onStartLocationChange,
+        label = "Start location",
+        tag = "edit_transportation_start_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
+    AddressAutocompleteField(
+        value = endLocation,
+        onValueChange = onEndLocationChange,
+        label = "End location",
+        tag = "edit_transportation_end_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
 }
 
 @Composable
