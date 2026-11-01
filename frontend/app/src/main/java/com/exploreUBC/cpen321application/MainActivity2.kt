@@ -55,7 +55,16 @@ private data class AppDestinationState(
     val selectedItineraryId: String?,
 )
 
+private data class AppScreenState(
+    val destination: AppDestinations,
+    val userId: String?,
+    val selectedMapItineraryId: String?,
+    val itineraryToOpenInTrips: String?,
+    val eventLocation: UserLocation,
+)
+
 private data class AppDestinationActions(
+    val onDestinationSelected: (AppDestinations) -> Unit,
     val onItineraryOpenRequested: () -> Unit,
     val onItinerarySelected: (String?) -> Unit,
     val onViewMap: (Itinerary) -> Unit,
@@ -153,23 +162,52 @@ fun CPEN321ApplicationApp(
         state = eventRecommendations,
         onViewEvents = { currentDestination = AppDestinations.EVENTS },
     )
+    AppScreenContent(
+        state = AppScreenState(
+            destination = currentDestination,
+            userId = userId,
+            selectedMapItineraryId = selectedMapItineraryId,
+            itineraryToOpenInTrips = itineraryToOpenInTrips,
+            eventLocation = eventLocation,
+        ),
+        repositories = AppRepositories(usersRepository, itinerariesRepository, eventsRepository),
+        actions = AppDestinationActions(
+            onDestinationSelected = { currentDestination = it },
+            onItineraryOpenRequested = { itineraryToOpenInTrips = null },
+            onItinerarySelected = { selectedMapItineraryId = it },
+            onViewMap = { itinerary ->
+                selectedMapItineraryId = itinerary.id
+                currentDestination = AppDestinations.MAP
+            },
+            onVisitItinerary = {
+                itineraryToOpenInTrips = selectedMapItineraryId
+                currentDestination = AppDestinations.TRIPS
+            },
+            onPreferencesSaved = eventRecommendations::refreshAfterPreferenceChange,
+        ),
+        eventRecommendations = eventRecommendations,
+    )
+}
+
+@Composable
+private fun AppScreenContent(
+    state: AppScreenState,
+    repositories: AppRepositories,
+    actions: AppDestinationActions,
+    eventRecommendations: AppEventRecommendationsState,
+) {
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
                 item(
                     modifier = Modifier.testTag("navigation_${it.label}"),
-                    icon = {
-                        Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
-                        )
-                    },
+                    icon = { Icon(painterResource(it.icon), contentDescription = it.label) },
                     label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
+                    selected = it == state.destination,
+                    onClick = { actions.onDestinationSelected(it) },
                 )
             }
-        }
+        },
     ) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -177,30 +215,14 @@ fun CPEN321ApplicationApp(
         ) { innerPadding ->
             AppDestinationContent(
                 state = AppDestinationState(
-                    currentDestination,
-                    itineraryToOpenInTrips,
-                    selectedMapItineraryId,
+                    state.destination,
+                    state.itineraryToOpenInTrips,
+                    state.selectedMapItineraryId,
                 ),
-                userId = userId,
-                repositories = AppRepositories(
-                    usersRepository,
-                    itinerariesRepository,
-                    eventsRepository,
-                ),
-                actions = AppDestinationActions(
-                    onItineraryOpenRequested = { itineraryToOpenInTrips = null },
-                    onItinerarySelected = { selectedMapItineraryId = it },
-                    onViewMap = { itinerary ->
-                        selectedMapItineraryId = itinerary.id
-                        currentDestination = AppDestinations.MAP
-                    },
-                    onVisitItinerary = {
-                        itineraryToOpenInTrips = selectedMapItineraryId
-                        currentDestination = AppDestinations.TRIPS
-                    },
-                    onPreferencesSaved = eventRecommendations::refreshAfterPreferenceChange,
-                ),
-                eventLocation = eventLocation,
+                userId = state.userId,
+                repositories = repositories,
+                actions = actions,
+                eventLocation = state.eventLocation,
                 eventRecommendations = eventRecommendations,
                 modifier = Modifier.padding(innerPadding),
             )
