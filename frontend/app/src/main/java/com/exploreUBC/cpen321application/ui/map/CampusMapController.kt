@@ -175,7 +175,7 @@ class CampusMapController(
         map.setOnMapLoadedCallback {
             mapTilesLoaded = true
             if (renderedPoints.isNotEmpty()) {
-                fitCamera(renderedPoints)
+                fitMapCamera(map, renderedPoints, binding.map)
             }
         }
 
@@ -240,7 +240,7 @@ class CampusMapController(
         redrawTravelPolylines()
 
         if (renderedPoints.isNotEmpty()) {
-            fitCamera(renderedPoints)
+            fitMapCamera(map, renderedPoints, binding.map)
         }
         binding.textMapStatus.text = MapItineraryText.statusMessage(context, itineraryMap)
     }
@@ -250,46 +250,24 @@ class CampusMapController(
         itineraryPolylines.clear()
         val activeRouteKey = selectedRouteKey ?: renderedRoutes.firstOrNull()?.routeKey()
         renderedRoutes.sortedBy { it.routeKey() == activeRouteKey }.forEach { route ->
-            addRoutePolyline(route, route.routeKey() == activeRouteKey)
+            addRoutePolyline(route, activeRouteKey)
         }
     }
 
-    private fun addRoutePolyline(route: MapRoute, selected: Boolean) {
-        val points = polylinePoints(route)
-        if (points.isEmpty()) {
-            return
+    private fun addRoutePolyline(route: MapRoute, activeRouteKey: String?) {
+        val points = routePolylinePoints(route, travelMode)
+        if (points.isNotEmpty()) {
+            val selected = route.routeKey() == activeRouteKey
+            itineraryPolylines.add(
+                map.addPolyline(
+                    PolylineOptions()
+                        .addAll(points)
+                        .color(routePolylineColor(selected, travelMode, context))
+                        .width(if (selected) 14f else 8f)
+                        .zIndex(if (selected) 2f else 1f),
+                ),
+            )
         }
-        val polyline = map.addPolyline(
-            PolylineOptions()
-                .addAll(points)
-                .color(polylineColor(selected))
-                .width(if (selected) 14f else 8f)
-                .zIndex(if (selected) 2f else 1f),
-        )
-        itineraryPolylines.add(polyline)
-    }
-
-    private fun polylinePoints(route: MapRoute): List<LatLng> {
-        val encoded = selectedTravelOption(route)?.encodedPolyline
-            ?.takeIf { it.isNotBlank() }
-            ?: route.encodedPolyline
-        return runCatching { PolylineDecoder.decode(encoded) }.getOrDefault(emptyList())
-    }
-
-    private fun selectedTravelOption(route: MapRoute) = when (travelMode) {
-        TripTravelMode.WALKING -> route.walking
-        TripTravelMode.DRIVING -> route.driving
-    }
-
-    private fun polylineColor(selected: Boolean): Int {
-        val colorRes = if (!selected) {
-            R.color.text_secondary
-        } else if (travelMode == TripTravelMode.WALKING) {
-            R.color.ubc_gold
-        } else {
-            R.color.ubc_blue_mid
-        }
-        return ContextCompat.getColor(context, colorRes)
     }
 
     private fun updateTravelLegend() {
@@ -346,30 +324,11 @@ class CampusMapController(
         }
 
         if (renderedPoints.isEmpty()) {
-            fitCamera(places.map { it.location })
+            fitMapCamera(map, places.map { it.location }, binding.map)
         }
         binding.textMapStatus.setText(
             if (remotePlaces.isNullOrEmpty()) R.string.map_popular_fallback else R.string.map_popular_ready
         )
-    }
-
-    private fun fitCamera(points: List<LatLng>) {
-        if (points.isEmpty()) return
-        if (points.size == 1) {
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 15f))
-            return
-        }
-
-        val bounds = LatLngBounds.builder().apply { points.forEach { include(it) } }.build()
-        try {
-            if (binding.map.width > 0 && binding.map.height > 0) {
-                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 160))
-            } else {
-                map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 14f))
-            }
-        } catch (_: IllegalStateException) {
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(points.first(), 14f))
-        }
     }
 
     private suspend fun showStaticMapFallback(points: List<LatLng>) {

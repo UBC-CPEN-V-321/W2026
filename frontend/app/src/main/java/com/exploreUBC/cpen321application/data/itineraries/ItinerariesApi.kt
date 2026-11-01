@@ -93,8 +93,7 @@ interface ItinerariesRepository {
         segmentId: String,
         update: TransportationSegmentUpdate,
         replaceConflicts: Boolean,
-    ): TransportationItem =
-        updateTransportationSegment(userId, itineraryId, segmentId, update)
+    ): TransportationItem = updateTransportationSegment(userId, itineraryId, segmentId, update)
 
     suspend fun deleteActivity(userId: String, itineraryId: String, activityId: String)
 
@@ -257,12 +256,7 @@ class ItinerariesApi(private val apiBaseUrl: String) : ItinerariesRepository {
         userId: String,
         itineraryId: String,
         segment: CreateTransportationInput,
-    ): TransportationItem = addTransportationSegment(
-        userId,
-        itineraryId,
-        segment,
-        false,
-    )
+    ): TransportationItem = addTransportationSegment(userId, itineraryId, segment, false)
 
     override suspend fun addTransportationSegment(
         userId: String,
