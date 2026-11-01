@@ -26,11 +26,31 @@ import com.exploreUBC.cpen321application.data.users.UsersApi
 import com.exploreUBC.cpen321application.data.users.UsersRepository
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
+import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.ui.events.LiveEventsScreen
 import com.exploreUBC.cpen321application.ui.map.MapRoute
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
+
+private data class AppRepositories(
+    val users: UsersRepository,
+    val itineraries: ItinerariesRepository,
+    val events: EventsRepository,
+)
+
+private data class AppDestinationState(
+    val destination: AppDestinations,
+    val itineraryIdToOpen: String?,
+    val selectedItineraryId: String?,
+)
+
+private data class AppDestinationActions(
+    val onItineraryOpenRequested: () -> Unit,
+    val onItinerarySelected: (String?) -> Unit,
+    val onViewMap: (Itinerary) -> Unit,
+    val onVisitItinerary: () -> Unit,
+)
 
 class MainActivity2 : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,42 +102,72 @@ fun CPEN321ApplicationApp(
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.PROFILE -> ProfileRoute(
-                        userId = userId,
-                        usersRepository = usersRepository,
-                        modifier = Modifier.padding(innerPadding),
-                    )
-                AppDestinations.TRIPS -> TripsRoute(
-                    userId = userId,
-                    itinerariesRepository = itinerariesRepository,
-                    itineraryIdToOpen = itineraryToOpenInTrips,
+            AppDestinationContent(
+                state = AppDestinationState(
+                    currentDestination,
+                    itineraryToOpenInTrips,
+                    selectedMapItineraryId,
+                ),
+                userId = userId,
+                repositories = AppRepositories(
+                    usersRepository,
+                    itinerariesRepository,
+                    eventsRepository,
+                ),
+                actions = AppDestinationActions(
                     onItineraryOpenRequested = { itineraryToOpenInTrips = null },
+                    onItinerarySelected = { selectedMapItineraryId = it },
                     onViewMap = { itinerary ->
                         selectedMapItineraryId = itinerary.id
                         currentDestination = AppDestinations.MAP
                     },
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.EVENTS -> LiveEventsScreen(
-                    userId = userId,
-                    eventsRepository = eventsRepository,
-                    itinerariesRepository = itinerariesRepository,
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.MAP -> MapRoute(
-                    userId = userId,
-                    itinerariesRepository = itinerariesRepository,
-                    selectedItineraryId = selectedMapItineraryId,
-                    onItinerarySelected = { selectedMapItineraryId = it },
                     onVisitItinerary = {
                         itineraryToOpenInTrips = selectedMapItineraryId
                         currentDestination = AppDestinations.TRIPS
                     },
-                    modifier = Modifier.padding(innerPadding),
-                )
-            }
+                ),
+                modifier = Modifier.padding(innerPadding),
+            )
         }
+    }
+}
+
+@Composable
+private fun AppDestinationContent(
+    state: AppDestinationState,
+    userId: String?,
+    repositories: AppRepositories,
+    actions: AppDestinationActions,
+    modifier: Modifier = Modifier,
+) {
+    when (state.destination) {
+        AppDestinations.PROFILE -> ProfileRoute(
+            userId = userId,
+            usersRepository = repositories.users,
+            modifier = modifier,
+        )
+        AppDestinations.TRIPS -> TripsRoute(
+            userId = userId,
+            itinerariesRepository = repositories.itineraries,
+            itineraryIdToOpen = state.itineraryIdToOpen,
+            onItineraryOpenRequested = actions.onItineraryOpenRequested,
+            onViewMap = actions.onViewMap,
+            modifier = modifier,
+        )
+        AppDestinations.EVENTS -> LiveEventsScreen(
+            userId = userId,
+            eventsRepository = repositories.events,
+            itinerariesRepository = repositories.itineraries,
+            modifier = modifier,
+        )
+        AppDestinations.MAP -> MapRoute(
+            userId = userId,
+            itinerariesRepository = repositories.itineraries,
+            selectedItineraryId = state.selectedItineraryId,
+            onItinerarySelected = actions.onItinerarySelected,
+            onVisitItinerary = actions.onVisitItinerary,
+            modifier = modifier,
+        )
     }
 }
 
