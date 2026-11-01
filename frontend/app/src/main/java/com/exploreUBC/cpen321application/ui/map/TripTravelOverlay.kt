@@ -47,7 +47,7 @@ fun TripTravelOverlay(
     selectedRouteKey: String?,
     onTravelModeChange: (TripTravelMode) -> Unit,
     onRouteSelected: (String) -> Unit,
-    onHideMap: () -> Unit,
+    onVisitItinerary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showDirections by remember(itineraryMap.itineraryId) { mutableStateOf(true) }
@@ -78,12 +78,12 @@ fun TripTravelOverlay(
             }
         }
         Button(
-            onClick = onHideMap,
+            onClick = onVisitItinerary,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("itinerary_hide_map"),
+                .testTag("map_visit_itinerary"),
         ) {
-            Text(stringResource(R.string.map_hide))
+            Text(stringResource(R.string.map_visit_itinerary))
         }
     }
 }

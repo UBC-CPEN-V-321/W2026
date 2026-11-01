@@ -26,6 +26,7 @@ import com.exploreUBC.cpen321application.data.users.UsersApi
 import com.exploreUBC.cpen321application.data.users.UsersRepository
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
+import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.ui.events.LiveEventsScreen
 import com.exploreUBC.cpen321application.ui.map.MapRoute
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
@@ -61,6 +62,8 @@ fun CPEN321ApplicationApp(
     eventsRepository: EventsRepository,
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.EVENTS) }
+    var selectedMapItineraryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var itineraryToOpenInTrips by rememberSaveable { mutableStateOf<String?>(null) }
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
@@ -86,6 +89,18 @@ fun CPEN321ApplicationApp(
                 usersRepository = usersRepository,
                 itinerariesRepository = itinerariesRepository,
                 eventsRepository = eventsRepository,
+                itineraryIdToOpen = itineraryToOpenInTrips,
+                onItineraryOpenRequested = { itineraryToOpenInTrips = null },
+                selectedItineraryId = selectedMapItineraryId,
+                onItinerarySelected = { selectedMapItineraryId = it },
+                onViewMap = { itinerary ->
+                    selectedMapItineraryId = itinerary.id
+                    currentDestination = AppDestinations.MAP
+                },
+                onVisitItinerary = {
+                    itineraryToOpenInTrips = selectedMapItineraryId
+                    currentDestination = AppDestinations.TRIPS
+                },
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -99,6 +114,12 @@ private fun AppDestinationContent(
     usersRepository: UsersRepository,
     itinerariesRepository: ItinerariesRepository,
     eventsRepository: EventsRepository,
+    itineraryIdToOpen: String?,
+    onItineraryOpenRequested: () -> Unit,
+    selectedItineraryId: String?,
+    onItinerarySelected: (String?) -> Unit,
+    onViewMap: (Itinerary) -> Unit,
+    onVisitItinerary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (currentDestination) {
@@ -110,6 +131,9 @@ private fun AppDestinationContent(
         AppDestinations.TRIPS -> TripsRoute(
             userId = userId,
             itinerariesRepository = itinerariesRepository,
+            itineraryIdToOpen = itineraryIdToOpen,
+            onItineraryOpenRequested = onItineraryOpenRequested,
+            onViewMap = onViewMap,
             modifier = modifier,
         )
         AppDestinations.EVENTS -> LiveEventsScreen(
@@ -118,7 +142,14 @@ private fun AppDestinationContent(
             itinerariesRepository = itinerariesRepository,
             modifier = modifier,
         )
-        AppDestinations.MAP -> MapRoute(modifier = modifier)
+        AppDestinations.MAP -> MapRoute(
+            userId = userId,
+            itinerariesRepository = itinerariesRepository,
+            selectedItineraryId = selectedItineraryId,
+            onItinerarySelected = onItinerarySelected,
+            onVisitItinerary = onVisitItinerary,
+            modifier = modifier,
+        )
     }
 }
 
