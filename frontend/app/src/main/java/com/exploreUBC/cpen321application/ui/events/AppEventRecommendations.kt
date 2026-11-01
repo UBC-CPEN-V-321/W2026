@@ -55,8 +55,9 @@ internal class AppEventRecommendationsState {
 
     fun currentNotification(): String? = notification
 
-    fun clearNotification() {
+    fun dismissNotification() {
         notification = null
+        snackbarHostState.currentSnackbarData?.dismiss()
     }
 }
 
@@ -92,6 +93,10 @@ internal fun AppEventRecommendationEffects(
         }
     }
 
+    LaunchedEffect(isEventsVisible) {
+        if (isEventsVisible) state.dismissNotification()
+    }
+
     LaunchedEffect(state.currentNotification()) {
         val message = state.currentNotification()
         if (message != null) {
@@ -100,7 +105,7 @@ internal fun AppEventRecommendationEffects(
                 actionLabel = "View",
             )
             if (result == SnackbarResult.ActionPerformed) onViewEvents()
-            state.clearNotification()
+            state.dismissNotification()
         }
     }
 }

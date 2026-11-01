@@ -5,7 +5,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -255,7 +257,7 @@ class ItineraryE2ETest {
         composeRule.onNodeWithTag(tag).performScrollTo().performClick()
         composeRule.onNodeWithText("Next").performClick()
         composeRule.onNodeWithContentDescription("$hour o'clock").performClick()
-        composeRule.onNodeWithContentDescription("0 minutes").performClick()
+        composeRule.onAllNodesWithContentDescription("0 minutes").onLast().performClick()
         composeRule.onNodeWithText(period).performClick()
         composeRule.onNodeWithText("OK").performClick()
     }
