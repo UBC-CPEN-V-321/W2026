@@ -1,7 +1,6 @@
 package com.exploreUBC.cpen321application.ui.trips
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,14 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,13 +21,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,15 +35,7 @@ import com.exploreUBC.cpen321application.R
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
 import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.data.itineraries.ItineraryDetails
-import com.exploreUBC.cpen321application.data.itineraries.ItineraryHttpException
 import com.exploreUBC.cpen321application.data.itineraries.ItineraryItem
-import com.exploreUBC.cpen321application.data.itineraries.ItineraryMap
-import com.exploreUBC.cpen321application.ui.map.CampusMapView
-import com.exploreUBC.cpen321application.ui.map.MapLayerMode
-import com.exploreUBC.cpen321application.ui.map.TripTravelMode
-import com.exploreUBC.cpen321application.ui.map.TripTravelOverlay
-import com.exploreUBC.cpen321application.ui.map.routeKey
-import java.util.Locale
 
 private const val MISSING_USER_MESSAGE = "A user ID is required to load itineraries."
 
@@ -58,6 +44,9 @@ fun TripsRoute(
     userId: String?,
     itinerariesRepository: ItinerariesRepository,
     modifier: Modifier = Modifier,
+    itineraryIdToOpen: String? = null,
+    onItineraryOpenRequested: () -> Unit = {},
+    onViewMap: (Itinerary) -> Unit = {},
 ) {
     val state = rememberTripsRouteState(userId, itinerariesRepository)
 
@@ -66,8 +55,20 @@ fun TripsRoute(
             state.loadItineraries()
         }
     }
+    LaunchedEffect(
+        itineraryIdToOpen,
+        state.savedItineraries,
+        state.recommendedItineraries,
+    ) {
+        val itinerary = (state.savedItineraries + state.recommendedItineraries)
+            .firstOrNull { it.id == itineraryIdToOpen }
+        if (itinerary != null) {
+            state.openItinerary(itinerary)
+            onItineraryOpenRequested()
+        }
+    }
 
-    TripsRouteContent(state, userId, itinerariesRepository, modifier)
+    TripsRouteContent(state, onViewMap, modifier)
     if (state.showGenerateConfirmation) GenerateRecommendationsDialog(state)
     state.pendingReplacement?.let { replacement ->
         TimeConflictDialog(
@@ -82,15 +83,14 @@ fun TripsRoute(
 @Composable
 private fun TripsRouteContent(
     state: TripsRouteState,
-    userId: String?,
-    itinerariesRepository: ItinerariesRepository,
+    onViewMap: (Itinerary) -> Unit,
     modifier: Modifier,
 ) {
     val itinerary = state.selectedItinerary
     if (itinerary == null) {
         TripsOverview(state, modifier)
     } else {
-        SelectedItineraryRoute(state, userId, itinerariesRepository, itinerary, modifier)
+        SelectedItineraryRoute(state, itinerary, onViewMap, modifier)
     }
 }
 
@@ -117,28 +117,14 @@ private fun TripsOverview(state: TripsRouteState, modifier: Modifier) {
 @Composable
 private fun SelectedItineraryRoute(
     state: TripsRouteState,
-    userId: String?,
-    repository: ItinerariesRepository,
     itinerary: Itinerary,
+    onViewMap: (Itinerary) -> Unit,
     modifier: Modifier,
 ) {
-    var showMap by remember(itinerary.id) { mutableStateOf(false) }
     val item = state.selectedItem
     val itemType = state.newItemType
 
     when {
-        showMap -> ItineraryMapScreen(
-            userId = userId.orEmpty(),
-            itineraryId = itinerary.id,
-            itineraryName = itinerary.name,
-            itinerariesRepository = repository,
-            onHideMap = { showMap = false },
-            onItineraryMissing = {
-                showMap = false
-                state.closeItinerary()
-            },
-            modifier = modifier,
-        )
         item != null -> ItineraryItemScreen(
             ItineraryItemScreenModel(
                 item, itinerary.inRecommendation, state.isSaving, state.statusMessage,
@@ -163,7 +149,7 @@ private fun SelectedItineraryRoute(
         else -> SelectedItineraryDetails(
             state,
             itinerary,
-            { showMap = true },
+            { onViewMap(itinerary) },
             modifier,
         )
     }
@@ -196,193 +182,6 @@ private fun SelectedItineraryDetails(
     )
 }
 
-private sealed interface ItineraryMapUiState {
-    data object Loading : ItineraryMapUiState
-    data class Ready(val map: ItineraryMap) : ItineraryMapUiState
-    data object NotFound : ItineraryMapUiState
-    data class Failed(val message: String) : ItineraryMapUiState
-}
-
-@Composable
-private fun ItineraryMapScreen(
-    userId: String,
-    itineraryId: String,
-    itineraryName: String,
-    itinerariesRepository: ItinerariesRepository,
-    onHideMap: () -> Unit,
-    onItineraryMissing: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var reloadToken by remember(userId, itineraryId) { mutableIntStateOf(0) }
-    var state by remember(userId, itineraryId) {
-        mutableStateOf<ItineraryMapUiState>(ItineraryMapUiState.Loading)
-    }
-    var travelMode by remember(userId, itineraryId) {
-        mutableStateOf(TripTravelMode.DRIVING)
-    }
-    var selectedRouteKey by remember(userId, itineraryId) { mutableStateOf<String?>(null) }
-    var overlayHeightPx by remember(userId, itineraryId) { mutableIntStateOf(0) }
-
-    LaunchedEffect(userId, itineraryId, reloadToken) {
-        state = ItineraryMapUiState.Loading
-        runCatching {
-            itinerariesRepository.getItineraryMap(userId, itineraryId)
-        }.onSuccess { map ->
-            state = ItineraryMapUiState.Ready(map)
-            if (map.routes.none { it.routeKey() == selectedRouteKey }) {
-                selectedRouteKey = map.routes.firstOrNull()?.routeKey()
-            }
-        }.onFailure { error ->
-            state = if (error is ItineraryHttpException && error.statusCode == 404) {
-                ItineraryMapUiState.NotFound
-            } else {
-                ItineraryMapUiState.Failed(
-                    error.message ?: "Could not load the map.",
-                )
-            }
-        }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        ItineraryMapContent(
-            state,
-            itineraryName,
-            travelMode,
-            selectedRouteKey,
-            overlayHeightPx,
-            onItineraryMissing,
-            onRetry = { reloadToken += 1 },
-        )
-        ItineraryMapChrome(
-            model = ItineraryMapChromeModel(state, travelMode, selectedRouteKey),
-            onTravelModeChange = { travelMode = it },
-            onRouteSelected = { selectedRouteKey = it },
-            onHideMap = onHideMap,
-            onOverlayHeightChanged = { overlayHeightPx = it },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
-    }
-}
-
-private data class ItineraryMapChromeModel(
-    val state: ItineraryMapUiState,
-    val travelMode: TripTravelMode,
-    val selectedRouteKey: String?,
-)
-
-@Composable
-private fun ItineraryMapContent(
-    state: ItineraryMapUiState,
-    itineraryName: String,
-    travelMode: TripTravelMode,
-    selectedRouteKey: String?,
-    controlsBottomInsetPx: Int,
-    onItineraryMissing: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    when (state) {
-        ItineraryMapUiState.Loading -> CenteredMapContent {
-            CircularProgressIndicator()
-            Text(stringResource(R.string.map_loading_trips))
-        }
-        is ItineraryMapUiState.Ready -> CampusMapView(
-            mode = MapLayerMode.TRIP_ROUTES,
-            itineraryMap = state.map,
-            overlayTitle = itineraryName,
-            travelMode = travelMode,
-            selectedRouteKey = selectedRouteKey,
-            controlsBottomInsetPx = controlsBottomInsetPx,
-            modifier = Modifier.fillMaxSize(),
-        )
-        ItineraryMapUiState.NotFound -> CenteredMapAction(
-            stringResource(R.string.map_itinerary_missing),
-            stringResource(R.string.map_back_to_trips),
-            "itinerary_map_missing_back",
-            onItineraryMissing,
-        )
-        is ItineraryMapUiState.Failed -> CenteredMapAction(
-            state.message.ifBlank { stringResource(R.string.map_load_failed) },
-            stringResource(R.string.map_retry),
-            "itinerary_map_retry",
-            onRetry,
-        )
-    }
-}
-
-@Composable
-private fun ItineraryMapChrome(
-    model: ItineraryMapChromeModel,
-    onTravelModeChange: (TripTravelMode) -> Unit,
-    onRouteSelected: (String) -> Unit,
-    onHideMap: () -> Unit,
-    onOverlayHeightChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val measuredModifier = modifier.onSizeChanged { size ->
-        onOverlayHeightChanged(size.height)
-    }
-    when (val state = model.state) {
-        is ItineraryMapUiState.Ready -> TripTravelOverlay(
-            itineraryMap = state.map,
-            travelMode = model.travelMode,
-            selectedRouteKey = model.selectedRouteKey,
-            onTravelModeChange = onTravelModeChange,
-            onRouteSelected = onRouteSelected,
-            onHideMap = onHideMap,
-            modifier = measuredModifier,
-        )
-        ItineraryMapUiState.NotFound -> Unit
-        else -> HideItineraryMapButton(24.dp, onHideMap, measuredModifier)
-    }
-}
-
-@Composable
-private fun CenteredMapContent(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun CenteredMapAction(
-    message: String,
-    actionLabel: String,
-    actionTag: String,
-    onClick: () -> Unit,
-) {
-    CenteredMapContent {
-        Text(message)
-        Button(onClick = onClick, modifier = Modifier.testTag(actionTag)) {
-            Text(actionLabel)
-        }
-    }
-}
-
-@Composable
-private fun HideItineraryMapButton(
-    bottomPadding: androidx.compose.ui.unit.Dp,
-    onHideMap: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Button(
-        onClick = onHideMap,
-        modifier = Modifier
-            .then(modifier)
-            .padding(
-                start = 16.dp,
-                end = 16.dp,
-                bottom = bottomPadding,
-            )
-            .testTag("itinerary_hide_map"),
-    ) {
-        Text(stringResource(R.string.map_hide))
-    }
-}
-
 @Composable
 private fun GenerateRecommendationsDialog(state: TripsRouteState) {
     AlertDialog(
@@ -402,183 +201,6 @@ private fun GenerateRecommendationsDialog(state: TripsRouteState) {
             ) { Text("Cancel") }
         },
     )
-}
-
-data class TripsListModel(
-    val savedItineraries: List<Itinerary>,
-    val recommendedItineraries: List<Itinerary>,
-    val isLoading: Boolean,
-    val isCreating: Boolean,
-    val isGenerating: Boolean,
-    val statusMessage: String?,
-)
-
-data class TripsListActions(
-    val onItineraryClick: (Itinerary) -> Unit,
-    val onCreateItinerary: () -> Unit,
-    val onGenerateRecommendations: () -> Unit,
-)
-
-private data class ItinerarySectionModel(
-    val title: String,
-    val emptyMessage: String,
-    val itineraries: List<Itinerary>,
-    val tagPrefix: String,
-    val showGenerateAction: Boolean = false,
-    val showCreateAction: Boolean = false,
-    val isCreating: Boolean = false,
-    val isGenerating: Boolean = false,
-)
-
-@Composable
-fun TripsList(
-    model: TripsListModel,
-    actions: TripsListActions,
-    modifier: Modifier = Modifier,
-) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item {
-            Text(
-                text = "Trips",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 20.dp),
-            )
-        }
-        if (model.isLoading) {
-            item { CircularProgressIndicator(modifier = Modifier.testTag("trips_loading")) }
-        }
-        model.statusMessage?.let { message ->
-            item { Text(message, modifier = Modifier.testTag("trips_status")) }
-        }
-        itinerarySection(
-            model = ItinerarySectionModel(
-                title = "Saved Itineraries",
-                emptyMessage = "No saved itineraries.",
-                itineraries = model.savedItineraries,
-                tagPrefix = "saved",
-                showCreateAction = true,
-                isCreating = model.isCreating,
-            ),
-            actions = actions,
-        )
-        itinerarySection(
-            model = ItinerarySectionModel(
-                title = "Recommended Itineraries",
-                emptyMessage = "No recommended itineraries.",
-                itineraries = model.recommendedItineraries,
-                tagPrefix = "recommended",
-                showGenerateAction = true,
-                isGenerating = model.isGenerating,
-            ),
-            actions = actions,
-        )
-        item { Spacer(Modifier.height(16.dp)) }
-    }
-}
-
-private fun androidx.compose.foundation.lazy.LazyListScope.itinerarySection(
-    model: ItinerarySectionModel,
-    actions: TripsListActions,
-) {
-    item { ItinerarySectionHeader(model, actions) }
-    if (model.itineraries.isEmpty()) {
-        item { Text(model.emptyMessage) }
-    } else {
-        items(model.itineraries, key = { "${model.tagPrefix}-${it.id}" }) { itinerary ->
-            ItineraryCard(itinerary, model.tagPrefix, actions.onItineraryClick)
-        }
-    }
-}
-
-@Composable
-private fun ItinerarySectionHeader(model: ItinerarySectionModel, actions: TripsListActions) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = model.title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f),
-        )
-        if (model.showCreateAction) {
-            Button(
-                onClick = actions.onCreateItinerary,
-                enabled = !model.isCreating,
-                modifier = Modifier.testTag("create_itinerary"),
-            ) {
-                if (model.isCreating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(18.dp).height(18.dp)
-                            .testTag("create_itinerary_loading"),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text("Create")
-                }
-            }
-        }
-        if (model.showGenerateAction) {
-            Button(
-                onClick = actions.onGenerateRecommendations,
-                enabled = !model.isGenerating,
-                modifier = Modifier.testTag("generate_recommendations"),
-            ) {
-                if (model.isGenerating) GenerateProgress() else Text("Generate")
-            }
-        }
-    }
-}
-
-@Composable
-private fun GenerateProgress() {
-    CircularProgressIndicator(
-        modifier = Modifier.width(18.dp).height(18.dp)
-            .testTag("generate_recommendations_loading"),
-        strokeWidth = 2.dp,
-    )
-    Spacer(Modifier.width(8.dp))
-    Text("Generating…")
-}
-
-@Composable
-private fun ItineraryCard(
-    itinerary: Itinerary,
-    tagPrefix: String,
-    onClick: (Itinerary) -> Unit,
-) {
-    Card(
-        onClick = { onClick(itinerary) },
-        modifier = Modifier.fillMaxWidth().testTag("${tagPrefix}_itinerary_${itinerary.id}"),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(itinerary.name, fontWeight = FontWeight.Bold)
-            itinerary.description?.takeIf(String::isNotBlank)?.let { Text(it) }
-            ItineraryCardFooter(itinerary)
-        }
-    }
-}
-
-@Composable
-private fun ItineraryCardFooter(itinerary: Itinerary) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Text(text = "${itinerary.items.size} items", modifier = Modifier.weight(1f))
-        val score = itinerary.score["interestSimilarityOutOfFive"]
-        if (itinerary.inRecommendation && score != null) {
-            Text(
-                text = String.format(Locale.US, "%.1f/5", score),
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.testTag("recommended_itinerary_score_${itinerary.id}"),
-            )
-        }
-    }
 }
 
 data class ItineraryScreenModel(
@@ -664,27 +286,35 @@ fun ItineraryScreen(
         Spacer(Modifier.height(16.dp))
     }
     if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete itinerary?") },
-            text = { Text("This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        actions.onDelete()
-                    },
-                    modifier = Modifier.testTag("confirm_delete_itinerary"),
-                ) { Text("Yes") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteConfirmation = false },
-                    modifier = Modifier.testTag("cancel_delete_itinerary"),
-                ) { Text("No") }
+        ItineraryDeleteDialog(
+            onDismiss = { showDeleteConfirmation = false },
+            onConfirm = {
+                showDeleteConfirmation = false
+                actions.onDelete()
             },
         )
     }
+}
+
+@Composable
+private fun ItineraryDeleteDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete itinerary?") },
+        text = { Text("This action cannot be undone.") },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag("confirm_delete_itinerary"),
+            ) { Text("Yes") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("cancel_delete_itinerary"),
+            ) { Text("No") }
+        },
+    )
 }
 
 @Composable

@@ -13,7 +13,7 @@ jest.setTimeout(30_000);
 
 const USER_ID = new ObjectId();
 const MISSING_USER_ID = new ObjectId();
-const DATABASE_NAME = 'cpen321_test_users';
+const DATABASE_NAME = `eubc_u_${new ObjectId().toHexString()}`;
 
 let client: MongoClient;
 let database: Db;

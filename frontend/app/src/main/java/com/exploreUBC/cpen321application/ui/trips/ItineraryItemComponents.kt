@@ -259,10 +259,19 @@ private fun EditActivityForm(
         required = true,
     )
     TimeOrderErrorMessage(hasTimeOrderError(startTime, endTime))
+    ActivityFormSaveButton(isValid, isSaving) {
+        onSave(ActivityUpdate(name, image, description, category, location, startTime, endTime))
+    }
+}
+
+@Composable
+private fun ActivityFormSaveButton(
+    isValid: Boolean,
+    isSaving: Boolean,
+    onClick: () -> Unit,
+) {
     Button(
-        onClick = {
-            onSave(ActivityUpdate(name, image, description, category, location, startTime, endTime))
-        },
+        onClick = onClick,
         enabled = isValid && !isSaving,
         modifier = Modifier.fillMaxWidth().testTag("edit_activity_save"),
     ) { Text(if (isSaving) "Saving…" else "Save") }
@@ -294,25 +303,11 @@ private fun EditTransportationForm(
         "Mode", transportationModes, mode, { mode = it }, "edit_transportation_mode",
         required = true,
     )
-    AddressAutocompleteField(
-        value = startLocation,
-        onValueChange = { startLocation = it },
-        label = "Start location",
-        tag = "edit_transportation_start_location",
-        options = AddressAutocompleteOptions(
-            required = true,
-            maxLength = LOCATION_MAX_LENGTH,
-        ),
-    )
-    AddressAutocompleteField(
-        value = endLocation,
-        onValueChange = { endLocation = it },
-        label = "End location",
-        tag = "edit_transportation_end_location",
-        options = AddressAutocompleteOptions(
-            required = true,
-            maxLength = LOCATION_MAX_LENGTH,
-        ),
+    TransportationLocationFields(
+        startLocation = startLocation,
+        onStartLocationChange = { startLocation = it },
+        endLocation = endLocation,
+        onEndLocationChange = { endLocation = it },
     )
     FormField(
         distanceMeters, { distanceMeters = it }, "Distance in meters",
@@ -328,14 +323,52 @@ private fun EditTransportationForm(
     )
     DistanceErrorMessage(hasDistanceError(distanceMeters))
     TimeOrderErrorMessage(hasTimeOrderError(startTime, endTime))
+    TransportationFormSaveButton(isValid, isSaving) {
+        onSave(
+            TransportationSegmentUpdate(
+                mode, startLocation, endLocation, requireNotNull(distance), startTime, endTime,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun TransportationLocationFields(
+    startLocation: String,
+    onStartLocationChange: (String) -> Unit,
+    endLocation: String,
+    onEndLocationChange: (String) -> Unit,
+) {
+    AddressAutocompleteField(
+        value = startLocation,
+        onValueChange = onStartLocationChange,
+        label = "Start location",
+        tag = "edit_transportation_start_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
+    AddressAutocompleteField(
+        value = endLocation,
+        onValueChange = onEndLocationChange,
+        label = "End location",
+        tag = "edit_transportation_end_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
+}
+
+@Composable
+private fun TransportationFormSaveButton(
+    isValid: Boolean,
+    isSaving: Boolean,
+    onClick: () -> Unit,
+) {
     Button(
-        onClick = {
-            onSave(
-                TransportationSegmentUpdate(
-                    mode, startLocation, endLocation, requireNotNull(distance), startTime, endTime,
-                ),
-            )
-        },
+        onClick = onClick,
         enabled = isValid && !isSaving,
         modifier = Modifier.fillMaxWidth().testTag("edit_transportation_save"),
     ) { Text(if (isSaving) "Saving…" else "Save") }

@@ -15,6 +15,7 @@ import com.exploreUBC.cpen321application.data.itineraries.TransportationSegmentU
 
 internal const val E2E_USER_ID = "6705f0000000000000000001"
 internal const val E2E_ITINERARY_ID = "itinerary-1"
+internal const val E2E_RECOMMENDATION_ID = "recommendation-1"
 internal const val E2E_ACTIVITY_ID = "activity-1"
 internal const val E2E_TRANSPORTATION_ID = "transportation-1"
 
@@ -24,6 +25,15 @@ internal class InMemoryItinerariesRepository : ItinerariesRepository {
 
     var itineraries: List<Itinerary> = listOf(sampleItinerary())
         private set
+
+    fun addRecommendation() {
+        itineraries = itineraries + sampleItinerary().copy(
+            id = E2E_RECOMMENDATION_ID,
+            name = "UBC Recommendation",
+            saved = false,
+            inRecommendation = true,
+        )
+    }
 
     override suspend fun createItinerary(
         userId: String,

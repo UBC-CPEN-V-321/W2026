@@ -14,10 +14,12 @@
     <string name="map_no_travel_option">No %1$s route for this leg.</string>
     <string name="map_loading_popular">Loading popular places…</string>
     <string name="map_loading_trips">Loading map…</string>
-    <string name="map_no_saved_trips">No saved itineraries to show. Add an address in the Trips tab.</string>
     <string name="map_unmapped_stops">Could not map: %1$s. Update those addresses in the itinerary.</string>
     <string name="map_legend_popular">Popular places</string>
-    <string name="map_show_popular">Show popular pins</string>
+    <string name="map_show_popular">Show popular locations</string>
+    <string name="map_search_itineraries">Search saved itineraries</string>
+    <string name="map_loading_saved_itineraries">Loading saved itineraries…</string>
+    <string name="map_no_itinerary_matches">No saved itineraries match your search.</string>
     <string name="map_loading_routes">Drawing routes…</string>
     <string name="map_routes_ready">Routes drawn between itinerary activities</string>
     <string name="map_routes_empty">No routes were returned. Pins are shown without route lines.</string>
@@ -26,9 +28,9 @@
     <string name="map_itinerary_missing">This itinerary no longer exists.</string>
     <string name="map_load_failed">Could not load the map. Check your connection and try again.</string>
     <string name="map_retry">Retry</string>
-    <string name="map_hide">Hide Map</string>
-    <string name="map_back_to_trips">Back to trips</string>
+    <string name="map_visit_itinerary">Visit itinerary</string>
     <string name="map_popular_ready">Popular locations are pinned nearby</string>
+    <string name="map_popular_hidden">Popular locations are hidden</string>
     <string name="map_popular_fallback">Showing curated popular UBC-area places</string>
     <string name="map_no_activities">No activity locations could be mapped</string>
     <string name="map_add_popular_soon">Saved to trip is coming in a later feature</string>

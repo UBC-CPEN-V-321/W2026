@@ -32,14 +32,36 @@ import com.exploreUBC.cpen321application.data.location.UserLocation
 import com.exploreUBC.cpen321application.data.users.UsersApi
 import com.exploreUBC.cpen321application.data.users.UsersRepository
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
+import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesRepository
 import com.exploreUBC.cpen321application.ui.events.AppEventRecommendationEffects
+import com.exploreUBC.cpen321application.ui.events.AppEventRecommendationsState
 import com.exploreUBC.cpen321application.ui.events.LiveEventsScreen
 import com.exploreUBC.cpen321application.ui.events.rememberAppEventRecommendationsState
 import com.exploreUBC.cpen321application.ui.map.MapRoute
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
+
+private data class AppRepositories(
+    val users: UsersRepository,
+    val itineraries: ItinerariesRepository,
+    val events: EventsRepository,
+)
+
+private data class AppDestinationState(
+    val destination: AppDestinations,
+    val itineraryIdToOpen: String?,
+    val selectedItineraryId: String?,
+)
+
+private data class AppDestinationActions(
+    val onItineraryOpenRequested: () -> Unit,
+    val onItinerarySelected: (String?) -> Unit,
+    val onViewMap: (Itinerary) -> Unit,
+    val onVisitItinerary: () -> Unit,
+    val onPreferencesSaved: () -> Unit,
+)
 
 class MainActivity2 : ComponentActivity() {
     private var eventLocation by mutableStateOf(UserLocation.UBC)
@@ -120,6 +142,8 @@ fun CPEN321ApplicationApp(
     eventLocation: UserLocation = UserLocation.UBC,
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.EVENTS) }
+    var selectedMapItineraryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var itineraryToOpenInTrips by rememberSaveable { mutableStateOf<String?>(null) }
     val eventRecommendations = rememberAppEventRecommendationsState()
     AppEventRecommendationEffects(
         userId = userId,
@@ -129,7 +153,6 @@ fun CPEN321ApplicationApp(
         state = eventRecommendations,
         onViewEvents = { currentDestination = AppDestinations.EVENTS },
     )
-
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
@@ -152,38 +175,87 @@ fun CPEN321ApplicationApp(
             modifier = Modifier.fillMaxSize(),
             snackbarHost = { SnackbarHost(eventRecommendations.snackbarHostState) },
         ) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.PROFILE -> ProfileRoute(
-                        userId = userId,
-                        usersRepository = usersRepository,
-                        onPreferencesSaved = eventRecommendations::refreshAfterPreferenceChange,
-                        modifier = Modifier.padding(innerPadding),
-                    )
-                AppDestinations.TRIPS -> TripsRoute(
-                    userId = userId,
-                    itinerariesRepository = itinerariesRepository,
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.EVENTS -> LiveEventsScreen(
-                    userId = userId,
-                    eventsRepository = eventsRepository,
-                    itinerariesRepository = itinerariesRepository,
-                    location = eventLocation,
-                    initialEvents = eventRecommendations.eventsAt(eventLocation),
-                    onFirstPageLoaded = { events ->
-                        eventRecommendations.recordRecommendations(
-                            eventLocation,
-                            events,
-                            notifyAboutNewEvents = false,
-                        )
+            AppDestinationContent(
+                state = AppDestinationState(
+                    currentDestination,
+                    itineraryToOpenInTrips,
+                    selectedMapItineraryId,
+                ),
+                userId = userId,
+                repositories = AppRepositories(
+                    usersRepository,
+                    itinerariesRepository,
+                    eventsRepository,
+                ),
+                actions = AppDestinationActions(
+                    onItineraryOpenRequested = { itineraryToOpenInTrips = null },
+                    onItinerarySelected = { selectedMapItineraryId = it },
+                    onViewMap = { itinerary ->
+                        selectedMapItineraryId = itinerary.id
+                        currentDestination = AppDestinations.MAP
                     },
-                    modifier = Modifier.padding(innerPadding),
-                )
-                AppDestinations.MAP -> MapRoute(
-                    modifier = Modifier.padding(innerPadding),
-                )
-            }
+                    onVisitItinerary = {
+                        itineraryToOpenInTrips = selectedMapItineraryId
+                        currentDestination = AppDestinations.TRIPS
+                    },
+                    onPreferencesSaved = eventRecommendations::refreshAfterPreferenceChange,
+                ),
+                eventLocation = eventLocation,
+                eventRecommendations = eventRecommendations,
+                modifier = Modifier.padding(innerPadding),
+            )
         }
+    }
+}
+
+@Composable
+private fun AppDestinationContent(
+    state: AppDestinationState,
+    userId: String?,
+    repositories: AppRepositories,
+    actions: AppDestinationActions,
+    eventLocation: UserLocation,
+    eventRecommendations: AppEventRecommendationsState,
+    modifier: Modifier = Modifier,
+) {
+    when (state.destination) {
+        AppDestinations.PROFILE -> ProfileRoute(
+            userId = userId,
+            usersRepository = repositories.users,
+            onPreferencesSaved = actions.onPreferencesSaved,
+            modifier = modifier,
+        )
+        AppDestinations.TRIPS -> TripsRoute(
+            userId = userId,
+            itinerariesRepository = repositories.itineraries,
+            itineraryIdToOpen = state.itineraryIdToOpen,
+            onItineraryOpenRequested = actions.onItineraryOpenRequested,
+            onViewMap = actions.onViewMap,
+            modifier = modifier,
+        )
+        AppDestinations.EVENTS -> LiveEventsScreen(
+            userId = userId,
+            eventsRepository = repositories.events,
+            itinerariesRepository = repositories.itineraries,
+            location = eventLocation,
+            initialEvents = eventRecommendations.eventsAt(eventLocation),
+            onFirstPageLoaded = { events ->
+                eventRecommendations.recordRecommendations(
+                    eventLocation,
+                    events,
+                    notifyAboutNewEvents = false,
+                )
+            },
+            modifier = modifier,
+        )
+        AppDestinations.MAP -> MapRoute(
+            userId = userId,
+            itinerariesRepository = repositories.itineraries,
+            selectedItineraryId = state.selectedItineraryId,
+            onItinerarySelected = actions.onItinerarySelected,
+            onVisitItinerary = actions.onVisitItinerary,
+            modifier = modifier,
+        )
     }
 }
 

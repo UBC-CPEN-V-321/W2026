@@ -1,7 +1,6 @@
 package com.exploreUBC.cpen321application.ui.trips
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,22 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,20 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
 import com.exploreUBC.cpen321application.data.itineraries.CreateTransportationInput
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 internal val activityCategories = listOf(
     "food", "art", "outdoors", "markets", "live_music", "gaming", "museum", "other",
 )
 internal val transportationModes = listOf("walking", "cycling", "transit", "driving", "other")
-private val pacificTimeZone = ZoneId.of("America/Vancouver")
-private val dateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a z")
 internal const val ITINERARY_NAME_MAX_LENGTH = 100
 internal const val ACTIVITY_NAME_MAX_LENGTH = 200
 internal const val IMAGE_URL_MAX_LENGTH = 2_000
@@ -69,6 +55,38 @@ private data class ItemFormModel(
 private data class ItemFormActions(
     val onBack: () -> Unit,
     val onCreate: () -> Unit,
+)
+
+private data class ActivityDetailsFieldValues(
+    val name: String,
+    val image: String,
+    val description: String,
+    val category: String,
+)
+
+private data class ActivityDetailsFieldActions(
+    val onNameChange: (String) -> Unit,
+    val onImageChange: (String) -> Unit,
+    val onDescriptionChange: (String) -> Unit,
+    val onCategoryChange: (String) -> Unit,
+)
+
+private data class TransportationFieldValues(
+    val mode: String,
+    val startLocation: String,
+    val endLocation: String,
+    val distanceMeters: String,
+    val startTime: String,
+    val endTime: String,
+)
+
+private data class TransportationFieldActions(
+    val onModeChange: (String) -> Unit,
+    val onStartLocationChange: (String) -> Unit,
+    val onEndLocationChange: (String) -> Unit,
+    val onDistanceChange: (String) -> Unit,
+    val onStartTimeChange: (String) -> Unit,
+    val onEndTimeChange: (String) -> Unit,
 )
 
 @Composable
@@ -138,45 +156,75 @@ private fun NewActivityScreen(
         ItemFormActions(onBack, create),
         modifier,
     ) {
-        FormField(
-            name, { name = it }, "Name", "new_activity_name",
-            required = true, maxLength = ACTIVITY_NAME_MAX_LENGTH,
-        )
-        FormField(
-            image, { image = it }, "Image URL (optional)", "new_activity_image",
-            maxLength = IMAGE_URL_MAX_LENGTH,
-        )
-        FormField(
-            description, { description = it }, "Description (optional)",
-            "new_activity_description", maxLength = DESCRIPTION_MAX_LENGTH,
-        )
-        SelectionDropdown(
-            "Category",
-            activityCategories,
-            category,
-            { category = it },
-            "new_activity_category",
-            required = true,
-        )
-        AddressAutocompleteField(
-            value = location,
-            onValueChange = { location = it },
-            label = "Location",
-            tag = "new_activity_location",
-            options = AddressAutocompleteOptions(
-                required = true,
-                maxLength = LOCATION_MAX_LENGTH,
+        NewActivityDetailsFields(
+            values = ActivityDetailsFieldValues(name, image, description, category),
+            actions = ActivityDetailsFieldActions(
+                onNameChange = { name = it },
+                onImageChange = { image = it },
+                onDescriptionChange = { description = it },
+                onCategoryChange = { category = it },
             ),
         )
-        DateTimePickerField(
-            "Start time", startTime, { startTime = it }, "new_activity_start_time",
-            required = true,
-        )
-        DateTimePickerField(
-            "End time", endTime, { endTime = it }, "new_activity_end_time",
-            required = true,
+        NewActivityScheduleFields(
+            location, { location = it }, startTime, { startTime = it }, endTime, { endTime = it },
         )
     }
+}
+
+@Composable
+private fun NewActivityDetailsFields(
+    values: ActivityDetailsFieldValues,
+    actions: ActivityDetailsFieldActions,
+) {
+    FormField(
+        values.name, actions.onNameChange, "Name", "new_activity_name",
+        required = true, maxLength = ACTIVITY_NAME_MAX_LENGTH,
+    )
+    FormField(
+        values.image, actions.onImageChange, "Image URL (optional)", "new_activity_image",
+        maxLength = IMAGE_URL_MAX_LENGTH,
+    )
+    FormField(
+        values.description, actions.onDescriptionChange, "Description (optional)",
+        "new_activity_description", maxLength = DESCRIPTION_MAX_LENGTH,
+    )
+    SelectionDropdown(
+        "Category",
+        activityCategories,
+        values.category,
+        actions.onCategoryChange,
+        "new_activity_category",
+        required = true,
+    )
+}
+
+@Composable
+private fun NewActivityScheduleFields(
+    location: String,
+    onLocationChange: (String) -> Unit,
+    startTime: String,
+    onStartTimeChange: (String) -> Unit,
+    endTime: String,
+    onEndTimeChange: (String) -> Unit,
+) {
+    AddressAutocompleteField(
+        value = location,
+        onValueChange = onLocationChange,
+        label = "Location",
+        tag = "new_activity_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
+    DateTimePickerField(
+        "Start time", startTime, onStartTimeChange, "new_activity_start_time",
+        required = true,
+    )
+    DateTimePickerField(
+        "End time", endTime, onEndTimeChange, "new_activity_end_time",
+        required = true,
+    )
 }
 
 @Composable
@@ -225,43 +273,57 @@ private fun NewTransportationScreen(
         ItemFormActions(onBack, create),
         modifier,
     ) {
-        SelectionDropdown(
-            "Mode", transportationModes, mode, { mode = it }, "new_transportation_mode",
-            required = true,
-        )
-        AddressAutocompleteField(
-            value = startLocation,
-            onValueChange = { startLocation = it },
-            label = "Start location",
-            tag = "new_transportation_start_location",
-            options = AddressAutocompleteOptions(
-                required = true,
-                maxLength = LOCATION_MAX_LENGTH,
+        NewTransportationFields(
+            values = TransportationFieldValues(
+                mode, startLocation, endLocation, distanceMeters, startTime, endTime,
             ),
-        )
-        AddressAutocompleteField(
-            value = endLocation,
-            onValueChange = { endLocation = it },
-            label = "End location",
-            tag = "new_transportation_end_location",
-            options = AddressAutocompleteOptions(
-                required = true,
-                maxLength = LOCATION_MAX_LENGTH,
+            actions = TransportationFieldActions(
+                onModeChange = { mode = it },
+                onStartLocationChange = { startLocation = it },
+                onEndLocationChange = { endLocation = it },
+                onDistanceChange = { distanceMeters = it },
+                onStartTimeChange = { startTime = it },
+                onEndTimeChange = { endTime = it },
             ),
-        )
-        FormField(
-            distanceMeters, { distanceMeters = it }, "Distance in meters",
-            "new_transportation_distance", required = true,
-        )
-        DateTimePickerField(
-            "Start time", startTime, { startTime = it }, "new_transportation_start_time",
-            required = true,
-        )
-        DateTimePickerField(
-            "End time", endTime, { endTime = it }, "new_transportation_end_time",
-            required = true,
         )
     }
+}
+
+@Composable
+private fun NewTransportationFields(
+    values: TransportationFieldValues,
+    actions: TransportationFieldActions,
+) {
+    SelectionDropdown(
+        "Mode", transportationModes, values.mode, actions.onModeChange, "new_transportation_mode",
+        required = true,
+    )
+    AddressAutocompleteField(
+        value = values.startLocation,
+        onValueChange = actions.onStartLocationChange,
+        label = "Start location",
+        tag = "new_transportation_start_location",
+        options = AddressAutocompleteOptions(required = true, maxLength = LOCATION_MAX_LENGTH),
+    )
+    AddressAutocompleteField(
+        value = values.endLocation,
+        onValueChange = actions.onEndLocationChange,
+        label = "End location",
+        tag = "new_transportation_end_location",
+        options = AddressAutocompleteOptions(required = true, maxLength = LOCATION_MAX_LENGTH),
+    )
+    FormField(
+        values.distanceMeters, actions.onDistanceChange, "Distance in meters",
+        "new_transportation_distance", required = true,
+    )
+    DateTimePickerField(
+        "Start time", values.startTime, actions.onStartTimeChange, "new_transportation_start_time",
+        required = true,
+    )
+    DateTimePickerField(
+        "End time", values.endTime, actions.onEndTimeChange, "new_transportation_end_time",
+        required = true,
+    )
 }
 
 @Composable
@@ -391,102 +453,3 @@ internal fun TimeOrderErrorMessage(isVisible: Boolean) {
         )
     }
 }
-
-@Composable
-internal fun DateTimePickerField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    tag: String,
-    required: Boolean = false,
-) {
-    var showDatePicker by remember { mutableStateOf(false) }
-    var selectedDateMillis by remember { mutableStateOf<Long?>(null) }
-    OutlinedButton(
-        onClick = { showDatePicker = true },
-        modifier = Modifier.fillMaxWidth().testTag(tag),
-    ) {
-        val display = if (value.isBlank()) "Select date and time" else value.toPacificDisplayDateTime()
-        Text("$label${if (required) " *" else ""}: $display")
-    }
-    if (showDatePicker) {
-        DateSelectionDialog(value, { showDatePicker = false }) {
-            selectedDateMillis = it
-            showDatePicker = false
-        }
-    }
-    selectedDateMillis?.let { dateMillis ->
-        TimeSelectionDialog(value, dateMillis, onValueChange) { selectedDateMillis = null }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DateSelectionDialog(
-    value: String,
-    onDismiss: () -> Unit,
-    onSelected: (Long) -> Unit,
-) {
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = value.toDatePickerMillis() ?: System.currentTimeMillis(),
-    )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = { state.selectedDateMillis?.let(onSelected) },
-                enabled = state.selectedDateMillis != null,
-            ) { Text("Next") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    ) { DatePicker(state = state) }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimeSelectionDialog(
-    value: String,
-    dateMillis: Long,
-    onValueChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val currentTime = value.toPacificDateTime()
-    val state = rememberTimePickerState(
-        initialHour = currentTime?.hour ?: 12,
-        initialMinute = currentTime?.minute ?: 0,
-        is24Hour = false,
-    )
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.large) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Select time", style = MaterialTheme.typography.titleLarge)
-                Box(modifier = Modifier.fillMaxWidth()) { TimePicker(state = state) }
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = {
-                        onValueChange(dateMillis.toIsoTime(state.hour, state.minute))
-                        onDismiss()
-                    }) { Text("OK") }
-                }
-            }
-        }
-    }
-}
-
-private fun Long.toIsoTime(hour: Int, minute: Int): String =
-    Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
-        .atTime(hour, minute).atZone(pacificTimeZone).toInstant().toString()
-
-private fun String.toPacificDateTime() = runCatching {
-    Instant.parse(this).atZone(pacificTimeZone)
-}.getOrNull()
-
-private fun String.toDatePickerMillis(): Long? = toPacificDateTime()?.toLocalDate()
-    ?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
-
-internal fun String.toPacificDisplayDateTime(): String =
-    toPacificDateTime()?.format(dateTimeFormatter) ?: this

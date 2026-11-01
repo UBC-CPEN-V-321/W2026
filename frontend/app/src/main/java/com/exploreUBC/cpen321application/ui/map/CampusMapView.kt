@@ -37,6 +37,7 @@ fun CampusMapView(
     travelMode: TripTravelMode = TripTravelMode.DRIVING,
     selectedRouteKey: String? = null,
     controlsBottomInsetPx: Int = 0,
+    popularPlacesEnabled: Boolean = true,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -59,6 +60,9 @@ fun CampusMapView(
         controlsBottomInsetPx,
         controller,
     )
+    LaunchedEffect(controller, popularPlacesEnabled) {
+        controller.setPopularPlacesEnabled(popularPlacesEnabled)
+    }
     AndroidView(
         factory = { binding.root },
         modifier = modifier.fillMaxSize(),

@@ -18,7 +18,7 @@ const ITINERARY_ID = new ObjectId();
 const MISSING_ITINERARY_ID = new ObjectId();
 const ACTIVITY_ID = 'activity-1';
 const SEGMENT_ID = 'transportation-1';
-const DATABASE_NAME = 'cpen321_test_itineraries';
+const DATABASE_NAME = `eubc_i_${new ObjectId().toHexString()}`;
 
 const ACTIVITY_INPUT = {
   type: 'activity',
