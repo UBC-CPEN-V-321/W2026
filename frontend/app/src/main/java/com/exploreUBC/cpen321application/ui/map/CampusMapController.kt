@@ -74,6 +74,7 @@ class CampusMapController(
     private var controlBottomInsetPx = 0
     private var popularPlacesEnabled = true
     private var popularPlacesJob: Job? = null
+    private var onMapClick: () -> Unit = {}
 
     fun start() {
         MapsInitializer.initialize(context.applicationContext)
@@ -143,6 +144,13 @@ class CampusMapController(
         }
     }
 
+    fun setOnMapClickListener(listener: () -> Unit) {
+        onMapClick = listener
+        if (::map.isInitialized) {
+            map.setOnMapClickListener { onMapClick() }
+        }
+    }
+
     fun setTravelMode(tripMode: TripTravelMode) {
         if (mode != MapLayerMode.TRIP_ROUTES) return
         val shouldRedraw = travelMode != tripMode && ::map.isInitialized
@@ -196,6 +204,7 @@ class CampusMapController(
                 ).show()
             }
         }
+        map.setOnMapClickListener { onMapClick() }
 
         val itineraryMap = pendingItineraryMap
         if (itineraryMap != null) {
