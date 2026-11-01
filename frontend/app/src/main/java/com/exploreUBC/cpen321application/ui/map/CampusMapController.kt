@@ -33,6 +33,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,11 +72,14 @@ class CampusMapController(
     private var travelMode: TripTravelMode = TripTravelMode.DRIVING
     private var selectedRouteKey: String? = null
     private var controlBottomInsetPx = 0
+    private var popularPlacesEnabled = true
+    private var popularPlacesJob: Job? = null
 
     fun start() {
         MapsInitializer.initialize(context.applicationContext)
 
         binding.checkboxPopular.visibility = View.GONE
+        binding.mapOverlayControls.visibility = View.GONE
         if (mode == MapLayerMode.TRIP_ROUTES) {
             binding.textMapStatus.visibility = View.GONE
         }
@@ -113,6 +117,22 @@ class CampusMapController(
         pendingOverlayTitle = title
         if (::map.isInitialized) {
             renderItineraryMap(itineraryMap, title)
+        }
+    }
+
+    fun setPopularPlacesEnabled(enabled: Boolean) {
+        if (popularPlacesEnabled == enabled) return
+        popularPlacesEnabled = enabled
+        if (!::map.isInitialized) return
+        if (enabled) {
+            popularPlacesJob = scope.launch { loadPopularPlaces() }
+        } else {
+            popularPlacesJob?.cancel()
+            popularMarkers.forEach { it.remove() }
+            popularMarkers.clear()
+            if (mode == MapLayerMode.POPULAR_PLACES) {
+                binding.textMapStatus.setText(R.string.map_popular_hidden)
+            }
         }
     }
 
@@ -177,14 +197,12 @@ class CampusMapController(
             }
         }
 
-        if (mode == MapLayerMode.POPULAR_PLACES) {
-            scope.launch { loadPopularPlaces() }
-            return
-        }
-
         val itineraryMap = pendingItineraryMap
         if (itineraryMap != null) {
             renderItineraryMap(itineraryMap, pendingOverlayTitle)
+        }
+        if (popularPlacesEnabled) {
+            popularPlacesJob = scope.launch { loadPopularPlaces() }
         }
     }
 
@@ -384,7 +402,9 @@ class CampusMapController(
             if (marker != null) popularMarkers.add(marker)
         }
 
-        fitCamera(places.map { it.location })
+        if (renderedPoints.isEmpty()) {
+            fitCamera(places.map { it.location })
+        }
         binding.textMapStatus.setText(
             if (remotePlaces.isNullOrEmpty()) R.string.map_popular_fallback else R.string.map_popular_ready
         )
