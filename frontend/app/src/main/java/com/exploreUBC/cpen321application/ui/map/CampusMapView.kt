@@ -35,6 +35,7 @@ data class CampusMapViewOptions(
     val selectedRouteKey: String? = null,
     val controlsBottomInsetPx: Int = 0,
     val popularPlacesEnabled: Boolean = true,
+    val onMapClick: () -> Unit = {},
 )
 
 @Composable
@@ -62,6 +63,9 @@ fun CampusMapView(
     )
     LaunchedEffect(controller, options.popularPlacesEnabled) {
         controller.setPopularPlacesEnabled(options.popularPlacesEnabled)
+    }
+    LaunchedEffect(controller, options.onMapClick) {
+        controller.setOnMapClickListener(options.onMapClick)
     }
     AndroidView(
         factory = { binding.root },

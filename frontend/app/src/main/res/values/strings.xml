@@ -18,6 +18,7 @@
     <string name="map_legend_popular">Popular places</string>
     <string name="map_show_popular">Show popular locations</string>
     <string name="map_search_itineraries">Search saved itineraries</string>
+    <string name="map_show_controls">Show map controls</string>
     <string name="map_loading_saved_itineraries">Loading saved itineraries…</string>
     <string name="map_no_itinerary_matches">No saved itineraries match your search.</string>
     <string name="map_loading_routes">Drawing routes…</string>

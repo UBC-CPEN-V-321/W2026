@@ -1,8 +1,12 @@
 package com.exploreUBC.cpen321application.ui.map
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +23,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +65,7 @@ private class MapRouteUiState {
     var travelMode by mutableStateOf(TripTravelMode.DRIVING)
     var selectedRouteKey by mutableStateOf<String?>(null)
     var overlayHeightPx by mutableIntStateOf(0)
+    var cardsVisible by mutableStateOf(true)
 }
 
 @Composable
@@ -184,16 +190,45 @@ private fun MapRouteContent(
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         MapBackground(selectedItineraryId, uiState)
-        SavedItinerarySearch(
-            model = uiState.searchModel(selectedItineraryId, onItinerarySelected),
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-        SelectedMapOverlay(
-            selectedItineraryId,
-            uiState,
-            onVisitItinerary,
-            Modifier.align(Alignment.Center),
-        )
+        AnimatedVisibility(
+            visible = uiState.cardsVisible,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clipToBounds()
+                .onSizeChanged { uiState.overlayHeightPx = it.height },
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SavedItinerarySearch(
+                    model = uiState.searchModel(selectedItineraryId, onItinerarySelected),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SelectedMapOverlay(
+                    selectedItineraryId,
+                    uiState,
+                    onVisitItinerary,
+                    Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if (!uiState.cardsVisible) {
+            Button(
+                onClick = { uiState.cardsVisible = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp)
+                    .testTag("map_show_controls"),
+            ) {
+                Text(stringResource(R.string.map_show_controls))
+            }
+        }
     }
 }
 
@@ -212,13 +247,14 @@ private fun MapBackground(selectedItineraryId: String?, uiState: MapRouteUiState
             selectedRouteKey = uiState.selectedRouteKey,
             controlsBottomInsetPx = uiState.overlayHeightPx,
             popularPlacesEnabled = uiState.popularPlacesEnabled,
+            onMapClick = { uiState.cardsVisible = false },
         ),
         modifier = Modifier.fillMaxSize(),
     )
 }
 
 @Composable
-private fun BoxScope.SelectedMapOverlay(
+private fun SelectedMapOverlay(
     selectedItineraryId: String?,
     uiState: MapRouteUiState,
     onVisitItinerary: () -> Unit,
@@ -245,10 +281,7 @@ private fun BoxScope.SelectedMapOverlay(
             onTravelModeChange = { uiState.travelMode = it },
             onRouteSelected = { uiState.selectedRouteKey = it },
             onVisitItinerary = onVisitItinerary,
-            modifier = modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .onSizeChanged { uiState.overlayHeightPx = it.height },
+            modifier = modifier.fillMaxWidth(),
         )
     }
 }
@@ -256,7 +289,7 @@ private fun BoxScope.SelectedMapOverlay(
 @Composable
 private fun LoadingMapOverlay(selectedItineraryId: String?, modifier: Modifier) {
     if (selectedItineraryId == null) return
-    Card(modifier.padding(24.dp)) {
+    Card(modifier.padding(horizontal = 16.dp)) {
         Row(
             Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -303,7 +336,7 @@ private fun SavedItinerarySearch(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, top = 16.dp, end = 16.dp),
+            .padding(horizontal = 16.dp),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -405,7 +438,7 @@ private fun MapMessage(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    Card(modifier.padding(24.dp)) {
+    Card(modifier.padding(horizontal = 16.dp)) {
         Column(
             Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
