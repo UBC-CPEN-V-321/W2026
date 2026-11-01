@@ -81,6 +81,9 @@ class CampusMapController(
 
         binding.checkboxPopular.visibility = View.GONE
         binding.mapOverlayControls.visibility = View.GONE
+        binding.textMapStatus.setOnClickListener {
+            binding.textMapStatus.visibility = View.GONE
+        }
         if (mode == MapLayerMode.TRIP_ROUTES) {
             binding.textMapStatus.visibility = View.GONE
         }
@@ -335,9 +338,7 @@ class CampusMapController(
         if (renderedPoints.isEmpty()) {
             fitMapCamera(map, places.map { it.location }, binding.map)
         }
-        binding.textMapStatus.setText(
-            if (remotePlaces.isNullOrEmpty()) R.string.map_popular_fallback else R.string.map_popular_ready
-        )
+        binding.textMapStatus.setText(R.string.map_popular_ready)
     }
 
     private suspend fun showStaticMapFallback(points: List<LatLng>) {

@@ -64,13 +64,16 @@
         android:id="@+id/text_map_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
+        android:layout_gravity="top"
         android:layout_margin="16dp"
+        android:layout_marginTop="24dp"
         android:background="@drawable/bg_card"
         android:elevation="8dp"
         android:padding="14dp"
         android:text="@string/map_loading_routes"
         android:textColor="@color/text_primary"
-        android:textSize="13sp" />
+        android:textSize="13sp"
+        android:clickable="true"
+        android:focusable="true" />
 
 </FrameLayout>
