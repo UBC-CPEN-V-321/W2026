@@ -1,6 +1,6 @@
 import { Format } from '../../src/generated/prisma/enums';
-import { calculateELOChange } from '../../src/scoring/elo';
-import { GameInfo, PlayerInfo, RoundScore } from '../../src/scoring/scoring.types';
+import { calculateELOChange } from '../../src/ranking/elo';
+import { GameInfo, PlayerInfo, RoundScore } from '../../src/ranking/ranking.types';
 
 // Singles lineup: player-a on team 0, player-b on team 1
 function singlesPlayers(ratingA: number, ratingB: number): PlayerInfo[] {

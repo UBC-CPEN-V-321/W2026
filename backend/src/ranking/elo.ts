@@ -1,6 +1,6 @@
 // Pure Elo math and calculations
 import { Format } from '../generated/prisma/client'
-import { EloParams, GameInfo, PlayerInfo, RatingChange } from './scoring.types'
+import { EloParams, GameInfo, PlayerInfo, RatingChange } from './ranking.types'
 
 // Elo parameters tuned for tennis, where a round is a set
 const ELO_PARAMS: EloParams = { maxExpectedMargin: 6, marginGrowthRate: 0.0025, marginWeight: 1.5, kFactor: 50 };

@@ -360,7 +360,7 @@ Not included. The formal use cases describe each screen in enough detail for thi
         11. Socket.IO `join-game { gameId }` (client → server) and `game-update { gameId, rounds }` (server → client) - E
             - **Purpose**: Pushes each saved round to every player connected to the game.
         12. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }` → `{ game: Game, rounds: GameRound[] }` - E
-            - **Purpose**: Ends the game with its final score. The rounds replace any saved during the game, and the game is marked as completed in the same transaction, so the score can only be reported once (`409` after that). Rejected with `400` if there are no rounds, a round score is not a non-negative whole number, a round is tied, or both teams won the same number of rounds. The caller must be in the game. Ratings are not updated yet: `applyGameResult` will run in this transaction once Scoring stores ratings.
+            - **Purpose**: Ends the game with its final score. The rounds replace any saved during the game, and the game is marked as completed in the same transaction, so the score can only be reported once (`409` after that). Rejected with `400` if there are no rounds, a round score is not a non-negative whole number, a round is tied, or both teams won the same number of rounds. The caller must be in the game. Ratings are not updated yet: `applyGameResult` will run in this transaction once Ranking stores ratings.
         13. `Game createMatchedGame(match: Match, startsAt: Date, courtId: number, teams: string[][])` - In
             - **Purpose**: Used by Matchmaking to create a proposed game.
 3. **Matchmaking**
@@ -375,7 +375,7 @@ Not included. The formal use cases describe each screen in enough detail for thi
             - **Purpose**: Takes the caller out of the queue.
         4. `Match[] runMatchmaking()` - In
             - **Purpose**: Called by the matchmaking job: reads the queue, finds matches, creates games and notifies players. It also removes requests older than 2 hours.
-4. **Scoring**
+4. **Ranking**
     - **Purpose**: Owns ratings, the ELO calculation (with margin of victory and doubles team averages) and the leaderboards.
     - **Rationale**: This is our own computation. It is a pure function that is easy to unit test, and it is the only code allowed to change ratings. Alternative considered: ratings as columns that Games updates directly. Rejected because Matchmaking and the feed also read ratings, and only one component should write them.
     - **Interfaces**:
