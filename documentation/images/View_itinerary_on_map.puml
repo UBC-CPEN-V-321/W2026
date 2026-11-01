@@ -1,0 +1,87 @@
+@startuml
+title Use Case 3: View Itinerary on Map
+
+skinparam ArrowFontStyle plain
+skinparam ParticipantStyle rectangle
+skinparam Shadowing false
+skinparam DefaultTextAlignment center
+skinparam SequenceMessageAlign center
+skinparam SequenceBoxFontSize 15
+skinparam SequenceBoxPadding 0
+skinparam FontName Arial
+skinparam NoteBackgroundColor white
+skinparam NoteBorderColor black
+hide footbox
+
+actor User
+
+box "User Interface"
+participant ":ExploreUBCApp" as App
+end box
+
+box "Application Logic"
+participant ":ItineraryMapService" as MapService
+end box
+
+box "Storage"
+participant "db:MongoDB" as DB
+end box
+
+box "External Service"
+participant ":GoogleMapsService" as GoogleMaps
+end box
+
+User -> App : Open map for itinerary
+activate App
+
+App -> MapService : getItineraryMap(userId: UserId, itineraryId: ItineraryId): ItineraryMap
+activate MapService
+
+MapService -> DB : findItinerary(userId: UserId, itineraryId: ItineraryId): Itinerary
+activate DB
+DB --> MapService : itinerary: Itinerary
+deactivate DB
+
+MapService -> DB : findByItineraryId(itineraryId: ItineraryId): ItineraryMap?
+activate DB
+DB --> MapService : cachedMap: ItineraryMap?
+deactivate DB
+
+alt cached map is current
+    note over MapService
+    Reuse the stored markers and routes.
+    end note
+else cache is missing or outdated
+    MapService -> GoogleMaps : geocodeAddress(address: String): GeocodedLocation?
+    activate GoogleMaps
+    GoogleMaps --> MapService : location: GeocodedLocation?
+    deactivate GoogleMaps
+
+    MapService -> GoogleMaps : getRoute(origin: Coordinates, destination: Coordinates, mode: TravelMode): TravelOption?
+    activate GoogleMaps
+    GoogleMaps --> MapService : route: TravelOption?
+    deactivate GoogleMaps
+
+    MapService -> DB : upsertMapData(mapData: ItineraryMap): void
+    activate DB
+    DB --> MapService
+    deactivate DB
+end
+
+MapService --> App : itineraryMap: ItineraryMap
+deactivate MapService
+
+App -> GoogleMaps : loadMapTiles(): MapTiles
+activate GoogleMaps
+GoogleMaps --> App : mapTiles: MapTiles
+deactivate GoogleMaps
+
+App --> User : Display activity pins and route legs
+
+opt User selects a route leg
+    User -> App : Select route leg
+    App --> User : Highlight polyline and display directions
+end
+
+deactivate App
+@enduml

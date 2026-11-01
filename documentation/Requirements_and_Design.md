@@ -19,7 +19,7 @@ The central use case is creating an itinerary. Travellers can add activities and
 
 After adding activities, travellers can view activity locations on a map and see routes between them. The map also features pins for popular destinations nearby. Google Maps SDK supports these features. The app also includes a transportation cost calculator, helping travellers consider their budget. The calculator takes in vehicle type, fuel efficiency, fuel price, and distance to calculate the total cost.
 
-Finally, travellers can view live event recommendations. Local events are retrieved from an external event service API and are matched to the user’s location and profile preferences. WebSockets allow new or modified live event updates to appear without refreshing.
+Finally, travellers can view live event recommendations. Local events are retrieved from an external event service API and are matched to the user’s location and profile preferences. While the application is open, it refreshes recommendations after the user moves at least 10 km or saves updated preferences and displays an in-app notification when the recommendations change.
 
 The features in this app will facilitate the entire trip planning process for UBC Exchange students, from choosing where to go and to getting there, leaving little room for unwanted surprises and making the journey a breeze.
 
@@ -84,7 +84,8 @@ The features in this app will facilitate the entire trip planning process for UB
 
 1. **View Event Recommendations**: The user views upcoming events ranked using their saved interests and current location. The user can load additional recommendations when more matching events are available.
 2. **View Event Details**: The user reviews an event's title, description, date, venue, distance, and available price information, and can open its Ticketmaster page for complete details.
-3. **Add an Event to an Itinerary**: The user selects a saved itinerary and adds an event as a scheduled activity. If the user has no itinerary, they can create one during this process. The system rejects the addition if the event overlaps with an existing itinerary item.
+3. **Add an Event to an Itinerary**: The user selects or creates an itinerary, confirms or changes the event's suggested end time, and adds the event as a scheduled activity. If the event overlaps with existing itinerary items, the user can keep the existing schedule or replace the conflicting items with the event.
+4. **Refresh Event Recommendations**: While the application is open, the system refreshes recommendations when the user moves at least 10 km or saves updated preferences. If the recommendations change while the user is viewing another screen, the system displays an in-app notification that can open Live Events.
 
 #### Use Cases for Feature 7: Transportation Budget Calculator
 
@@ -139,9 +140,13 @@ The features in this app will facilitate the entire trip planning process for UB
 - 5a. The user enters an invalid start or end time.
   - 5a1. The system disables **Save**.
   - 5a2. The system displays an error message.
-- 6a. The activity update cannot be stored because of a server or network error.
-  - 6a1. The system leaves the previously saved activity unchanged.
-  - 6a2. The system informs the user that the update failed and allows another attempt.
+- 6a. The updated activity overlaps with one or more existing activities or transportation segments.
+  - 6a1. The system displays the conflicting itinerary items and asks the user whether to keep the existing schedule or replace the conflicting items.
+  - 6a2. If the user keeps the existing schedule, the original activity and conflicting items remain unchanged, and the use case ends.
+  - 6a3. If the user chooses replacement, the system removes the conflicting items and saves the updated activity.
+- 7a. The activity update cannot be stored because of a server or network error.
+  - 7a1. The system leaves the previously saved activity unchanged.
+  - 7a2. The system informs the user that the update failed and allows another attempt.
 
 #### Use Case 3: View Itinerary on Map
 
@@ -155,10 +160,11 @@ The features in this app will facilitate the entire trip planning process for UB
 2. The exchange student selects the itinerary they want to visualize.
 3. The exchange student opens the map view for that itinerary.
 4. The system loads the itinerary's scheduled activities (type, name, start/end time, location) and transportation segments (type, start/end time, pick-up/drop-off location, distance).
-5. The system requests geocoded coordinates, map tiles, and route polylines from the Google Maps Service.
-6. The Google Maps Service returns valid coordinates, map data, and routes for the itinerary.
+5. The backend obtains the geocoded coordinates and route data needed for the itinerary.
+6. The frontend loads the interactive map tiles directly through the Google Maps SDK.
 7. The system displays the map with activity pins in chronological order and drawn routes between consecutive activities.
-8. The exchange student pans, zooms, and taps pins to inspect activity and route details.
+8. The exchange student selects a route leg.
+9. The system highlights the selected route polyline and displays its directions.
 
 **Failure scenario(s)**:
 
@@ -178,13 +184,12 @@ The features in this app will facilitate the entire trip planning process for UB
   - 5a1. The system plots the activities that can be geocoded and marks the invalid stops as unmapped.
   - 5a2. The system warns the student that some activities could not be shown on the map.
   - 5a3. The use case continues with the remaining mapped activities.
-- 6a. The Google Maps Service is unavailable or returns an error.
+- 5b. A route cannot be computed between two consecutive activities.
+  - 5b1. The system still shows both activity pins and omits only the failed route segment.
+  - 5b2. The system notifies the student that this transportation leg could not be drawn.
+  - 5b3. The use case continues with the remaining routes.
+- 6a. The frontend cannot load the interactive map tiles.
   - 6a1. The system displays a map-unavailable message and offers the existing list view of the itinerary.
-  - 6a2. The use case ends.
-- 6b. A route cannot be computed between two consecutive activities.
-  - 6b1. The system still shows both activity pins and omits only the failed route segment.
-  - 6b2. The system notifies the student that this transportation leg could not be drawn.
-  - 6b3. The use case continues with the remaining routes.
 
 #### Use Case 4: View Event Recommendations
 
@@ -284,12 +289,12 @@ The features in this app will facilitate the entire trip planning process for UB
         - **Purpose [3.4.2.2]**: Updates the details of a saved itinerary.
      6. `bool updateItineraryDetails(String userId, String itineraryId, ItineraryDetails details)`
         - **Purpose [3.4.2.2]**: Stores updated itinerary details in MongoDB.
-     7. `Activity addActivity(String userId, String itineraryId, ActivityInput activity)`
-        - **Purpose [3.4.2.3]**: Adds an activity to a saved itinerary.
+     7. `Activity addActivity(String userId, String itineraryId, ActivityInput activity, bool replaceConflicts)`
+        - **Purpose [3.4.2.3, 3.4.6.3]**: Adds an activity to a saved itinerary and optionally replaces conflicting itinerary items.
      8. `bool insertEmbeddedActivity(String userId, String itineraryId, Activity activity)`
         - **Purpose [3.4.2.3]**: Stores an activity in an itinerary document in MongoDB.
-     9. `TransportationSegment addTransportationSegment(String userId, String itineraryId, TransportationSegmentInput segment)`
-        - **Purpose [3.4.2.3]**: Adds a transportation segment to a saved itinerary.
+     9. `TransportationSegment addTransportationSegment(String userId, String itineraryId, TransportationSegmentInput segment, bool replaceConflicts)`
+        - **Purpose [3.4.2.3]**: Adds a transportation segment to a saved itinerary and optionally replaces conflicting itinerary items.
      10. `bool insertEmbeddedTransportationSegment(String userId, String itineraryId, TransportationSegment segment)`
          - **Purpose [3.4.2.3]**: Stores a transportation segment in an itinerary document in MongoDB.
      11. `bool removeActivity(String userId, String itineraryId, String activityId)`
@@ -304,17 +309,19 @@ The features in this app will facilitate the entire trip planning process for UB
          - **Purpose [3.4.2.5]**: Reorders activities and their associated transportation segments.
      16. `bool updateItineraryOrder(String userId, String itineraryId, String[] orderedActivityIds, TransportationSegment[] segments)`
          - **Purpose [3.4.2.5]**: Stores an updated itinerary order in MongoDB.
-     17. `Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)`
-         - **Purpose [3.4.2.6]**: Updates an activity in a saved itinerary.
+     17. `Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update, bool replaceConflicts)`
+         - **Purpose [3.4.2.6]**: Updates an activity and optionally replaces conflicting itinerary items.
      18. `bool updateEmbeddedActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)`
          - **Purpose [3.4.2.6]**: Stores an updated activity in MongoDB.
-     19. `TransportationSegment updateTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update)`
-         - **Purpose [3.4.2.6]**: Updates a transportation segment in a saved itinerary.
+     19. `TransportationSegment updateTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update, bool replaceConflicts)`
+         - **Purpose [3.4.2.6]**: Updates a transportation segment and optionally replaces conflicting itinerary items.
      20. `bool updateEmbeddedTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update)`
          - **Purpose [3.4.2.6]**: Stores an updated transportation segment in MongoDB.
-     21. `bool deleteItinerary(String userId, String itineraryId)`
+     21. `bool replaceEmbeddedItems(String userId, String itineraryId, String[] removedItemIds, ItineraryItem replacement)`
+         - **Purpose [3.4.2.3, 3.4.2.6, 3.4.6.3]**: Atomically removes conflicting items and stores their replacement in MongoDB.
+     22. `bool deleteItinerary(String userId, String itineraryId)`
          - **Purpose [3.4.2.7]**: Deletes a user's saved itinerary.
-     22. `bool removeItinerary(String userId, String itineraryId)`
+     23. `bool removeItinerary(String userId, String itineraryId)`
          - **Purpose [3.4.2.7]**: Removes an itinerary document from MongoDB.
 2. **Users**
    - **Purpose**: It represents ExploreUBC accounts and persistent traveler preferences. It supports CRUD operations on the account. It provides profile data to the `Recommendation` and `LiveEvents` components. It exchanges a verified external identity for an ExploreUBC session.
@@ -354,30 +361,24 @@ The features in this app will facilitate the entire trip planning process for UB
      5. `bool replaceLatestRecommendations(String userId, Itinerary[] rankedItineraries)`
         - **Purpose [3.4.1.1]**: Stores a user's latest recommendation set in MongoDB.
 5. **Maps:**
-   - **Purpose**: The Android client that the exchange student uses. It renders the map view, plots itinerary and popular-location pins, and forwards map and place requests to the backend services and Google Maps. It also loads a saved itinerary and assembles the map data (activity coordinates and transportation routes) needed to plot that itinerary. It also finds popular places in a map region and loads details when the student selects a popular-location pin.
+   - **Purpose**: Generates and caches itinerary markers and routes in the backend. The Android client displays this data through the Google Maps SDK and retrieves popular nearby locations through the Google Places API.
    - **Interfaces**:
-     1. `viewItineraryMap(itineraryId: UUID): MapView`
-        - **Purpose**: Opens the map for a selected itinerary and returns the map view with activity pins and routes.
-     2. `viewActivityDetails(activityId: UUID): ActivityDetails`
-        - **Purpose**: Shows the details of an itinerary activity when the student taps an activity pin.
-     3. `browsePopularLocations(): MapView`
-        - **Purpose**: Opens the map in the current region and returns the map view with popular-location pins.
-     4. `viewPlaceDetails(placeId: String): PlaceDetails`
-        - **Purpose**: Shows the name, category, and address of a popular location when the student taps a location pin.
-     5. `loadMap(region: Region): MapTiles`
-        - **Purpose**: Requests map tiles for the chosen region from the Google Maps Service (used by both View Itinerary on Map and Browse Popular Locations).
-     6. `getItineraryMapData(itineraryId: UUID): MapData`
-        - **Purpose**: Returns the map data for the selected itinerary, including geocoded activities and route polylines.
-     7. `getItinerary(itineraryId: UUID): Itinerary`
-        - **Purpose**: Reads the itinerary record (activities and transport segments) from the Itinerary DB.
-     8. `getCoordinatesAndRoutes(activities: List<Activity>, segments: List<TransportSegment>): MapData`
-        - **Purpose**: Asks the Google Maps Service to geocode activity locations and compute routes between consecutive stops.
-     9. `getPopularLocations(region: Region): List<Place>`
-        - **Purpose**: Returns popular places for the given region so the Frontend can show them as pins.
-     10. `searchPopularPlaces(region: Region): List<Place>`
-         - **Purpose**: Queries the Google Maps Service for popular places in the region.
-     11. `getPlaceDetails(placeId: String): PlaceDetails`
-         - **Purpose**: Returns the details of a selected place, fetching them from the Google Maps Service when needed.
+     1. `ItineraryMap getItineraryMap(String userId, String itineraryId)`
+        - **Purpose [3.4.5.1]**: Returns current cached map data or generates new markers and routes for an itinerary.
+     2. `ItineraryMap? findByItineraryId(String itineraryId)`
+        - **Purpose [3.4.5.1]**: Retrieves cached itinerary map data from MongoDB.
+     3. `void upsertMapData(ItineraryMap mapData)`
+        - **Purpose [3.4.5.1]**: Inserts or replaces the cached map data for an itinerary.
+     4. `GeocodedLocation? geocodeAddress(String address)`
+        - **Purpose [3.4.5.1]**: Converts an itinerary address into coordinates and Google location details.
+     5. `TravelOption? getRoute(MapCoordinates origin, MapCoordinates destination, TransportationMode transportationMode)`
+        - **Purpose [3.4.5.1]**: Retrieves a route polyline, distance, duration, and directions between two locations.
+     6. `AddressAutocompleteResult autocompleteAddresses(String query)`
+        - **Purpose [3.4.5.1]**: Retrieves Google Places address suggestions for itinerary locations.
+     7. `PopularPlace[]? fetchPopularPlaces(LatLng center)`
+        - **Purpose [3.4.5.2]**: Retrieves popular locations near the selected map region.
+     8. `void deleteItineraryMap(String itineraryId)`
+        - **Purpose [3.4.5.1]**: Removes cached map data after its itinerary is deleted.
 
 ### **4.2. Databases**
 
@@ -449,6 +450,7 @@ The features in this app will facilitate the entire trip planning process for UB
            description?: string;
            imageUrl: string;
            startDateTime: Date;
+           endDateTime?: Date;
            venueName: string;
            city: string;
            location: {
@@ -512,15 +514,15 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### 4.6.3. [**View itinerary on map**](#use-case-3-view-itinerary-on-map)
 
-    ![View itinerary on map sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/View_itinerary_on_map.png)
+![View itinerary on map sequence diagram](images/View_itinerary_on_map.png)
 
 #### 4.6.4. [**View Event Recommendations**](#use-case-4-view-event-recommendations)
 
-![View Event Recommendations sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/view_events_seq_diagram.png)
+![View Event Recommendations sequence diagram](images/view_events_seq_diagram.png)
 
 #### 4.6.5. [**View Transportation Cost Estimate**](#use-case-5-view-transportation-cost-estimate)
 
-![View Transportation Cost Estimate sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/transportation_cost_seq_diagram.png)
+![View Transportation Cost Estimate sequence diagram](images/transportation_cost_seq_diagram.png)
 
 ### **4.7. Design of Non-Functional Requirements**
 
