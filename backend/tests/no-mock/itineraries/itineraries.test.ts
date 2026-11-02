@@ -134,6 +134,9 @@ describe('Itinerary repository malformed-ID guards — no mocks', () => {
       itineraryDao.findItinerary('invalid-owner', ITINERARY_ID.toHexString()),
     ).resolves.toBeNull();
     await expect(
+      itineraryDao.findItineraries('invalid-owner', {}),
+    ).resolves.toEqual([]);
+    await expect(
       itineraryDao.updateItineraryDetails(
         'invalid-owner',
         ITINERARY_ID.toHexString(),
@@ -594,6 +597,29 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities — no 
     expect(response.body.error.message).toContain('overlaps');
   });
 
+  test('replaces an overlapping activity when requested', async () => {
+    const response = await request(app)
+      .post(`/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/activities?replaceConflicts=true`)
+      .send({
+        ...ACTIVITY_INPUT,
+        startTime: '2027-11-30T17:30:00.000Z',
+        endTime: '2027-11-30T17:45:00.000Z',
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.activity).toMatchObject({
+      name: ACTIVITY_INPUT.name,
+      id: expect.any(String),
+    });
+    const stored = await database.collection('itineraries').findOne({
+      _id: ITINERARY_ID,
+    });
+    expect(stored?.items.map((item: { id: string }) => item.id)).toEqual([
+      SEGMENT_ID,
+      response.body.activity.id,
+    ]);
+  });
+
   test.each([
     [[]],
     [{ ...ACTIVITY_INPUT, type: 'transportation' }],
@@ -775,6 +801,29 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-seg
       .send({ ...TRANSPORTATION_INPUT, mode: 'flying' });
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('INVALID_ITINERARY_ITEM');
+  });
+
+  test('replaces an overlapping transportation segment when requested', async () => {
+    const response = await request(app)
+      .post(`/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/transportation-segments?replaceConflicts=true`)
+      .send({
+        ...TRANSPORTATION_INPUT,
+        startTime: '2027-11-30T18:10:00.000Z',
+        endTime: '2027-11-30T18:20:00.000Z',
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.transportationSegment).toMatchObject({
+      mode: TRANSPORTATION_INPUT.mode,
+      id: expect.any(String),
+    });
+    const stored = await database.collection('itineraries').findOne({
+      _id: ITINERARY_ID,
+    });
+    expect(stored?.items.map((item: { id: string }) => item.id)).toEqual([
+      ACTIVITY_ID,
+      response.body.transportationSegment.id,
+    ]);
   });
 
   test.each([

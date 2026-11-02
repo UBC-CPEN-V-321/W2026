@@ -2,6 +2,8 @@ import request from 'supertest';
 
 import { createApp } from '../../../src/index';
 import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepository';
+import type { ItineraryMapRepository } from '../../../src/maps/itineraryMapRepository';
+import type { ItineraryMap } from '../../../src/maps/mapTypes';
 import type {
   CreateActivityInput,
   CreateItineraryInput,
@@ -56,6 +58,16 @@ const STORED_ITINERARY: Itinerary = {
   saved: true,
   inRecommendation: false,
   score: {},
+};
+
+const CACHED_MAP: ItineraryMap = {
+  itineraryId: ITINERARY_ID,
+  ownerId: USER_ID,
+  itineraryUpdatedAt: STORED_ITINERARY.updatedAt,
+  markers: [],
+  routes: [],
+  unmappedActivities: [],
+  generatedAt: '2026-10-12T12:00:00.000Z',
 };
 
 function createMockRepository(): jest.Mocked<ItineraryRepository> {
@@ -206,6 +218,51 @@ describe('DELETE /api/v1/users/:userId/itineraries/:itineraryId — mocks', () =
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('ITINERARY_NOT_FOUND');
+  });
+});
+
+describe('Itinerary map routes — mocks', () => {
+  test('returns a cached map without regenerating it', async () => {
+    const repository = createMockRepository();
+    repository.findItinerary.mockResolvedValue(STORED_ITINERARY);
+    const mapRepository: jest.Mocked<ItineraryMapRepository> = {
+      findByItineraryId: jest.fn().mockResolvedValue(CACHED_MAP),
+      upsertMapData: jest.fn(),
+      deleteByItineraryId: jest.fn().mockResolvedValue(true),
+    };
+    const app = createApp({
+      itineraryRepository: repository,
+      itineraryMapRepository: mapRepository,
+    });
+
+    const response = await request(app).get(
+      `/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/map`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.itineraryMap).toEqual(CACHED_MAP);
+    expect(mapRepository.upsertMapData).not.toHaveBeenCalled();
+  });
+
+  test('removes cached map data after deleting an itinerary', async () => {
+    const repository = createMockRepository();
+    repository.removeItinerary.mockResolvedValue(true);
+    const mapRepository: jest.Mocked<ItineraryMapRepository> = {
+      findByItineraryId: jest.fn().mockResolvedValue(null),
+      upsertMapData: jest.fn(),
+      deleteByItineraryId: jest.fn().mockResolvedValue(true),
+    };
+    const app = createApp({
+      itineraryRepository: repository,
+      itineraryMapRepository: mapRepository,
+    });
+
+    const response = await request(app).delete(
+      `/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}`,
+    );
+
+    expect(response.status).toBe(204);
+    expect(mapRepository.deleteByItineraryId).toHaveBeenCalledWith(ITINERARY_ID);
   });
 });
 

@@ -96,6 +96,21 @@ describe('GET /api/v1/users/:userId — no mocks', () => {
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('USER_NOT_FOUND');
   });
+
+  test('reads preferences directly and safely handles missing users', async () => {
+    const userDao = new UserDao(database);
+
+    await expect(userDao.findPreferences(USER_ID.toHexString()))
+      .resolves.toEqual({
+        transportation: { mode: 'transit' },
+        budget: 'balanced',
+        interest: 'outdoors',
+      });
+    await expect(userDao.findPreferences(MISSING_USER_ID.toHexString()))
+      .resolves.toBeNull();
+    await expect(userDao.findPreferences('not-an-object-id'))
+      .resolves.toBeNull();
+  });
 });
 
 describe('PATCH /api/v1/users/:userId — no mocks', () => {
