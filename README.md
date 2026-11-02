@@ -73,7 +73,7 @@ cp backend/.env.example backend/.env
 
 Set at least:
 - `JWT_SECRET`: a long random string used to sign auth tokens.
-- `MONGODB_URI`: only needed for local development (default in `.env.example` assumes MongoDB on `localhost:27017`). Ignored when running via Docker Compose.
+- `MONGODB_URI`: for local development, use `mongodb://localhost:27017/cpen321` to connect to the local MongoDB container. Docker Compose configures its own connection when running the full stack.
 - `PORT` (optional): defaults to `3000` if unset.
 - `TICKETMASTER_API_KEY`: API key for searching and syncing live events.
 - `GEOCODING_API_KEY`: Google Geocoding API key used to convert addresses into coordinates.
@@ -85,16 +85,31 @@ Set at least:
 **Requirements:** 
 - [Node.js](https://nodejs.org/en/download/) 22+
 - [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) 10+
+- [Docker Compose](https://docs.docker.com/compose/install/) v2.24+
 
 **Setup:** 
-1. Install dependencies:
+1. Start the local MongoDB database from the project root:
+
+   ```bash
+   docker compose up -d mongo
+   ```
+
+   The backend `.env.example` uses `mongodb://localhost:27017/cpen321`, which connects to this local database.
+
+2. Install backend dependencies:
 
    ```bash
    cd backend
    npm install
    ```
 
-2. **Sync Ticketmaster events** to MongoDB before starting the API:
+3. **Initialize the database** (creates the collections, validation rules, indexes, and seed data):
+
+   ```bash
+   npm run db:init
+   ```
+
+4. **Sync Ticketmaster events** to MongoDB before starting the API:
 
    ```bash
    npm run sync:events
@@ -102,13 +117,13 @@ Set at least:
 
    This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Run the sync again whenever you want to refresh the event catalog.
 
-3. **Development** (TypeScript with auto-reload):
+5. **Development** (TypeScript with auto-reload):
 
    ```bash
    npm run dev
    ```
 
-4. **Production build** (optional):
+6. **Production build** (optional):
 
    ```bash
    npm run build

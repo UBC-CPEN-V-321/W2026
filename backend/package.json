@@ -5,7 +5,7 @@
   "description": "Backend service for the CPEN 321 term project",
   "main": "dist/index.js",
   "scripts": {
-    "db:init": "node scripts/initialize-atlas.js",
+    "db:init": "node -r dotenv/config scripts/initialize-atlas.js",
     "vercel-build": "npm run db:init && npm run build && npm run sync:events",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
