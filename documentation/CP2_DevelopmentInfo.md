@@ -1,17 +1,13 @@
 # **CP2 Development Information**
 
-1. Repository and submission version  
-   
+## 1. Repository and submission version
 
 | Repository | https\://github.com/m1lun/m1skeletonProject  |
 | :---- | :---- |
 | Submission branch | main |
-| Submission commit SHA | TODO |
+| Submission commit SHA | 149f16a96f8931a37c0b1c8f2affbebcb3c4cc6d |
 
-   
-
-2. Backend server  
-   
+## 2. Backend server
 
 | Configured public IP | 34.168.1.92  |
 | :---- | :---- |
@@ -19,10 +15,7 @@
 | Domain name | (optional) |
 | Health endpoint | GET https\://34.168.1.92:3000/health returns {"status":"ok"} |
 
-   
-
-3. Project scope requirement  
-   
+## 3. Project scope requirement
 
 | Requirement | Use case | How it is implemented |
 | :---- | :---- | :---- |
@@ -30,14 +23,11 @@
 | External API | Use Case 3: View Recommendations for a Post | The backend calls the OpenRouteService matrix API for the travel time to each match on the first page of recommendations, with a 2-second timeout. If the call fails, the recommendations are still returned and the app shows "Travel time unavailable". |
 | App response to external events | Use Case 4: Send a Message | When one user sends a message or proposes, accepts or declines a price, the other user's open conversation updates without refreshing. The backend pushes these changes through Server-Sent Events on GET /api/events. |
 
-   
+## 4. Configuration and setup
 
-4. Configuration and setup
+Frontend: Android Studio, Java 17 and Android SDK Platform 35\. Verify the submitted APK on the required Pixel 9 emulator with Android Baklava API 36\.
 
-   Frontend: Android Studio, Java 17 and Android SDK Platform 35\. Verify the submitted APK on the required Pixel 9 emulator with Android Baklava API 36\.
-
-   Backend (only to run it yourself locally): Docker Compose 2.24+ with the supplied MongoDB 7 service. Direct execution instead requires [Node.js](http://Node.js) 22.x, npm 10+ and a running MongoDB instance.  
-   
+Backend (only to run it yourself locally): Docker Compose 2.24+ with the supplied MongoDB 7 service. Direct execution instead requires [Node.js](http://Node.js) 22.x, npm 10+ and a running MongoDB instance.
 
 | Configuration | Value |
 | :---- | :---- |
@@ -47,12 +37,12 @@
 | Android application ID | com.example.matchmarket |
 | Backend port / database name | 3000/matchmarket |
 
-Option A: use the submitted APK with the deployed back end (recommended)
+### Option A: use the submitted APK with the deployed back end (recommended)
 
-1. Install CP2\_MatchMarket.apk on the Pixel 9 / API 36 emulator.  
+1. Install CP2\_MatchMarket.apk on the Pixel 9 / API 36 emulator.
 2. Open the app and sign in with Google. It already points at https\://34.168.1.92:3000, and no other setup is needed.
 
-Setup procedures:
+### Option B: build and deploy it yourself
 
 1. Clone the repository and check out the submission commit recorded in Section 1\.
 
@@ -68,43 +58,41 @@ Setup procedures:
 
 7. From frontend/, run ./gradlew assembleRelease, or .\\gradlew.bat assembleRelease on Windows. Install app/build/outputs/apk/release/app-release.apk and verify it against the public backend. Submit it as CP2\_MatchMarket.apk.
 
-	5\. Accounts and access
+## 5. Accounts and access
 
-	Google sign-in requires an eligible Google account on the device or emulator.  
-	
+Google sign-in requires an eligible Google account on the device or emulator.
 
 | TA account or sign-in instructions | Launch the application and select "Sign in with Google".  |
 | :---- | :---- |
-| Required credentials or allowlisting | TODO: state whether the TA's Google account must be added as a test user in Google Cloud. |
-| Sample data or extra access steps | TODO: state whether sample requests and listings are on the deployed backend. Testing messaging, deals and ratings needs two Google accounts, because a user only sees other users' posts in the feed. |
+| Required credentials or allowlisting | None. TAs do not need to be added, and any Google account can sign in. |
+| Sample data or extra access steps | No sample data is needed. The feed only shows other users' posts, so use two Google accounts: create a request with one and a listing in the same category with the other. This gives both accounts recommendations, messaging, deals and ratings to test. |
 
-	  
-What you can do in the app at CP2
+### What you can do in the app at CP2
 
-1. **Manage posts**. In My Posts, switch between buying and selling and create a request or a listing. Set the category, address, price, condition, photos and hard or soft preferences, plus custom fields. You can edit, close, reopen and delete your posts.  
-2. **Browse the feed**. It shows other users' open listings or requests, newest first, filterable by category, price range, and address plus radius.  
-3. **See recommendations**. Open one of your own open posts and tap See recommendations. Matching posts from other users appear best fit first, with their distance in km and, on the first page, their travel time.  
-4. **Message other users**. Open another user's post and tap Message to send a proposed price and start a conversation. The Messages tab lists your conversations. New messages and proposals appear in an open conversation without refreshing.  
-5. **Make a deal**. Accept the other user's proposed price to record a deal and close both posts, or decline it so that either user can propose again.  
+1. **Manage posts**. In My Posts, switch between buying and selling and create a request or a listing. Set the category, address, price, condition, photos and hard or soft preferences, plus custom fields. You can edit, close, reopen and delete your posts.
+2. **Browse the feed**. It shows other users' open listings or requests, newest first, filterable by category, price range, and address plus radius.
+3. **See recommendations**. Open one of your own open posts and tap See recommendations. Matching posts from other users appear best fit first, with their distance in km and, on the first page, their travel time.
+4. **Message other users**. Open another user's post and tap Message to send a proposed price and start a conversation. The Messages tab lists your conversations. New messages and proposals appear in an open conversation without refreshing.
+5. **Make a deal**. Accept the other user's proposed price to record a deal and close both posts, or decline it so that either user can propose again.
 6. **Rate deals**. In the Deals tab, see your deals with the agreed price and the other user's score, rate the other user from 1 to 5 stars with an optional comment, and edit your rating later.
 
-6\. Physical device  
-	
+## 6. Physical device
 
 | Manufacture | Samsung |
 | :---- | :---- |
 | Model | S20FE |
 
-	7\. Humblebrag  
-	Live chat runs on Server-Sent Events with no extra library, and a chat reloads after a reconnect to recover anything it missed. Sessions use rotating refresh tokens: reusing an old token revokes every token from that sign-in.
+## 7. Humblebrag
 
-	8\. Limitations
+Live chat runs on Server-Sent Events with no extra library, and a chat reloads after a reconnect to recover anything it missed. Sessions use rotating refresh tokens: reusing an old token revokes every token from that sign-in.
 
-- Travel times are for walking only, and only on the first page of recommendations.  
-- Live updates only reach an open conversation. The Messages tab updates when it is opened, and there are no push notifications.  
-- A deal cannot be cancelled once a proposal is accepted. Ratings can be edited.  
-- Users cannot see their own score on the profile tab yet.  
-- Frontend end-to-end tests cover Feature 1 only.  
-- NFR 2 has an automated test, and the NFR 1 test has not been added yet.  
-- The app pins the server's certificate and IP address, so moving the backend needs a new APK.  
+## 8. Limitations
+
+- Travel times are for walking only, and only on the first page of recommendations.
+- Live updates only reach an open conversation. The Messages tab updates when it is opened, and there are no push notifications.
+- A deal cannot be cancelled once a proposal is accepted. Ratings can be edited.
+- Users cannot see their own score on the profile tab yet.
+- Frontend end-to-end tests cover Feature 1 only.
+- NFR 2 has an automated test, and the NFR 1 test has not been added yet.
+- The app pins the server's certificate and IP address, so moving the backend needs a new APK.
 - Address search uses Android's built-in Geocoder, which needs a network connection.
