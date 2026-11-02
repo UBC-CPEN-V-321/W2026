@@ -10,7 +10,9 @@ import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.cpen321application.fakes.FakeClothingRepository
+import com.example.cpen321application.fakes.FakeLocationProvider
 import com.example.cpen321application.fakes.FakeOutfitRepository
+import com.example.cpen321application.fakes.FakeRoomsRepository
 import com.example.cpen321application.model.ClothingCategory
 import com.example.cpen321application.model.ClothingItem
 import com.example.cpen321application.model.Outfit
@@ -33,6 +35,8 @@ class MainScreenTest {
             MainScreen(
                 clothingRepository = FakeClothingRepository(emptyList()),
                 outfitRepository = outfitRepository,
+                locationProvider = FakeLocationProvider(),
+                roomsRepository = FakeRoomsRepository(),
                 onSignOut = { signOutCalls++ },
             )
         }
