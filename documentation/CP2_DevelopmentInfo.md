@@ -7,6 +7,8 @@
 | Submission branch | main |
 | Submission commit SHA | 149f16a96f8931a37c0b1c8f2affbebcb3c4cc6d |
 
+The submitted PDF has the final commit SHA. The copy of this file in the repository shows the commit before it, because committing creates a new SHA, so a file cannot contain the SHA of its own commit.
+
 ## 2. Backend server
 
 | Configured public IP | 34.168.1.92  |
