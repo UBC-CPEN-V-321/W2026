@@ -106,7 +106,7 @@ Listings (what sellers offer) and requests (what buyers want) share the same rou
 - `GET /api/listings/:id`, `GET /api/requests/:id`: one post.
 - `PATCH /api/listings/:id`, `PATCH /api/requests/:id`: change any fields, or `{ "status": "closed" }` to close a post.
 - `DELETE /api/listings/:id`, `DELETE /api/requests/:id`: `204`.
-- `GET /api/options?field=brand`, `POST /api/options` with `{ "field", "label" }`: the saved options for category, brand, colour and custom text fields. Saving a post adds any new category, brand or colour (and new custom field values) to these lists, so the app does not have to add them first.
+- `GET /api/options?field=brand`, `POST /api/options` with `{ "field", "label" }`: the saved options for category, brand, colour and custom text fields. Saving a post adds any new category, brand or colour (and new custom field values) to these lists, so the app does not have to add them first. Categories are saved in the singular, so `desks` is saved as `desk`, except words that only look plural, such as `glass` and `electronics`.
 - `GET /api/custom-fields`, `POST /api/custom-fields` with `{ "label", "type" }`, `DELETE /api/custom-fields/:key`: your saved custom fields (`text`, `number` or `bool`).
 
 The feed shows other users' posts. It needs the session token too.
@@ -116,7 +116,7 @@ The feed shows other users' posts. It needs the session token too.
 - `GET /api/feed?postId=<id>&limit=20&cursor=<nextCursor>`: recommendations for one of your open posts, best fit first: listings for a request, requests for a listing. `{ "matches": [{ "post", "score", "distanceKm", "travelMinutes" }], "nextCursor" }`. Pass `nextCursor` back as `cursor`. `404` if the post doesn't exist, `403` if it isn't yours, `409` if it's closed.
 
 All three take `limit` from 1 to 50 (default 20). For the two browse routes, pass the `nextCursor` you got back as `before` to get the next page, along with the same filters; it is `null` on the last page. All three take these optional filters, which can be combined:
-- `category`: one category, ignoring case and spacing.
+- `category`: one category, ignoring case, spacing and simple plurals.
 - `minPrice`, `maxPrice`: an inclusive range on a listing's price or a request's budget (its `price` field). A request with no budget is left out when either is sent.
 - `lat`, `lng`, `radiusKm`: within `radiusKm` (up to 100) of a point. Send all three or none.
 
