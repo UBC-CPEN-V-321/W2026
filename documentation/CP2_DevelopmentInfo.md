@@ -48,7 +48,7 @@ Backend (only to run it yourself locally): Docker Compose 2.24+ with the supplie
 
 1. Clone the repository and check out the submission commit recorded in Section 1\.
 
-2. Copy backend/.env.example to backend/.env. Set GOOGLE\_CLIENT\_ID, MONGODB\_URI and MONGODB\_DB=matchmarket. Set JWT\_SECRET to a newly generated value of at least 32 characters for an independent deployment. Set ORS\_API\_KEY to enable travel times.
+2. Copy backend/.env.example to backend/.env. Set GOOGLE\_CLIENT\_ID, MONGODB\_URI and MONGODB\_DB=matchmarket. Set JWT\_SECRET to a newly generated value of at least 32 characters for an independent deployment. Set ORS\_API\_KEY to enable travel times. The submitted PDF also lists the actual .env values, which are not stored in the repository.
 
 3. From the repository root, run docker compose up \--build \-d. Compose configures the MongoDB connection. Check that GET /health responds successfully.
 
