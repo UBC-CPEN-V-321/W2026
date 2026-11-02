@@ -9,6 +9,7 @@
 | 2026-10-30 | 4.1, 4.2, 4.3, 4.4, 4.5 | Split the back-end into the six components of the redrawn design diagram: User Manager, Closet, Outfit, Avatar, Recommendation Engine, and Social & Rooms. CP1 TA feedback: Closet and Outfit are now separate components with their own interfaces in the text and in every diagram. Interfaces updated to match the code: `POST /auth/google` returns `{ accessToken }`, the avatar is generated with `POST /avatar` (replacing `PUT /users/me/avatar`), outfits use `items` and `occasion`, and rooms use `GET /rooms/{id}` and a Socket.IO connection per room with `room:message`, `room:outfitUpdate` and `room:memberLeft`. Daily outfits are generated with the Claude API instead of Gemini. Added `GET`/`PATCH /users/me`, `DELETE /friends/{id}`, Firebase Cloud Messaging, the avatar generation method, Three.js and SceneView. |
 | 2026-10-30 | 4.6, 4.7 | Sequence diagrams and NFR designs use the new component names, and the room sequence diagram shows the membership check and the broadcast before the database write. |
 | 2026-11-01 | 4.1, 4.2, 4.3, 4.6 | Chose Serper for the online store search and documented it. `GET /recommendations` gains `country` and `department`, because results depend on the user's country and searches without a department came back mostly women's. Search results are cached in MongoDB to stay within the search credits. |
+| 2026-11-01 | 4.1 | `GET /recommendations`: each `StoreItem` also has the `reason` of the gap it fills and the closet items it `pairsWith`, which the Shop screen shows in use case 4 steps 3 and 5. Documented its 400 and 503 responses. |
 
 ---
 
@@ -274,8 +275,8 @@ Not included for CP1.
    - **Interfaces**:
      1. `POST /outfits/generate`, body `{ occasion: String, latitude: Double, longitude: Double }`, returns `{ outfit: { name, occasion, items }, weather: Weather? }`
         - **Purpose**: Generates an outfit from the user's clean clothes for the occasion (`casual`, `work`, `formal` or `workout`) and the current weather, without saving it; the app saves it with `POST /outfits` if the user keeps it. Returns 400 listing the missing categories if the clean clothes don't include a top and a bottom, and 503 if generation is unavailable.
-     2. `GET /recommendations?country={code}&department={department}`, returns `{ gaps: List<String>, items: List<StoreItem> }`, where a `StoreItem` has `name`, `price`, `imageUrl`, `link` and `store`
-        - **Purpose**: Analyzes the user's closet for gaps and returns matching items from online catalogs, each with the closet items it pairs with. `country` is a two-letter code from the device's region and defaults to `ca`. `department` is `mens` or `womens`, chosen on the Shop screen; leaving it out searches all clothing.
+     2. `GET /recommendations?country={code}&department={department}`, returns `{ gaps: List<String>, items: List<StoreItem> }`, where a `StoreItem` has `name`, `price`, `imageUrl`, `link`, `store`, `reason` (the gap it fills) and `pairsWith: List<ClothingItem>`
+        - **Purpose**: Analyzes the user's closet for gaps and returns matching items from online catalogs, each with the closet items it pairs with. `country` is a two-letter code from the device's region and defaults to `ca`. `department` is `mens` or `womens`, chosen on the Shop screen; leaving it out searches all clothing. Items in the wash bin count as part of the closet. Returns 400 listing the missing categories if the closet doesn't include a top and a bottom, and 503 if the store search is unavailable.
 
 6. **Social & Rooms**
    - **Purpose**: Manages daily outfit posts, ratings and rooms, and delivers chat messages and shared outfit changes to room members in real time.

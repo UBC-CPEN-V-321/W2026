@@ -28,6 +28,9 @@ export const CHEST_WIDTH_RANGE = { min: 0.1, max: 1.0 };
 export const WAIST_WIDTH_RANGE = { min: 0.1, max: 2.0 };
 export const HIP_WIDTH_RANGE = { min: 0.1, max: 1.5 };
 
+// Outfit generation and recommendations both need at least one of each to work with.
+export const REQUIRED_CLOSET_CATEGORIES = ['top', 'bottom'] as const;
+
 // A closet this small is too thin for shares to mean much, so only empty categories count as gaps.
 export const MIN_ITEMS_FOR_CLOSET_SHARES = 10;
 export const MIN_CATEGORY_SHARES = { top: 0.2, bottom: 0.15, shoes: 0.08, outerwear: 0.05 } as const;
