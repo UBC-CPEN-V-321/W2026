@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -29,7 +30,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.R
 import com.example.cpen321application.data.ClothingRepository
+import com.example.cpen321application.data.LocationProvider
 import com.example.cpen321application.data.OutfitRepository
+import com.example.cpen321application.data.RoomsRepository
 import com.example.cpen321application.ui.theme.CPEN321ApplicationTheme
 import com.example.cpen321application.viewmodel.ClosetViewModel
 import com.example.cpen321application.viewmodel.OutfitsViewModel
@@ -39,6 +42,7 @@ enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector) {
   Closet(R.string.tab_closet, Icons.AutoMirrored.Filled.List),
   Outfits(R.string.tab_outfits, Icons.Filled.Star),
   Avatar(R.string.tab_avatar, Icons.Filled.Face),
+  Rooms(R.string.tab_rooms, Icons.Filled.Person),
 }
 
 /**
@@ -49,13 +53,15 @@ enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector) {
 fun MainScreen(
   clothingRepository: ClothingRepository,
   outfitRepository: OutfitRepository,
+  locationProvider: LocationProvider,
+  roomsRepository: RoomsRepository,
   onSignOut: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var tab by rememberSaveable { mutableStateOf(Tab.Closet) }
   var confirmingSignOut by rememberSaveable { mutableStateOf(false) }
   val closetViewModel: ClosetViewModel = viewModel { ClosetViewModel(clothingRepository) }
-  val outfitsViewModel: OutfitsViewModel = viewModel { OutfitsViewModel(outfitRepository) }
+  val outfitsViewModel: OutfitsViewModel = viewModel { OutfitsViewModel(outfitRepository, locationProvider) }
 
   // Back from another tab returns to the Closet tab before leaving the app.
   BackHandler(enabled = tab != Tab.Closet) { tab = Tab.Closet }
@@ -89,6 +95,7 @@ fun MainScreen(
         OutfitsScreen(outfitsViewModel, closet.items, contentModifier)
       }
       Tab.Avatar -> AvatarRoute(contentModifier)
+      Tab.Rooms -> RoomsRoute(roomsRepository, clothingRepository, contentModifier)
     }
   }
 
