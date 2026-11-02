@@ -516,15 +516,15 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### 4.6.3. [**View itinerary on map**](#use-case-3-view-itinerary-on-map)
 
-![View itinerary on map sequence diagram](images/View_itinerary_on_map.png)
+![View itinerary on map sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/View_itinerary_on_map.png)
 
 #### 4.6.4. [**View Event Recommendations**](#use-case-4-view-event-recommendations)
 
-![View Event Recommendations sequence diagram](images/view_events_seq_diagram.png)
+![View Event Recommendations sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/view_events_seq_diagram.png)
 
 #### 4.6.5. [**View Transportation Cost Estimate**](#use-case-5-view-transportation-cost-estimate)
 
-![View Transportation Cost Estimate sequence diagram](images/transportation_cost_seq_diagram.png)
+![View Transportation Cost Estimate sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/transportation_cost_seq_diagram.png)
 
 ### **4.7. Design of Non-Functional Requirements**
 
