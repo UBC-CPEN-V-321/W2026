@@ -33,7 +33,7 @@
 
 #### 2.1.2. Commit Hash Where Tests Run
 
-`[Insert Commit SHA here]`
+`e6ef990670878b6254742872eb9716887a76a2d7`
 
 #### 2.1.3. Explanation on How to Run the Tests
 
@@ -54,28 +54,25 @@
 
 ### 2.3. Jest Coverage Report Screenshots With Mocks
 
-Run `npm run test:mock` to generate the per-file HTML report under `backend/coverage/mock`. 
-![Users Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/mock-users.png)
-![Itineraries Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/mock-itineraries.png)
-The current mocked user and itinerary suites cover 55.82% of statements, 40.85% of branches, 64.70% of functions, and 55.93% of lines. Lower standalone mock coverage is expected because these tests focus on database exceptions and concurrency-related error handling rather than normal API behavior.
+Run `npm run test:mock` to generate the HTML report under `backend/coverage/mock`.
+![Mocked test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/testing-mock-coverage.png)
+The mocked user and itinerary suites cover 60.22% of statements, 47.09% of branches, 67.56% of functions, and 60.36% of lines. Lower standalone mock coverage is expected because these tests focus on database exceptions and concurrency-related error handling rather than normal API behavior.
 
 ### 2.4. Jest Coverage Report Screenshots Without Mocks
 
 
-Run `npm run test:no-mock` to generate the per-file HTML report under `backend/coverage/no-mock`.
-![Users Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/no-mock-users.png)
-![Itineraries Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/no-mock-itineraries.png)
-The current user and itinerary suites cover 96.11% of statements, 93.11% of branches, 99.01% of functions, and 96.09% of lines.
+Run `npm run test:no-mock` to generate the HTML report under `backend/coverage/no-mock`.
+![No-mock test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/testing-no-mock-coverage.png)
+The user and itinerary suites cover 96.10% of statements, 93.97% of branches, 99.09% of functions, and 96.07% of lines.
 
 The no-mock Jest configuration enforces minimum global thresholds of 95% statements, 90% branches, 95% functions, and 95% lines.
 
 ### 2.5. Jest Coverage Report Screenshots (Mock + No-Mocks)
 
 
-Run `npm run test:combined` to generate the per-file HTML report under `backend/coverage/combined`.
-![Users Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/combined-users.png)
-![Itineraries Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/combined-itineraries.png)
-Statements: 98.05%, Branches: 96.91%, Functions: 99.01%, Lines: 98.04%
+Run `npm run test:combined` to generate the HTML report under `backend/coverage/combined`.
+![Combined test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/testing-combined-coverage.png)
+The combined user and itinerary suites cover 98.19% of statements, 97.32% of branches, 100% of functions, and 98.17% of lines.
 
 ### 2.6. Coverage Justifications
 
