@@ -36,13 +36,19 @@ Install the following before the frontend or backend setup steps:
    - `API_BASE_URL`: backend URL baked into the APK. Use `http://10.0.2.2:3000` for the emulator (`10.0.2.2` is the host machine). For a physical device on the same Wi-Fi, use `http://<your-lan-ip>:3000`.
    - `GOOGLE_CLIENT_ID`: Google OAuth web client ID used for sign-in.
    - `MAPS_API_KEY`: API key used for Google Maps functionality.
+   - `PLACES_API_KEY`: Google Places API key used for address autocomplete and popular-place pins.
 
 
 ### Build and Run
 
-- **Debug build**: Click the green play button in the toolbar, to compile the code, package a debug APK, and install it on the connected device or running emulator. Alternatively, from the project root, run `./scripts/run-frontend.sh`.
+- **Debug build**: Click the green play button in the toolbar, to compile the code, package a debug APK, and install it on the connected device or running emulator. Alternatively, from the project root, run `./scripts/run-frontend.sh`. The script sets the emulator's simulated location to UBC (latitude `49.2606`, longitude `-123.2460`) before launching the app. Override it with `LOCATION_LATITUDE` and `LOCATION_LONGITUDE` if needed.
 - **Release build**: Go to Build -> Generate Signed App Bundle or APK -> APK. Follow the on-screen instructions to create a key, and select the "release" build variant. You will then have to manually install the generated APK on your device or the running emulator.
 
+When running the app manually from Android Studio, set the emulator's location after it has started:
+
+1. Open the emulator's **Extended controls** using the three-dot button beside the emulator.
+2. Select **Location**, enter UBC's coordinates (latitude `49.2606`, longitude `-123.2460`), and click **Set location** or **Send**.
+3. Tap the app's locate button to view the updated location.
 
 ### Backend Configuration
 
@@ -69,8 +75,10 @@ Set at least:
 - `JWT_SECRET`: a long random string used to sign auth tokens.
 - `MONGODB_URI`: only needed for local development (default in `.env.example` assumes MongoDB on `localhost:27017`). Ignored when running via Docker Compose.
 - `PORT` (optional): defaults to `3000` if unset.
-- `TICKETMASTER_API_KEY`: API key for live event updates functionality. 
-
+- `TICKETMASTER_API_KEY`: API key for searching and syncing live events.
+- `GEOCODING_API_KEY`: Google Geocoding API key used to convert addresses into coordinates.
+- `ROUTES_API_KEY`: Google Routes API key used to calculate travel routes.
+- `PLACES_API_KEY`: Google Places API key used for address autocomplete and popular-place pins.
 
 ### Option 1: Run locally
 
@@ -86,13 +94,21 @@ Set at least:
    npm install
    ```
 
-2. **Development** (TypeScript with auto-reload):
+2. **Sync Ticketmaster events** to MongoDB before starting the API:
+
+   ```bash
+   npm run sync:events
+   ```
+
+   This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Run the sync again whenever you want to refresh the event catalog.
+
+3. **Development** (TypeScript with auto-reload):
 
    ```bash
    npm run dev
    ```
 
-3. **Production build** (optional):
+4. **Production build** (optional):
 
    ```bash
    npm run build
@@ -117,6 +133,10 @@ Set at least:
    ```bash
    docker compose up --build -d
    ```
+
+   The backend syncs Ticketmaster events into MongoDB before starting the API.
+   Ensure `TICKETMASTER_API_KEY` is set in `backend/.env`; if the sync fails,
+   the backend will not start and the error will appear in `docker compose logs backend`.
 
 2. **Stop**:
 

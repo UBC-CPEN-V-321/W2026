@@ -14,6 +14,8 @@ cd "$ROOT"
 
 FRONTEND_DIR="${FRONTEND_DIR:-frontend}"
 AVD_NAME="${AVD_NAME:-Pixel_9}"
+LOCATION_LONGITUDE="${LOCATION_LONGITUDE:--123.2460}"
+LOCATION_LATITUDE="${LOCATION_LATITUDE:-49.2606}"
 
 info()  { printf '\033[34m==>\033[0m %s\n' "$*"; }
 die()   { printf '\033[31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -65,6 +67,12 @@ else
   info "Emulator ready."
 fi
 
+EMULATOR_SERIAL="$("$ADB" devices | awk '$1 ~ /^emulator-[0-9]+$/ && $2 == "device" { print $1; exit }')"
+[[ -n "$EMULATOR_SERIAL" ]] || die "No running emulator found."
+
+info "Setting emulator location to $LOCATION_LATITUDE, $LOCATION_LONGITUDE ..."
+"$ADB" -s "$EMULATOR_SERIAL" emu geo fix "$LOCATION_LONGITUDE" "$LOCATION_LATITUDE"
+
 # ---------------------------------------------------------------------------
 # Frontend
 # ---------------------------------------------------------------------------
@@ -76,7 +84,7 @@ APPLICATION_ID="$(grep -E '[[:space:]]applicationId[[:space:]]*=' "$FRONTEND_DIR
   | head -1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/')"
 
 info "Launching app..."
-"$ADB" shell monkey -p "$APPLICATION_ID" -c android.intent.category.LAUNCHER 1 >/dev/null
+"$ADB" -s "$EMULATOR_SERIAL" shell monkey -p "$APPLICATION_ID" -c android.intent.category.LAUNCHER 1 >/dev/null
 
 echo
 info "Done. Sign in on the emulator to verify."
