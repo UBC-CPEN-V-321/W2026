@@ -1,5 +1,7 @@
 # Requirements and Design
 
+> **NOTE: The transportation calculator feature is to be removed from this document.**
+
 ## 1. Change History
 
 | **Change Date**  | **Modified Sections** | **Rationale**                                                                                                                                                        |
