@@ -218,12 +218,19 @@ Two of the three non-functional requirements in `Requirements_and_Design.md` wil
 
 | **Non-Functional Requirement** | **Location in Git** |
 | ------------------------------ | ------------------- |
-| Room updates reach members within 1 second | `backend/tests/nfr/` (with the rooms back-end) |
+| Room updates reach members within 1 second | [`backend/tests/nfr/roomUpdateLatency.test.ts`](https://github.com/evannawfal/fabricate/blob/main/backend/tests/nfr/roomUpdateLatency.test.ts) |
 | Closet gap analysis finishes within 2 seconds for 500 items | `backend/tests/nfr/` (with the gap analysis) |
 
 ### 3.2. Test Verification and Logs
 
-To be added with the tests.
+- **Room updates reach members within 1 second**
+  - **Verification:** The test starts the back-end with its Socket.IO server and a test MongoDB database, and connects two room members as separate Socket.IO clients over WebSocket, as the app does. One member sends 50 chat messages, then 50 outfit board changes, one at a time. Each update is timed from when it's sent until the other member receives it, so the database write after the broadcast isn't counted. The test fails if fewer than 95% of the messages, or of the outfit updates, arrive within 1 second, and logs the 95th percentile, slowest and mean times for each. Both clients run on the same machine as the server, so this measures the back-end's share of the delay, not the mobile network.
+  - **Log Output**
+    ```
+    Room update latency, 50 of each update:
+    Chat messages: 50/50 within 1000 ms, p95 4.3 ms, max 8.0 ms, mean 2.4 ms
+    Outfit updates: 50/50 within 1000 ms, p95 8.0 ms, max 10.3 ms, mean 3.9 ms
+    ```
 
 ---
 

@@ -10,6 +10,10 @@ export const OUTFIT_MAX_RETRIES = 2;
 export const OUTFIT_MAX_OUTPUT_TOKENS = 4096;
 export const DEFAULT_OUTFIT_NAME = 'Daily outfit';
 
+// Room update latency NFR (Requirements_and_Design.md section 3.7), checked by tests/nfr/.
+export const ROOM_UPDATE_LATENCY_LIMIT_MS = 1_000;
+export const ROOM_UPDATES_ON_TIME_SHARE = 0.95;
+
 // Allowed range of each avatar measurement, in metres.
 export const HEIGHT_RANGE = { min: 1.0, max: 3.0 };
 export const SHOULDER_WIDTH_RANGE = { min: 0.25, max: 0.6 };
