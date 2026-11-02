@@ -11,6 +11,7 @@
 | 2026-10-30 | 2 | The condition is now picked from a dropdown, so `createsPostWithOptionalFields` opens the condition dropdown before picking "Fair" or "Like New". |
 | 2026-10-31 | 2 | Removed the note that no route creates a deal, since accepting a proposal now records one. |
 | 2026-11-01 | 4 | Use Case 1 is now Create Post, after the use cases were split in the Requirements and Design. The table maps the tests to its steps 1–7 and failures 2a, 5a–5d and 6a; the edit, close, reopen and delete tests now cover the Edit, Close, Reopen and Delete post use cases instead of formal steps. |
+| 2026-11-01 | 3 | Added the location and verification of the NFR 2 test, and noted that the NFR 1 test has not been added yet. |
 
 ---
 
@@ -116,11 +117,19 @@ Combined coverage is 100% for statements, lines, functions and branches in `mode
 
 ### 3.1. Test Locations in Git
 
-_To be added with the non-functional requirement tests._
+| **Non-Functional Requirement** | **Location in Git** |
+| ------------------------------ | ------------------- |
+| **NFR 2: Graceful degradation without the routing service** | [`backend/tests/nfr/routingFallback.test.ts`](../backend/tests/nfr/routingFallback.test.ts) |
+
+The test for NFR 1, feed ranking latency, has not been added yet. Run the NFR tests with `./scripts/run-backend-nfr-tests.sh`.
 
 ### 3.2. Test Verification and Logs
 
-_To be added with the non-functional requirement tests._
+**NFR 2:** the test mocks a routing service that never answers. It checks that `GET /api/feed` abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds) and returns the ranked match with `travelMinutes` null and `travelTimesAvailable` false in under 3 seconds.
+
+```
+Tests:       1 passed, 1 total
+```
 
 ---
 

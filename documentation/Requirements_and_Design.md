@@ -31,6 +31,7 @@
 | 2026-10-31 | 3.1 | Feature 3: deals are now recorded when a user accepts a proposed price in a conversation, so recording a deal is no longer planned on the back end. |
 | 2026-11-01 | 3.5, 3.6 | Connected the feed to Messaging: Use Case 4 now starts from the "Message" button on a post, which sends the first price proposal and opens the conversation. |
 | 2026-11-01 | 2, 3.1–3.5, 4.1–4.6, 5 | Following TA feedback, split combined use cases into one goal each (Section 3.4 and the use case diagram) and narrowed the formal use cases to match: Create Post, Rate a Deal, View Recommendations for a Post, Send a Message and Filter Feed. Described Messaging as built: conversations, messages, price proposals that record a deal when accepted, and live updates through Server-Sent Events. Used one term for each idea: deal, proposal, recommendation, hard requirement, soft preference, backend and frontend. Removed the planned ranking preferences use case and the planned Firebase Cloud Messaging push notifications, which are not built. |
+| 2026-11-01 | 3.5, 4.1, 5 | Matched the ranking and categories to the code: soft preferences count by their importance, missing a soft maximum price or soft minimum condition lowers the score, and categories are saved in the singular. |
 
 ---
 
@@ -184,7 +185,7 @@ Each use case covers one goal. The five marked with a link have a formal specifi
 1. The user opens one of their open posts and taps "See recommendations", or picks the post under "Recommended for" in the feed filters.
 2. The app shows "Recommended for: <post>".
 3. The system takes other users' open posts in the same category and keeps those that meet the request's hard requirements: within the request's radius (10 km if none was set) and every field the buyer marked Hard. Any feed filters (Use Case 5) also apply.
-4. The system scores each remaining post on price, condition, distance and preference match, weights the four scores equally, and orders the best first.
+4. The system scores each remaining post on price, condition, distance and preference match, weights the four scores equally, and orders the best first. In the preference match, each soft preference counts by its importance from 1 to 5, or 3 if it has none. A listing over a soft maximum price or below a soft minimum condition loses more score the further it misses; the price penalty stops growing at 50% over the maximum.
 5. The system requests walking travel times for the first 20 results from OpenRouteService.
 6. The app shows the ranked list, 20 at a time; each item shows its price or budget, its condition (listings), and its distance, plus its travel time on the first page, such as "12 min walk".
 
@@ -327,7 +328,7 @@ Both screens are built. A post opened from the feed or recommendations links to 
         3. `boolean satisfies(Request request, Listing listing)`
             - **Purpose**: The single hard-requirement rule (category and straight-line distance within radius, plus price, condition, dimensions or any other field the buyer marked hard) used by both feed directions.
         4. `List<RankedMatch> rank(Post source, List<Post> candidates, Weights weights)`
-            - **Purpose**: Score each candidate on price, condition, distance, and brand/colour match, and order by the viewer's weights.
+            - **Purpose**: Score each candidate on price, condition, distance, and brand/colour match, and order by the viewer's weights. Soft preferences count by their importance, and missing a soft maximum price or soft minimum condition lowers the score, which can go below 0.
         5. `List<Duration> travelTimes(Location origin, List<Location> destinations, TravelMode mode)`
             - **Purpose**: Get travel times from the external routing service for one page of results; returns empty when it is unavailable.
 
@@ -726,7 +727,7 @@ Condition is one of five ordered levels: new, like new, good, fair, poor.
 - The backend obtains ownerId from the authenticated session. New posts start open. Closing retains a record; the current API also supports reopening and permanent deletion.
 - Both post types require name, category, address and coordinates. Requests require a built-in price field. Listings require non-negative top-level price, a valid condition and at least one photo ID. Request price, radius and size cannot be negative. The 1–50 km radius rule is not enforced by the inspected request-field validation; it must not be claimed as completed validation.
 - Requests allow 0–10 photo IDs and listings 1–10. Actual upload size is at most 5 MB per file. Post validation checks ID format/count; photo existence and ownership checks are not established by that validation.
-- Categories are normalized, extendable option values rather than a fixed list. Description is supported, up to 2,000 characters. The name, up to 80 characters, is the post's title; posts saved before names were added use their category as the name. Dimensions use cm and radius uses km; CAD remains the intended currency.
+- Categories are normalized, extendable option values rather than a fixed list. They are saved in the singular, so desks is saved as desk, except words that only look plural, such as glass and electronics. Existing posts and category options are converted when the backend starts. Description is supported, up to 2,000 characters. The name, up to 80 characters, is the post's title; posts saved before names were added use their category as the name. Dimensions use cm and radius uses km; CAD remains the intended currency.
 - Unfilled optional editor rows are omitted. Existing post addresses and coordinates are saved with each post. Profile-based defaults are planned. Closed listings are excluded from the current open-listings feed.
 
 **Feature 4 data rules:**
