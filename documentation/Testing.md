@@ -87,26 +87,9 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 | **Non-Functional Requirement**  | **Location in Git**                              |
 | ------------------------------- | ------------------------------------------------ |
-| **Performance (Response Time)** | [`backend/tests/nfr/response_time.test.js`](#) |
-| **Chat Data Security**          | [`backend/tests/nfr/chat_security.test.js`](#) |
 | **Accessibility**               | [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt)<br>[`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt) |
 
 ### 3.2. Test Verification and Logs
-
-- **Performance (Response Time)**
-
-  - **Verification:** This test suite simulates multiple concurrent API calls using Jest along with a load-testing utility to mimic real-world user behavior. The focus is on key endpoints such as user login and study group search to ensure that each call completes within the target response time of 2 seconds under normal load. The test logs capture metrics such as average response time, maximum response time, and error rates. These logs are then analyzed to identify any performance bottlenecks, ensuring the system can handle expected traffic without degradation in user experience.
-  - **Log Output**
-    ```
-    [Placeholder for response time test logs]
-    ```
-
-- **Chat Data Security**
-  - **Verification:** ...
-  - **Log Output**
-    ```
-    [Placeholder for chat security test logs]
-    ```
 
 - **Accessibility: Visual Label and Content Description Consistency**
 
