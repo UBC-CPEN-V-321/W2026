@@ -19,6 +19,7 @@ import com.example.cpen321application.network.BackendClothingRepository
 import com.example.cpen321application.network.BackendOutfitRepository
 import com.example.cpen321application.network.BackendRoomsRepository
 import com.example.cpen321application.auth.SessionToken
+import com.example.cpen321application.data.DeviceLocationProvider
 import com.example.cpen321application.screens.LoginScreen
 import com.example.cpen321application.screens.MainScreen
 import com.example.cpen321application.viewmodel.LoginUiState
@@ -95,6 +96,7 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
       MainScreen(
         clothingRepository = clothingRepository,
         outfitRepository = outfitRepository,
+        locationProvider = remember { DeviceLocationProvider(context) },
         roomsRepository = roomsRepository,
         onSignOut = {
           scope.launch {
