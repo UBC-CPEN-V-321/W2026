@@ -1,13 +1,16 @@
 import { performance } from 'node:perf_hooks';
 
-import { COLOR_FAMILIES, STYLE_PAIRINGS } from '../../src/config/constants.js';
+import {
+  CLOSET_ANALYSIS_MAX_ITEMS,
+  CLOSET_ANALYSIS_TIME_LIMIT_MS,
+  COLOR_FAMILIES,
+  STYLE_PAIRINGS,
+} from '../../src/config/constants.js';
 import { ClothingItem, type ClothingCategory } from '../../src/models/clothingItem.js';
 import { analyzeClosetGaps } from '../../src/services/closetGaps.js';
 import { DATABASE_SETUP_TIMEOUT_MS, startTestDatabase, stopTestDatabase } from '../helpers/database.js';
 import { createUser } from '../helpers/fixtures.js';
 
-const CLOSET_SIZE = 500;
-const TIME_LIMIT_MS = 2000;
 const RUNS = 10;
 
 // Every category clears its minimum share, so the analysis also runs the versatile-item search, its slowest path.
@@ -68,13 +71,13 @@ describe('NFR: closet gap analysis time', () => {
 
     const times = runs.map(({ elapsedMs }) => elapsedMs);
     console.log(
-      `Closet analysis of ${CLOSET_SIZE} items over ${RUNS} runs (limit ${TIME_LIMIT_MS} ms): ` +
+      `Closet analysis of ${CLOSET_ANALYSIS_MAX_ITEMS} items over ${RUNS} runs (limit ${CLOSET_ANALYSIS_TIME_LIMIT_MS} ms): ` +
         `max ${Math.max(...times).toFixed(1)} ms, mean ${(times.reduce((a, b) => a + b, 0) / RUNS).toFixed(1)} ms, ` +
         `runs [${times.map((ms) => ms.toFixed(1)).join(', ')}] ms, ${runs[0]?.gapCount} gap(s) found`
     );
-    expect(await ClothingItem.countDocuments({ owner: user.id })).toBe(CLOSET_SIZE);
+    expect(await ClothingItem.countDocuments({ owner: user.id })).toBe(CLOSET_ANALYSIS_MAX_ITEMS);
     for (const elapsedMs of times) {
-      expect(elapsedMs).toBeLessThan(TIME_LIMIT_MS);
+      expect(elapsedMs).toBeLessThan(CLOSET_ANALYSIS_TIME_LIMIT_MS);
     }
   });
 });

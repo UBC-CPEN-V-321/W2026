@@ -227,7 +227,7 @@ Two of the three non-functional requirements in `Requirements_and_Design.md` wil
   - **Verification:** The test seeds a 500-item closet in a test MongoDB database. The closet has every category above its minimum share and every colour and style, so the analysis also runs its slowest step, the search for a versatile item. Each run times what the Recommendation Engine does for a request: it loads the closet with one indexed query and finds the gaps in memory. The test does 10 runs, including the first one before Node has warmed up, and fails if any run takes 2 seconds or longer. It logs the slowest and mean times and every run.
   - **Log Output**
     ```
-    Closet analysis of 500 items over 10 runs (limit 2000 ms): max 103.5 ms, mean 38.8 ms, runs [103.5, 42.4, 29.0, 27.7, 26.1, 31.1, 45.6, 18.9, 25.8, 38.0] ms, 0 gap(s) found
+    Closet analysis of 500 items over 10 runs (limit 2000 ms): max 19.5 ms, mean 10.6 ms, runs [19.5, 13.7, 11.9, 9.2, 8.9, 9.4, 11.3, 7.9, 7.7, 6.8] ms, 0 gap(s) found
     ```
 
 ---
