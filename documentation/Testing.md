@@ -214,16 +214,25 @@ In the interface tests alone, `middleware/errorHandler.ts` (25-26) is also uncov
 
 ## 3. Tests of Non-Functional Requirements
 
-Two of the three non-functional requirements in `Requirements_and_Design.md` will be tested automatically: [room update latency](Requirements_and_Design.md#nfr1) and [closet analysis time](Requirements_and_Design.md#nfr3). Their tests are in `backend/tests/nfr/`. Run them with `scripts/run-backend-nfr-tests.sh` (or `.ps1`); CI also runs them on every pull request as part of `npm test`. The room update latency test will be added with the live rooms back-end.
+Two of the three non-functional requirements in `Requirements_and_Design.md` will be tested automatically: [room update latency](Requirements_and_Design.md#nfr1) and [closet analysis time](Requirements_and_Design.md#nfr3). Their tests are in `backend/tests/nfr/`. Run them with `scripts/run-backend-nfr-tests.sh` (or `.ps1`); CI also runs them on every pull request as part of `npm test`.
 
 ### 3.1. Test Locations in Git
 
 | **Non-Functional Requirement** | **Location in Git** |
 | ------------------------------ | ------------------- |
-| Room updates reach members within 1 second | `backend/tests/nfr/` (with the rooms back-end) |
+| Room updates reach members within 1 second | [`backend/tests/nfr/roomUpdateLatency.test.ts`](https://github.com/evannawfal/fabricate/blob/main/backend/tests/nfr/roomUpdateLatency.test.ts) |
 | Closet gap analysis finishes within 2 seconds for 500 items | [`backend/tests/nfr/closetAnalysisTime.test.ts`](https://github.com/evannawfal/fabricate/blob/main/backend/tests/nfr/closetAnalysisTime.test.ts) |
 
 ### 3.2. Test Verification and Logs
+
+- **Room updates reach members within 1 second**
+  - **Verification:** The test starts the back-end with its Socket.IO server and a test MongoDB database, and connects two room members as separate Socket.IO clients over WebSocket, as the app does. One member sends 50 chat messages, then 50 outfit board changes, one at a time. Each update is timed from when it's sent until the other member receives it, so the database write after the broadcast isn't counted. The test fails if fewer than 95% of the messages, or of the outfit updates, arrive within 1 second, and logs the 95th percentile, slowest and mean times for each. Both clients run on the same machine as the server, so this measures the back-end's share of the delay, not the mobile network.
+  - **Log Output**
+    ```
+    Room update latency, 50 of each update:
+    Chat messages: 50/50 within 1000 ms, p95 4.3 ms, max 8.0 ms, mean 2.4 ms
+    Outfit updates: 50/50 within 1000 ms, p95 8.0 ms, max 10.3 ms, mean 3.9 ms
+    ```
 
 - **Closet gap analysis finishes within 2 seconds for 500 items**
   - **Verification:** The test seeds a 500-item closet in a test MongoDB database. The closet has every category above its minimum share and every colour and style, so the analysis also runs its slowest step, the search for a versatile item. Each run times what the Recommendation Engine does for a request: it loads the closet with one indexed query and finds the gaps in memory. The test does 10 runs, including the first one before Node has warmed up, and fails if any run takes 2 seconds or longer. It logs the slowest and mean times and every run.
