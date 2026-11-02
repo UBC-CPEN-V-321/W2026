@@ -2,12 +2,12 @@ import { performance } from 'node:perf_hooks';
 import type { Socket } from 'socket.io-client';
 
 import { ROOM_UPDATE_LATENCY_LIMIT_MS, ROOM_UPDATES_ON_TIME_SHARE } from '../../src/config/constants.js';
-import { createClothingItem, createRoom, createUser, makeFriends } from '../helpers/fixtures.js';
-import { nextEvent, tokenFor, useRoomSocketServer } from '../helpers/roomSockets.js';
+import { createClothingItem } from '../helpers/fixtures.js';
+import { nextEvent, useRoomSocketServer } from '../helpers/roomSockets.js';
 
 const UPDATES_PER_KIND = 50;
 
-const { join } = useRoomSocketServer();
+const { roomWithTwoMembers } = useRoomSocketServer();
 
 // Stops when the other member receives the event, not at the ack, which also waits for the database write.
 async function timeDelivery(sender: Socket, receiver: Socket, event: string, payload: object): Promise<number> {
@@ -19,7 +19,7 @@ async function timeDelivery(sender: Socket, receiver: Socket, event: string, pay
 }
 
 function countOnTime(times: number[]): number {
-  return times.filter((ms) => ms < ROOM_UPDATE_LATENCY_LIMIT_MS).length;
+  return times.filter((ms) => ms <= ROOM_UPDATE_LATENCY_LIMIT_MS).length;
 }
 
 function summarize(kind: string, times: number[]): string {
@@ -38,14 +38,9 @@ describe('NFR: room update latency', () => {
   // Expected behavior: the other member receives every update over its own socket connection
   // Expected output: at least 95% of each kind of update arrives within 1 second
   test('Delivers 95% of room updates to the other member within 1 second', async () => {
-    const user = await createUser();
-    const friend = await createUser();
-    await makeFriends(user.id, friend.id);
-    const room = await createRoom('Room', [user.id, friend.id]);
+    const { user, friend, userClient: sender, friendClient: receiver } = await roomWithTwoMembers();
     const shirt = await createClothingItem(user.id, { name: 'Shirt' });
     const jeans = await createClothingItem(friend.id, { name: 'Jeans', category: 'bottom' });
-    const sender = await join({ token: tokenFor(user.id), roomId: room.id });
-    const receiver = await join({ token: tokenFor(friend.id), roomId: room.id });
     const boards = [[shirt.id], [shirt.id, jeans.id]];
 
     const messageTimes: number[] = [];
