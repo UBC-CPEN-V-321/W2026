@@ -46,19 +46,80 @@ Backend (only to run it yourself locally): Docker Compose 2.24+ with the supplie
 
 ### Option B: build and deploy it yourself
 
-1. Clone the repository and check out the submission commit recorded in Section 1\.
+1. **Get the code.** Clone the repository and check out the submission commit from Section 1:
 
-2. Copy backend/.env.example to backend/.env. Set GOOGLE\_CLIENT\_ID, MONGODB\_URI and MONGODB\_DB=matchmarket. Set JWT\_SECRET to a newly generated value of at least 32 characters for an independent deployment. Set ORS\_API\_KEY to enable travel times. The submitted PDF also lists the actual .env values, which are not stored in the repository.
+   ```bash
+   git clone https://github.com/m1lun/m1skeletonProject.git
+   cd m1skeletonProject
+   git checkout <submission commit SHA>
+   ```
 
-3. From the repository root, run docker compose up \--build \-d. Compose configures the MongoDB connection. Check that GET /health responds successfully.
+2. **Configure the backend.** Create `backend/.env` from the example:
 
-4. For HTTPS, set ENABLE\_HTTPS=true and supply backend/certs/server.crt and server.key. For a different server, update the app’s trusted public certificate, network-security domain and backend URL. Follow the README HTTPS instructions.
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
 
-5. Copy frontend/local.properties.example to frontend/local.properties. Set sdk.dir, API\_BASE\_URL and GOOGLE\_CLIENT\_ID. The Google client ID must match the backend value. Open frontend/ in Android Studio and sync Gradle.
+   Open `backend/.env` and set these values. The submitted PDF also lists the actual `.env` values, which are not stored in the repository.
 
-6. Register the signing key’s SHA-1 for com.example.matchmarket in the same Google Cloud project as the Web OAuth client. The current release configuration defaults to the local debug keystore unless release-key settings are supplied.
+   | Variable | Value |
+   | :---- | :---- |
+   | `GOOGLE_CLIENT_ID` | The Google Web OAuth client ID from the table above |
+   | `MONGODB_URI` | Keep the default. Docker Compose replaces it with its own MongoDB service. |
+   | `MONGODB_DB` | `matchmarket` |
+   | `JWT_SECRET` | A new value of at least 32 characters, from `openssl rand -base64 48` |
+   | `ORS_API_KEY` | An OpenRouteService API key, which enables travel times |
 
-7. From frontend/, run ./gradlew assembleRelease, or .\\gradlew.bat assembleRelease on Windows. Install app/build/outputs/apk/release/app-release.apk and verify it against the public backend. Submit it as CP2\_MatchMarket.apk.
+3. **Start the backend.** From the repository root, start the backend and MongoDB, then check that the backend responds:
+
+   ```bash
+   docker compose up --build -d
+   curl http://localhost:3000/health
+   ```
+
+   The response should be `{"status":"ok"}`.
+
+4. **Set up HTTPS (only for a public server).** Skip this step for a backend on your own machine. Otherwise, set `ENABLE_HTTPS=true` in `backend/.env` and put the certificate in `backend/certs/server.crt` and `backend/certs/server.key`. On a different server, also update the app's `server_cert.pem`, the `<domain>` in `network_security_config.xml` and `API_BASE_URL`. The HTTPS section of the README has the commands.
+
+5. **Configure the frontend.** Create `frontend/local.properties` from the example:
+
+   ```bash
+   cp frontend/local.properties.example frontend/local.properties
+   ```
+
+   Open `frontend/local.properties` and set these values. Colons are written as `\:` because this is a Java properties file.
+
+   | Property | Value |
+   | :---- | :---- |
+   | `sdk.dir` | The path to your Android SDK. On macOS this is usually `/Users/<username>/Library/Android/sdk`. Android Studio can write this for you. |
+   | `API_BASE_URL` | `https\://34.168.1.92\:3000` for the deployed backend, or `http\://10.0.2.2\:3000` for a backend on your own machine, used from the emulator |
+   | `GOOGLE_CLIENT_ID` | The same Google Web OAuth client ID as in `backend/.env`. If the two differ, the backend rejects every sign-in. |
+
+   In Android Studio, select File > Open, choose the `frontend/` folder, and click Sync Now when prompted.
+
+6. **Allow your build to use Google sign-in.** Google only accepts sign-in from an APK whose signing key is registered, and release builds use your own debug keystore unless you set `RELEASE_KEYSTORE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` in `local.properties`. Print the key's SHA-1:
+
+   ```bash
+   keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android | grep SHA1
+   ```
+
+   Then register it in Google Cloud Console, in the same project as the Web OAuth client:
+
+   1. Open APIs & Services > Credentials.
+   2. Select Create Credentials > OAuth client ID.
+   3. Set Application type to Android, Package name to `com.example.matchmarket`, and SHA-1 certificate fingerprint to the value you printed.
+   4. Click Create.
+
+   You need access to the team's Google Cloud project for this. Without it, send your SHA-1 to the team to register, or use the submitted APK (Option A), which is already registered.
+
+7. **Build and install the APK.** Start the Pixel 9 / API 36 emulator, then run these commands from `frontend/`. On Windows, use `.\gradlew.bat assembleRelease`.
+
+   ```bash
+   ./gradlew assembleRelease
+   adb install -r app/build/outputs/apk/release/app-release.apk
+   ```
+
+   Open the app, sign in with Google and check that it reaches the backend.
 
 ## 5. Accounts and access
 
