@@ -5,12 +5,15 @@ module.exports = {
   testMatch: [
     '<rootDir>/tests/no-mock/users/**/*.test.ts',
     '<rootDir>/tests/no-mock/itineraries/**/*.test.ts',
+    '<rootDir>/tests/no-mock/events/**/*.test.ts',
     '<rootDir>/tests/mock/users/**/*.test.ts',
     '<rootDir>/tests/mock/itineraries/**/*.test.ts',
+    '<rootDir>/tests/mock/events/**/*.test.ts',
   ],
   collectCoverageFrom: [
     'src/users/**/*.ts',
     'src/itineraries/**/*.ts',
+    'src/events/**/*.ts',
     '!src/**/*Types.ts',
     '!src/**/*Repository.ts',
   ],

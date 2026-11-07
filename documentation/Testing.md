@@ -32,7 +32,7 @@
 | **POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Add a transportation segment to an itinerary in the database |
 | **PATCH /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Update a transportation segment in the database |
 | **DELETE /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Remove a transportation segment from an itinerary in the database |
-| **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) *(planned)* | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) *(planned)* | Get a user's stored preference and the nearby upcoming events from the database (database failure and unexpected service failure) |
+| **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) | Get a user's stored preference and the nearby upcoming events from the database (database failure and unexpected service failure) |
 
 Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is currently run by a script (`npm run sync:events`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite; the supporting tests mock it.
 
@@ -57,7 +57,7 @@ Live Events exposes only this one HTTP interface. Ticketmaster synchronization (
    npm run test:combined
    ```
 
-The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. *(Pending: the `jest.no-mock`, `jest.mock`, and `jest.combined` configurations must be extended to include `tests/*/events/` and `src/events/` before these commands run the Live Events tests.)*
+The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. The `jest.no-mock`, `jest.mock`, and `jest.combined` configurations include `tests/*/events/` and collect coverage for `src/events/`. *(The supporting Live Events suites are still planned.)*
 
 ### 2.2. GitHub Actions Configuration Location
 
