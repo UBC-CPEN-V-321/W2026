@@ -5,6 +5,8 @@
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
 | October 28, 2026  | 3.1, 3.2              | Added automated and manual verification details and results for the Accessibility NFR. |
+| November 6, 2026  | 2.1.1, 2.1.3, 2.3, 2.4, 2.5, 2.6 | Added the planned Live Events backend API test locations, run instructions, and coverage placeholders. |
+| November 6, 2026  | 4.1, 4.2              | Added the planned Live Events frontend E2E scenarios: View Event Recommendations, Add an Event to an Itinerary, and Refresh After a Preference Change. |
 
 ---
 
@@ -30,6 +32,9 @@
 | **POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Add a transportation segment to an itinerary in the database |
 | **PATCH /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Update a transportation segment in the database |
 | **DELETE /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Remove a transportation segment from an itinerary in the database |
+| **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) *(planned)* | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) *(planned)* | Get a user's stored preference and the nearby upcoming events from the database (database failure and unexpected service failure) |
+
+Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is currently run by a script (`npm run sync:events`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite; the supporting tests mock it.
 
 #### 2.1.2. Commit Hash Where Tests Run
 
@@ -39,14 +44,20 @@
 
 1. Add a reachable `MONGODB_URI` to `backend/.env`. The no-mock suites create uniquely named temporary databases and drop them after the run.
 2. From `backend`, install dependencies with `npm install`.
-3. Run the user and itinerary API suites with coverage:
+3. Run the user, itinerary, and Live Events API suites with coverage:
    ```sh
    npm run test:no-mock
    ```
-4. Run the mocked database-failure and race-condition suites with coverage:
+4. Run the mocked database-failure and race-condition suites (including the mocked Live Events suites) with coverage:
    ```sh
    npm run test:mock
    ```
+5. Run both sets together with coverage:
+   ```sh
+   npm run test:combined
+   ```
+
+The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. *(Pending: the `jest.no-mock`, `jest.mock`, and `jest.combined` configurations must be extended to include `tests/*/events/` and `src/events/` before these commands run the Live Events tests.)*
 
 ### 2.2. GitHub Actions Configuration Location
 
@@ -59,6 +70,8 @@ Run `npm run test:mock` to generate the per-file HTML report under `backend/cove
 ![Itineraries Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/mock-itineraries.png)
 The current mocked user and itinerary suites cover 55.82% of statements, 40.85% of branches, 64.70% of functions, and 55.93% of lines. Lower standalone mock coverage is expected because these tests focus on database exceptions and concurrency-related error handling rather than normal API behavior.
 
+**Live Events:** `[Placeholder: screenshot of per-file mocked coverage for src/events and the statement, branch, function, and line percentages, added after the tests are implemented and run.]`
+
 ### 2.4. Jest Coverage Report Screenshots Without Mocks
 
 
@@ -69,6 +82,8 @@ The current user and itinerary suites cover 96.11% of statements, 93.11% of bran
 
 The no-mock Jest configuration enforces minimum global thresholds of 95% statements, 90% branches, 95% functions, and 95% lines.
 
+**Live Events:** `[Placeholder: screenshot of per-file no-mock coverage for src/events and the statement, branch, function, and line percentages, added after the tests are implemented and run.]`
+
 ### 2.5. Jest Coverage Report Screenshots (Mock + No-Mocks)
 
 
@@ -77,10 +92,14 @@ Run `npm run test:combined` to generate the per-file HTML report under `backend/
 ![Itineraries Coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/combined-itineraries.png)
 Statements: 98.05%, Branches: 96.91%, Functions: 99.01%, Lines: 98.04%
 
+**Live Events:** `[Placeholder: screenshot of per-file combined coverage for src/events and the overall result, added after the tests are implemented and run.]`
+
 ### 2.6. Coverage Justifications
 
 The no-mock run is intentionally below 100% because database/network failure branches require controlled mocks, empty Express path parameters cannot be produced through normal HTTP routing, and race conditions in which a document is removed between a service read and write cannot be triggered deterministically without mocking.
 The main remaining branches are unreachable empty Express route parameters and `findPreferences`, which belongs to the currently excluded recommendation flow. `*Types.ts` and `*Repository.ts` files contain only TypeScript types and interfaces that are erased at runtime, so both focused coverage configurations exclude them. The mock suites cover the controllable database-failure and concurrency-related branches.
+
+**Live Events:** `[Placeholder: if combined coverage of src/events is below 100%, list each uncovered area with the specific reason it cannot reasonably be reached and why the code should remain. Added after the combined coverage run.]`
 
 ---
 
@@ -176,6 +195,7 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
+- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data.
 
 ### 4.2. Tests
 
@@ -298,6 +318,73 @@ The main remaining branches are unreachable empty Express route parameters and `
     | 2. The user clicks the 'delete' button  | Check that a dialog with a message "Delete Itinerary?" is present.  |
     | 3. The user clicks the 'yes' button from the dialog | Check that Trip Screen is present <br> Check that the message "Itinerary deleted." is present <br> Check that the deleted itinerary is not present under "Saved itineraries".|
 
+
+- **Use Case: View Event Recommendations** (Live Events) *(planned; not yet implemented or run)*
+
+  - **Setup:** The test starts on the main screen with a known user already logged in. Before the test, the backend is seeded with the user's `live_music` interest and 21 known upcoming Music events near the default location, each with a different distance so their ranking is known. The seeded data is removed after the test.
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user opens the live-events feature. | Click the `Events` navigation item. |
+    | 2. The system retrieves the user's saved interest preference and location, ranks nearby upcoming events, and displays the first page of event cards with their relevant information. | Check that the `Live Events` heading is present.<br>Check that the highest-ranked seeded event card is present with its title, category, description, formatted start time, `<venue>, <city>`, price, distance, `View event details` button, and `Add to itinerary` button.<br>Check that exactly 20 event cards are loaded. |
+    | 3. The user reviews the recommended events. | Scroll through the list.<br>Check that the cards appear in descending recommendation order (nearest event first for the seeded data). |
+    | 4. The system indicates whether more recommendations are available. | Check that the `Load more` button is present at the bottom of the list. |
+    | 5. The user requests the next page when they want to view more recommendations. | Click the `Load more` button. |
+    | 6. The system retrieves and displays the additional recommendations. | Check that the 21st seeded event card is now present.<br>Check that no card is duplicated.<br>Check that the `Load more` button is no longer present. |
+    | 2b. No stored events satisfy the location and recommendation threshold. | Seed a user whose interest and location produce no event with a score of 40 or higher. Click the `Events` navigation item. |
+    | 2b1. The system informs the user that no matching events are currently available. | Check that the message `No events found` and the `Refresh` button are present. |
+
+  - **Omitted failure scenarios:** Failures 2a and 6a (network or server error while loading) can only be produced by replacing the frontend's backend connection with a mock, so they are not part of the required real-backend E2E suite.
+  - **Test Logs:**
+    ```
+    [Placeholder for E2E test execution logs]
+    ```
+
+- **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) *(planned; not yet implemented or run)*
+
+  - **Setup:** The test starts on the main screen with a known user already logged in, one seeded upcoming event, and one seeded saved itinerary. The conflict scenarios additionally seed an itinerary item that overlaps the event. The seeded data is removed after the test.
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user selects `Add to itinerary` on an event card. | Click the `Events` navigation item.<br>Click the `Add to itinerary` button on the seeded event card.<br>Check that the dialog titled `Add <event title>` is present. |
+    | 2. The system displays the event's suggested end time and the user's saved itineraries. | Check that `Starts: <formatted start time>` is present.<br>Check that the `End time` field contains the event's end time (or two hours after the start when the event has none).<br>Check that the seeded itinerary name is present as a button. |
+    | 2a. The user has no saved itinerary. | Seed a user with no saved itinerary and open the dialog. |
+    | 2a1. The system lets the user create an itinerary for the event. | Check that `You do not have an itinerary yet.` is present and `Create and add` is disabled.<br>Input a new itinerary name.<br>Click the `Create and add` button.<br>Check that the message `Created <itinerary name> and added the event.` is present. |
+    | 3. The user selects an itinerary. | Click the seeded itinerary's name button. |
+    | 3a. The user sets an end time that is not after the event start. | Set the `End time` field to the event's start time. |
+    | 3a1. The system rejects the end time. | Check that `End time must be after the event start time.` is present.<br>Check that the itinerary buttons are disabled. |
+    | 4. The system adds the event as an activity. | Check that the dialog closes and the message `Added to <itinerary name>.` is present.<br>Click the `Trips` navigation item and open the seeded itinerary.<br>Check that an activity is present with the event's title, `<venue>, <city>` as its location, and the event's start and end times. |
+    | 3b. The event overlaps an existing itinerary item. | Select an itinerary that contains an item overlapping the event's time. |
+    | 3b1. The system shows the conflicting items. | Check that the `Schedule conflict` dialog lists the conflicting item's name and time.<br>Check that `Added to <itinerary name>.` is not present. |
+    | 3b2. The user keeps the existing schedule. | Click the `Keep existing schedule` button.<br>Open the itinerary and check that the conflicting item is still present and the event was not added. |
+    | 3b3. The user replaces the conflicting items with the event. | Click the `Replace with new item` button.<br>Check that `Added to <itinerary name>.` is present.<br>Open the itinerary and check that the event is present and the conflicting item is not. |
+
+  - **Omitted failure scenarios:** Failures that need the itinerary request to fail (itinerary loading error, creation error, activity insertion error, replacement error) can only be produced by mocking the frontend's backend connection, so they are not part of the required E2E suite.
+  - **Test Logs:**
+    ```
+    [Placeholder for E2E test execution logs]
+    ```
+
+- **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) *(planned; not yet implemented or run)*
+
+  - **Setup:** The test starts on the main screen (the app opens on Events) with a known user already logged in whose interest is `outdoors`. The backend is seeded with Sports events and Music events, so changing the interest to `live_music` adds Music events to the user's first page of recommendations. The seeded data is removed after the test.
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The app loads the user's current recommendations. | Wait for the Sports event cards to be present on the Events screen. |
+    | 2. The user opens their profile and saves a different interest. | Click the `Profile` navigation item.<br>Select `live_music` in the interest dropdown.<br>Click the `Save preferences` button.<br>Check that the message `Preferences saved.` is present. |
+    | 3. The system refreshes recommendations in the background and compares them with the previous recommendations. It notifies the user while they remain on another screen. | Without leaving the Profile screen, check that the in-app notification `<count> new events near you` is present with a `View` action. |
+    | 3a. The new recommendations contain no new events. | Seed so the changed interest produces no event that was not already recommended. Save the changed preference. |
+    | 3a1. The system displays no notification. | Check that no `new event` notification is present. |
+
+  - **Test Logs:**
+    ```
+    [Placeholder for E2E test execution logs]
+    ```
+
+- **Use Case: Refresh Event Recommendations After a Location Change** (Live Events) *(to be defined)*
+
+  - The 10 km movement threshold depends on the device location provider, so how to test it will be decided later.
 
     <!-- | 3a. The user inputs an ill-formatted string. | Input "_^_^^OQ#$" in the text field. |
     | 3a1. The app displays an error message prompting the user for the expected format. | Check that a dialog is opened with the text: "Please use only alphanumeric characters ". |
