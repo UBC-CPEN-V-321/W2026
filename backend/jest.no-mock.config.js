@@ -8,6 +8,7 @@ module.exports = {
     '<rootDir>/tests/no-mock/maps/**/*.test.ts',
     '<rootDir>/tests/no-mock/recommendation/**/*.test.ts',
     '<rootDir>/tests/nfr/no-mock/auth/**/*.test.ts',
+    '<rootDir>/tests/no-mock/events/**/*.test.ts',
   ],
   collectCoverageFrom: [
     'src/users/**/*.ts',
@@ -16,6 +17,7 @@ module.exports = {
     'src/recommendation/**/*.ts',
     'src/auth/**/*.ts',
     'src/session/**/*.ts',
+    'src/events/**/*.ts',
     '!src/**/*Types.ts',
     '!src/**/*Repository.ts',
     // Valid Google tokens cannot be obtained non-interactively in CI.

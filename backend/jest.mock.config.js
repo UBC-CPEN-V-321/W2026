@@ -8,6 +8,7 @@ module.exports = {
     '<rootDir>/tests/mock/maps/**/*.test.ts',
     '<rootDir>/tests/mock/recommendation/**/*.test.ts',
     '<rootDir>/tests/nfr/mock/auth/**/*.test.ts',
+    '<rootDir>/tests/mock/events/**/*.test.ts',
   ],
   collectCoverageFrom: [
     'src/users/**/*.ts',
@@ -16,6 +17,7 @@ module.exports = {
     'src/recommendation/**/*.ts',
     'src/auth/**/*.ts',
     'src/session/**/*.ts',
+    'src/events/**/*.ts',
     '!src/**/*Types.ts',
     '!src/**/*Repository.ts',
   ],
