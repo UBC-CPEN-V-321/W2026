@@ -2,6 +2,7 @@
 
 import { ObjectId } from 'mongodb';
 
+import type { EventRepository } from '../../src/events/eventRepository';
 import type { LiveEvent } from '../../src/events/eventTypes';
 
 /** Fixed system time for recommendation-score assertions (5 days before the core event). */
@@ -129,5 +130,16 @@ export function buildTicketmasterResponse(
       totalPages: page.totalPages ?? 1,
       totalElements: page.totalElements ?? events.length,
     },
+  };
+}
+
+/** Event repository whose every method is a jest mock. */
+export function createMockEventRepository(): jest.Mocked<EventRepository> {
+  return {
+    createIndexes: jest.fn(),
+    upsertEvents: jest.fn(),
+    deleteExpiredEvents: jest.fn(),
+    deleteEventsNotSyncedSince: jest.fn(),
+    findNearbyUpcomingEvents: jest.fn(),
   };
 }

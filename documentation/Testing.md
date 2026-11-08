@@ -61,7 +61,7 @@ Live Events exposes only this one HTTP interface. Ticketmaster synchronization (
    npm run test:combined
    ```
 
-The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. The `jest.no-mock`, `jest.mock`, and `jest.combined` configurations include `tests/*/events/` and collect coverage for `src/events/`. *(The supporting Live Events suites are still planned.)*
+The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. The `jest.no-mock`, `jest.mock`, and `jest.combined` configurations include `tests/*/events/` and collect coverage for `src/events/`. Supporting suites for the Ticketmaster client, synchronization, `EventDao`, and `EventService` are in the same `tests/mock/events/` and `tests/no-mock/events/` folders.
 
 ### 2.2. GitHub Actions Configuration Location
 
