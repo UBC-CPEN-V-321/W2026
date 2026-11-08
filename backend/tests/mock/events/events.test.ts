@@ -1,6 +1,5 @@
 import request from 'supertest';
 
-import type { EventRepository } from '../../../src/events/eventRepository';
 import type { LiveEventCandidate } from '../../../src/events/eventTypes';
 import { createApp } from '../../../src/index';
 import type { UserRepository } from '../../../src/users/userRepository';
@@ -12,6 +11,7 @@ import {
   buildEvent,
   CORE_LATITUDE,
   CORE_LONGITUDE,
+  createMockEventRepository,
   FIXED_NOW,
   KEEP_REAL_TIMERS,
 } from '../../utils/eventFixtures';
@@ -26,16 +26,6 @@ function createUserRepository(): jest.Mocked<UserRepository> {
     findPreferences: jest.fn(),
     findUser: jest.fn(),
     updateUser: jest.fn(),
-  };
-}
-
-function createEventRepository(): jest.Mocked<EventRepository> {
-  return {
-    createIndexes: jest.fn(),
-    upsertEvents: jest.fn(),
-    deleteExpiredEvents: jest.fn(),
-    deleteEventsNotSyncedSince: jest.fn(),
-    findNearbyUpcomingEvents: jest.fn(),
   };
 }
 
@@ -64,7 +54,7 @@ function farCandidate(
 
 function createMockedApp() {
   const userRepository = createUserRepository();
-  const eventRepository = createEventRepository();
+  const eventRepository = createMockEventRepository();
   const app = createApp({ userRepository, eventRepository });
   userRepository.findPreferences.mockResolvedValue(preferencesFor('live_music'));
   eventRepository.findNearbyUpcomingEvents.mockResolvedValue([]);
