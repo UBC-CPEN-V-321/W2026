@@ -49,8 +49,7 @@ function ratingView(rating: Rating | undefined): { stars: number; comment: strin
   return rating === undefined ? null : { stars: rating.stars, comment: rating.comment, createdAt: rating.createdAt };
 }
 
-// The few fields of a listing or request the deals list reads. Posts saved before posts had names
-// have no name, so they show their category, as the store's findById does.
+// The few fields of a listing or request the deals list reads.
 interface PostView {
   id?: string;
   name?: string;
@@ -81,10 +80,6 @@ function parseDealsQuery(query: unknown): { limit: number; before: string | unde
   return { limit, before };
 }
 
-function postName(post: PostView | undefined): string | undefined {
-  return post === undefined ? undefined : (post.name ?? post.category);
-}
-
 function dealView(deal: Deal, me: string, lookups: Lookups) {
   const other = otherParty(deal, me);
   const user = lookups.userOf.get(other);
@@ -95,7 +90,7 @@ function dealView(deal: Deal, me: string, lookups: Lookups) {
     role: roleOf(deal, me),
     agreedPrice: deal.agreedPrice,
     createdAt: deal.createdAt,
-    title: postName(listing) ?? postName(request) ?? '',
+    title: listing?.name ?? request?.name ?? '',
     listing:
       listing === undefined
         ? null

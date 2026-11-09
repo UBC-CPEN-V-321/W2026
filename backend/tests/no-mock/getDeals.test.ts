@@ -1,6 +1,5 @@
 import type { Server } from 'node:http';
 
-import { ObjectId } from 'mongodb';
 import request from 'supertest';
 
 import type { Deal } from '../../src/models/deal';
@@ -85,7 +84,6 @@ interface RoleCase {
   ratingCount: number;
 }
 interface PostsCase { label: string; listing: boolean; request: boolean; title: string }
-interface UnnamedCase { label: string; post: 'listings' | 'requests'; title: string }
 interface RatedCase { label: string; byMe: boolean; byThem: boolean }
 interface GoneCase { label: string; post: 'listings' | 'requests' }
 interface QueryCase { label: string; query: string; details: string[] }
@@ -249,28 +247,6 @@ describe('Unmocked: GET /api/deals', () => {
         request: buyerRequest === undefined ? null : { id: buyerRequest.id, category: 'desk', photoId: PHOTO_ID },
       },
     ]);
-  });
-
-  // Input: a deal whose listing or request was saved before posts had names
-  // Expected status code: 200
-  // Expected behavior: title falls back to the post's category
-  // Expected output: deal with the category as title
-  test.each<UnnamedCase>([
-    { label: 'Listing', post: 'listings', title: 'chair' },
-    { label: 'Request', post: 'requests', title: 'desk' },
-  ])('Unnamed $label Shows Its Category', async ({ post, title }: UnnamedCase) => {
-    const listing = post === 'listings' ? await makeListing(mongo.store, ME) : undefined;
-    const buyerRequest = post === 'requests' ? await makeRequest(mongo.store, OTHER, { category: 'desk' }) : undefined;
-    await makeDeal(mongo.store, { sellerId: ME, buyerId: OTHER }, { listingId: listing?.id, requestId: buyerRequest?.id });
-    // The validator would reject a post without a name, so the update bypasses it.
-    await mongo.db
-      .collection(post)
-      .updateOne({ _id: new ObjectId(listing?.id ?? buyerRequest?.id) }, { $unset: { name: '' } }, { bypassDocumentValidation: true });
-
-    const response = await getDeals();
-
-    expect(response.status).toBe(200);
-    expect(dealsOf(response)).toMatchObject([{ title }]);
   });
 
   // Input: a deal whose request has no photos
