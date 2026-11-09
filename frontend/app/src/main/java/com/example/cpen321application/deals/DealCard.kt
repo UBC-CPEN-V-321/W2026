@@ -68,11 +68,18 @@ fun DealCard(deal: Deal, actions: DealActions) {
 
 @Composable
 private fun DealHeader(deal: Deal) {
-    val role = stringResource(if (deal.role == DealRole.SELLER) R.string.deals_sold_to else R.string.deals_bought_from)
+    // Without a name, the card says "the buyer" or "the seller" instead.
+    val name = deal.otherUser.name
+    val selling = deal.role == DealRole.SELLER
+    val role = when {
+        name.isBlank() -> stringResource(if (selling) R.string.deals_sold_to else R.string.deals_bought_from)
+        selling -> stringResource(R.string.deals_sold_to_name, name)
+        else -> stringResource(R.string.deals_bought_from_name, name)
+    }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = deal.title.ifBlank { stringResource(R.string.deals_untitled) }.titleCase(),
+                text = deal.title.ifBlank { stringResource(R.string.deals_untitled) },
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f)
             )

@@ -7,6 +7,8 @@
     <string name="deals_request">Request</string>
     <string name="deals_sold_to">You sold to the buyer</string>
     <string name="deals_bought_from">You bought from the seller</string>
+    <string name="deals_sold_to_name">You sold to %1$s</string>
+    <string name="deals_bought_from_name">You bought from %1$s</string>
     <string name="deals_score">★ %1$.1f (%2$d)</string>
     <string name="deals_score_new">New</string>
     <string name="deals_rate">Rate</string>

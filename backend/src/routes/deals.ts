@@ -5,6 +5,7 @@ import { DEFAULT_DEALS_PAGE, MAX_DEALS_PAGE } from '../models/common';
 import { otherParty, roleOf, type Deal } from '../models/deal';
 import type { Rating } from '../models/rating';
 import type { Reputation } from '../models/reputation';
+import type { PublicUser } from '../models/user';
 import { reputationSummary } from '../reputation/score';
 import { currentUser } from '../sessions';
 import type { Store } from '../store/types';
@@ -48,9 +49,11 @@ function ratingView(rating: Rating | undefined): { stars: number; comment: strin
   return rating === undefined ? null : { stars: rating.stars, comment: rating.comment, createdAt: rating.createdAt };
 }
 
-// The few fields of a listing or request the deals list reads.
+// The few fields of a listing or request the deals list reads. Posts saved before posts had names
+// have no name, so they show their category, as the store's findById does.
 interface PostView {
   id?: string;
+  name?: string;
   category?: string;
   price?: number;
   photoIds?: string[];
@@ -60,6 +63,7 @@ interface PostView {
 interface Lookups {
   ratingBy: Map<string, Rating>;
   reputationOf: Map<string, Reputation>;
+  userOf: Map<string, PublicUser>;
   listingOf: Map<string, PostView>;
   requestOf: Map<string, PostView>;
 }
@@ -77,8 +81,13 @@ function parseDealsQuery(query: unknown): { limit: number; before: string | unde
   return { limit, before };
 }
 
+function postName(post: PostView | undefined): string | undefined {
+  return post === undefined ? undefined : (post.name ?? post.category);
+}
+
 function dealView(deal: Deal, me: string, lookups: Lookups) {
   const other = otherParty(deal, me);
+  const user = lookups.userOf.get(other);
   const listing = deal.listingId === null ? undefined : lookups.listingOf.get(deal.listingId);
   const request = deal.requestId === null ? undefined : lookups.requestOf.get(deal.requestId);
   return {
@@ -86,14 +95,19 @@ function dealView(deal: Deal, me: string, lookups: Lookups) {
     role: roleOf(deal, me),
     agreedPrice: deal.agreedPrice,
     createdAt: deal.createdAt,
-    title: listing?.category ?? request?.category ?? '',
+    title: postName(listing) ?? postName(request) ?? '',
     listing:
       listing === undefined
         ? null
         : { id: deal.listingId, category: listing.category, price: listing.price, photoId: listing.photoIds?.[0] ?? null },
     request:
       request === undefined ? null : { id: deal.requestId, category: request.category, photoId: request.photoIds?.[0] ?? null },
-    otherUser: reputationSummary(other, lookups.reputationOf.get(other)),
+    // A user with no profile, e.g. one whose account was removed, has empty names.
+    otherUser: {
+      ...reputationSummary(other, lookups.reputationOf.get(other)),
+      firstName: user?.firstName ?? '',
+      lastName: user?.lastName ?? '',
+    },
     myRating: ratingView(lookups.ratingBy.get(`${deal.id}:${me}`)),
     theirRating: ratingView(lookups.ratingBy.get(`${deal.id}:${other}`)),
   };
@@ -103,7 +117,7 @@ export function createDealsRouter(store: Store): Router {
   const router = Router();
 
   // GET /api/deals?limit=20&before=<nextCursor> — the caller's deals, newest first.
-  // At most 5 queries however many deals there are; nextCursor is null on the last page.
+  // At most 6 queries however many deals there are; nextCursor is null on the last page.
   router.get('/', handle(async (req, res) => {
     const { limit, before } = parseDealsQuery(req.query);
     const me = currentUser(res).id;
@@ -114,15 +128,18 @@ export function createDealsRouter(store: Store): Router {
     const last = page[page.length - 1];
     const nextCursor = found.length > limit && last !== undefined ? last.id : null;
 
-    const [ratings, reputations, listings, requests] = await Promise.all([
+    const others = present(page.map((deal) => otherParty(deal, me)));
+    const [ratings, reputations, users, listings, requests] = await Promise.all([
       store.ratings.listByDeals(page.map((deal) => deal.id)),
-      store.reputations.findMany(present(page.map((deal) => otherParty(deal, me)))),
-      store.listings.findByIds(present(page.map((deal) => deal.listingId)), ['category', 'price', 'photoIds'], true),
-      store.requests.findByIds(present(page.map((deal) => deal.requestId)), ['category', 'photoIds'], true),
+      store.reputations.findMany(others),
+      store.users.findPublicByIds(others),
+      store.listings.findByIds(present(page.map((deal) => deal.listingId)), ['name', 'category', 'price', 'photoIds'], true),
+      store.requests.findByIds(present(page.map((deal) => deal.requestId)), ['name', 'category', 'photoIds'], true),
     ]);
     const lookups: Lookups = {
       ratingBy: new Map(ratings.map((rating) => [`${rating.dealId}:${rating.raterId}`, rating])),
       reputationOf: new Map(reputations.map((reputation) => [reputation.userId, reputation])),
+      userOf: new Map(users.map((found) => [found.id, found])),
       listingOf: byId<PostView>(listings),
       requestOf: byId<PostView>(requests),
     };

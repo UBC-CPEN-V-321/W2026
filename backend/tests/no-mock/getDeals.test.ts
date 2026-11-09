@@ -1,5 +1,6 @@
 import type { Server } from 'node:http';
 
+import { ObjectId } from 'mongodb';
 import request from 'supertest';
 
 import type { Deal } from '../../src/models/deal';
@@ -18,6 +19,7 @@ import {
   makeRating,
   makeReputation,
   makeRequest,
+  makeUser,
 } from '../helpers/dealFixtures';
 import { startTestApp, stopTestApp } from '../helpers/testApp';
 import { createTestStore, type TestStore } from '../helpers/testStore';
@@ -83,6 +85,7 @@ interface RoleCase {
   ratingCount: number;
 }
 interface PostsCase { label: string; listing: boolean; request: boolean; title: string }
+interface UnnamedCase { label: string; post: 'listings' | 'requests'; title: string }
 interface RatedCase { label: string; byMe: boolean; byThem: boolean }
 interface GoneCase { label: string; post: 'listings' | 'requests' }
 interface QueryCase { label: string; query: string; details: string[] }
@@ -120,15 +123,16 @@ describe('Unmocked: GET /api/deals', () => {
 
   // Input: GET /api/deals as the seller, or as the buyer when the seller has ratings [5, 4]
   // Expected status code: 200
-  // Expected behavior: caller's role is reported and otherUser is the other party with their score
-  // Expected output: one deal with role, listing, request: null, otherUser and null ratings
+  // Expected behavior: caller's role is reported and otherUser is the other party with their name and score
+  // Expected output: one deal with role, the listing's name as title, listing, request: null, otherUser and null ratings
   test.each([
     { label: 'Seller', sellerId: ME, buyerId: OTHER, role: 'seller', otherStars: [], score: null, ratingCount: 0 },
     { label: 'Buyer', sellerId: OTHER, buyerId: ME, role: 'buyer', otherStars: [5, 4], score: 4.5, ratingCount: 2 },
   ])('Caller Is The $label', async ({ sellerId, buyerId, role, otherStars, score, ratingCount }: RoleCase) => {
     const other = role === 'seller' ? buyerId : sellerId;
     await makeReputation(mongo.store, other, otherStars);
-    const listing = await makeListing(mongo.store, sellerId);
+    await makeUser(mongo.store, other, 'Jane', 'Doe');
+    const listing = await makeListing(mongo.store, sellerId, { name: 'IKEA oak chair' });
     const deal = await makeDeal(mongo.store, { sellerId, buyerId }, { listingId: listing.id });
 
     const response = await getDeals();
@@ -141,16 +145,31 @@ describe('Unmocked: GET /api/deals', () => {
           role,
           agreedPrice: 40,
           createdAt: deal.createdAt.toISOString(),
-          title: 'chair',
+          title: 'IKEA oak chair',
           listing: { id: listing.id, category: 'chair', price: 40, photoId: PHOTO_ID },
           request: null,
-          otherUser: { id: other, score, ratingCount },
+          otherUser: { id: other, score, ratingCount, firstName: 'Jane', lastName: 'Doe' },
           myRating: null,
           theirRating: null,
         },
       ],
       nextCursor: null,
     });
+  });
+
+  // Input: a deal whose other user has no saved profile
+  // Expected status code: 200
+  // Expected behavior: the deal is still returned rather than failing
+  // Expected output: otherUser with firstName: '' and lastName: ''
+  test('Other User Has No Profile', async () => {
+    await dealOnNewListing();
+
+    const response = await getDeals();
+
+    expect(response.status).toBe(200);
+    expect(dealsOf(response)).toMatchObject([
+      { otherUser: { id: OTHER, score: null, ratingCount: 0, firstName: '', lastName: '' } },
+    ]);
   });
 
   // Input: GET /api/deals as ME when the only deal is between OTHER and STRANGER
@@ -207,16 +226,16 @@ describe('Unmocked: GET /api/deals', () => {
 
   // Input: a deal with a listing and a request, a listing only, or a request only
   // Expected status code: 200
-  // Expected behavior: title comes from the listing when there is one, otherwise the request
+  // Expected behavior: title is the listing's name when there is one, otherwise the request's name
   // Expected output: deal with title, and listing and request summaries or null
   test.each([
-    { label: 'A Listing And A Request', listing: true, request: true, title: 'chair' },
-    { label: 'A Listing Only', listing: true, request: false, title: 'chair' },
-    { label: 'A Request Only', listing: false, request: true, title: 'desk' },
+    { label: 'A Listing And A Request', listing: true, request: true, title: 'Chair' },
+    { label: 'A Listing Only', listing: true, request: false, title: 'Chair' },
+    { label: 'A Request Only', listing: false, request: true, title: 'Standing desk' },
   ])('Deal From $label', async ({ listing: withListing, request: withRequest, title }: PostsCase) => {
     const listing: Listing | undefined = withListing ? await makeListing(mongo.store, ME) : undefined;
     const buyerRequest: BuyerRequest | undefined = withRequest
-      ? await makeRequest(mongo.store, OTHER, { category: 'desk', photoIds: [PHOTO_ID, SECOND_PHOTO_ID] })
+      ? await makeRequest(mongo.store, OTHER, { name: 'Standing desk', category: 'desk', photoIds: [PHOTO_ID, SECOND_PHOTO_ID] })
       : undefined;
     await makeDeal(mongo.store, { sellerId: ME, buyerId: OTHER }, { listingId: listing?.id, requestId: buyerRequest?.id });
 
@@ -230,6 +249,28 @@ describe('Unmocked: GET /api/deals', () => {
         request: buyerRequest === undefined ? null : { id: buyerRequest.id, category: 'desk', photoId: PHOTO_ID },
       },
     ]);
+  });
+
+  // Input: a deal whose listing or request was saved before posts had names
+  // Expected status code: 200
+  // Expected behavior: title falls back to the post's category
+  // Expected output: deal with the category as title
+  test.each<UnnamedCase>([
+    { label: 'Listing', post: 'listings', title: 'chair' },
+    { label: 'Request', post: 'requests', title: 'desk' },
+  ])('Unnamed $label Shows Its Category', async ({ post, title }: UnnamedCase) => {
+    const listing = post === 'listings' ? await makeListing(mongo.store, ME) : undefined;
+    const buyerRequest = post === 'requests' ? await makeRequest(mongo.store, OTHER, { category: 'desk' }) : undefined;
+    await makeDeal(mongo.store, { sellerId: ME, buyerId: OTHER }, { listingId: listing?.id, requestId: buyerRequest?.id });
+    // The validator would reject a post without a name, so the update bypasses it.
+    await mongo.db
+      .collection(post)
+      .updateOne({ _id: new ObjectId(listing?.id ?? buyerRequest?.id) }, { $unset: { name: '' } }, { bypassDocumentValidation: true });
+
+    const response = await getDeals();
+
+    expect(response.status).toBe(200);
+    expect(dealsOf(response)).toMatchObject([{ title }]);
   });
 
   // Input: a deal whose request has no photos

@@ -9,7 +9,8 @@ data class DealPost(val id: String, val category: String, val price: Double?, va
 
 data class DealRating(val stars: Int, val comment: String)
 
-data class OtherUser(val id: String, val score: Double?, val ratingCount: Int)
+// name is blank when the backend has no profile for the user, and in rating responses, which leave it out.
+data class OtherUser(val id: String, val name: String, val score: Double?, val ratingCount: Int)
 
 data class Deal(
     val id: String,

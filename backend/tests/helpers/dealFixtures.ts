@@ -87,6 +87,11 @@ export function makeRating(
   return store.ratings.insert({ comment: '', createdAt: new Date(), ...rating });
 }
 
+// A user as first sign-in saves them, so their name can be shown on deals.
+export function makeUser(store: Store, id: string, firstName: string, lastName: string): Promise<void> {
+  return store.users.upsertFromSignIn({ id, firstName, lastName, email: `${id}@example.com`, pictureUrl: null });
+}
+
 export function makeReputation(store: Store, userId: string, stars: number[]): Promise<void> {
   return stars.reduce(
     (done, count) => done.then(() => store.reputations.addRating(userId, count, new Date()).then(() => undefined)),
@@ -94,7 +99,7 @@ export function makeReputation(store: Store, userId: string, stars: number[]): P
   );
 }
 
-const DEAL_COLLECTIONS = ['deals', 'ratings', 'reputations', 'listings', 'requests'];
+const DEAL_COLLECTIONS = ['deals', 'ratings', 'reputations', 'listings', 'requests', 'users'];
 
 export async function clearDealData(db: Db): Promise<void> {
   await Promise.all(

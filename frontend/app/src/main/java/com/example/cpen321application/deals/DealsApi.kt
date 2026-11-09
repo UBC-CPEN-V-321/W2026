@@ -77,6 +77,7 @@ private fun parsePost(post: JSONObject): DealPost = DealPost(
 
 private fun parseOtherUser(user: JSONObject): OtherUser = OtherUser(
     id = user.getString("id"),
+    name = "${user.optString("firstName")} ${user.optString("lastName")}".trim(),
     score = if (user.isNull("score")) null else user.getDouble("score"),
     ratingCount = user.getInt("ratingCount")
 )
