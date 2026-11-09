@@ -5,12 +5,14 @@ name: cpen321-project
 services:
   backend:
     build: ./backend
+    command: ["sh", "-c", "npm run sync:events && npm run dev"]
     # Published on all interfaces so a physical Android device on the same Wi-Fi
     # can reach it. Emulators use http://10.0.2.2:3000/api/ either way.
     ports:
       - "3000:3000"
     env_file:
       - path: ./backend/.env
+        required: false
     environment:
       MONGODB_URI: mongodb://mongo:27017/cpen321
     depends_on:
@@ -20,8 +22,11 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    ports:
+      - "27017:27017"
     volumes:
       - mongo-data:/data/db
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s

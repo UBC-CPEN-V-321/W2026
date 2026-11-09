@@ -1,0 +1,455 @@
+package com.exploreUBC.cpen321application.ui.trips
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
+import com.exploreUBC.cpen321application.data.itineraries.CreateTransportationInput
+import java.time.Instant
+
+internal val activityCategories = listOf(
+    "food", "art", "outdoors", "markets", "live_music", "gaming", "museum", "other",
+)
+internal val transportationModes = listOf("walking", "cycling", "transit", "driving", "other")
+internal const val ITINERARY_NAME_MAX_LENGTH = 100
+internal const val ACTIVITY_NAME_MAX_LENGTH = 200
+internal const val IMAGE_URL_MAX_LENGTH = 2_000
+internal const val DESCRIPTION_MAX_LENGTH = 1_000
+internal const val LOCATION_MAX_LENGTH = 500
+
+private data class ItemFormModel(
+    val title: String,
+    val isSaving: Boolean,
+    val isValid: Boolean,
+    val hasTimeOrderError: Boolean,
+    val hasDistanceError: Boolean,
+    val statusMessage: String?,
+)
+
+private data class ItemFormActions(
+    val onBack: () -> Unit,
+    val onCreate: () -> Unit,
+)
+
+private data class ActivityDetailsFieldValues(
+    val name: String,
+    val image: String,
+    val description: String,
+    val category: String,
+)
+
+private data class ActivityDetailsFieldActions(
+    val onNameChange: (String) -> Unit,
+    val onImageChange: (String) -> Unit,
+    val onDescriptionChange: (String) -> Unit,
+    val onCategoryChange: (String) -> Unit,
+)
+
+private data class TransportationFieldValues(
+    val mode: String,
+    val startLocation: String,
+    val endLocation: String,
+    val distanceMeters: String,
+    val startTime: String,
+    val endTime: String,
+)
+
+private data class TransportationFieldActions(
+    val onModeChange: (String) -> Unit,
+    val onStartLocationChange: (String) -> Unit,
+    val onEndLocationChange: (String) -> Unit,
+    val onDistanceChange: (String) -> Unit,
+    val onStartTimeChange: (String) -> Unit,
+    val onEndTimeChange: (String) -> Unit,
+)
+
+@Composable
+internal fun NewItineraryItemScreen(
+    itemType: NewItemType,
+    isSaving: Boolean,
+    statusMessage: String?,
+    onBack: () -> Unit,
+    onAddActivity: (CreateActivityInput) -> Unit,
+    onAddTransportation: (CreateTransportationInput) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (itemType) {
+        NewItemType.ACTIVITY -> NewActivityScreen(
+            isSaving, statusMessage, onBack, onAddActivity, modifier,
+        )
+        NewItemType.TRANSPORTATION -> NewTransportationScreen(
+            isSaving, statusMessage, onBack, onAddTransportation, modifier,
+        )
+    }
+}
+
+@Composable
+private fun NewActivityScreen(
+    isSaving: Boolean,
+    statusMessage: String?,
+    onBack: () -> Unit,
+    onCreate: (CreateActivityInput) -> Unit,
+    modifier: Modifier,
+) {
+    var name by remember { mutableStateOf("") }
+    var image by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var startTime by remember { mutableStateOf("") }
+    var endTime by remember { mutableStateOf("") }
+    val showTimeOrderError = hasTimeOrderError(startTime, endTime)
+    val isValid = name.isNotBlank() && name.length <= ACTIVITY_NAME_MAX_LENGTH &&
+        image.length <= IMAGE_URL_MAX_LENGTH && category.isNotBlank() &&
+        description.length <= DESCRIPTION_MAX_LENGTH &&
+        location.isNotBlank() && location.length <= LOCATION_MAX_LENGTH &&
+        timesAreOrdered(startTime, endTime)
+    val create = {
+        onCreate(
+            CreateActivityInput(
+                name,
+                image,
+                description.takeIf(String::isNotBlank),
+                category.takeIf(String::isNotBlank),
+                location,
+                startTime,
+                endTime,
+            ),
+        )
+    }
+
+    ItemFormPage(
+        ItemFormModel(
+            "New activity",
+            isSaving,
+            isValid,
+            showTimeOrderError,
+            false,
+            statusMessage,
+        ),
+        ItemFormActions(onBack, create),
+        modifier,
+    ) {
+        NewActivityDetailsFields(
+            values = ActivityDetailsFieldValues(name, image, description, category),
+            actions = ActivityDetailsFieldActions(
+                onNameChange = { name = it },
+                onImageChange = { image = it },
+                onDescriptionChange = { description = it },
+                onCategoryChange = { category = it },
+            ),
+        )
+        NewActivityScheduleFields(
+            location, { location = it }, startTime, { startTime = it }, endTime, { endTime = it },
+        )
+    }
+}
+
+@Composable
+private fun NewActivityDetailsFields(
+    values: ActivityDetailsFieldValues,
+    actions: ActivityDetailsFieldActions,
+) {
+    FormField(
+        values.name, actions.onNameChange, "Name", "new_activity_name",
+        required = true, maxLength = ACTIVITY_NAME_MAX_LENGTH,
+    )
+    FormField(
+        values.image, actions.onImageChange, "Image URL (optional)", "new_activity_image",
+        maxLength = IMAGE_URL_MAX_LENGTH,
+    )
+    FormField(
+        values.description, actions.onDescriptionChange, "Description (optional)",
+        "new_activity_description", maxLength = DESCRIPTION_MAX_LENGTH,
+    )
+    SelectionDropdown(
+        "Category",
+        activityCategories,
+        values.category,
+        actions.onCategoryChange,
+        "new_activity_category",
+        required = true,
+    )
+}
+
+@Composable
+private fun NewActivityScheduleFields(
+    location: String,
+    onLocationChange: (String) -> Unit,
+    startTime: String,
+    onStartTimeChange: (String) -> Unit,
+    endTime: String,
+    onEndTimeChange: (String) -> Unit,
+) {
+    AddressAutocompleteField(
+        value = location,
+        onValueChange = onLocationChange,
+        label = "Location",
+        tag = "new_activity_location",
+        options = AddressAutocompleteOptions(
+            required = true,
+            maxLength = LOCATION_MAX_LENGTH,
+        ),
+    )
+    DateTimePickerField(
+        "Start time", startTime, onStartTimeChange, "new_activity_start_time",
+        required = true,
+    )
+    DateTimePickerField(
+        "End time", endTime, onEndTimeChange, "new_activity_end_time",
+        required = true,
+    )
+}
+
+@Composable
+private fun NewTransportationScreen(
+    isSaving: Boolean,
+    statusMessage: String?,
+    onBack: () -> Unit,
+    onCreate: (CreateTransportationInput) -> Unit,
+    modifier: Modifier,
+) {
+    var mode by remember { mutableStateOf("") }
+    var startLocation by remember { mutableStateOf("") }
+    var endLocation by remember { mutableStateOf("") }
+    var distanceMeters by remember { mutableStateOf("") }
+    var startTime by remember { mutableStateOf("") }
+    var endTime by remember { mutableStateOf("") }
+    val distance = distanceMeters.toDoubleOrNull()
+    val showTimeOrderError = hasTimeOrderError(startTime, endTime)
+    val showDistanceError = hasDistanceError(distanceMeters)
+    val isValid = mode in transportationModes && startLocation.isNotBlank() &&
+        startLocation.length <= LOCATION_MAX_LENGTH && endLocation.isNotBlank() &&
+        endLocation.length <= LOCATION_MAX_LENGTH && distance != null && distance >= 0 &&
+        timesAreOrdered(startTime, endTime)
+    val create = {
+        onCreate(
+            CreateTransportationInput(
+                mode,
+                startLocation,
+                endLocation,
+                requireNotNull(distance),
+                startTime,
+                endTime,
+            ),
+        )
+    }
+
+    ItemFormPage(
+        ItemFormModel(
+            "New transportation",
+            isSaving,
+            isValid,
+            showTimeOrderError,
+            showDistanceError,
+            statusMessage,
+        ),
+        ItemFormActions(onBack, create),
+        modifier,
+    ) {
+        NewTransportationFields(
+            values = TransportationFieldValues(
+                mode, startLocation, endLocation, distanceMeters, startTime, endTime,
+            ),
+            actions = TransportationFieldActions(
+                onModeChange = { mode = it },
+                onStartLocationChange = { startLocation = it },
+                onEndLocationChange = { endLocation = it },
+                onDistanceChange = { distanceMeters = it },
+                onStartTimeChange = { startTime = it },
+                onEndTimeChange = { endTime = it },
+            ),
+        )
+    }
+}
+
+@Composable
+private fun NewTransportationFields(
+    values: TransportationFieldValues,
+    actions: TransportationFieldActions,
+) {
+    SelectionDropdown(
+        "Mode", transportationModes, values.mode, actions.onModeChange, "new_transportation_mode",
+        required = true,
+    )
+    AddressAutocompleteField(
+        value = values.startLocation,
+        onValueChange = actions.onStartLocationChange,
+        label = "Start location",
+        tag = "new_transportation_start_location",
+        options = AddressAutocompleteOptions(required = true, maxLength = LOCATION_MAX_LENGTH),
+    )
+    AddressAutocompleteField(
+        value = values.endLocation,
+        onValueChange = actions.onEndLocationChange,
+        label = "End location",
+        tag = "new_transportation_end_location",
+        options = AddressAutocompleteOptions(required = true, maxLength = LOCATION_MAX_LENGTH),
+    )
+    FormField(
+        values.distanceMeters, actions.onDistanceChange, "Distance in meters",
+        "new_transportation_distance", required = true,
+    )
+    DateTimePickerField(
+        "Start time", values.startTime, actions.onStartTimeChange, "new_transportation_start_time",
+        required = true,
+    )
+    DateTimePickerField(
+        "End time", values.endTime, actions.onEndTimeChange, "new_transportation_end_time",
+        required = true,
+    )
+}
+
+@Composable
+private fun ItemFormPage(
+    model: ItemFormModel,
+    actions: ItemFormActions,
+    modifier: Modifier = Modifier,
+    fields: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        TextButton(onClick = actions.onBack, modifier = Modifier.testTag("new_item_back")) {
+            Text("Back to itinerary")
+        }
+        Text(
+            model.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        fields()
+        model.statusMessage?.let { Text(it, modifier = Modifier.testTag("new_item_status")) }
+        DistanceErrorMessage(model.hasDistanceError)
+        TimeOrderErrorMessage(model.hasTimeOrderError)
+        Button(
+            onClick = actions.onCreate,
+            enabled = model.isValid && !model.isSaving,
+            modifier = Modifier.fillMaxWidth().testTag("new_item_create"),
+        ) { Text(if (model.isSaving) "Adding…" else "Add") }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+internal fun FormField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    tag: String,
+    required: Boolean = false,
+    maxLength: Int? = null,
+) {
+    val exceedsMaxLength = maxLength != null && value.length > maxLength
+    Column {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(if (required) "$label *" else label) },
+            isError = exceedsMaxLength,
+            modifier = Modifier.fillMaxWidth().testTag(tag),
+        )
+        if (exceedsMaxLength) {
+            Text(
+                text = "${label.substringBefore(" (optional)")} must be at most $maxLength characters.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("${tag}_length_error"),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SelectionDropdown(
+    label: String,
+    options: List<String>,
+    selected: String,
+    onSelected: (String) -> Unit,
+    tag: String,
+    required: Boolean = false,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        OutlinedTextField(
+            value = selected.displayOption(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(if (required) "$label *" else label) },
+            placeholder = { Text("Select") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable).testTag(tag),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(if (option.isEmpty()) "None" else option.displayOption()) },
+                    onClick = { onSelected(option); expanded = false },
+                )
+            }
+        }
+    }
+}
+
+internal fun String.displayOption(): String =
+    replace('_', ' ').replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+internal fun timesAreOrdered(startTime: String, endTime: String): Boolean =
+    runCatching { Instant.parse(startTime).isBefore(Instant.parse(endTime)) }.getOrDefault(false)
+
+internal fun hasTimeOrderError(startTime: String, endTime: String): Boolean =
+    startTime.isNotBlank() && endTime.isNotBlank() && !timesAreOrdered(startTime, endTime)
+
+internal fun hasDistanceError(distance: String): Boolean =
+    distance.isNotBlank() && distance.toDoubleOrNull() == null
+
+@Composable
+internal fun DistanceErrorMessage(isVisible: Boolean) {
+    if (isVisible) {
+        Text(
+            text = "Distance must be a number.",
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag("distance_error"),
+        )
+    }
+}
+
+@Composable
+internal fun TimeOrderErrorMessage(isVisible: Boolean) {
+    if (isVisible) {
+        Text(
+            text = "End time must be after start time.",
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag("time_order_error"),
+        )
+    }
+}
