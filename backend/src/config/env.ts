@@ -53,6 +53,9 @@ if (jwtSecret.length < 32) {
 // returned without travel times, as when the service is down.
 const orsApiKey = process.env.ORS_API_KEY?.trim();
 
+// Enables the test-only /api/e2e routes.
+const e2eRoutes = process.env.ENABLE_E2E_ROUTES?.trim().toLowerCase() === 'true';
+
 export const env = {
   port,
   mongoUri: required('MONGODB_URI', process.env.MONGODB_URI),
@@ -61,4 +64,5 @@ export const env = {
   googleClientId,
   jwtSecret,
   orsApiKey: orsApiKey === undefined || orsApiKey === '' ? undefined : orsApiKey,
+  e2eRoutes,
 } as const;

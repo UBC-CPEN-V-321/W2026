@@ -7,6 +7,7 @@ import { isText } from './routes/checks';
 import { createConversationsRouter } from './routes/conversations';
 import { createCustomFieldsRouter } from './routes/customFields';
 import { createDealsRouter } from './routes/deals';
+import { createE2eRouter } from './routes/e2e';
 import { createFeedRouter } from './routes/feed';
 import { createListingsRouter } from './routes/listings';
 import { createPhotosRouter } from './routes/photos';
@@ -21,9 +22,10 @@ import type { SessionRepo, Store } from './store/types';
 export interface AppDeps {
   sessions: SessionRepo;
   store?: Store;
+  e2eRoutes?: boolean;
 }
 
-export function createApp({ sessions, store }: AppDeps): Express {
+export function createApp({ sessions, store, e2eRoutes = false }: AppDeps): Express {
   const app = express();
 
   // The auth routes have tiny bodies; the limit rejects oversized ones early.
@@ -115,6 +117,9 @@ export function createApp({ sessions, store }: AppDeps): Express {
       createProposalsRouter(store, events),
       ratingBodyTooLarge,
     );
+    if (e2eRoutes) {
+      app.use('/api/e2e', requireAuth, createE2eRouter(store));
+    }
   }
 
   app.use((_req, res) => {

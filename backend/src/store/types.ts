@@ -91,6 +91,7 @@ export interface DealCollection {
   insert(doc: Omit<Deal, 'id'>): Promise<Deal>;
   findById(id: string): Promise<Deal | null>;
   listByUser(userId: string, limit: number, before?: string): Promise<Deal[]>;
+  removeBySellerAndBuyer(sellerId: string, buyerId: string): Promise<Deal[]>;
 }
 
 export interface RatingUpdate {
@@ -102,6 +103,7 @@ export interface RatingCollection {
   insert(doc: Omit<Rating, 'id'>): Promise<Rating>;
   update(dealId: string, raterId: string, stars: number, comment: string, now: Date): Promise<RatingUpdate | null>;
   listByDeals(dealIds: string[]): Promise<Rating[]>;
+  removeByDealIds(dealIds: string[]): Promise<void>;
 }
 
 export interface ReputationCollection {
@@ -109,6 +111,7 @@ export interface ReputationCollection {
   findMany(userIds: string[]): Promise<Reputation[]>;
   addRating(userId: string, stars: number, now: Date): Promise<Reputation>;
   changeStars(userId: string, delta: number, now: Date): Promise<Reputation | null>;
+  remove(userId: string): Promise<void>;
 }
 
 export interface ConversationCollection {
