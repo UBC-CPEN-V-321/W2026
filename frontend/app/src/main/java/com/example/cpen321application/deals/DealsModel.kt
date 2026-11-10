@@ -133,10 +133,15 @@ class DealsModel(private val api: DealsApi) {
         }
     }
 
-    // The other user's new score also goes on their other deals on screen.
+    // The other user's new score also goes on their other deals on screen. The rating response has no
+    // name, so each deal keeps the name it already shows.
     private fun applyRating(dealId: String, result: RatingResult) {
         state = state.copy(deals = state.deals.map { deal ->
-            val other = if (deal.otherUser.id == result.otherUser.id) result.otherUser else deal.otherUser
+            val other = if (deal.otherUser.id == result.otherUser.id) {
+                result.otherUser.copy(name = deal.otherUser.name)
+            } else {
+                deal.otherUser
+            }
             if (deal.id == dealId) deal.copy(myRating = result.rating, otherUser = other) else deal.copy(otherUser = other)
         })
     }

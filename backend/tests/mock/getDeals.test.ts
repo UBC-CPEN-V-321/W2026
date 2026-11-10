@@ -52,6 +52,7 @@ describe('Mocked: GET /api/deals', () => {
     { label: 'deals.listByUser', install: (store, spies) => { spies.push(rejecting(store.deals, 'listByUser')); } },
     { label: 'ratings.listByDeals', install: (store, spies) => { spies.push(rejecting(store.ratings, 'listByDeals')); } },
     { label: 'reputations.findMany', install: (store, spies) => { spies.push(rejecting(store.reputations, 'findMany')); } },
+    { label: 'users.findPublicByIds', install: (store, spies) => { spies.push(rejecting(store.users, 'findPublicByIds')); } },
     { label: 'listings.findByIds', install: (store, spies) => { spies.push(rejecting(store.listings, 'findByIds')); } },
     { label: 'requests.findByIds', install: (store, spies) => { spies.push(rejecting(store.requests, 'findByIds')); } },
   ])('$label Throws: 500', async ({ install }: ReadCase) => {
