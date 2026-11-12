@@ -38,6 +38,11 @@ interface StoredPhoto { metadata: { mimeType: string; ownerId: string } }
 const JPEG = Buffer.from('jpeg bytes');
 const BAD_PHOTOS = 'Attach images (jpeg, png, webp or gif) in the "photos" field';
 
+const TOKEN_CASES: TokenCase[] = [
+  { label: 'No Token', header: undefined, error: 'Missing Authorization: Bearer <session token> header' },
+  { label: 'Garbage Token', header: 'Bearer not-a-token', error: 'Invalid or expired session token' },
+];
+
 function photo(bytes = JPEG, contentType = 'image/jpeg'): Attachment {
   return { field: 'photos', bytes, contentType };
 }
@@ -73,10 +78,7 @@ describe('Unmocked: POST /api/photos', () => {
   // Expected status code: 401
   // Expected behavior: the request is rejected and nothing is saved
   // Expected output: { error } naming the auth problem
-  test.each<TokenCase>([
-    { label: 'No Token', header: undefined, error: 'Missing Authorization: Bearer <session token> header' },
-    { label: 'Garbage Token', header: 'Bearer not-a-token', error: 'Invalid or expired session token' },
-  ])('$label: 401', async ({ header, error }: TokenCase) => {
+  test.each(TOKEN_CASES)('$label: 401', async ({ header, error }: TokenCase) => {
     const response = await uploadWith(header, [photo()]);
 
     expect(response.status).toBe(401);
@@ -164,16 +166,31 @@ describe('Unmocked: POST /api/photos', () => {
 
 // Interface GET /api/photos/:id
 describe('Unmocked: GET /api/photos/:id', () => {
-  // Input: GET /api/photos/:id of an uploaded PNG, with no Authorization header
+  // Input: GET /api/photos/:id of an uploaded photo with no Authorization header, or with a token that is not a valid JWT (see table)
+  // Expected status code: 401
+  // Expected behavior: the photo is only sent to signed-in users, so nothing is streamed
+  // Expected output: { error } naming the auth problem
+  test.each(TOKEN_CASES)('$label: 401', async ({ header, error }: TokenCase) => {
+    const uploaded = await upload([photo()]);
+    const [id] = (uploaded.body as { ids: string[] }).ids;
+    const call = request(app).get(`/api/photos/${String(id)}`);
+
+    const response = await (header === undefined ? call : call.set('Authorization', header));
+
+    expect(response.status).toBe(401);
+    expect(response.body).toStrictEqual({ error });
+  });
+
+  // Input: GET /api/photos/:id of an uploaded PNG, as a signed-in user
   // Expected status code: 200
-  // Expected behavior: the photo is public, so no token is needed, and it may be cached for good
+  // Expected behavior: the photo is sent, and only the user's own device may cache it
   // Expected output: the uploaded bytes, with Content-Type image/png
   test('Uploaded Photo: 200', async () => {
     const bytes = Buffer.from('png bytes');
     const uploaded = await upload([photo(bytes, 'image/png')]);
     const [id] = (uploaded.body as { ids: string[] }).ids;
 
-    const response = await request(app).get(`/api/photos/${id}`).buffer(true).parse((res, done) => {
+    const response = await request(app).get(`/api/photos/${id}`).set('Authorization', bearer(ME)).buffer(true).parse((res, done) => {
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
       res.on('end', () => {
@@ -183,7 +200,7 @@ describe('Unmocked: GET /api/photos/:id', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toBe('image/png');
-    expect(response.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(response.headers['cache-control']).toBe('private, max-age=31536000, immutable');
     expect(response.body).toStrictEqual(bytes);
   });
 
@@ -195,7 +212,7 @@ describe('Unmocked: GET /api/photos/:id', () => {
     { label: 'Unknown Id', id: '6ad40b88e74dd3678bfef8ff' },
     { label: 'Malformed Id', id: 'not-an-id' },
   ])('$label: 404', async ({ id }: IdCase) => {
-    const response = await request(app).get(`/api/photos/${id}`);
+    const response = await request(app).get(`/api/photos/${id}`).set('Authorization', bearer(ME));
 
     expect(response.status).toBe(404);
     expect(response.body).toStrictEqual({ error: 'Photo not found' });
