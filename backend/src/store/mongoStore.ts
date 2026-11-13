@@ -457,6 +457,13 @@ class MongoConversationCollection implements ConversationCollection {
   async setProposalStatus(id: string, status: ProposalStatus): Promise<void> {
     await this.collection.updateOne({ _id: new ObjectId(id) }, { $set: { 'proposal.status': status, updatedAt: new Date() } });
   }
+
+  async removeByUser(userId: string): Promise<string[]> {
+    const filter = { $or: [{ sellerId: userId }, { buyerId: userId }] };
+    const found = await this.collection.find(filter, { projection: { _id: 1 } }).toArray();
+    await this.collection.deleteMany(filter);
+    return found.map((doc) => String(doc._id));
+  }
 }
 
 class MongoMessageCollection implements MessageCollection {
@@ -464,6 +471,10 @@ class MongoMessageCollection implements MessageCollection {
 
   insert(doc: Omit<Message, 'id'>): Promise<Message> {
     return insertDoc<Message>(this.collection, doc);
+  }
+
+  async removeByConversations(conversationIds: string[]): Promise<void> {
+    await this.collection.deleteMany({ conversationId: { $in: conversationIds } });
   }
 
   async listByConversation(conversationId: string, limit: number, before?: string): Promise<Message[]> {
