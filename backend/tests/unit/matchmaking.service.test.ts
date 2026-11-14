@@ -13,6 +13,7 @@ import {
   Match,
   nearestCourt,
   runMatchmaking,
+  type CancelledMatch,
   type Candidate,
   type CourtLocation,
   type MatchedPlayer,
@@ -472,13 +473,75 @@ describe('assignTeams', () => {
 
 // Interface cancelUnansweredMatches()
 describe('Mocked: cancelUnansweredMatches', () => {
+  const singles: CancelledMatch = {
+    id: 'g1',
+    format: 'SINGLES',
+    court: { name: 'Kitsilano Beach Park' },
+    players: [{ userId: 'u1' }, { userId: 'u2' }],
+  };
+  const doubles: CancelledMatch = {
+    id: 'g2',
+    format: 'DOUBLES',
+    court: { name: 'UBC Tennis Centre' },
+    players: [{ userId: 'u3' }, { userId: 'u4' }, { userId: 'u5' }, { userId: 'u6' }],
+  };
+
+  beforeEach(() => {
+    jest.mocked(cancelMatchesStartingBefore).mockReset();
+    jest.mocked(pushToUsers).mockReset();
+  });
+
   // Input: the current time is 12:00
   // Expected behavior: matched games starting by 12:30 that are still waiting for answers are cancelled
   // Expected output: the number of cancelled games
   test('Cancels matches starting within 30 minutes', async () => {
-    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue(3);
+    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue([singles, doubles, { ...singles, id: 'g3' }]);
 
     await expect(cancelUnansweredMatches(new Date('2026-11-02T12:00:00Z'))).resolves.toBe(3);
     expect(cancelMatchesStartingBefore).toHaveBeenCalledWith(new Date('2026-11-02T12:30:00Z'));
+  });
+
+  // Input: a singles and a doubles match are cancelled
+  // Expected behavior: every player of each match is told it fell through
+  // Expected output: one push per match, to all its players
+  test('Tells every player of each cancelled match', async () => {
+    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue([singles, doubles]);
+
+    await cancelUnansweredMatches(new Date('2026-11-02T12:00:00Z'));
+
+    expect(pushToUsers).toHaveBeenCalledWith(['u1', 'u2'], {
+      title: 'Match cancelled',
+      body: 'Not everyone accepted your singles game at Kitsilano Beach Park in time.',
+      data: { gameId: 'g1' },
+    });
+    expect(pushToUsers).toHaveBeenCalledWith(['u3', 'u4', 'u5', 'u6'], {
+      title: 'Match cancelled',
+      body: 'Not everyone accepted your doubles game at UBC Tennis Centre in time.',
+      data: { gameId: 'g2' },
+    });
+  });
+
+  // Input: no match is due
+  // Expected behavior: nobody is notified
+  // Expected output: 0
+  test('Sends nothing when no match was cancelled', async () => {
+    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue([]);
+
+    await expect(cancelUnansweredMatches(new Date('2026-11-02T12:00:00Z'))).resolves.toBe(0);
+    expect(pushToUsers).not.toHaveBeenCalled();
+  });
+
+  // Input: two matches are cancelled, the first one's push fails
+  // Expected behavior: the failure is logged, the second match's players are still told
+  // Expected output: 2
+  test('Still notifies the other matches and returns the count when one push fails', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue([singles, doubles]);
+    jest.mocked(pushToUsers).mockRejectedValueOnce(new Error('fcm down')).mockResolvedValue(4);
+
+    await expect(cancelUnansweredMatches(new Date('2026-11-02T12:00:00Z'))).resolves.toBe(2);
+    expect(pushToUsers).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

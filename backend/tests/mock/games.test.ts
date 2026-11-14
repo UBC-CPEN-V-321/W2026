@@ -2370,11 +2370,115 @@ describe("Mocked: POST /games/accept", () => {
 });
 
 describe("Mocked: matched games can be cancelled but not left or moved", () => {
+  const opponentId = "opponent-user-id";
+  const opponent = {
+    id: opponentId,
+    username: "rival",
+    name: "Rival Player",
+    rating: 1500,
+    team: 2,
+    acceptedAt: null,
+    ratingBefore: null,
+    ratingAfter: null,
+  };
+  const matchedGame = (status: GameStatus = GameStatus.OPEN) =>
+    gameDetails({
+      id: editGameId,
+      gameSource: GameSource.MATCHED,
+      status,
+      players: [...gameDetails().players, opponent],
+    });
+
+  const cancel = () =>
+    request(createApp())
+      .delete("/games")
+      .set("Authorization", authHeader)
+      .query({ gameId: editGameId });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockedFetchGame.mockResolvedValue(existingGame({ gameSource: GameSource.MATCHED }));
     mockedIsUserInGame.mockResolvedValue(true);
     mockedCancelMatchedGame.mockResolvedValue(true);
+    mockedFetchGameDetails.mockResolvedValue(matchedGame());
+    mockedPushToUsers.mockResolvedValue(1);
+  });
+
+  // Input: a player cancels a matched game still waiting for answers
+  // Expected status code: 204
+  // Expected behavior: only the other player gets a push naming who cancelled, which opens the app
+  // Expected output: empty body
+  test("Notifies the other players that the player cancelled the match", async () => {
+    const response = await cancel();
+
+    expect(response.status).toBe(204);
+    expect(mockedPushToUsers).toHaveBeenCalledTimes(1);
+    expect(mockedPushToUsers).toHaveBeenCalledWith([opponentId], {
+      title: "Match cancelled",
+      body: "Ace Player cancelled your singles game at Kitsilano Beach Park.",
+      data: { gameId: editGameId },
+    });
+  });
+
+  // Input: a player cancels a matched game every player already accepted
+  // Expected status code: 204
+  // Expected behavior: the other player is still told it fell through
+  // Expected output: empty body
+  test("Notifies the other players when a booked match is cancelled", async () => {
+    mockedFetchGameDetails.mockResolvedValue(matchedGame(GameStatus.BOOKED));
+
+    const response = await cancel();
+
+    expect(response.status).toBe(204);
+    expect(mockedPushToUsers).toHaveBeenCalledWith([opponentId], {
+      title: "Match cancelled",
+      body: "Ace Player cancelled your singles game at Kitsilano Beach Park.",
+      data: { gameId: editGameId },
+    });
+  });
+
+  // Input: sending the push fails
+  // Expected status code: 204
+  // Expected behavior: the error is logged, the match is still cancelled
+  // Expected output: empty body
+  test("Still cancels the match when the push fails", async () => {
+    mockedPushToUsers.mockRejectedValue(new Error("FCM unavailable"));
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const response = await cancel();
+
+    expect(response.status).toBe(204);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  // Input: a player cancels a scheduled game
+  // Expected status code: 204
+  // Expected behavior: the game is deleted and nobody gets a match push
+  // Expected output: empty body
+  test("Sends nothing when cancelling a scheduled game", async () => {
+    mockedFetchGame.mockResolvedValue(existingGame({ gameSource: GameSource.SCHEDULED }));
+    mockedDeleteGame.mockResolvedValue(true);
+
+    const response = await cancel();
+
+    expect(response.status).toBe(204);
+    expect(mockedPushToUsers).not.toHaveBeenCalled();
+  });
+
+  // Input: a player cancels a matched game that is already closed
+  // Expected status code: 409
+  // Expected behavior: nobody is notified
+  // Expected output: { error: "Game is already completed or cancelled" }
+  test("Sends nothing when the matched game was already closed", async () => {
+    mockedCancelMatchedGame.mockResolvedValue(false);
+
+    const response = await cancel();
+
+    expect(response.status).toBe(409);
+    expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: a player cancels a matched game that is still open
