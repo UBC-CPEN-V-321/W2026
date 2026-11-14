@@ -206,9 +206,6 @@ fun AvatarScreen(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Clothes tab (Main Tab)
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ClothesTab(
@@ -272,9 +269,6 @@ private fun ClothesTab(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Body Parts tab (View & Toggle avatar segments)
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun BodyPartsTab(
@@ -322,11 +316,6 @@ private fun BodyPartsTab(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Measurements tab (Height, Shoulder Width, Hip Width as text inputs)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Only these three measurements are shown to the user; the rest are fixed defaults. */
 private val UserMeasurements = listOf(
     BodyMeasurement.Height,
     BodyMeasurement.Shoulders,
@@ -406,9 +395,6 @@ private fun MeasurementInputField(
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Saving overlay
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun SavingOverlay() {
@@ -427,9 +413,6 @@ private fun SavingOverlay() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3-D viewer
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun AvatarViewer(
@@ -519,10 +502,6 @@ private fun AvatarViewer(
         ),
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Previews
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Preview(showBackground = true, name = "No avatar yet")
 @Composable

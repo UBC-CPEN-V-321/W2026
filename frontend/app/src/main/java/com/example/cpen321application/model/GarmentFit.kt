@@ -63,93 +63,111 @@ fun placeGarment(
     )
 }
 
-/**
- * Sizes and positions a garment on the avatar using reference points from fitViewer.html.
- * Returns null if reference points are missing or invalid, so the caller can fall back to placeGarment.
- */
+private const val ARM_RADIUS_RATIO = 0.30f * 0.072f
+private const val SHOULDER_Y_RATIO = 0.80f * 0.99f
+private const val WAIST_Y_RATIO = 0.65f
+private const val WAIST_HALF_HEIGHT_RATIO = 0.125f
+private const val HIP_JOINT_DROP_FACTOR = 0.80f
+private const val HEM_DROP_RATIO = 0.02f
+private const val TOP_EASE = 1.05f
+private const val BOTTOM_EASE = 0.90f
+private const val PANTS_LIFT = 0.05f
+private const val LEG_LENGTH_RATIO = 0.48f
+private const val UPPER_LEG_FRACTION = 0.53f
+private const val LEG_COS = 0.979386f
+private const val MIN_SPAN = 1e-4f
+private const val CM_PER_M = 100f
+
 fun placeGarmentWithReferencePoints(
     category: ClothingCategory,
     referencePoints: GarmentReferencePoints,
     measurements: AvatarMeasurements,
     isPants: Boolean = false,
     size: Float = 1f,
-): GarmentPlacement? {
-    val h = measurements[BodyMeasurement.Height] / 100f
-    val shoulderWidth = measurements[BodyMeasurement.Shoulders] / 100f
-    val hipWidth = measurements[BodyMeasurement.Hips] / 100f
-
-    if (category == ClothingCategory.Top || category == ClothingCategory.Outerwear) {
-        val l = referencePoints.leftShoulder ?: return null
-        val r = referencePoints.rightShoulder ?: return null
-        val hem = referencePoints.bottomHem ?: return null
-
-        val gDist = kotlin.math.abs(l.x - r.x)
-        if (gDist < 1e-4f) return null
-
-        val armRadius = 0.30f * h * 0.072f
-        val shoulderY = (h * 0.80f * 0.99f) + armRadius
-        val waistY = h * 0.65f
-        val torsoBottomY = waistY - h * 0.125f
-        val hemTargetY = torsoBottomY - 0.02f * h
-
-        val ease = 1.05f
-        val targetDist = shoulderWidth * ease * size
-        val sx = targetDist / gDist
-        val midY = (l.y + r.y) / 2f
-        val span = midY - hem.y
-        val sy = if (span > 1e-4f) ((shoulderY - hemTargetY) / span) * size else sx
-
-        val refPoint = Float3((l.x + r.x) / 2f, midY, referencePoints.boundingBoxCenterZ)
-        val targetPoint = Float3(0f, shoulderY, 0f)
-
-        return GarmentPlacement(
-            scale = Float3(sx, sy, sx),
-            position = Float3(
-                x = targetPoint.x - refPoint.x * sx,
-                y = targetPoint.y - refPoint.y * sy,
-                z = targetPoint.z - refPoint.z * sx,
-            ),
-        )
-    } else if (category == ClothingCategory.Bottom) {
-        val tl = referencePoints.topHemLeft ?: return null
-        val tr = referencePoints.topHemRight ?: return null
-        val hl = referencePoints.bottomHemLeft ?: return null
-        val hr = referencePoints.bottomHemRight ?: return null
-
-        val gTopW = kotlin.math.abs(tl.x - tr.x)
-        if (gTopW < 1e-4f) return null
-
-        val ease = 0.90f
-        val targetW = hipWidth * ease * size
-        val sx = targetW / gTopW
-
-        val topY = (tl.y + tr.y) / 2f
-        val hemMidY = (hl.y + hr.y) / 2f
-        val span = topY - hemMidY
-
-        val pantsLift = 0.05f
-        val hipY = (h * 0.65f - h * 0.125f * 0.80f) + pantsLift
-        val legLength = 0.48f * h
-        val upperLegLength = legLength * 0.53f
-        val lowerLegLength = legLength - upperLegLength
-        val kneeY = (hipY - pantsLift) - upperLegLength * 0.979386f
-        val ankleY = kneeY - lowerLegLength * 0.979386f
-        val hemTargetY = if (isPants) ankleY else kneeY
-        val sy = if (span > 1e-4f) ((hipY - hemTargetY) / span) * size else sx
-
-        val refPoint = Float3((tl.x + tr.x) / 2f, topY, referencePoints.boundingBoxCenterZ)
-        val targetPoint = Float3(0f, hipY, 0f)
-
-        return GarmentPlacement(
-            scale = Float3(sx, sy, sx),
-            position = Float3(
-                x = targetPoint.x - refPoint.x * sx,
-                y = targetPoint.y - refPoint.y * sy,
-                z = targetPoint.z - refPoint.z * sx,
-            ),
-        )
-    }
-    return null
+): GarmentPlacement? = when (category) {
+    ClothingCategory.Top, ClothingCategory.Outerwear ->
+        placeTop(referencePoints, measurements, size)
+    ClothingCategory.Bottom ->
+        placeBottom(referencePoints, measurements, isPants, size)
+    else -> null
 }
 
+private fun placeTop(
+    referencePoints: GarmentReferencePoints,
+    measurements: AvatarMeasurements,
+    size: Float,
+): GarmentPlacement? {
+    val l = referencePoints.leftShoulder ?: return null
+    val r = referencePoints.rightShoulder ?: return null
+    val hem = referencePoints.bottomHem ?: return null
+    val gDist = kotlin.math.abs(l.x - r.x)
+    if (gDist < MIN_SPAN) return null
 
+    val h = measurements[BodyMeasurement.Height] / CM_PER_M
+    val shoulderWidth = measurements[BodyMeasurement.Shoulders] / CM_PER_M
+    val shoulderY = h * SHOULDER_Y_RATIO + h * ARM_RADIUS_RATIO
+    val torsoBottomY = h * WAIST_Y_RATIO - h * WAIST_HALF_HEIGHT_RATIO
+    val hemTargetY = torsoBottomY - HEM_DROP_RATIO * h
+
+    val sx = shoulderWidth * TOP_EASE * size / gDist
+    val midY = (l.y + r.y) / 2f
+    val span = midY - hem.y
+    val sy = if (span > MIN_SPAN) ((shoulderY - hemTargetY) / span) * size else sx
+
+    return buildPlacement(
+        scale = Float3(sx, sy, sx),
+        ref = Float3((l.x + r.x) / 2f, midY, referencePoints.boundingBoxCenterZ),
+        target = Float3(0f, shoulderY, 0f),
+    )
+}
+
+private fun placeBottom(
+    referencePoints: GarmentReferencePoints,
+    measurements: AvatarMeasurements,
+    isPants: Boolean,
+    size: Float,
+): GarmentPlacement? {
+    val tl = referencePoints.topHemLeft ?: return null
+    val tr = referencePoints.topHemRight ?: return null
+    val hl = referencePoints.bottomHemLeft ?: return null
+    val hr = referencePoints.bottomHemRight ?: return null
+    val gTopW = kotlin.math.abs(tl.x - tr.x)
+    if (gTopW < MIN_SPAN) return null
+
+    val h = measurements[BodyMeasurement.Height] / CM_PER_M
+    val hipWidth = measurements[BodyMeasurement.Hips] / CM_PER_M
+    val hipJointY = hipJointY(h)
+    val hipY = hipJointY + PANTS_LIFT
+    val hemTargetY = legHemTargetY(h, hipJointY, isPants)
+
+    val sx = hipWidth * BOTTOM_EASE * size / gTopW
+    val topY = (tl.y + tr.y) / 2f
+    val span = topY - (hl.y + hr.y) / 2f
+    val sy = if (span > MIN_SPAN) ((hipY - hemTargetY) / span) * size else sx
+
+    return buildPlacement(
+        scale = Float3(sx, sy, sx),
+        ref = Float3((tl.x + tr.x) / 2f, topY, referencePoints.boundingBoxCenterZ),
+        target = Float3(0f, hipY, 0f),
+    )
+}
+
+private fun hipJointY(h: Float): Float =
+    h * WAIST_Y_RATIO - h * WAIST_HALF_HEIGHT_RATIO * HIP_JOINT_DROP_FACTOR
+
+private fun legHemTargetY(h: Float, hipJointY: Float, isPants: Boolean): Float {
+    val legLength = LEG_LENGTH_RATIO * h
+    val upperLegLength = legLength * UPPER_LEG_FRACTION
+    val lowerLegLength = legLength - upperLegLength
+    val kneeY = hipJointY - upperLegLength * LEG_COS
+    return if (isPants) kneeY - lowerLegLength * LEG_COS else kneeY
+}
+
+private fun buildPlacement(scale: Float3, ref: Float3, target: Float3) = GarmentPlacement(
+    scale = scale,
+    position = Float3(
+        x = target.x - ref.x * scale.x,
+        y = target.y - ref.y * scale.y,
+        z = target.z - ref.z * scale.z,
+    ),
+)
