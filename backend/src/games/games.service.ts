@@ -180,9 +180,11 @@ export async function cancelGame(gameId: GameIdInput, userId: string) {
   }
 
   if (game.gameSource === GameSource.MATCHED) {
-    if (!(await cancelMatchedGame(gameId))) {
+    const matchCancelled = await cancelMatchedGame(gameId);
+    if (!matchCancelled) {
       return { success: false, error: cancelGameErrors.Closed } as const;
     }
+    await notifyMatchCancelled(gameId, userId);
     return { success: true } as const;
   }
 
@@ -367,21 +369,19 @@ export async function acceptMatch(gameId: string, userId: string) {
  */
 async function notifyMatchAccepted(gameId: string, userId: string, booked: boolean) {
   try {
-    const game = await fetchGameDetails(gameId);
-    const accepter = game?.players.find((player) => player.id === userId);
-    if (!game || !accepter) {
+    const audience = await fetchMatchAudience(gameId, userId);
+    if (!audience) {
       return;
     }
 
-    const otherIds = game.players.map((player) => player.id).filter((id) => id !== userId);
-    const where = `${game.format.toLowerCase()} game at ${game.court.name}`;
+    const { actorName, otherIds, where } = audience;
     const messageTitle = booked ? "Match confirmed!" : "Match accepted";
 
     let messageBody: string;
     if (booked) {
       messageBody = `Everyone accepted. Your ${where} is booked.`;
     } else {
-      messageBody = `${accepter.name} accepted your ${where}.`;
+      messageBody = `${actorName} accepted your ${where}.`;
     }
 
     await pushToUsers(otherIds, {
@@ -392,6 +392,50 @@ async function notifyMatchAccepted(gameId: string, userId: string, booked: boole
   } catch (err) {
     console.error(`Could not notify the players of game ${gameId} about an acceptance`, err);
   }
+}
+
+/**
+ * Tells the other players of a matched game that a player cancelled it.
+ * A failed push is logged, since the game is already cancelled
+ * @param gameId the game ID of the matched game
+ * @param userId the player who cancelled
+ */
+async function notifyMatchCancelled(gameId: string, userId: string) {
+  try {
+    const audience = await fetchMatchAudience(gameId, userId);
+    if (!audience) {
+      return;
+    }
+
+    await pushToUsers(audience.otherIds, {
+      title: "Match cancelled",
+      body: `${audience.actorName} cancelled your ${audience.where}.`,
+      data: { gameId },
+    });
+  } catch (err) {
+    console.error(`Could not notify the players of game ${gameId} about a cancellation`, err);
+  }
+}
+
+/**
+ * Looks up who to tell about a player's answer to a matched game
+ * @param gameId the game ID of the matched game
+ * @param userId the player who answered
+ * @returns the player's name, the other players' IDs and e.g. "singles game at <court>",
+ * or null if the game or the player is gone
+ */
+async function fetchMatchAudience(gameId: string, userId: string) {
+  const game = await fetchGameDetails(gameId);
+  const actor = game?.players.find((player) => player.id === userId);
+  if (!game || !actor) {
+    return null;
+  }
+
+  return {
+    actorName: actor.name,
+    otherIds: game.players.map((player) => player.id).filter((id) => id !== userId),
+    where: `${game.format.toLowerCase()} game at ${game.court.name}`,
+  };
 }
 
 /**

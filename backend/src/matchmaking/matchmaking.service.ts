@@ -50,6 +50,13 @@ export interface ClaimedGame {
   court: { name: string };
 }
 
+export interface CancelledMatch {
+  id: string;
+  format: Format;
+  court: { name: string };
+  players: { userId: string }[];
+}
+
 export interface MatchedPlayer {
   id: string;
   rating: number;
@@ -253,13 +260,34 @@ async function notifyMatch(match: Match, game: ClaimedGame): Promise<void> {
 }
 
 /**
- * Cancels the matches whose players didn't all accept by 30 minutes before the start.
+ * Cancels the matches whose players didn't all accept by 30 minutes before the start, and tells their players.
  *
  * @param now - The current time.
  * @returns The number of matches cancelled.
  */
 export async function cancelUnansweredMatches(now = new Date()): Promise<number> {
-  return await cancelMatchesStartingBefore(new Date(now.getTime() + MATCH_ANSWER_DEADLINE_MS));
+  const cutoff = new Date(now.getTime() + MATCH_ANSWER_DEADLINE_MS);
+  const cancelledGames = await cancelMatchesStartingBefore(cutoff);
+  await Promise.all(cancelledGames.map((match) => notifyMatchExpired(match)));
+  return cancelledGames.length;
+}
+
+/**
+ * Tells every player of a match cancelled by the deadline that it fell through.
+ * A failed push is logged, since the match is already cancelled.
+ *
+ * @param match - The cancelled match.
+ */
+async function notifyMatchExpired(match: CancelledMatch): Promise<void> {
+  try {
+    await pushToUsers(match.players.map((player) => player.userId), {
+      title: 'Match cancelled',
+      body: `Not everyone accepted your ${match.format.toLowerCase()} game at ${match.court.name} in time.`,
+      data: { gameId: match.id },
+    });
+  } catch (err) {
+    console.error(`Could not notify the players of expired match ${match.id}`, err);
+  }
 }
 
 /**
