@@ -720,4 +720,124 @@ class MatchmakingViewModelTest {
         assertTrue(viewModel.uiState.value.matchFellThrough)
         assertNull(viewModel.uiState.value.errorMessage)
     }
+
+    // Input: a "Match found!" push while waiting; matchmaking took the player out of the queue with a game
+    // Expected output: not searching, the match pop-up shows that game
+    @Test
+    fun refreshWhileSearchingShowsTheMatch() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+
+        viewModel.refresh()
+
+        assertFalse(viewModel.uiState.value.isSearching)
+        assertEquals(match(), viewModel.uiState.value.match)
+    }
+
+    // Input: the app comes back while the player is still waiting
+    // Expected output: still searching, no match
+    @Test
+    fun refreshWhileSearchingAndStillQueuedKeepsSearching() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(MatchFormat.EITHER)
+
+        viewModel.refresh()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.match)
+    }
+
+    // Input: a "Match cancelled" push while the pop-up is open
+    // Expected output: the pop-up turns into "Match fell through"
+    @Test
+    fun refreshWithTheMatchOpenShowsFellThroughWhenCancelled() = runBlocking {
+        val viewModel = matchedViewModel()
+        games.gameResult = Result.success(match(status = GameStatus.CANCELLED))
+
+        viewModel.refresh()
+
+        assertNull(viewModel.uiState.value.match)
+        assertTrue(viewModel.uiState.value.matchFellThrough)
+    }
+
+    // Input: the app opens while the player is waiting for singles (e.g. after a restart)
+    // Expected output: searching again, for singles
+    @Test
+    fun refreshWhenIdleRestoresTheQueue() = runBlocking {
+        repository.queuedResult = Result.success(MatchFormat.SINGLES)
+        val viewModel = newViewModel()
+
+        viewModel.refresh()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertEquals(MatchFormat.SINGLES, viewModel.uiState.value.format)
+    }
+
+    // Input: the app opens after the player was matched while it was closed
+    // Expected output: the match pop-up shows the pending match
+    @Test
+    fun refreshWhenIdleShowsAPendingMatch() = runBlocking {
+        games.myGamesResult = Result.success(listOf(match()))
+        val viewModel = newViewModel()
+
+        viewModel.refresh()
+
+        assertEquals(match(), viewModel.uiState.value.match)
+    }
+
+    // Input: tapping "Match found!" brings the app back and delivers the push at once, so two refreshes run
+    // Expected output: the pop-up shows the match once, never "Match fell through"
+    @Test
+    fun refreshTwiceAfterAMatchShowsItOnce() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+        games.gameResult = Result.success(match())
+
+        viewModel.refresh()
+        viewModel.refresh()
+
+        assertEquals(match(), viewModel.uiState.value.match)
+        assertFalse(viewModel.uiState.value.matchFellThrough)
+    }
+
+    // Input: the player accepted, tapped "Go to game", then the app comes back while the others haven't answered
+    // Expected output: the pop-up stays closed instead of reopening over the game screen
+    @Test
+    fun refreshAfterGoToGameDoesNotReopenTheMatch() = runBlocking {
+        val viewModel = matchedViewModel()
+        viewModel.onGoToGame()
+
+        viewModel.refresh()
+
+        assertNull(viewModel.uiState.value.match)
+    }
+
+    // Input: the app comes back while queued, and the matchmaking job claims the match between the two lookups
+    // Expected output: the pop-up shows the match and the player is no longer searching
+    @Test
+    fun refreshWhenQueuedAndMatchedStopsSearching() = runBlocking {
+        repository.queuedResult = Result.success(MatchFormat.SINGLES)
+        games.myGamesResult = Result.success(listOf(match()))
+        val viewModel = newViewModel()
+
+        viewModel.refresh()
+
+        assertEquals(match(), viewModel.uiState.value.match)
+        assertFalse(viewModel.uiState.value.isSearching)
+    }
+
+    // Input: a refresh while waiting fails because the backend is unreachable
+    // Expected output: nothing changes
+    @Test
+    fun refreshFailureChangesNothing() = runBlocking {
+        val viewModel = queuedViewModel()
+        val before = viewModel.uiState.value
+        repository.queuedResult = Result.failure(IOException("offline"))
+
+        viewModel.refresh()
+
+        assertEquals(before, viewModel.uiState.value)
+    }
 }

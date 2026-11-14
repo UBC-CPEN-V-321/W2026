@@ -26,7 +26,8 @@ const val ALREADY_ACCEPTED_ERROR = "Match already accepted"
  * Holds the location and format the user picked on the Matchmaking tab, their place in the queue,
  * and the matched game waiting for their answer.
  * The screen fetches the location (GPS or Places) and reports the result here.
- * Queue calls are suspend functions the screen launches, so the screen also runs the 10-second check.
+ * Queue calls are suspend functions the screen launches; MatchPopups calls refresh() on match pushes and when
+ * the app comes back, instead of polling.
  */
 class MatchmakingViewModel(
     private val repository: MatchmakingRepository,
@@ -34,6 +35,9 @@ class MatchmakingViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MatchmakingUiState())
     val uiState: StateFlow<MatchmakingUiState> = _uiState.asStateFlow()
+
+    // The match the player left with "Go to game", so refreshes don't reopen its pop-up while others answer
+    private var leftMatchId: String? = null
 
     /**
      * Switches between current location and address, dropping the location and any
@@ -141,6 +145,24 @@ class MatchmakingViewModel(
     }
 
     /**
+     * Brings the queue and the match pop-up up to date with the backend: after a match push, or when the app
+     * comes back. A failed check changes nothing, the next push or return to the app tries again.
+     */
+    suspend fun refresh() {
+        val state = _uiState.value
+        if (state.match != null) {
+            checkMatch()
+            return
+        }
+        if (state.isSearching) {
+            checkQueue()
+            return
+        }
+        restoreQueue()
+        loadMatch()
+    }
+
+    /**
      * Picks up a search started before the app was closed
      */
     suspend fun restoreQueue() {
@@ -149,11 +171,16 @@ class MatchmakingViewModel(
     }
 
     /**
-     * Shows the player's matched game that is still waiting for answers, e.g. after the app was closed
+     * Shows the player's matched game that is still waiting for answers, e.g. after the app was closed,
+     * unless they already left its pop-up with "Go to game"
      */
     suspend fun loadMatch() {
         val match = gamesRepository.getMyGames().getOrNull()?.pendingMatch() ?: return
-        _uiState.update { it.copy(match = match, errorMessage = null) }
+        if (match.id == leftMatchId) {
+            return
+        }
+        // A pending match means matchmaking already took the player out of the queue
+        _uiState.update { it.copy(match = match, isSearching = false, errorMessage = null) }
     }
 
     /**
@@ -222,6 +249,7 @@ class MatchmakingViewModel(
     }
 
     fun onGoToGame() {
+        leftMatchId = _uiState.value.match?.id
         _uiState.update { it.copy(match = null, errorMessage = null) }
     }
 

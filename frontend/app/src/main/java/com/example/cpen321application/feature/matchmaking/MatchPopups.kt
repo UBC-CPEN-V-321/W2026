@@ -5,14 +5,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.delay
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.example.cpen321application.core.notifications.MatchEvents
 import kotlinx.coroutines.launch
 
-private const val CHECK_INTERVAL_MS = 10_000L
-
 /**
- * Watches the queue and shows the match pop-up over whichever screen is open, so a match found
- * while the player is on another tab still pops up.
+ * Shows the match pop-up over whichever screen is open, so a match found while the player is on
+ * another tab still pops up. It follows match pushes and the app coming back instead of polling.
  * @param username the signed-in user, to tell which side of the match they are on
  * @param onGoToGame opens the matched game's screen
  */
@@ -25,31 +25,18 @@ fun MatchPopups(
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
 
-    // The player may have joined the queue, or been matched, before the app was closed
+    // On first open and every return to the app: pushes that arrived while it was in the background,
+    // or never arrived, are caught up here
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch { viewModel.refresh() }
+    }
+
+    // A match was found, accepted or cancelled while the app is open. Stops on sign-out.
     LaunchedEffect(Unit) {
-        viewModel.restoreQueue()
-        viewModel.loadMatch()
+        MatchEvents.events.collect { viewModel.refresh() }
     }
 
-    // While waiting, ask the backend every 10 seconds whether matchmaking found a game.
-    // Restarts when isSearching changes and stops on sign-out.
-    LaunchedEffect(uiState.isSearching) {
-        while (uiState.isSearching) {
-            delay(CHECK_INTERVAL_MS)
-            viewModel.checkQueue()
-        }
-    }
-
-    // While the match pop-up is open, ask the backend every 10 seconds whether the other players answered.
-    // Restarts when the match changes and stops when the pop-up closes.
     val match = uiState.match
-    LaunchedEffect(match?.id) {
-        while (viewModel.uiState.value.match != null) {
-            delay(CHECK_INTERVAL_MS)
-            viewModel.checkMatch()
-        }
-    }
-
     if (match != null) {
         MatchDialog(
             match = match,
