@@ -2,7 +2,14 @@
 import { prisma } from '../db';
 import type { Prisma } from '../generated/prisma/client';
 import { GameSource, GameStatus } from '../generated/prisma/enums';
-import type { Candidate, ClaimedGame, CourtLocation, MatchedPlayer, QueueEntry } from './matchmaking.service';
+import type {
+  CancelledMatch,
+  Candidate,
+  ClaimedGame,
+  CourtLocation,
+  MatchedPlayer,
+  QueueEntry,
+} from './matchmaking.service';
 import type { JoinQueueInput } from './matchmaking.schemas';
 
 /**
@@ -140,16 +147,28 @@ export async function hasActiveMatch(userId: string, now: Date): Promise<boolean
 /**
  * Cancels every matched game still waiting for answers that starts at or before the cutoff.
  * @param cutoff - The latest start time to cancel.
- * @returns The number of games cancelled.
+ * @returns The games cancelled, with what their players need to be told.
  */
-export async function cancelMatchesStartingBefore(cutoff: Date): Promise<number> {
-  const { count } = await prisma.game.updateMany({
+export async function cancelMatchesStartingBefore(cutoff: Date): Promise<CancelledMatch[]> {
+  const cancelled = await prisma.game.updateManyAndReturn({
     where: {
       gameSource: GameSource.MATCHED,
       status: GameStatus.OPEN,
       startsAt: { lte: cutoff },
     },
     data: { status: GameStatus.CANCELLED },
+    select: { id: true },
   });
-  return count;
+  if (cancelled.length === 0) return [];
+
+  // Looked up by id after the update, so these are exactly the games this call cancelled
+  return await prisma.game.findMany({
+    where: { id: { in: cancelled.map((game) => game.id) } },
+    select: {
+      id: true,
+      format: true,
+      court: { select: { name: true } },
+      players: { select: { userId: true } },
+    },
+  });
 }

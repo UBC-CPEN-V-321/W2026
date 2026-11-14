@@ -12,6 +12,13 @@ const val EXTRA_NOTIFICATION_TYPE = "type"
 const val GAME_INVITE_TYPE = "gameInvite"
 
 /**
+ * @param data the push's data
+ * @return whether the push is about a matched game (found, accepted or cancelled): it has a game id and no type
+ */
+fun isMatchPush(data: Map<String, String>): Boolean =
+    data[EXTRA_GAME_ID] != null && data[EXTRA_NOTIFICATION_TYPE] == null
+
+/**
  * Where a tapped push notification takes the user
  * @param gameId the game from the notification, null if the app was not opened from one
  * @param type the kind of notification, null for a match

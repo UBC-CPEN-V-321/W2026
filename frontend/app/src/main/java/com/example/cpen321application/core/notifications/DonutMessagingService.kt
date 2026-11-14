@@ -20,6 +20,11 @@ import com.google.firebase.messaging.RemoteMessage
  */
 class DonutMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
+        // Before the checks below: the app needs the update even when notifications are blocked
+        if (isMatchPush(message.data)) {
+            MatchEvents.emit()
+        }
+
         val content = message.notification ?: return
         val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED

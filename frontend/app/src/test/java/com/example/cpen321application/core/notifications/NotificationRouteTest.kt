@@ -2,7 +2,9 @@ package com.example.cpen321application.core.notifications
 
 import com.example.cpen321application.navigation.Screen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NotificationRouteTest {
@@ -28,5 +30,29 @@ class NotificationRouteTest {
     @Test
     fun noNotificationStays() {
         assertNull(notificationRoute(null))
+    }
+
+    // Input: a push about a matched game (found, accepted or cancelled)
+    // Expected behavior: the app refreshes the queue and the match pop-up
+    // Expected output: true
+    @Test
+    fun matchPushIsAMatchPush() {
+        assertTrue(isMatchPush(mapOf(EXTRA_GAME_ID to "game-1")))
+    }
+
+    // Input: a friend's game invite, which also carries a game id
+    // Expected behavior: matchmaking is left alone
+    // Expected output: false
+    @Test
+    fun inviteIsNotAMatchPush() {
+        assertFalse(isMatchPush(mapOf(EXTRA_GAME_ID to "game-1", EXTRA_NOTIFICATION_TYPE to GAME_INVITE_TYPE)))
+    }
+
+    // Input: a push without a game
+    // Expected behavior: matchmaking is left alone
+    // Expected output: false
+    @Test
+    fun pushWithoutAGameIsNotAMatchPush() {
+        assertFalse(isMatchPush(emptyMap()))
     }
 }

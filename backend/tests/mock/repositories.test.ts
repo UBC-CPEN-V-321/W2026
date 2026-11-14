@@ -37,6 +37,7 @@ function mockPrismaClient() {
       findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      updateManyAndReturn: jest.fn(),
       delete: jest.fn(),
     },
     gameUser: {
@@ -694,20 +695,46 @@ describe("Mocked: cancelMatchesStartingBefore", () => {
   });
 
   // Input: a cutoff time, two matched games still waiting for answers start before it
-  // Expected behavior: only open matched games starting at or before the cutoff are cancelled
-  // Expected output: 2
-  test("Cancels open matched games starting at or before the cutoff", async () => {
+  // Expected behavior: only open matched games starting at or before the cutoff are cancelled,
+  // then their format, court and players are looked up so the players can be told
+  // Expected output: the two cancelled matches
+  test("Cancels open matched games starting at or before the cutoff and returns them", async () => {
     const cutoff = new Date("2026-11-02T12:30:00Z");
-    db.game.updateMany.mockResolvedValue({ count: 2 });
+    const matches = [
+      { id: "g1", format: Format.SINGLES, court: { name: "Kitsilano Beach Park" }, players: [{ userId: "u1" }, { userId: "u2" }] },
+      { id: "g2", format: Format.SINGLES, court: { name: "UBC Tennis Centre" }, players: [{ userId: "u3" }, { userId: "u4" }] },
+    ];
+    db.game.updateManyAndReturn.mockResolvedValue([{ id: "g1" }, { id: "g2" }]);
+    db.game.findMany.mockResolvedValue(matches);
 
-    await expect(cancelMatchesStartingBefore(cutoff)).resolves.toBe(2);
-    expect(db.game.updateMany).toHaveBeenCalledWith({
+    await expect(cancelMatchesStartingBefore(cutoff)).resolves.toEqual(matches);
+    expect(db.game.updateManyAndReturn).toHaveBeenCalledWith({
       where: {
         gameSource: GameSource.MATCHED,
         status: GameStatus.OPEN,
         startsAt: { lte: cutoff },
       },
       data: { status: GameStatus.CANCELLED },
+      select: { id: true },
     });
+    expect(db.game.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ["g1", "g2"] } },
+      select: {
+        id: true,
+        format: true,
+        court: { select: { name: true } },
+        players: { select: { userId: true } },
+      },
+    });
+  });
+
+  // Input: a cutoff time, no matched game waiting for answers starts before it
+  // Expected behavior: nothing is cancelled and nothing is looked up
+  // Expected output: []
+  test("Returns no matches and skips the lookup when nothing is due", async () => {
+    db.game.updateManyAndReturn.mockResolvedValue([]);
+
+    await expect(cancelMatchesStartingBefore(new Date("2026-11-02T12:30:00Z"))).resolves.toEqual([]);
+    expect(db.game.findMany).not.toHaveBeenCalled();
   });
 });
