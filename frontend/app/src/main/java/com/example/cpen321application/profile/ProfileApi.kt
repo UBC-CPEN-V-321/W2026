@@ -1,6 +1,7 @@
 package com.example.cpen321application.profile
 
 import com.example.cpen321application.auth.SessionManager
+import com.example.cpen321application.post.AddressSuggestion
 import com.example.cpen321application.post.Mode
 import java.io.IOException
 import java.net.URLEncoder
@@ -30,19 +31,28 @@ data class Profile(
 data class Reputation(val score: Double?, val ratingCount: Int)
 
 class ProfileApi(private val sessions: SessionManager) {
-    suspend fun me(): Profile = parseProfile(JSONObject(get("/api/users/me")))
+    suspend fun me(): Profile = parseProfile(JSONObject(send("GET", "/api/users/me")))
+
+    // Saves the picked address as the user's home address, or removes it when place is null.
+    suspend fun saveAddress(place: AddressSuggestion?): Profile {
+        val location = place?.let { JSONObject().put("longitude", it.longitude).put("latitude", it.latitude) }
+        val body = JSONObject()
+            .put("address", place?.label ?: JSONObject.NULL)
+            .put("location", location ?: JSONObject.NULL)
+        return parseProfile(JSONObject(send("PATCH", "/api/users/me", body)))
+    }
 
     suspend fun reputation(userId: String): Reputation {
-        val json = JSONObject(get("/api/users/${URLEncoder.encode(userId, "UTF-8")}/reputation"))
+        val json = JSONObject(send("GET", "/api/users/${URLEncoder.encode(userId, "UTF-8")}/reputation"))
         return Reputation(if (json.isNull("score")) null else json.getDouble("score"), json.getInt("ratingCount"))
     }
 
     // How many listings (selling) or requests (buying) the user has, open or closed.
-    suspend fun countPosts(mode: Mode): Int = JSONArray(get("/api/${mode.path}")).length()
+    suspend fun countPosts(mode: Mode): Int = JSONArray(send("GET", "/api/${mode.path}")).length()
 
-    // The body of a successful GET; an error status is thrown as an IOException.
-    private suspend fun get(path: String): String {
-        val result = sessions.authorizedRequest("GET", path)
+    // The body of a successful response; an error status is thrown as an IOException.
+    private suspend fun send(method: String, path: String, body: JSONObject? = null): String {
+        val result = sessions.authorizedRequest(method, path, body)
         if (!result.isSuccess) {
             throw IOException("HTTP ${result.code}: ${result.errorMessage}")
         }
