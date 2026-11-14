@@ -2,6 +2,11 @@
     <string name="profile_title">Profile</string>
     <string name="profile_address">Address</string>
     <string name="profile_address_not_set">Not set</string>
+    <string name="profile_address_title">Home address</string>
+    <string name="profile_address_edit">Edit address</string>
+    <string name="profile_address_save">Save</string>
+    <string name="profile_address_remove">Remove</string>
+    <string name="profile_address_save_failed">Could not save the address. Check your connection and try again.</string>
     <string name="profile_member_since">Member since</string>
     <plurals name="profile_listings">
         <item quantity="one">%d listing</item>

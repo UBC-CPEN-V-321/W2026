@@ -1,6 +1,7 @@
 package com.example.cpen321application.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,7 +70,7 @@ fun ProfileTab(
         )
         Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             when {
-                state.profile != null -> ProfileDetails(state, state.profile, onOpenPosts)
+                state.profile != null -> ProfileDetails(state, state.profile, onOpenPosts, viewModel::openAddressEditor)
                 state.loadFailed -> RetryMessage(viewModel::refresh)
                 else -> CircularProgressIndicator()
             }
@@ -78,10 +80,16 @@ fun ProfileTab(
             Text(stringResource(R.string.profile_sign_out))
         }
     }
+    viewModel.addressEditor?.let { ProfileAddressDialog(it, hasAddress = state.profile?.address != null, viewModel) }
 }
 
 @Composable
-private fun ProfileDetails(state: ProfileUiState, profile: Profile, onOpenPosts: (Mode) -> Unit) {
+private fun ProfileDetails(
+    state: ProfileUiState,
+    profile: Profile,
+    onOpenPosts: (Mode) -> Unit,
+    onEditAddress: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -101,6 +109,7 @@ private fun ProfileDetails(state: ProfileUiState, profile: Profile, onOpenPosts:
             DetailRow(
                 stringResource(R.string.profile_address),
                 profile.address ?: stringResource(R.string.profile_address_not_set),
+                onEdit = onEditAddress,
             )
             DetailRow(stringResource(R.string.profile_member_since), profile.memberSince.format(MONTH_YEAR))
         }
@@ -189,8 +198,13 @@ private fun ProfilePhoto(url: String?) {
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun DetailRow(label: String, value: String, onEdit: (() -> Unit)? = null) {
+    val modifier = if (onEdit == null) Modifier else Modifier.clickable(onClick = onEdit)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier,
+    ) {
         Text(
             label,
             style = MaterialTheme.typography.labelLarge,
@@ -198,6 +212,13 @@ private fun DetailRow(label: String, value: String) {
             modifier = Modifier.weight(1f),
         )
         Text(value, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.End, modifier = Modifier.weight(2f))
+        if (onEdit != null) {
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.profile_address_edit),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
