@@ -70,7 +70,8 @@ async function saveHome(): Promise<void> {
 
 // The user's stored address and location: {} when neither is set, null when the user does not exist.
 async function storedPlace(userId = ME): Promise<unknown> {
-  return mongo.db.collection('users').findOne({ id: userId }, { projection: { _id: 0, address: 1, location: 1 } });
+  const found = (await mongo.db.collection('users').findOne({ id: userId }, { projection: { _id: 0, address: 1, location: 1 } })) as unknown;
+  return found;
 }
 
 // Interface GET /api/users/me
