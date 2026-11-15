@@ -11,8 +11,8 @@ import type { BodyPartName } from "./types.js";
 
 const HEAD_PARAMS = {
   xRatio: 0.36,
-  yRatio: 0.36, //0.50,
-  zRatio: 0.36, // 0.37,
+  yRatio: 0.36,
+  zRatio: 0.36,
 };
 
 const NECK_PARAMS = {
@@ -50,9 +50,16 @@ const ARMS_PARAMS = {
 
 const LEGS_PARAMS = {
   upperLengthToLegLength: 0.53,
-  upperRadiusToLegLength: 0.078, // keep in sync with sdf.ts
-  lowerRadiusToLegLength: 0.069, // keep in sync with sdf.ts
-  hipStart: 0.26,
+
+  // ===== LEG WIDTH =====
+  // Radii as a fraction of legLength (= legLengthRatio * height). Smaller = thinner legs.
+  upperRadiusToLegLength: 0.066, // thigh      (was 0.078)
+  lowerRadiusToLegLength: 0.054, // shin/calf  (was 0.069)
+  pelvisRadiusFactor: 0.95,      // pelvis connector radius relative to the thigh radius
+  // Keep the two radius values in sync with LEGS_PARAMS in sdf.ts (non-segmented avatar).
+  // ======================
+
+  hipStart: 0.26,                // how far each hip joint sits from the centre line (x hipWidth)
   upperLegToVerticleRad: (2 * Math.PI) / 180,
   lowerLegToVerticleRad: (2 * Math.PI) / 180,
   foot: {
@@ -63,6 +70,148 @@ const LEGS_PARAMS = {
     },
   },
 };
+
+type Side = -1 | 1;
+export type ArmSegment = "upper" | "fore" | "hand";
+export type LegSegment = "upper" | "lower" | "foot";
+
+const PAD = 0.04;
+
+function capsuleBounds(a: Vec3, b: Vec3, radius: number, pad = PAD): AvatarBounds {
+  const r = radius + pad;
+  return {
+    minX: Math.min(a[0], b[0]) - r,
+    maxX: Math.max(a[0], b[0]) + r,
+    minY: Math.min(a[1], b[1]) - r,
+    maxY: Math.max(a[1], b[1]) + r,
+    minZ: Math.min(a[2], b[2]) - r,
+    maxZ: Math.max(a[2], b[2]) + r,
+  };
+}
+
+function boxBounds(center: Vec3, half: Vec3, pad = PAD): AvatarBounds {
+  return {
+    minX: center[0] - half[0] - pad,
+    maxX: center[0] + half[0] + pad,
+    minY: center[1] - half[1] - pad,
+    maxY: center[1] + half[1] + pad,
+    minZ: center[2] - half[2] - pad,
+    maxZ: center[2] + half[2] + pad,
+  };
+}
+
+function unionBounds(a: AvatarBounds, b: AvatarBounds): AvatarBounds {
+  return {
+    minX: Math.min(a.minX, b.minX),
+    maxX: Math.max(a.maxX, b.maxX),
+    minY: Math.min(a.minY, b.minY),
+    maxY: Math.max(a.maxY, b.maxY),
+    minZ: Math.min(a.minZ, b.minZ),
+    maxZ: Math.max(a.maxZ, b.maxZ),
+  };
+}
+
+interface ArmJoints {
+  shoulder: Vec3;
+  elbow: Vec3;
+  wrist: Vec3;
+  handEnd: Vec3;
+  upperRadius: number;
+  forearmRadius: number;
+  handRadius: number;
+}
+
+function armJoints(p: AvatarParameters, side: Side): ArmJoints {
+  const h = p.height;
+  const shoulderY = h * 0.80;
+  const armLength = p.armLengthRatio * h;
+  const upperLength = armLength * ARMS_PARAMS.upperLengthToArmLength;
+  const forearmLength = armLength * (1.0 - ARMS_PARAMS.upperLengthToArmLength);
+  const upperRadius = armLength * ARMS_PARAMS.upperRadiusToArmLength;
+  const handLength = armLength * ARMS_PARAMS.handLengthToArmLength;
+  const handRadius = armLength * ARMS_PARAMS.handRadiusToArmLength;
+
+  const shoulderX = side * p.shoulderWidth * ARMS_PARAMS.shoulderXToShoulderWidth;
+  const elbowX = shoulderX + side * upperLength * Math.sin(ARMS_PARAMS.armToBodyAngleRad);
+  const wristX = elbowX + side * forearmLength * Math.sin(ARMS_PARAMS.forearmToBodyAngleRad);
+
+  const shoulder: Vec3 = [shoulderX, shoulderY * ARMS_PARAMS.shoulderJoinY, 0];
+  const elbow: Vec3 = [
+    elbowX,
+    shoulder[1] - upperLength * Math.cos(ARMS_PARAMS.armToBodyAngleRad) * 0.95,
+    0,
+  ];
+  const wrist: Vec3 = [
+    wristX,
+    elbow[1] - forearmLength * Math.cos(ARMS_PARAMS.forearmToBodyAngleRad) * 0.95,
+    0,
+  ];
+  const handEnd: Vec3 = [wristX, wrist[1] - handLength, 0];
+
+  return {
+    shoulder,
+    elbow,
+    wrist,
+    handEnd,
+    upperRadius,
+    forearmRadius: upperRadius,
+    handRadius,
+  };
+}
+
+interface LegJoints {
+  hip: Vec3;
+  knee: Vec3;
+  ankle: Vec3;
+  upperRadius: number;
+  lowerRadius: number;
+  pelvisRadius: number;
+  footCenter: Vec3;
+  footHalf: Vec3;
+  footRadius: number;
+}
+
+function legJoints(p: AvatarParameters, side: Side): LegJoints {
+  const h = p.height;
+  const waistY = h * 0.65;
+  const legLength = p.legLengthRatio * h;
+  const upperLength = legLength * LEGS_PARAMS.upperLengthToLegLength;
+  const lowerLength = legLength - upperLength;
+  const upperRadius = legLength * LEGS_PARAMS.upperRadiusToLegLength;
+  const lowerRadius = legLength * LEGS_PARAMS.lowerRadiusToLegLength;
+
+  const hipX = side * p.hipWidth * LEGS_PARAMS.hipStart;
+  const kneeX = hipX + side * Math.sin(LEGS_PARAMS.upperLegToVerticleRad) * upperLength;
+  const ankleX = kneeX + side * Math.sin(LEGS_PARAMS.lowerLegToVerticleRad) * lowerLength;
+
+  const hip: Vec3 = [hipX, waistY - h * WAIST_PARAMS.yToHeight * 0.80, 0];
+  const knee: Vec3 = [
+    kneeX,
+    hip[1] - upperLength * Math.cos(LEGS_PARAMS.upperLegToVerticleRad) * LEG_REACH,
+    0,
+  ];
+  const ankle: Vec3 = [
+    ankleX,
+    knee[1] - lowerLength * Math.cos(LEGS_PARAMS.lowerLegToVerticleRad) * LEG_REACH,
+    0,
+  ];
+
+  return {
+    hip,
+    knee,
+    ankle,
+    upperRadius,
+    lowerRadius,
+    pelvisRadius: upperRadius * LEGS_PARAMS.pelvisRadiusFactor,
+    footCenter: [ankle[0], ankle[1] - h * 0.025, h * 0.030],
+    footHalf: [
+      h * LEGS_PARAMS.foot.toHeight.x,
+      h * LEGS_PARAMS.foot.toHeight.y,
+      h * LEGS_PARAMS.foot.toHeight.z,
+    ],
+    footRadius: h * 0.025,
+  };
+}
 
 /**
  * Head and Neck SDF.
@@ -163,148 +312,55 @@ export function torsoSDF(
 }
 
 /**
- * Single arm SDF (side: -1 for left, 1 for right).
+ * One segment of one arm: upper arm (shoulder to elbow), forearm (elbow to wrist) or hand.
+ * side: -1 = left, 1 = right.
  */
 export function armSDF(
   x: number,
   y: number,
   z: number,
   p: AvatarParameters,
-  side: -1 | 1
+  side: Side,
+  segment: ArmSegment
 ): number {
-  const h = p.height;
-  const shoulderY = h * 0.80;
-  const armLength = p.armLengthRatio * h;
-  const upperLength = armLength * ARMS_PARAMS.upperLengthToArmLength;
-  const forearmLength = armLength * (1.0 - ARMS_PARAMS.upperLengthToArmLength);
-  const upperRadius = armLength * ARMS_PARAMS.upperRadiusToArmLength;
-  const forearmRadius = upperRadius;
-  const handLength = armLength * ARMS_PARAMS.handLengthToArmLength;
-  const handRadius = armLength * ARMS_PARAMS.handRadiusToArmLength;
-  const blend = 0.055 * (h / 1.75);
-
-  const shoulderX = side * p.shoulderWidth * ARMS_PARAMS.shoulderXToShoulderWidth;
-  const elbowX =
-    side *
-    (p.shoulderWidth * ARMS_PARAMS.shoulderXToShoulderWidth +
-      upperLength * Math.sin(ARMS_PARAMS.armToBodyAngleRad));
-  const wristX = elbowX + side * forearmLength * Math.sin(ARMS_PARAMS.forearmToBodyAngleRad);
-
-  const shoulder: Vec3 = [shoulderX, shoulderY * ARMS_PARAMS.shoulderJoinY, 0];
-  const elbow: Vec3 = [
-    elbowX,
-    shoulder[1] - upperLength * Math.cos(ARMS_PARAMS.armToBodyAngleRad) * 0.95,
-    0,
-  ];
-  const wrist: Vec3 = [
-    wristX,
-    elbow[1] - forearmLength * Math.cos(ARMS_PARAMS.forearmToBodyAngleRad) * 0.95,
-    0,
-  ];
-  const handEnd: Vec3 = [wristX, wrist[1] - handLength, 0];
-
-  const upperArm = sdCapsule(x, y, z, shoulder, elbow, upperRadius);
-  const forearm = sdCapsule(x, y, z, elbow, wrist, forearmRadius);
-  const hand = sdCapsule(x, y, z, wrist, handEnd, handRadius);
-
-  let d = smoothMin(upperArm, forearm, blend * 0.2);
-  d = smoothMin(d, hand, blend * 0.2);
-  return d;
+  const j = armJoints(p, side);
+  switch (segment) {
+    case "upper":
+      return sdCapsule(x, y, z, j.shoulder, j.elbow, j.upperRadius);
+    case "fore":
+      return sdCapsule(x, y, z, j.elbow, j.wrist, j.forearmRadius);
+    case "hand":
+      return sdCapsule(x, y, z, j.wrist, j.handEnd, j.handRadius);
+  }
 }
 
 /**
- * Upper legs (Pelvis and Thighs down to the knees) SDF.
+ * One segment of one leg: upper leg (half pelvis + thigh, hip to knee),
+ * lower leg (knee to ankle) or foot.
+ * side: -1 = left, 1 = right.
  */
-export function upperLegsSDF(
+export function legSDF(
   x: number,
   y: number,
   z: number,
-  p: AvatarParameters
+  p: AvatarParameters,
+  side: Side,
+  segment: LegSegment
 ): number {
-  const h = p.height;
-  const waistY = h * 0.65;
-  const legLength = p.legLengthRatio * h;
-  const upperLength = legLength * LEGS_PARAMS.upperLengthToLegLength;
-  const upperRadius = legLength * LEGS_PARAMS.upperRadiusToLegLength;
-  const blend = 0.055 * (h / 1.75);
-
-  let thighs = Infinity;
-  for (const side of [-1, 1] as const) {
-    const hipX = side * p.hipWidth * LEGS_PARAMS.hipStart;
-    const kneeX = hipX + side * Math.sin(LEGS_PARAMS.upperLegToVerticleRad) * upperLength;
-    const hip: Vec3 = [hipX, waistY - h * WAIST_PARAMS.yToHeight * 0.80, 0];
-    const knee: Vec3 = [
-      kneeX,
-      hip[1] - upperLength * Math.cos(LEGS_PARAMS.upperLegToVerticleRad) * LEG_REACH,
-      0,
-    ];
-    const thigh = sdCapsule(x, y, z, hip, knee, upperRadius);
-    thighs = Math.min(thighs, thigh);
+  const j = legJoints(p, side);
+  switch (segment) {
+    case "upper": {
+      const blend = 0.055 * (p.height / 1.75);
+      const thigh = sdCapsule(x, y, z, j.hip, j.knee, j.upperRadius);
+      // Half of the cross-pelvis connector, so the two thighs meet at x = 0
+      const pelvis = sdCapsule(x, y, z, [0, j.hip[1], 0], j.hip, j.pelvisRadius);
+      return smoothMin(pelvis, thigh, blend * 0.4);
+    }
+    case "lower":
+      return sdCapsule(x, y, z, j.knee, j.ankle, j.lowerRadius);
+    case "foot":
+      return sdRoundedBox(x, y, z, j.footCenter, j.footHalf, j.footRadius);
   }
-
-  // Cross-pelvis connector between hips
-  const pelvisRadius = upperRadius * 0.95;
-  const hipLeft: Vec3 = [-p.hipWidth * LEGS_PARAMS.hipStart, waistY - h * WAIST_PARAMS.yToHeight * 0.80, 0];
-  const hipRight: Vec3 = [p.hipWidth * LEGS_PARAMS.hipStart, waistY - h * WAIST_PARAMS.yToHeight * 0.80, 0];
-  const pelvis = sdCapsule(x, y, z, hipLeft, hipRight, pelvisRadius);
-
-  return smoothMin(pelvis, thighs, blend * 0.4);
-}
-
-/**
- * Lower legs (Knees, Shins, Ankles, and Feet) SDF.
- */
-export function lowerLegsSDF(
-  x: number,
-  y: number,
-  z: number,
-  p: AvatarParameters
-): number {
-  const h = p.height;
-  const waistY = h * 0.65;
-  const legLength = p.legLengthRatio * h;
-  const upperLength = legLength * LEGS_PARAMS.upperLengthToLegLength;
-  const lowerLength = legLength - upperLength;
-  const lowerRadius = legLength * LEGS_PARAMS.lowerRadiusToLegLength;
-  const blend = 0.055 * (h / 1.75);
-
-  let legs = Infinity;
-  for (const side of [-1, 1] as const) {
-    const hipX = side * p.hipWidth * LEGS_PARAMS.hipStart;
-    const kneeX = hipX + side * Math.sin(LEGS_PARAMS.upperLegToVerticleRad) * upperLength;
-    const ankleX = kneeX + side * Math.sin(LEGS_PARAMS.lowerLegToVerticleRad) * lowerLength;
-
-    const hip: Vec3 = [hipX, waistY - h * WAIST_PARAMS.yToHeight * 0.80, 0];
-    const knee: Vec3 = [
-      kneeX,
-      hip[1] - upperLength * Math.cos(LEGS_PARAMS.upperLegToVerticleRad) * LEG_REACH,
-      0,
-    ];
-    const ankle: Vec3 = [
-      ankleX,
-      knee[1] - lowerLength * Math.cos(LEGS_PARAMS.lowerLegToVerticleRad) * LEG_REACH,
-      0,
-    ];
-
-    const shin = sdCapsule(x, y, z, knee, ankle, lowerRadius);
-    const foot = sdRoundedBox(
-      x,
-      y,
-      z,
-      [ankle[0], ankle[1] - h * 0.025, h * 0.030],
-      [
-        h * LEGS_PARAMS.foot.toHeight.x,
-        h * LEGS_PARAMS.foot.toHeight.y,
-        h * LEGS_PARAMS.foot.toHeight.z,
-      ],
-      h * 0.025
-    );
-
-    const legPart = smoothMin(shin, foot, blend * 0.1);
-    legs = Math.min(legs, legPart);
-  }
-
-  return legs;
 }
 
 /**
@@ -319,14 +375,58 @@ export function getPartSDF(
       return (x, y, z) => headSDF(x, y, z, p);
     case "torso":
       return (x, y, z) => torsoSDF(x, y, z, p);
-    case "leftArm":
-      return (x, y, z) => armSDF(x, y, z, p, -1);
-    case "rightArm":
-      return (x, y, z) => armSDF(x, y, z, p, 1);
-    case "upperLegs":
-      return (x, y, z) => upperLegsSDF(x, y, z, p);
-    case "lowerLegs":
-      return (x, y, z) => lowerLegsSDF(x, y, z, p);
+    case "leftUpperArm":
+      return (x, y, z) => armSDF(x, y, z, p, -1, "upper");
+    case "leftForeArm":
+      return (x, y, z) => armSDF(x, y, z, p, -1, "fore");
+    case "leftHand":
+      return (x, y, z) => armSDF(x, y, z, p, -1, "hand");
+    case "rightUpperArm":
+      return (x, y, z) => armSDF(x, y, z, p, 1, "upper");
+    case "rightForeArm":
+      return (x, y, z) => armSDF(x, y, z, p, 1, "fore");
+    case "rightHand":
+      return (x, y, z) => armSDF(x, y, z, p, 1, "hand");
+    case "leftUpperLeg":
+      return (x, y, z) => legSDF(x, y, z, p, -1, "upper");
+    case "leftLowerLeg":
+      return (x, y, z) => legSDF(x, y, z, p, -1, "lower");
+    case "leftFoot":
+      return (x, y, z) => legSDF(x, y, z, p, -1, "foot");
+    case "rightUpperLeg":
+      return (x, y, z) => legSDF(x, y, z, p, 1, "upper");
+    case "rightLowerLeg":
+      return (x, y, z) => legSDF(x, y, z, p, 1, "lower");
+    case "rightFoot":
+      return (x, y, z) => legSDF(x, y, z, p, 1, "foot");
+  }
+}
+
+
+function armBounds(p: AvatarParameters, side: Side, segment: ArmSegment): AvatarBounds {
+  const j = armJoints(p, side);
+  switch (segment) {
+    case "upper":
+      return capsuleBounds(j.shoulder, j.elbow, j.upperRadius);
+    case "fore":
+      return capsuleBounds(j.elbow, j.wrist, j.forearmRadius);
+    case "hand":
+      return capsuleBounds(j.wrist, j.handEnd, j.handRadius);
+  }
+}
+
+function legBounds(p: AvatarParameters, side: Side, segment: LegSegment): AvatarBounds {
+  const j = legJoints(p, side);
+  switch (segment) {
+    case "upper":
+      return unionBounds(
+        capsuleBounds(j.hip, j.knee, j.upperRadius),
+        capsuleBounds([0, j.hip[1], 0], j.hip, j.pelvisRadius)
+      );
+    case "lower":
+      return capsuleBounds(j.knee, j.ankle, j.lowerRadius);
+    case "foot":
+      return boxBounds(j.footCenter, j.footHalf);
   }
 }
 
@@ -339,91 +439,96 @@ export function getPartBounds(
   p: AvatarParameters
 ): AvatarBounds {
   const h = p.height;
-  const pad = 0.04;
 
   switch (part) {
     case "head": {
       const headY = h * 0.925;
-      const rx = p.headHeight * HEAD_PARAMS.xRatio + pad;
-      const ry = p.headHeight * HEAD_PARAMS.yRatio + pad;
-      const rz = p.headHeight * HEAD_PARAMS.zRatio + pad;
+      const rx = p.headHeight * HEAD_PARAMS.xRatio + PAD;
+      const ry = p.headHeight * HEAD_PARAMS.yRatio + PAD;
+      const rz = p.headHeight * HEAD_PARAMS.zRatio + PAD;
       return {
         minX: -rx,
         maxX: rx,
-        minY: h * 0.77 - pad,
+        minY: h * 0.77 - PAD,
         maxY: headY + ry,
         minZ: -rz,
         maxZ: rz,
       };
     }
     case "torso": {
-      const halfWidth = Math.max(p.shoulderWidth, p.chestWidth, p.waistWidth) / 2 + pad;
-      const depth = 0.12 * (h / 1.75) + pad;
+      const halfWidth = Math.max(p.shoulderWidth, p.chestWidth, p.waistWidth) / 2 + PAD;
+      const depth = 0.12 * (h / 1.75) + PAD;
       return {
         minX: -halfWidth,
         maxX: halfWidth,
-        minY: h * 0.50 - pad,
-        maxY: h * 0.85 + pad,
+        minY: h * 0.50 - PAD,
+        maxY: h * 0.85 + PAD,
         minZ: -depth,
         maxZ: depth,
       };
     }
-    case "leftArm": {
-      const armLength = p.armLengthRatio * h;
-      const startX = -p.shoulderWidth * 0.46;
-      const endX = startX - armLength * 0.6;
-      return {
-        minX: endX - pad * 2,
-        maxX: startX + pad,
-        minY: h * 0.45 - pad,
-        maxY: h * 0.83 + pad,
-        minZ: -pad * 2,
-        maxZ: pad * 2,
-      };
-    }
-    case "rightArm": {
-      const armLength = p.armLengthRatio * h;
-      const startX = p.shoulderWidth * 0.46;
-      const endX = startX + armLength * 0.6;
-      return {
-        minX: startX - pad,
-        maxX: endX + pad * 2,
-        minY: h * 0.45 - pad,
-        maxY: h * 0.83 + pad,
-        minZ: -pad * 2,
-        maxZ: pad * 2,
-      };
-    }
-    case "upperLegs": {
-      const halfWidth = (p.hipWidth * LEGS_PARAMS.hipStart) + (p.legLengthRatio * h * 0.12) + pad;
-      const waistY = h * 0.65;
-      const hipY = waistY - h * WAIST_PARAMS.yToHeight * 0.80;
-      const legLength = p.legLengthRatio * h;
-      const upperLength = legLength * LEGS_PARAMS.upperLengthToLegLength;
-      const upperRadius = legLength * LEGS_PARAMS.upperRadiusToLegLength;
-      return {
-        minX: -halfWidth,
-        maxX: halfWidth,
-        // knee = hipY - upperLength * LEG_REACH; include the thigh radius around it
-        minY: hipY - upperLength * LEG_REACH - upperRadius - pad,
-        maxY: waistY + pad,
-        minZ: -pad * 3,
-        maxZ: pad * 3,
-      };
-    }
-    case "lowerLegs": {
-      const halfWidth = (p.hipWidth * LEGS_PARAMS.hipStart) + pad * 3;
-      const legLength = p.legLengthRatio * h;
-      const upperLength = legLength * LEGS_PARAMS.upperLengthToLegLength;
-      const kneeY = h * 0.65 - upperLength;
-      return {
-        minX: -halfWidth,
-        maxX: halfWidth,
-        minY: -0.05,
-        maxY: kneeY + pad * 2,
-        minZ: -pad * 2,
-        maxZ: h * 0.08 + pad,
-      };
-    }
+    case "leftUpperArm":
+      return armBounds(p, -1, "upper");
+    case "leftForeArm":
+      return armBounds(p, -1, "fore");
+    case "leftHand":
+      return armBounds(p, -1, "hand");
+    case "rightUpperArm":
+      return armBounds(p, 1, "upper");
+    case "rightForeArm":
+      return armBounds(p, 1, "fore");
+    case "rightHand":
+      return armBounds(p, 1, "hand");
+    case "leftUpperLeg":
+      return legBounds(p, -1, "upper");
+    case "leftLowerLeg":
+      return legBounds(p, -1, "lower");
+    case "leftFoot":
+      return legBounds(p, -1, "foot");
+    case "rightUpperLeg":
+      return legBounds(p, 1, "upper");
+    case "rightLowerLeg":
+      return legBounds(p, 1, "lower");
+    case "rightFoot":
+      return legBounds(p, 1, "foot");
   }
+}
+
+
+export interface SideJoints {
+  shoulder: Vec3;
+  elbow: Vec3;
+  wrist: Vec3;
+  handEnd: Vec3;
+  hip: Vec3;
+  knee: Vec3;
+  ankle: Vec3;
+  footCenter: Vec3;
+  footHalf: Vec3;
+}
+
+/** "left" = the -x side, "right" = the +x side (same convention as the part names). */
+export interface BodyJoints {
+  left: SideJoints;
+  right: SideJoints;
+}
+
+export function getBodyJoints(options: Partial<AvatarParameters> = {}): BodyJoints {
+  const p = { ...DEFAULT_AVATAR_PARAMS, ...options } as AvatarParameters;
+  const side = (s: Side): SideJoints => {
+    const a = armJoints(p, s);
+    const l = legJoints(p, s);
+    return {
+      shoulder: a.shoulder,
+      elbow: a.elbow,
+      wrist: a.wrist,
+      handEnd: a.handEnd,
+      hip: l.hip,
+      knee: l.knee,
+      ankle: l.ankle,
+      footCenter: l.footCenter,
+      footHalf: l.footHalf,
+    };
+  };
+  return { left: side(-1), right: side(1) };
 }

@@ -20,6 +20,8 @@
     .check{justify-content:flex-start;} .check input{margin:0;}
     #info{margin-top:10px;font-size:12px;line-height:1.45;white-space:pre-wrap;color:#d1d5db;font-family:ui-monospace,Menlo,monospace;}
     .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:2px;}
+    #parts{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;}
+    #parts label{margin:2px 0;}
     a{color:#a5b4fc;}
   </style>
   <script type="importmap">
@@ -34,11 +36,14 @@
     <h3>Garments</h3>
     <label>Top <select id="topSel"></select></label>
     <label>Bottom <select id="bottomSel"></select></label>
-    <label>Top width ease <input type="range" id="topEase" min="0.8" max="1.4" step="0.01" value="1.05" /><span id="topEaseV">1.05</span></label>
-    <label>Bottom top-hem width (x hip) <input type="range" id="bottomEase" min="0.8" max="1.3" step="0.01" value="0.90" /><span id="bottomEaseV">0.90</span></label>
+    <label>Top width ease <input type="range" id="topEase" min="0.9" max="1.4" step="0.01" value="1.10" /><span id="topEaseV">1.10</span></label>
+    <label>Bottom top-hem width (x hip) <input type="range" id="bottomEase" min="0.8" max="1.3" step="0.01" value="0.95" /><span id="bottomEaseV">0.95</span></label>
     <label>Garment opacity <input type="range" id="opacity" min="0.2" max="1" step="0.05" value="1" /><span id="opacityV">1.00</span></label>
     <label class="check"><input type="checkbox" id="stretch" checked /> Stretch vertically to hit the hem target</label>
     <label class="check"><input type="checkbox" id="hideUnder" checked /> Hide pants under the shirt</label>
+    <label class="check"><input type="checkbox" id="adaptArms" checked /> Fit arms to the top's sleeve openings</label>
+    <label class="check"><input type="checkbox" id="adaptLegs" checked /> Fit legs/feet to the bottom's hem</label>
+    <label>Foot drop below hem (m) <input type="range" id="footDrop" min="-0.03" max="0.08" step="0.005" value="0.02" /><span id="footDropV">0.020</span></label>
 
     <h3>Avatar measurements (m)</h3>
     <label>Height <input type="number" id="height" step="0.01" value="1.80" /></label>
@@ -88,15 +93,20 @@
     loader.setMeshoptDecoder(MeshoptDecoder);  // meshopt-compressed meshes (e.g. gltfpack output)
     const state = {
       anchors: null, dims: null, avatar: null, cameraFramed: false,
-      hidden: new Set(),
+      hidden: new Set(),        // parts hidden manually with the checkboxes
+      autoHidden: new Set(),    // parts hidden because a garment covers them
+      joints: null,             // /api/joints
+      parts: {},                // part name -> avatar mesh
       topHemY: null,
+      bottomHemY: null,         // fitted y of the bottom's lower hem
+      bottomHemTargetY: null,   // where the avatar's own knee/ankle is (the default hem target)
       clipPlane: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0),   // keeps y <= constant
       slots: { top: null, bottom: null },   // { file, wrapper, scene, ref, cache }
     };
 
     const setInfo = (t) => { infoEl.textContent = t; };
-    const fits = { top: '', bottom: '' };
-    const refreshInfo = () => setInfo([fits.top, fits.bottom].filter(Boolean).join('\n\n') || 'Pick a top and/or bottom.');
+    const fits = { top: '', bottom: '', body: '' };
+    const refreshInfo = () => setInfo([fits.top, fits.bottom, fits.body].filter(Boolean).join('\n\n') || 'Pick a top and/or bottom.');
     const V = (p) => new THREE.Vector3(p.x, p.y, p.z);
     const params = () => Object.fromEntries(['height','shoulderWidth','chestWidth','waistWidth','hipWidth'].map(k => [k, Number($(k).value)]));
 
@@ -111,7 +121,7 @@
     }
 
     function applyPartVisibility() {
-      state.avatar?.traverse(o => { if (o.isMesh) o.visible = !state.hidden.has(o.name); });
+      state.avatar?.traverse(o => { if (o.isMesh) o.visible = !state.hidden.has(o.name) && !state.autoHidden.has(o.name); });
     }
 
     async function loadAvatar() {
@@ -119,9 +129,10 @@
       setInfo('Generating avatar…');
       try {
         const q = new URLSearchParams(params()).toString();
-        const [anc, buf] = await Promise.all([
+        const [anc, buf, joints] = await Promise.all([
           fetch(`/api/anchors?${q}`).then(r => { if (!r.ok) throw new Error(`anchors HTTP ${r.status}`); return r.json(); }),
           fetch(`/api/avatar.glb?${q}`).then(r => { if (!r.ok) throw new Error(`avatar HTTP ${r.status}`); return r.arrayBuffer(); }),
+          fetch(`/api/joints?${q}`).then(r => { if (!r.ok) throw new Error(`joints HTTP ${r.status}`); return r.json(); }),
         ]);
         const gltf = await loader.parseAsync(buf, '');
         if (state.avatar) { scene.remove(state.avatar); disposeObject(state.avatar); }
@@ -129,6 +140,9 @@
         scene.add(state.avatar);
         state.anchors = anc.anchors;
         state.dims = anc.dimensions;
+        state.joints = joints;
+        state.parts = {};
+        gltf.scene.traverse(o => { if (o.isMesh) state.parts[o.name] = o; });
         applyPartVisibility();
 
         if (!state.cameraFramed) {
@@ -139,6 +153,7 @@
           state.cameraFramed = true;
         }
         for (const slot of ['top', 'bottom']) fitSlot(slot);
+        updateBodyAdjustments();
         refreshInfo();
       } catch (e) {
         console.error(e);
@@ -208,6 +223,8 @@
       state.slots[slot] = null;
       fits[slot] = '';
       if (slot === 'top') { state.topHemY = null; updateOcclusion(); }
+      if (slot === 'bottom') state.bottomHemY = null;
+      updateBodyAdjustments();
     }
 
     function widthAtY(root, y, tol) {
@@ -268,7 +285,7 @@
         const size = box.getSize(new THREE.Vector3());
         const ref = saved.points;
         const cache = { cz: (box.min.z + box.max.z) / 2, size, box };
-        state.slots[slot] = { file, wrapper, scene: gltf.scene, ref, cache };
+        state.slots[slot] = { file, wrapper, scene: gltf.scene, ref, cache, sleeve: saved.sleeve };
         fitSlot(slot);
       } catch (e) {
         console.error(e);
@@ -345,6 +362,8 @@ hem y ${f(hemY)} m, torso bottom ${f(torsoBottomY)} m -> ${hemY <= torsoBottomY 
           new THREE.Vector3(0, hipY, 0));
 
         const hemY = hipY - sy * span;
+        state.bottomHemY = hemY;
+        state.bottomHemTargetY = hemTargetY;
         fits.bottom =
 `BOTTOM ${g.file} (${pants ? 'pants: hem to ankle' : 'shorts/skirt: hem at knee'})
 top hem width: ${f(gTopW * sx)} m (hip ${f(D.hipWidth)} x ${ease.toFixed(2)})
@@ -352,6 +371,113 @@ scale x/z ${f(sx)}  y ${f(sy)}
 top hem y ${f(hipY)} m (hip +${PANTS_LIFT.toFixed(2)}), bottom hem y ${f(hemY)} m (target ${f(hemTargetY)} m)`;
       }
       updateOcclusion();
+      updateBodyAdjustments();
+    }
+
+    const MOVABLE_PARTS = ['leftUpperArm', 'leftForeArm', 'leftHand', 'rightUpperArm', 'rightForeArm', 'rightHand',
+                           'leftLowerLeg', 'rightLowerLeg', 'leftFoot', 'rightFoot'];
+    const SLEEVE_INSET = -0.05;   // hands / forearms start this far above the sleeve opening (tucked into the cuff)
+    const FEET_INSET = -0.05;
+    const isShortSleeve = (g) => (g.sleeve ?? (/(t[-_ ]?shirt|tee|tank)/i.test(g.file) ? 'short' : 'long')) === 'short';
+
+    // A garment reference point in avatar space (after the garment's fitted scale / position).
+    function worldPoint(g, p) {
+      const w = g.wrapper;
+      return new THREE.Vector3(
+        w.position.x + p.x * w.scale.x,
+        w.position.y + p.y * w.scale.y,
+        w.position.z + p.z * w.scale.z
+      );
+    }
+    const bySide = (a, b) => (a.x <= b.x ? { left: a, right: b } : { left: b, right: a });
+
+    function updateBodyAdjustments() {
+      if (!state.avatar || !state.joints) return;
+      const J = state.joints;
+      const offsets = {};                 // part name -> [dx, dy]
+      const autoHidden = new Set();
+      const notes = [];
+
+      const bottom = state.slots.bottom;
+      if (bottom && $('adaptLegs').checked && state.bottomHemY != null) {
+        if (isPants(bottom.file)) {
+          // Pants: hide thighs + lower legs, put each foot at its pants opening (slightly below the hem).
+          const hems = bySide(
+            worldPoint(bottom, V(bottom.ref.bottomHemLeft)),
+            worldPoint(bottom, V(bottom.ref.bottomHemRight))
+          );
+          const drop = Number($('footDrop').value);
+          for (const side of ['left', 'right']) {
+            const j = J[side], hem = hems[side];
+            offsets[side + 'Foot'] = [
+              hem.x - j.footCenter[0], 
+              (hem.y - drop) - j.ankle[1],
+              FEET_INSET,
+            ];
+            autoHidden.add(side + 'UpperLeg');
+            autoHidden.add(side + 'LowerLeg');
+          }
+          notes.push('pants: feet moved to the hem openings, legs hidden');
+        } else {
+          // Shorts / skirts: lower legs + feet follow the hem.
+          const dy = state.bottomHemY - state.bottomHemTargetY;
+          for (const side of ['left', 'right']) {
+            offsets[side + 'LowerLeg'] = [0, dy];
+            offsets[side + 'Foot'] = [0, dy];
+          }
+          notes.push('shorts/skirt: lower legs + feet follow the hem');
+        }
+      }
+
+      const top = state.slots.top;
+      if (top && $('adaptArms').checked) {
+        if (top.ref.sleeveOpeningLeft && top.ref.sleeveOpeningRight) {
+          const open = bySide(worldPoint(top, V(top.ref.sleeveOpeningLeft)), worldPoint(top, V(top.ref.sleeveOpeningRight)));
+          const short = isShortSleeve(top);
+          autoHidden.add('torso');
+          for (const side of ['left', 'right']) {
+            const j = J[side], o = open[side];
+            autoHidden.add(side + 'UpperArm');
+            if (short) {
+              // Short sleeve: forearm + hand start at the sleeve opening.
+              const dx = o.x - j.elbow[0], dy = o.y + SLEEVE_INSET - j.elbow[1];
+              offsets[side + 'UpperArm'] = [dx, dy, o.z];
+              offsets[side + 'ForeArm'] = [dx, dy, o.z];
+              offsets[side + 'Hand'] = [dx, dy, o.z];
+            } else {
+              // Long sleeve: only the hand shows, at the sleeve opening.
+              autoHidden.add(side + 'ForeArm');
+              offsets[side + 'Hand'] = [
+                o.x - j.wrist[0], 
+                o.y + SLEEVE_INSET - j.wrist[1],
+                o.z,
+              ];
+            }
+          }
+          notes.push(
+            short ? 
+              'short sleeve: forearms + hands moved to the openings' : 
+              'long sleeve: hands moved to the cuffs, arms hidden'
+          );
+        } else {
+          notes.push('top has no sleeve opening points - set them in the picker (/) to fit the arms');
+        }
+      }
+
+      for (const name of MOVABLE_PARTS) {
+        const m = state.parts[name];
+        if (m) {
+          m.position.set(
+            offsets[name]?.[0] ?? 0, 
+            offsets[name]?.[1] ?? 0, 
+            offsets[name]?.[2] ?? 0, 
+          );
+        }
+      }
+      state.autoHidden = autoHidden;
+      applyPartVisibility();
+      fits.body = notes.length ? 'BODY\n' + notes.join('\n') : '';
+      refreshInfo();
     }
 
     // Everything of the bottom above the top's hem is clipped away, so the shirt
@@ -372,12 +498,14 @@ top hem y ${f(hipY)} m (hip +${PANTS_LIFT.toFixed(2)}), bottom hem y ${f(hemY)} 
       });
     }
 
-    // ---------------- UI wiring ----------------
     $('updateBtn').onclick = loadAvatar;
     for (const [id, slot] of [['topEase', 'top'], ['bottomEase', 'bottom']]) {
       $(id).oninput = () => { $(id + 'V').textContent = Number($(id).value).toFixed(2); fitSlot(slot); refreshInfo(); };
     }
     $('hideUnder').onchange = updateOcclusion;
+    $('adaptArms').onchange = updateBodyAdjustments;
+    $('adaptLegs').onchange = updateBodyAdjustments;
+    $('footDrop').oninput = () => { $('footDropV').textContent = Number($('footDrop').value).toFixed(3); updateBodyAdjustments(); };
     $('stretch').onchange = () => { fitSlot('top'); fitSlot('bottom'); refreshInfo(); };
     $('opacity').oninput = () => {
       $('opacityV').textContent = Number($('opacity').value).toFixed(2);
