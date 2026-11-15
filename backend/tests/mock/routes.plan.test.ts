@@ -132,6 +132,11 @@ function spotsOnTheWay(count: number): ParkingSpot[] {
   });
 }
 
+// which of [spots] is at [latitude]
+function spotIndex(spots: readonly ParkingSpot[], latitude: number): number {
+  return spots.findIndex((spot) => spot.location.lat === latitude);
+}
+
 // a Google route of [seconds] with [steps], as a driving or transit route details response
 function detailedRoute(seconds: number, steps: object[] = []): object {
   return {
@@ -144,15 +149,37 @@ function detailedRoute(seconds: number, steps: object[] = []): object {
   };
 }
 
+// a place in a matrix request
+interface MatrixPlace {
+  waypoint?: { location?: { latLng?: { latitude?: number } } };
+}
+
 // the request body Google was sent, for the matrix and route details calls the Planner makes
 interface GoogleRequest {
   travelMode?: string;
+  computeAlternativeRoutes?: boolean;
+  origin?: { location?: { latLng?: { latitude?: number } } };
   destination?: { location?: { latLng?: { latitude?: number } } };
-  origins?: unknown[]; // only matrix requests have origins
+  origins?: MatrixPlace[]; // only matrix requests have origins
+  destinations?: MatrixPlace[];
 }
 
 function googleRequest(init: { body?: unknown } | undefined): GoogleRequest {
   return JSON.parse(String(init?.body)) as GoogleRequest;
+}
+
+// the latitudes of a matrix request's origins or destinations, in the order they were sent
+function latitudes(places: MatrixPlace[] | undefined): number[] {
+  return (places ?? []).map((place) => place.waypoint?.location?.latLng?.latitude ?? 0);
+}
+
+// a matrix from every origin to every destination, with the time [seconds] gives each pair of latitudes;
+// a pair it gives null has no route
+function matrixOf(origins: number[], destinations: number[], seconds: (from: number, to: number) => number | null): object[] {
+  return origins.flatMap((from, originIndex) => destinations.flatMap((to, destinationIndex) => {
+    const time = seconds(from, to);
+    return time === null ? [] : [routeExists(originIndex, destinationIndex, time)];
+  }));
 }
 
 // a matrix element saying Google found a route of [seconds] from origin [originIndex] to destination [destinationIndex]
@@ -160,20 +187,31 @@ function routeExists(originIndex: number, destinationIndex: number, seconds: num
   return { originIndex, destinationIndex, duration: `${seconds}s`, distanceMeters: 8000, condition: 'ROUTE_EXISTS' };
 }
 
-// answers the Planner's Google calls: [matrix] gives each mode's matrix, and [details] each route's details,
-// given the mode and the latitude of the route's destination
-function fakeGoogle(matrix: (mode: string) => object[], details: (mode: string, latitude: number) => object): void {
-  jest.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
+// answers the Planner's Google calls: [matrix] gives each mode's matrix from the latitudes of its origins and
+// destinations, and [details] each route's details, given the mode and the latitude of the route's destination
+function fakeGoogle(
+  matrix: (mode: string, origins: number[], destinations: number[]) => object[],
+  details: (mode: string, latitude: number) => object,
+): jest.SpiedFunction<typeof fetch> {
+  return jest.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
     const body = googleRequest(init);
     const mode = body.travelMode ?? '';
-    if (body.origins !== undefined) return Promise.resolve(googleSays(matrix(mode)));
+    if (body.origins !== undefined) {
+      return Promise.resolve(googleSays(matrix(mode, latitudes(body.origins), latitudes(body.destinations))));
+    }
     return Promise.resolve(googleSays(details(mode, body.destination?.location?.latLng?.latitude ?? 0)));
   });
 }
 
 beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  jest.spyOn(console, 'info').mockImplementation(() => undefined); // the Planner logs one screening line per plan
 });
+
+// one of Google's alternative routes, taking [seconds], made of [steps]
+function alternative(seconds: number, steps: object[]): object {
+  return { duration: `${seconds}s`, distanceMeters: 5000, polyline: { encodedPolyline: ROUTE_POLYLINE }, legs: [{ steps }] };
+}
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -208,12 +246,9 @@ describe('Mocked: POST /api/routes/plan', () => {
     });
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body)) as {
-        travelMode?: string;
-        origin?: { location?: { latLng?: { latitude?: number } } };
-        destination?: { location?: { latLng?: { latitude?: number } } };
-      };
+      const body = googleRequest(init);
       if (url.includes('computeRouteMatrix')) {
+        // no direct routes: transit only from the spots, and driving only to them
         return Promise.resolve(googleSays(body.travelMode === 'DRIVE'
           ? points.map((_, destinationIndex) => ({
             originIndex: 0,
@@ -222,13 +257,13 @@ describe('Mocked: POST /api/routes/plan', () => {
             distanceMeters: 10000,
             condition: 'ROUTE_EXISTS',
           }))
-          : points.map((_, originIndex) => ({
+          : latitudes(body.origins).flatMap((latitude, originIndex) => (latitude === BODY.origin.lat ? [] : [{
             originIndex,
             destinationIndex: 0,
             duration: '1800s',
             distanceMeters: 15000,
             condition: 'ROUTE_EXISTS',
-          }))));
+          }]))));
       }
       const spotLatitude = body.travelMode === 'DRIVE'
         ? body.destination?.location?.latLng?.latitude
@@ -302,17 +337,17 @@ describe('Mocked: POST /api/routes/plan', () => {
     });
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = String(input);
-      const body = JSON.parse(String(init?.body)) as { travelMode?: string };
+      const body = googleRequest(init);
       if (url.includes('computeRouteMatrix')) {
+        // transit takes an hour from UBC and half an hour from the saved spot
         return Promise.resolve(googleSays(body.travelMode === 'DRIVE'
           ? [
             { originIndex: 0, destinationIndex: 0, duration: '900s', distanceMeters: 12000, condition: 'ROUTE_EXISTS' },
             { originIndex: 0, destinationIndex: 1, duration: '1800s', distanceMeters: 16000, condition: 'ROUTE_EXISTS' },
           ]
-          : [
-            { originIndex: 0, destinationIndex: 0, duration: '1800s', distanceMeters: 14000, condition: 'ROUTE_EXISTS' },
-            { originIndex: 1, destinationIndex: 0, duration: '3600s', distanceMeters: 20000, condition: 'ROUTE_EXISTS' },
-          ]));
+          : latitudes(body.origins).map((latitude, originIndex) => (latitude === BODY.origin.lat
+            ? { originIndex, destinationIndex: 0, duration: '3600s', distanceMeters: 20000, condition: 'ROUTE_EXISTS' }
+            : { originIndex, destinationIndex: 0, duration: '1800s', distanceMeters: 14000, condition: 'ROUTE_EXISTS' }))));
       }
       return Promise.resolve(googleSays({
         routes: [{
@@ -583,6 +618,104 @@ describe('Mocked: POST /api/routes/plan', () => {
     expect(response.body.options).toHaveLength(1);
   });
 
+  // Mocked behavior: Google's transit routes are, in order: one that walks 6 minutes in one stretch, one with no
+  //                  geometry, a 25-minute one on the "Slow" bus and a 22-minute one on the R4
+  // Input: valid session for a user whose saved max walk is 5 minutes, transit only
+  // Expected status code: 200
+  // Expected behavior: the planner asks Google for alternative routes, skips the first route because of its walk and
+  //                    the second because it can't be parsed, and picks the shortest of the rest
+  // Expected output: one option riding the R4
+  test('Uses a transit alternative when the first route walks too far', async () => {
+    const fetchMock = fakeGoogle(
+      (_mode, origins, destinations) => matrixOf(origins, destinations, () => 1200),
+      () => ({
+        routes: [
+          alternative(1000, [step('WALK', 360), step('TRANSIT', 640, { name: 'Walk first', nameShort: '25' })]),
+          { duration: '900s' },
+          alternative(1500, [step('TRANSIT', 1500, { name: 'Slow', nameShort: '9' })]),
+          alternative(1320, [step('TRANSIT', 1320, { name: 'Joyce Station', nameShort: 'R4' })]),
+        ],
+      }),
+    );
+    const { token } = await createSignedInUser({ maxWalkMinutes: 5 });
+
+    const response = await request(createApp()).post('/api/routes/plan').set('Authorization', bearer(token)).send(BODY);
+
+    expect(response.status).toBe(200);
+    expect(response.body.options).toHaveLength(1);
+    expect(response.body.options[0].totalDurationSeconds).toBe(1320);
+    expect(response.body.options[0].legs.flatMap((leg: { transitLines: { shortName: string }[] }) =>
+      leg.transitLines.map((line) => line.shortName))).toStrictEqual(['R4']);
+    const detailRequests = fetchMock.mock.calls.map(([, init]) => googleRequest(init)).filter((body) => body.origins === undefined);
+    expect(detailRequests.map((body) => body.computeAlternativeRoutes)).toStrictEqual([true]);
+  });
+
+  // Mocked behavior: Google's direct transit takes 20 minutes; the drive to the first of two saved spots takes
+  //                  50 minutes and to the second 5 minutes; transit from either spot takes 10 minutes
+  // Input: valid session, both modes, a cost-vs-time of 50 and two saved spots on the way
+  // Expected status code: 200
+  // Expected behavior: even with the fastest possible ride, the chain through the first spot is slower, costlier and
+  //                    scores worse than direct transit, so the planner never prices transit from it
+  // Expected output: no route through the first spot; the second matrix asks only about the second spot, and the
+  //                  screening log says one spot was pruned
+  test('Never prices transit from a spot that cannot win', async () => {
+    const spots = spotsOnTheWay(2);
+    const [slowSpot, quickSpot] = spots.map((spot) => spot.location.lat);
+    const { token } = await createSignedInUser({ ...DRIVER, parkingSpots: spots });
+    const fetchMock = fakeGoogle(
+      (mode, origins, destinations) => matrixOf(origins, destinations, (from, to) => {
+        if (mode === 'DRIVE') return to === slowSpot ? 3000 : to === quickSpot ? 300 : 900;
+        return from === BODY.origin.lat ? 1200 : 600;
+      }),
+      (mode) => (mode === 'DRIVE' ? detailedRoute(300) : transitRoute([step('TRANSIT', 1200, { name: '99' })])),
+    );
+
+    const response = await request(createApp()).post('/api/routes/plan').set('Authorization', bearer(token)).send({
+      ...BODY, modes: ['DRIVE', 'TRANSIT'], costVsTime: 50,
+    });
+
+    expect(response.status).toBe(200);
+    const transitMatrices = fetchMock.mock.calls
+      .map(([, init]) => googleRequest(init))
+      .filter((body) => body.origins !== undefined && body.travelMode === 'TRANSIT')
+      .map((body) => latitudes(body.origins));
+    expect(transitMatrices).toStrictEqual([[BODY.origin.lat], [quickSpot]]);
+    for (const option of response.body.options as { transferPoints: { lat: number }[] }[]) {
+      expect(option.transferPoints.map((point) => point.lat)).not.toContain(slowSpot);
+    }
+    expect(console.info).toHaveBeenCalledWith(expect.stringContaining('2 spots, 1 pruned'));
+  });
+
+  // Mocked behavior: Google finds no drive to the first of three saved spots and no transit from the second;
+  //                  every other route exists, and driving straight there is slow enough that no spot is pruned
+  // Input: valid session for a user with no gas price saved, both modes and three saved spots on the way
+  // Expected status code: 200
+  // Expected behavior: the planner skips both spots without a route and plans through the third, pricing fuel at
+  //                    the regional default
+  // Expected output: the only route with a transfer point goes through the third spot, and a GAS_PRICE_MISSING warning
+  test('Skips spots Google finds no drive to or transit from', async () => {
+    const spots = spotsOnTheWay(3);
+    const [noDrive, noTransit, reachable] = spots.map((spot) => spot.location.lat);
+    const { token } = await createSignedInUser({ ...DRIVER, lastGasPrice: null, parkingSpots: spots });
+    fakeGoogle(
+      (mode, origins, destinations) => matrixOf(origins, destinations, (from, to) => {
+        if (mode === 'DRIVE') return to === noDrive ? null : to === BODY.destination.lat ? 3000 : 600;
+        return from === noTransit ? null : 1200;
+      }),
+      (mode) => (mode === 'DRIVE' ? detailedRoute(600) : transitRoute([step('TRANSIT', 1200, { name: '99' })])),
+    );
+
+    const response = await request(createApp()).post('/api/routes/plan').set('Authorization', bearer(token)).send({
+      ...BODY, modes: ['DRIVE', 'TRANSIT'],
+    });
+
+    expect(response.status).toBe(200);
+    const transfers = (response.body.options as { transferPoints: { lat: number }[] }[])
+      .flatMap((option) => option.transferPoints.map((point) => point.lat));
+    expect(transfers).toStrictEqual([reachable]);
+    expect(response.body.warnings).toStrictEqual(['GAS_PRICE_MISSING']);
+  });
+
   // Mocked behavior: Google's route rides a bus, walks between stops, then rides a train
   // Input: valid session with the default max walk, transit only
   // Expected status code: 200
@@ -671,7 +804,8 @@ describe('Mocked: POST /api/routes/plan', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  // Mocked behavior: the matrix finds a route but the detailed route response has no route
+  // Mocked behavior: the matrix finds a route but the detailed route response is empty, as Google sends when it
+  //                  finds no route
   // Input: a valid transit-only plan
   // Expected status code: 200
   // Expected behavior: omit the route when geometry/details cannot be retrieved
@@ -679,7 +813,7 @@ describe('Mocked: POST /api/routes/plan', () => {
   test('Returns no options when a screened route has no detailed result', async () => {
     jest.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(googleSays(MATRIX))
-      .mockResolvedValueOnce(googleSays({ routes: [] }));
+      .mockResolvedValueOnce(googleSays({}));
 
     const response = await submitPlan();
 
@@ -737,9 +871,9 @@ describe('Mocked: POST /api/routes/plan', () => {
     const arriveBy = new Date(Date.now() + 3 * HOUR_MS).toISOString();
     const { token } = await createSignedInUser({ ...DRIVER, parkingSpots: spotsOnTheWay(1) });
     fakeGoogle(
-      (mode) => (mode === 'DRIVE'
+      (mode, origins, destinations) => (mode === 'DRIVE'
         ? [routeExists(0, 0, 600), { originIndex: 0, destinationIndex: 1, distanceMeters: 12000, condition: 'ROUTE_EXISTS' }]
-        : [routeExists(0, 0, 1200), routeExists(1, 0, 1200)]),
+        : matrixOf(origins, destinations, () => 1200)),
       (mode) => (mode === 'DRIVE'
         ? detailedRoute(600)
         : detailedRoute(1200, [
@@ -796,9 +930,10 @@ describe('Mocked: POST /api/routes/plan', () => {
     const lateLatitudes = new Set<number>();
     const { token } = await createSignedInUser({ ...DRIVER, parkingSpots: spots });
     fakeGoogle(
-      (mode) => spots.map((_, index) => (mode === 'DRIVE'
-        ? routeExists(0, index, 600)
-        : routeExists(index, 0, 1800 - index * 60))), // the further along the spot, the shorter the ride
+      // no direct routes; the further along the spot, the shorter the ride
+      (mode, origins, destinations) => matrixOf(origins, destinations, (from, to) => (mode === 'DRIVE'
+        ? (to === BODY.destination.lat ? null : 600)
+        : (from === BODY.origin.lat ? null : 1800 - spotIndex(spots, from) * 60))),
       (mode, latitude) => {
         if (mode !== 'DRIVE') return transitRoute([step('TRANSIT', 1200, { name: '99' })]);
         if (lateLatitudes.size < 4) lateLatitudes.add(latitude); // the three first picks, then the first replacement
@@ -830,7 +965,10 @@ describe('Mocked: POST /api/routes/plan', () => {
     const spots = spotsOnTheWay(3);
     const { token } = await createSignedInUser({ ...DRIVER, parkingSpots: spots });
     fakeGoogle(
-      (mode) => spots.map((_, index) => (mode === 'DRIVE' ? routeExists(0, index, 600) : routeExists(index, 0, 1800))),
+      // no direct routes, only chains through the spots
+      (mode, origins, destinations) => matrixOf(origins, destinations, (from, to) => (mode === 'DRIVE'
+        ? (to === BODY.destination.lat ? null : 600)
+        : (from === BODY.origin.lat ? null : 1800))),
       (mode) => (mode === 'DRIVE' ? detailedRoute(3 * HOUR_SECONDS) : transitRoute([step('TRANSIT', 1200, { name: '99' })])),
     );
 
@@ -854,9 +992,9 @@ describe('Mocked: POST /api/routes/plan', () => {
     const parkingSpots = spotsOnTheWay(1).map((spot) => ({ ...spot, overnightAllowed: false }));
     const { token } = await createSignedInUser({ ...DRIVER, parkingSpots });
     fakeGoogle(
-      (mode) => (mode === 'DRIVE'
-        ? [routeExists(0, 0, 600), routeExists(0, 1, 900)]
-        : [routeExists(0, 0, 30 * HOUR_SECONDS), routeExists(1, 0, 1200)]),
+      (mode, origins, destinations) => matrixOf(origins, destinations, (from, to) => (mode === 'DRIVE'
+        ? (to === BODY.destination.lat ? 900 : 600)
+        : (from === BODY.origin.lat ? 1200 : 30 * HOUR_SECONDS))),
       (mode) => (mode === 'DRIVE' ? detailedRoute(900) : DETAIL),
     );
 

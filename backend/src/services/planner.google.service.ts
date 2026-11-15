@@ -226,24 +226,38 @@ export function longestWalkSeconds(steps: readonly { travelMode?: string; static
   return longest;
 }
 
-/** Retrieves full route geometry and transit labels for one planned leg. */
+type GoogleRoute = NonNullable<GoogleDetailsResponse['routes']>[number];
+interface RouteTime { departureTime?: string; arrivalTime?: string }
+
+/**
+ * Retrieves full route geometry and transit labels for one planned leg. A transit request also asks Google for its
+ * alternative routes, so the Planner can pick one that fits the user's max walk; every route that parses is returned.
+ */
 export async function computeRouteDetails(
   origin: PlannerPlace,
   destination: PlannerPlace,
   mode: PlannerMode,
-  time: { departureTime?: string; arrivalTime?: string },
-): Promise<RouteDetail | null> {
+  time: RouteTime,
+): Promise<RouteDetail[]> {
   const response = await postGoogle<GoogleDetailsResponse>(DETAILS_URL, DETAILS_FIELD_MASK, {
     origin: waypoint(origin),
     destination: waypoint(destination),
     travelMode: mode,
-    ...(mode === 'DRIVE' ? { routingPreference: 'TRAFFIC_AWARE' } : {}),
+    ...(mode === 'DRIVE' ? { routingPreference: 'TRAFFIC_AWARE' } : { computeAlternativeRoutes: true }),
     ...time,
   });
-  const route = response.routes?.[0];
-  const durationSeconds = seconds(route?.duration);
-  const polyline = route?.polyline?.encodedPolyline;
-  if (route === undefined || durationSeconds === undefined || polyline === undefined) return null;
+  return (response.routes ?? []).flatMap((route) => {
+    const detail = toRouteDetail(route, time);
+    return detail === null ? [] : [detail];
+  });
+}
+
+/** Parses one Google route into a RouteDetail, or null when it has no duration or geometry. */
+function toRouteDetail(route: GoogleRoute, time: RouteTime): RouteDetail | null {
+  const durationSeconds = seconds(route.duration);
+  const polyline = route.polyline?.encodedPolyline;
+  if (durationSeconds === undefined || polyline === undefined) return null;
+
 
   const transitLines = (route.legs ?? []).flatMap((leg) => leg.steps ?? []).flatMap((step) => {
     const details = step.transitDetails;

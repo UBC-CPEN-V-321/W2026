@@ -3,16 +3,21 @@ import type { Leg, Place } from '../models/trip.model';
 import { DEFAULT_COST_VS_TIME, DEFAULT_MAX_WALK_MINUTES, type ParkingSpot, type User } from '../models/user.model';
 import type { PlanRequest } from '../validation/plan-request.validation';
 import { getParkingSpots } from './parking-spot.service';
+import { performance } from 'node:perf_hooks';
 import {
+  chainLowerBound,
+  chooseRoute,
   filterChains,
   pickThree,
   priceChain,
+  pruneSpots,
   scheduleChain,
   scheduleDetailedChain,
   scheduleDetailedSingle,
   selectCandidates,
   type CandidateRoute,
   type CandidateSpot,
+  type ChainEstimate,
   type PlannerPlace,
 } from './planner.core';
 import {
@@ -262,17 +267,16 @@ async function getDetailedCandidate(
     const transfer = spotPlace(candidate.spot);
     const routingNow = new Date(now.getTime() + GOOGLE_DEPARTURE_BUFFER_MS);
     const estimate = scheduleChain(candidate.drive.durationSeconds, candidate.transit.durationSeconds, request.arriveBy, routingNow);
-    const [driveDetail, transitDetail] = await Promise.all([
+    const maxWalk = maxWalkSeconds(request, user);
+    const [driveRoutes, transitRoutes] = await Promise.all([
       computeRouteDetails(request.origin, transfer, 'DRIVE', { departureTime: estimate.leaveAt.toISOString() }),
       computeRouteDetails(transfer, request.destination, 'TRANSIT', request.arriveBy === null
         ? { departureTime: estimate.transitDepartAt.toISOString() }
         : { arrivalTime: request.arriveBy.toISOString() }),
     ]);
-    const maxWalk = maxWalkSeconds(request, user);
-    if (driveDetail === null || transitDetail === null ||
-      driveDetail.longestWalkSeconds > maxWalk || transitDetail.longestWalkSeconds > maxWalk) {
-      return null;
-    }
+    const driveDetail = chooseRoute(driveRoutes, maxWalk);
+    const transitDetail = chooseRoute(transitRoutes, maxWalk);
+    if (driveDetail === null || transitDetail === null) return null;
 
     const schedule = scheduleDetailedChain(
       driveDetail.durationSeconds,
@@ -311,10 +315,11 @@ async function getDetailedCandidate(
     request.arriveBy.getTime() - candidate.totalDurationSeconds * 1000 < earliestDeparture.getTime()
     ? earliestDeparture
     : new Date(request.arriveBy.getTime() - candidate.totalDurationSeconds * 1000);
-  const detail = await computeRouteDetails(request.origin, request.destination, mode, mode === 'DRIVE' || request.arriveBy === null
+  const routes = await computeRouteDetails(request.origin, request.destination, mode, mode === 'DRIVE' || request.arriveBy === null
     ? { departureTime: estimatedLeaveAt.toISOString() }
     : { arrivalTime: request.arriveBy.toISOString() });
-  if (detail === null || detail.longestWalkSeconds > maxWalkSeconds(request, user)) return null;
+  const detail = chooseRoute(routes, maxWalkSeconds(request, user));
+  if (detail === null) return null;
 
   const schedule = scheduleDetailedSingle(
     detail.durationSeconds,
@@ -353,6 +358,173 @@ function sortForLabel(candidates: readonly PlanCandidate[], label: RouteLabel): 
   });
 }
 
+// what screening needs about the trip being planned
+interface ScreeningContext {
+  request: PlanRequest;
+  user: User;
+  now: Date;
+  costVsTime: number;
+}
+
+// a spot that may still win, with its drive from the origin and its lower bound
+interface SpotBound extends ChainEstimate {
+  spot: CandidateSpot;
+  drive: MatrixElement;
+}
+
+// prices the drive leg and parking of a chain through [spot], screened with matrix times
+function chainCandidate(spot: CandidateSpot, drive: MatrixElement, transit: MatrixElement, context: ScreeningContext): PlanCandidate {
+  const schedule = scheduleChain(drive.durationSeconds, transit.durationSeconds, context.request.arriveBy, context.now);
+  const price = priceCandidate({
+    user: context.user,
+    spot,
+    driveDistanceMeters: drive.distanceMeters,
+    transitDistanceMeters: transit.distanceMeters,
+    durationSeconds: drive.durationSeconds + PARKING_BUFFER_SECONDS + transit.durationSeconds,
+    parkedSeconds: Math.max(0, (schedule.arriveAt.getTime() - schedule.driveArriveAt.getTime()) / 1000),
+    costVsTime: context.costVsTime,
+    zones: 1,
+    includeFuel: true,
+    includeFare: true,
+  });
+  return makeCandidate({
+    kind: 'CHAIN', spot, drive, transit,
+    driveDistanceMeters: drive.distanceMeters,
+    transitDistanceMeters: transit.distanceMeters,
+    schedule,
+    price,
+  });
+}
+
+// prices a drive-only or transit-only route from its matrix element
+function baselineCandidate(kind: 'DRIVE' | 'TRANSIT', element: MatrixElement, context: ScreeningContext): PlanCandidate {
+  const isDrive = kind === 'DRIVE';
+  const schedule = scheduleDetailedSingle(element.durationSeconds, null, null, context.request.arriveBy, context.now);
+  const price = priceCandidate({
+    user: context.user,
+    spot: NO_PARKING_SPOT,
+    driveDistanceMeters: isDrive ? element.distanceMeters : 0,
+    transitDistanceMeters: isDrive ? 0 : element.distanceMeters,
+    durationSeconds: element.durationSeconds,
+    parkedSeconds: 0,
+    costVsTime: context.costVsTime,
+    zones: 1,
+    includeFuel: isDrive,
+    includeFare: !isDrive,
+  });
+  return makeCandidate({
+    kind,
+    spot: null,
+    drive: isDrive ? element : null,
+    transit: isDrive ? null : element,
+    driveDistanceMeters: isDrive ? element.distanceMeters : 0,
+    transitDistanceMeters: isDrive ? 0 : element.distanceMeters,
+    schedule,
+    price,
+  });
+}
+
+// the spots that could still beat both baselines, given their drives and a lower bound on their transit rides
+function survivingSpots(
+  spots: readonly CandidateSpot[],
+  driveByDestination: ReadonlyMap<number, MatrixElement>,
+  baselines: readonly PlanCandidate[],
+  context: ScreeningContext,
+): SpotBound[] {
+  const bounds = spots.flatMap((spot, index) => {
+    const drive = driveByDestination.get(index);
+    if (drive === undefined) return [];
+    return [{
+      spot,
+      drive,
+      ...chainLowerBound({
+        driveSeconds: drive.durationSeconds,
+        driveMeters: drive.distanceMeters,
+        spot,
+        destination: context.request.destination,
+        user: context.user,
+        costVsTime: context.costVsTime,
+      }),
+    }];
+  });
+  const known = baselines.map((baseline) => ({
+    durationSeconds: baseline.totalDurationSeconds,
+    costCents: baseline.totalCostCents,
+    score: baseline.score,
+  }));
+  const costReference = baselines.find((baseline) => baseline.kind === 'TRANSIT')?.totalCostCents ?? null;
+  return pruneSpots(bounds, known, costReference);
+}
+
+// runs [work] and measures how long it took, for the screening log
+async function timed<T>(work: () => Promise<T>): Promise<{ result: T; milliseconds: number }> {
+  const startedAt = performance.now();
+  const result = await work();
+  return { result, milliseconds: performance.now() - startedAt };
+}
+
+// one line per plan, so the cost and latency of pruning can be measured
+function logScreening(stats: { spots: number; pruned: number; elements: number; firstWaveMs: number; secondWaveMs: number }): void {
+  console.info(
+    `Planner screening: ${stats.elements} matrix elements for ${stats.spots} spots, ${stats.pruned} pruned, ` +
+    `wave 1 ${Math.round(stats.firstWaveMs)} ms, wave 2 ${Math.round(stats.secondWaveMs)} ms`,
+  );
+}
+
+/**
+ * Screens every route the Planner could offer with Route Matrix times. Wave 1 prices the drives to every spot and
+ * both baselines at once; spots that can't beat a baseline even with the fastest possible transit ride are then
+ * pruned, and wave 2 prices transit only from the spots that survive.
+ */
+async function screenCandidates(
+  spots: readonly CandidateSpot[],
+  canDrive: boolean,
+  canTransit: boolean,
+  context: ScreeningContext,
+): Promise<PlanCandidate[]> {
+  const { request, now } = context;
+  const transitTime = request.arriveBy === null
+    ? { departureTime: new Date(now.getTime() + PARKING_BUFFER_SECONDS * 1000).toISOString() }
+    : { arrivalTime: request.arriveBy.toISOString() };
+  const driveDestinations = [...spots.map(spotPlace), request.destination];
+  const firstWave = await timed(() => Promise.all([
+    canDrive
+      ? computeRouteMatrix([request.origin], driveDestinations, 'DRIVE', {
+        departureTime: new Date(now.getTime() + GOOGLE_DEPARTURE_BUFFER_MS).toISOString(),
+      })
+      : Promise.resolve([]),
+    canTransit ? computeRouteMatrix([request.origin], [request.destination], 'TRANSIT', transitTime) : Promise.resolve([]),
+  ]));
+  const [driveMatrix, transitMatrix] = firstWave.result;
+  const driveByDestination = new Map(driveMatrix.map((element) => [element.destinationIndex, element]));
+  const directDrive = driveByDestination.get(spots.length);
+  const directTransit = transitMatrix[0];
+  const baselines = [
+    ...(directDrive === undefined ? [] : [baselineCandidate('DRIVE', directDrive, context)]),
+    ...(directTransit === undefined ? [] : [baselineCandidate('TRANSIT', directTransit, context)]),
+  ];
+
+  const drivableSpots = spots.filter((_, index) => driveByDestination.has(index)).length;
+  const survivors = survivingSpots(spots, driveByDestination, baselines, context);
+  const secondWave = await timed(() => (survivors.length === 0
+    ? Promise.resolve([])
+    : computeRouteMatrix(survivors.map(({ spot }) => spotPlace(spot)), [request.destination], 'TRANSIT', transitTime)));
+  const transitBySurvivor = new Map(secondWave.result.map((element) => [element.originIndex, element]));
+  const chains = survivors.flatMap(({ spot, drive }, index) => {
+    const transit = transitBySurvivor.get(index);
+    return transit === undefined ? [] : [chainCandidate(spot, drive, transit, context)];
+  });
+
+  logScreening({
+    spots: spots.length,
+    pruned: drivableSpots - survivors.length,
+    elements: (canDrive ? driveDestinations.length : 0) + (canTransit ? 1 : 0) + survivors.length,
+    firstWaveMs: firstWave.milliseconds,
+    secondWaveMs: secondWave.milliseconds,
+  });
+  return [...chains, ...baselines];
+}
+
 export async function planTrip(userId: Types.ObjectId, user: User, request: PlanRequest): Promise<PlanResponse> {
   const now = new Date();
   const warnings: PlannerWarning[] = [];
@@ -367,98 +539,8 @@ export async function planTrip(userId: Types.ObjectId, user: User, request: Plan
   if (canDrive && user.lastGasPrice === null) warnings.push('GAS_PRICE_MISSING');
   if (canDrive && user.vehicle === null) warnings.push('VEHICLE_MISSING');
 
-  const spotPlaces = spots.map(spotPlace);
-  const transitOrigins = [...spotPlaces, request.origin];
-  const driveDestinations = [...spotPlaces, request.destination];
-  const transitTime = request.arriveBy === null
-    ? { departureTime: new Date(now.getTime() + PARKING_BUFFER_SECONDS * 1000).toISOString() }
-    : { arrivalTime: request.arriveBy.toISOString() };
-  const [driveMatrix, transitMatrix] = await Promise.all([
-    canDrive
-      ? computeRouteMatrix([request.origin], driveDestinations, 'DRIVE', {
-        departureTime: new Date(now.getTime() + GOOGLE_DEPARTURE_BUFFER_MS).toISOString(),
-      })
-      : Promise.resolve([]),
-    canTransit ? computeRouteMatrix(transitOrigins, [request.destination], 'TRANSIT', transitTime) : Promise.resolve([]),
-  ]);
-  const driveByDestination = new Map(driveMatrix.map((element) => [element.destinationIndex, element]));
-  const transitByOrigin = new Map(transitMatrix.map((element) => [element.originIndex, element]));
   const costVsTime = request.costVsTime ?? user.costVsTime ?? DEFAULT_COST_VS_TIME;
-  const candidates: PlanCandidate[] = [];
-
-  spots.forEach((spot, index) => {
-    const drive = driveByDestination.get(index);
-    const transit = transitByOrigin.get(index);
-    if (drive === undefined || transit === undefined) return;
-    const schedule = scheduleChain(drive.durationSeconds, transit.durationSeconds, request.arriveBy, now);
-    const price = priceCandidate({
-      user,
-      spot,
-      driveDistanceMeters: drive.distanceMeters,
-      transitDistanceMeters: transit.distanceMeters,
-      durationSeconds: drive.durationSeconds + PARKING_BUFFER_SECONDS + transit.durationSeconds,
-      parkedSeconds: Math.max(0, (schedule.arriveAt.getTime() - schedule.driveArriveAt.getTime()) / 1000),
-      costVsTime,
-      zones: 1,
-      includeFuel: true,
-      includeFare: true,
-    });
-    candidates.push(makeCandidate({
-      kind: 'CHAIN', spot, drive, transit,
-      driveDistanceMeters: drive.distanceMeters,
-      transitDistanceMeters: transit.distanceMeters,
-      schedule,
-      price,
-    }));
-  });
-
-  const directDrive = driveByDestination.get(spots.length);
-  if (canDrive && directDrive !== undefined) {
-    const schedule = scheduleDetailedSingle(directDrive.durationSeconds, null, null, request.arriveBy, now);
-    const price = priceCandidate({
-      user,
-      spot: NO_PARKING_SPOT,
-      driveDistanceMeters: directDrive.distanceMeters,
-      transitDistanceMeters: 0,
-      durationSeconds: directDrive.durationSeconds,
-      parkedSeconds: 0,
-      costVsTime,
-      zones: 1,
-      includeFuel: true,
-      includeFare: false,
-    });
-    candidates.push(makeCandidate({
-      kind: 'DRIVE', spot: null, drive: directDrive, transit: null,
-      driveDistanceMeters: directDrive.distanceMeters,
-      transitDistanceMeters: 0,
-      schedule,
-      price,
-    }));
-  }
-
-  const directTransit = transitByOrigin.get(spots.length);
-  if (canTransit && directTransit !== undefined) {
-    const schedule = scheduleDetailedSingle(directTransit.durationSeconds, null, null, request.arriveBy, now);
-    const price = priceCandidate({
-      user,
-      spot: NO_PARKING_SPOT,
-      driveDistanceMeters: 0,
-      transitDistanceMeters: directTransit.distanceMeters,
-      durationSeconds: directTransit.durationSeconds,
-      parkedSeconds: 0,
-      costVsTime,
-      zones: 1,
-      includeFuel: false,
-      includeFare: true,
-    });
-    candidates.push(makeCandidate({
-      kind: 'TRANSIT', spot: null, drive: null, transit: directTransit,
-      driveDistanceMeters: 0,
-      transitDistanceMeters: directTransit.distanceMeters,
-      schedule,
-      price,
-    }));
-  }
+  const candidates = await screenCandidates(spots, canDrive, canTransit, { request, user, now, costVsTime });
 
   const feasible = filterChains(candidates, now, user.timezone ?? 'UTC');
   const initialPicks = pickThree(feasible);
