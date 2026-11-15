@@ -25,6 +25,7 @@
 | Nov 4, 2026 | 4.3, 4.4, 4.5 | Google Routes now also returns turn-by-turn steps, and Maps Compose is listed with the other libraries. The dependency diagram is redrawn in Mermaid for the CP2 components, grouped by feature with the Google APIs and SDKs the app and back-end use (#81). |
 | Nov 4, 2026 | 3.1, 3.5, 4.3, 4.6 | Renamed use cases 3 and 5 to Start and Navigate Trip and View Trip History, and made Navigation part of Multimodal Trip Planning, to match the updated use case diagram. TransLink GTFS-Realtime is no longer listed as an actor or external module, since it isn't used until CP3, and LiveUpdates (4.1) still describes that plan. |
 | Nov 4, 2026 | 4.6 | Added Timmy's sequence diagram updates (#83): Planning loads the saved preferences before the first plan and leaves `costVsTime` out, and History can start or delete a planned trip. |
+| Nov 15, 2026 | 3.7, 4.3, 4.6, 4.7 | The Planner now prunes parking spots that can't beat driving or transit the whole way before it prices their transit, and picks the shortest of Google's alternative transit routes that fits the user's max walk instead of always the first (#86). Screening now takes two rounds of Route Matrix calls instead of one, so the response time justification, the Google Routes description, the Plan Multimodal Trip sequence diagram and the response time design describe the extra round. |
 
 
 ---
@@ -266,7 +267,7 @@ These are the rough hand-drawn sketches from CP1. The built screens follow Googl
 
 1. **Planning Response Time**
    - **Description**: The Planner returns its routes within 4 seconds for 95% of requests.
-   - **Justification**: Users plan right before they leave, often comparing a few arrive-by times, so planning must feel quick. One plan makes two rounds of Google Routes calls (screening the candidates, then the details of the picked routes), so 4 s leaves room for both while staying well under the 10 s after which users lose focus on a task ([Nielsen, "Response Times: The 3 Important Limits"](https://www.nngroup.com/articles/response-times-3-important-limits/)).
+   - **Justification**: Users plan right before they leave, often comparing a few arrive-by times, so planning must feel quick. One plan makes three rounds of Google Routes calls (screening the direct routes and the drives to the parking spots, then transit from the spots that could still win, then the details of the picked routes), so 4 s leaves room for all three while staying well under the 10 s after which users lose focus on a task ([Nielsen, "Response Times: The 3 Important Limits"](https://www.nngroup.com/articles/response-times-3-important-limits/)).
 <a name="nfr2"></a>
 2. **Security**
    - **Description**: In production, all traffic uses HTTPS, and every request for user data requires a valid session for that user.
@@ -379,7 +380,7 @@ Every request except sign-in first passes Auth's `requireSession`, which finds t
 1. **Google Sign-In**
 - **Purpose**: Authenticates users. The app gets an ID token through Android's Credential Manager, and Auth verifies it.
 2. **Google Routes API**
-- **Purpose**: The Planner screens candidate routes with Route Matrix (`computeRouteMatrix`), then gets the picked routes' leg times, geometry, transit line details and turn-by-turn steps with `computeRoutes`. The backend retries each call once after an error or a 10 s timeout. Transit fare zones use a small SkyTrain station table: buses count as one zone, unknown rail endpoints default to one zone, and fares don't yet adjust for evening and weekend one-zone travel or the YVR AddFare.
+- **Purpose**: The Planner screens candidate routes with Route Matrix (`computeRouteMatrix`) in two rounds: first the direct routes and the drives to the parking spots, then transit only from the spots that could still beat the direct routes. It then gets the picked routes' leg times, geometry, transit line details and turn-by-turn steps with `computeRoutes`. Transit requests ask for Google's alternative routes (`computeAlternativeRoutes`), and the Planner takes the shortest one whose longest walk fits the user's max walk, since Google's first route isn't always the fastest. The backend retries each call once after an error or a 10 s timeout. Transit fare zones use a small SkyTrain station table: buses count as one zone, unknown rail endpoints default to one zone, and fares don't yet adjust for evening and weekend one-zone travel or the YVR AddFare.
 - **Rationale**: Google's transit data covers TransLink's schedule, and Route Matrix times many candidates in one call, where requesting each route separately would take more calls and more time.
 3. **Google Maps SDK**
 - **Purpose**: Displays the map and routes, and reports taps on its place labels (with their Google place IDs) and long-presses.
@@ -547,8 +548,13 @@ sequenceDiagram
     par drive matrix when Drive is on
         Planner->>GR: computeRouteMatrix(origin, candidate spots and destination, DRIVE)
         GR-->>Planner: driving times and distances
-    and transit matrix when Transit is on
-        Planner->>GR: computeRouteMatrix(candidate spots and origin, destination, TRANSIT)
+    and direct transit matrix when Transit is on
+        Planner->>GR: computeRouteMatrix(origin, destination, TRANSIT)
+        GR-->>Planner: transit time and distance
+    end
+    Planner->>Planner: prune spots that can't beat driving or transit the whole way, even with the fastest possible ride
+    opt some candidate spots are left
+        Planner->>GR: computeRouteMatrix(remaining spots, destination, TRANSIT)
         GR-->>Planner: transit times and distances
     end
     alt Google can't be reached after one retry
@@ -560,6 +566,7 @@ sequenceDiagram
             Planner->>GR: computeRoutes(each leg)
             GR-->>Planner: polylines, times, transit lines and steps
         end
+        Note over Planner,GR: transit legs ask for alternative routes, and the Planner takes the shortest that fits the max walk
         Planner-->>App: 200 { options, warnings }
         alt no options
             App-->>User: "No routes found between these places."
@@ -722,7 +729,7 @@ sequenceDiagram
 ```
 ### **4.7. Design of Non-Functional Requirements**
 1. [**Planning Response Time**](#nfr1)
-   - **Implementation**: The Planner only tries the 8 saved parking spots closest to the straight line from start to destination (and only those that add at most 40% to the distance), and screens all of them with two Route Matrix calls, one for driving and one for transit, made in parallel, instead of one route request per spot. It then gets the details of only the up to three routes it picks, also in parallel. Each Google call times out after 10 s and is retried once.
+   - **Implementation**: The Planner only tries the 8 saved parking spots closest to the straight line from start to destination (and only those that add at most 40% to the distance), and screens them with Route Matrix calls instead of one route request per spot. The drives to every spot and the direct routes are screened in one parallel round. Spots whose chain couldn't beat a direct route even with a transit ride at 120 km/h in a straight line are then dropped, and one more Route Matrix call screens transit from the rest. Pruning prices fewer Route Matrix elements, which Google bills one by one, at the cost of one more round trip, which the response time test includes. The Planner then gets the details of only the up to three routes it picks, in parallel. Each Google call times out after 10 s and is retried once.
 2. [**Security**](#nfr2)
    - **Implementation**: Caddy is the only public entry point and serves HTTPS. Session tokens are 256-bit random values stored only as SHA-256 hashes, every user-data endpoint goes through `requireSession`, and every query is filtered by the signed-in user's ID, so one user can't read or change another's spots or trips.
 3. [**Live Update Latency (CP3)**](#nfr3)

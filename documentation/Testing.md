@@ -20,6 +20,7 @@
 | 2026-11-04        | 2.1.1, 2.6, 4.1 | Added the save, status change and delete trip API tests (issue #74), and removed the `trip.model.ts` coverage note, since saving a trip now reaches the total checks. A trip's total time may now be more than its legs (it includes waiting, as the Planner sends it). Added the trip lifecycle, History totals and Navigation unit tests. Routes and saved trips now carry turn-by-turn steps for in-app navigation and a transit line's short name, with planner, save and `normalizeRouteLegs` tests for them |
 | 2026-11-04        | 2.1.1, 2.1.2, 2.1.3, 2.5, 2.6, 3, 4 | CP2 write-up after the Planner (#72), Planning and Trip Preview (#73) and the trip lifecycle (#74) merged into `main`. Removed the `POST /api/routes/chained` row with the endpoint and its tests, added line anchors to the Planner rows, updated the commit the tests run on, and explained the skipped live Google test. Updated the coverage gaps from the new combined run, and listed the Planner lines that aren't covered yet instead of calling them unreachable. Rewrote the NFR section from a new run on Node 22, and added the Plan Multimodal Trip and Preview Route end-to-end test (`PlanTripTest`), with each use-case step mapped to the test's steps |
 | 2026-11-04        | 2.1.1, 2.1.2, 2.5, 2.6, 3.1, 3.2 | Added API tests for the Planner lines that weren't covered (#82), so every Planner line and function is covered except two the API can't reach, now listed in 2.6 with the Planner branches still not exercised. Updated the coverage, the commit the tests run on, the NFR log, and the line links that moved |
+| 2026-11-15        | 2.1.1, 2.6, 3.1, 3.2 | The Planner now prunes parking spots that can't win before pricing their transit, and picks among Google's alternative transit routes (#86). Added API tests that a pruned spot is never priced, that a transit alternative is chosen when the first route walks too far, and that spots without a route are skipped, plus unit tests for the lower bound, pruning and route choice. The Google stubs now answer each matrix by its origins. Updated the coverage gaps and moved line links, and the NFR test now waits on three Google rounds; added its new log and the measured tradeoff between fewer matrix elements and the extra round trip. The coverage screenshots and the commit in 2.1.2 still show the CP2 run until this is merged |
 
 ---
 
@@ -50,7 +51,7 @@ Unit tests for the Planner's own logic and for merging a route's walking legs ar
 | **GET /api/vehicles/makes** | [`backend/tests/no-mock/vehicles.test.ts#L14`](../backend/tests/no-mock/vehicles.test.ts#L14) | _None: nothing external can fail_ | _None_ |
 | **GET /api/vehicles/makes/:make/models** | [`backend/tests/no-mock/vehicles.test.ts#L43`](../backend/tests/no-mock/vehicles.test.ts#L43) | _None: nothing external can fail_ | _None_ |
 | **GET /health** | [`backend/tests/no-mock/health.test.ts#L6`](../backend/tests/no-mock/health.test.ts#L6) | _None: nothing external can fail_ | _None_ |
-| **POST /api/routes/plan** | [`backend/tests/no-mock/routes.plan.test.ts#L28`](../backend/tests/no-mock/routes.plan.test.ts#L28) | [`backend/tests/mock/routes.plan.test.ts#L183`](../backend/tests/mock/routes.plan.test.ts#L183) | Google Routes API (`fetch`), User DB for saved parking spots |
+| **POST /api/routes/plan** | [`backend/tests/no-mock/routes.plan.test.ts#L28`](../backend/tests/no-mock/routes.plan.test.ts#L28) | [`backend/tests/mock/routes.plan.test.ts#L221`](../backend/tests/mock/routes.plan.test.ts#L221) | Google Routes API (`fetch`), User DB for saved parking spots |
 | **PUT /api/users/me/planning-preferences** | [`backend/tests/no-mock/users.planning-preferences.test.ts#L12`](../backend/tests/no-mock/users.planning-preferences.test.ts#L12) | [`backend/tests/mock/users.planning-preferences.test.ts#L19`](../backend/tests/mock/users.planning-preferences.test.ts#L19) | User DB |
 
 "No mocks" tests run against a real MongoDB (the same `mongo:7.0` image deployed on the VM). The sign-in tests that need Google to accept a token are in the mocked group, because automated tests can't get a real Google ID token. Every other test signs users in by adding a user and session straight to the test database (`backend/tests/helpers/auth.ts`), so it doesn't need Google.
@@ -118,7 +119,7 @@ The combined run covers 100% of the statements, branches, functions, and lines i
 | `backend/src/config/env.ts` | 26 | Throwing when a required variable is missing. The test setup always provides `GOOGLE_BACKEND_CLIENT_ID` and `GOOGLE_ROUTES_API_KEY`, and `MONGODB_URI` is only read at startup. |
 | `backend/src/config/env.ts` | 37, 50–51 | The `mongodbUri` getter and `assertEnv()`, which only `index.ts` calls. |
 | `backend/src/middleware/error-handler.middleware.ts` | 18–19 | Handing the error to Express when the response has already started. Every route sends its response in a single call after all of its work succeeds, so no request can fail after headers have gone out. |
-| `backend/src/services/planner.core.ts` | 221 | The schedule estimate used when a transit route has no departure or arrival time. Every route details request the Planner sends includes a time, so `computeRouteDetails` always returns both. |
+| `backend/src/services/planner.core.ts` | 301 | The schedule estimate used when a transit route has no departure or arrival time. Every route details request the Planner sends includes a time, so `computeRouteDetails` always returns both. |
 | `backend/src/services/route-legs.ts` | 181 | The last `else` when a short walk is merged into a leg next to it. Back-to-back walks are grouped into one first, so a short walk always has a non-walking leg on at least one side. |
 
 #### 2.6.1. Planner Branches Not Covered (issue #72)
@@ -129,8 +130,8 @@ The API tests run every line and function of the Planner's files except the two 
 | -------- | ------------ | ------------------------ |
 | `backend/src/services/route-legs.ts` | 39 | Errors for a malformed encoded polyline, choosing a leg's start and end labels when its step has no useful label, and joining two polylines that don't meet at the same point. |
 | `backend/src/services/planner.google.service.ts` | 33 | A matrix response that isn't a list or has malformed elements, invalid timestamps, and the fallbacks for optional fields Google always sends in the tests (line names, colours, stop details, distances and step times). |
-| `backend/src/services/planner.service.ts` | 17 | Tie-breakers in the ranking comparators (two routes with the same cost, time or score), and checks that can't fail through the API, like an empty departure time or a chain without a spot. |
-| `backend/src/services/planner.core.ts` | 9 | A chain through a spot with no cost or a daily rate, a chain that would leave in the past or walk too far, an origin equal to the destination, and the same comparator tie-breakers. |
+| `backend/src/services/planner.service.ts` | 15 | Tie-breakers in the ranking comparators (two routes with the same cost, time or score), and checks that can't fail through the API, like an empty departure time or a chain without a spot. |
+| `backend/src/services/planner.core.ts` | 11 | A chain through a spot with no cost or a daily rate, a chain that would leave in the past or walk too far, an origin equal to the destination, and the same comparator tie-breakers. The two added for issue #86, a tie between two alternative routes and a later spot with a better lower bound than the first, are covered by the unit tests in `planner.core.test.ts`. |
 | `backend/src/services/planner.constants.ts` | 1 | An adult monthly pass with no zones saved. The questionnaire rejects that fare type without zones, so the API can't reach it. |
 
 ---
@@ -141,7 +142,7 @@ The API tests run every line and function of the Planner's files except the two 
 
 | **Non-Functional Requirement** | **Location in Git** |
 | ------------------------------ | ------------------- |
-| **Planning Response Time** (95% of plans within 4 s) | [`backend/tests/nfr/planner.response-time.test.ts#L80`](../backend/tests/nfr/planner.response-time.test.ts#L80) |
+| **Planning Response Time** (95% of plans within 4 s) | [`backend/tests/nfr/planner.response-time.test.ts#L95`](../backend/tests/nfr/planner.response-time.test.ts#L95) |
 
 Run it from the repository root with `./scripts/run-backend-nfr-tests.sh` (macOS / Linux) or `.\scripts\run-backend-nfr-tests.ps1` (Windows), with Docker running for the test MongoDB as in 2.1.3. The Security requirement doesn't have an automated test yet, so the second NFR test is planned for CP3.
 
@@ -149,14 +150,15 @@ Run it from the repository root with `./scripts/run-backend-nfr-tests.sh` (macOS
 
 - **Planning Response Time**
 
-  - **Verification:** The test signs in a user with a car, a gas price, a transit fare and three saved parking spots between UBC and Waterfront Station, then sends 20 authenticated `POST /api/routes/plan` requests from UBC to Waterfront with Drive and Transit allowed. It replaces Google Routes with a stub that waits the latencies in [`backend/tests/fixtures/planner-google-latencies.json`](../backend/tests/fixtures/planner-google-latencies.json) (35 ms for the driving matrix, 50 ms for the transit matrix and 40 ms for each route's details) before answering, so the timing covers the whole request through Express, the session check, MongoDB, and the Planner's candidate selection, scheduling, pricing and ranking, without depending on Google's speed or charging the API key. It measures each request with `performance.now()`, checks that every response is `200` with three routes, and passes only if the 95th percentile is at most 4,000 ms. The fixture latencies are far below real Google calls, so this measures the time the Planner itself adds, not Google's.
-  - **Log Output** (2026-11-04, Node 22.21.0, commit `4af7b06`)
+  - **Verification:** The test signs in a user with a car, a gas price, a transit fare and three saved parking spots between UBC and Waterfront Station, then sends 20 authenticated `POST /api/routes/plan` requests from UBC to Waterfront with Drive and Transit allowed. It replaces Google Routes with a stub that waits the latencies in [`backend/tests/fixtures/planner-google-latencies.json`](../backend/tests/fixtures/planner-google-latencies.json) (35 ms for the driving matrix, 50 ms for each transit matrix and 40 ms for each route's details) before answering, and answers each matrix for the origins and destinations it was sent. Each plan therefore waits on three Google rounds in a row: the driving and direct transit matrices together, the transit matrix from the spots that survive pruning, and the route details. The timing the timing covers the whole request through Express, the session check, MongoDB, and the Planner's candidate selection, scheduling, pricing and ranking, without depending on Google's speed or charging the API key. It measures each request with `performance.now()`, checks that every response is `200` with three routes, and passes only if the 95th percentile is at most 4,000 ms. The fixture latencies are far below real Google calls, so this measures the time the Planner itself adds, not Google's.
+  - **Log Output** (2026-11-15, Node 24.11.1, branch `planner-pruning-86`)
     ```
-    Planner response times ms: 241.9, 146.5, 151.1, 138.1, 163.3, 149.1, 154.8, 146.4, 145.3, 138.8, 140.5, 152.0, 141.8, 139.3, 166.9, 149.5, 137.5, 138.1, 138.2, 127.2
-    Planner p95: 166.9 ms
+    Planner response times ms: 261.6, 192.5, 185.6, 187.4, 187.0, 186.8, 187.7, 184.5, 171.3, 187.5, 186.6, 173.0, 184.5, 185.8, 184.1, 188.0, 184.5, 188.3, 185.8, 174.8
+    Planner p95: 192.5 ms. Last plan's screening: Planner screening: 7 matrix elements for 3 spots, 1 pruned, wave 1 52 ms, wave 2 63 ms
     Test Suites: 1 passed, 1 total
     Tests:       1 passed, 1 total
     ```
+  - **Pruning tradeoff (issue #86):** The Planner logs one `Planner screening` line per plan, with the Route Matrix elements it priced, the spots it pruned and how long each round took. Before #86 a plan priced every candidate spot's transit, so with `n` spots it priced `2(n + 1)` elements in one round; now it prices `n + 2` in the first round and one more per surviving spot in the second, so it saves exactly one element per pruned spot. In the run above, pruning saved 1 of 8 elements per plan (12.5%). The cost is a second round trip: on the same stub, the code before #86 had a p95 of 135.9 ms, so pruning added about 57 ms, about one transit matrix call. With real Google latencies the extra round trip costs more, and the saving is only as large as the number of spots pruned, which is zero when every spot could still win. For a user with few saved spots the latency cost outweighs the saving in elements; the saving grows with the number of saved spots near the route, and planning stays well within the 4 s target either way. Asking for alternative transit routes adds no request and stays in the Essentials SKU, so it costs nothing extra.
 
 ---
 
