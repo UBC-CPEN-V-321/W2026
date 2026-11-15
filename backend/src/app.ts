@@ -98,7 +98,7 @@ export function createApp({ sessions, store, e2eRoutes = false }: AppDeps): Expr
     app.use('/api/deals', requireAuth, createDealsRouter(store));
     app.use('/api/deals', express.json({ limit: '4kb' }), requireAuth, createRatingsRouter(store), ratingBodyTooLarge);
     app.use('/api/users', requireAuth, createReputationRouter(store));
-    app.use('/api/users', express.json({ limit: '4kb' }), requireAuth, createUsersRouter(store));
+    app.use('/api/users', express.json({ limit: '4kb' }), requireAuth, createUsersRouter(store), ratingBodyTooLarge);
     app.use('/api/listings', ...posts, createListingsRouter(store));
     app.use('/api/requests', ...posts, createRequestsRouter(store));
     app.use('/api/options', ...posts, createOptionsRouter(store));

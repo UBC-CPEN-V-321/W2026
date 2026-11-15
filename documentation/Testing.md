@@ -17,13 +17,14 @@
 | 2026-11-14 | 2 | Added the interface tests of the Messaging proposal routes, including the tests that a failed accept can be retried. |
 | 2026-11-14 | 2 | Added the interface tests of `GET /api/events`, the live updates, and how they read the event stream and fake the heartbeat timer. |
 | 2026-11-14 | 4 | Create deal is no longer a separate use case, so the Respond to a proposal tests are described as recording the deal when a proposal is accepted. Close post and Reopen post are now part of Edit post, so the ManagePostsTest row names the use cases it covers. |
+| 2026-11-15 | 2 | Added the interface tests of the profile routes, `GET /api/users/me` and `PATCH /api/users/me`, and listed the existing `GET /api/users/:id/reputation` tests. A body over 4 KB to `/api/users` now returns 413 instead of 500. |
 | 2026-11-14 | 2 | Added the Messaging coverage: which files are at 100%, a test for a conversation about a post saved before posts had names, and why the one remaining branch in `routes/conversations.ts` and `routes/paging.ts` cannot be reached. |
 
 ---
 
 ## 2. Back-end Test Specification: APIs
 
-This section covers the Deals and Messaging components ([Section 4.1](Requirements_and_Design.md#41-main-components)). Tests for the other components will be added here as they are written.
+This section covers the Deals and Messaging components and the profile routes of the Users component ([Section 4.1](Requirements_and_Design.md#41-main-components)). Tests for the other components will be added here as they are written.
 
 ### 2.1. Locations of Back-end Tests and Instructions to Run Them
 
@@ -44,6 +45,9 @@ This section covers the Deals and Messaging components ([Section 4.1](Requiremen
 | **POST /api/conversations/:id/proposal/accept** | [`tests/no-mock/proposals.test.ts#L215`](../backend/tests/no-mock/proposals.test.ts#L215) | [`tests/mock/proposals.test.ts#L88`](../backend/tests/mock/proposals.test.ts#L88) | Conversations DB, Listings DB, Requests DB, Deals DB |
 | **POST /api/conversations/:id/proposal/decline** | [`tests/no-mock/proposals.test.ts#L376`](../backend/tests/no-mock/proposals.test.ts#L376) | [`tests/mock/proposals.test.ts#L141`](../backend/tests/mock/proposals.test.ts#L141) | Conversations DB |
 | **GET /api/events** | [`tests/no-mock/events.test.ts#L53`](../backend/tests/no-mock/events.test.ts#L53) | [`tests/mock/events.test.ts#L53`](../backend/tests/mock/events.test.ts#L53) | Timers (the 25-second heartbeat) |
+| **GET /api/users/me** | [`tests/no-mock/users.test.ts#L77`](../backend/tests/no-mock/users.test.ts#L77) | [`tests/mock/users.test.ts#L41`](../backend/tests/mock/users.test.ts#L41) | Users DB |
+| **PATCH /api/users/me** | [`tests/no-mock/users.test.ts#L127`](../backend/tests/no-mock/users.test.ts#L127) | [`tests/mock/users.test.ts#L57`](../backend/tests/mock/users.test.ts#L57) | Users DB |
+| **GET /api/users/:id/reputation** | [`tests/no-mock/reputation.test.ts#L34`](../backend/tests/no-mock/reputation.test.ts#L34) | [`tests/mock/reputation.test.ts#L32`](../backend/tests/mock/reputation.test.ts#L32) | Reputations DB |
 
 The mocked tests use `jest.spyOn` on one store method at a time, so each database failure is forced on its own. Both groups otherwise run against a real MongoDB.
 
@@ -53,6 +57,7 @@ How the Messaging conversation tests are organized:
 - **Mocked groups** make each store method the route calls reject in turn, through the helpers in `tests/helpers/storeFailures.ts`, and check for a handled 500.
 - **Accepting a proposal** writes in steps: it records the deal, closes the posts, then marks the proposal accepted. In the mocked group, each of its eight store calls fails once, and the test then accepts again without the mock and checks that the retry finishes the deal: exactly one deal, both posts closed and the proposal accepted. The unmocked group sets up an accept that stopped partway directly in the database and checks that accepting again finishes it, and that a deal on the same posts with someone else, or at another price, still returns 409. MongoDB rejecting a deal because another accept saved one first is mocked, since the API cannot time two accepts that precisely.
 - **Live updates.** `GET /api/events` keeps its response open, so `tests/helpers/eventStream.ts` opens it as a real HTTP client and records what the server writes. The unmocked group checks that each new message and each proposal change reaches every open stream of the other user, and never the sender or users outside the conversation. The mocked group fakes `setInterval` with Jest, so 25 seconds pass at once, to check the heartbeat and that closing a stream clears its timer: time is the one dependency these tests cannot control.
+- **Profile routes.** `GET /api/users/me` and `PATCH /api/users/me` are tested in `tests/no-mock/users.test.ts` and `tests/mock/users.test.ts`. Every rejected address change, including a body over the 4 KB limit, also checks that the saved address is unchanged. The `Body Over 4 KB: 413` test was written first, failed with a 500, and passes since `/api/users` uses the same body-size handler as the ratings and conversation routes.
 - **Known limitation.** If saving a message works but updating the conversation's last message fails, the conversations list shows the previous message until the next one is sent. Fixing it needs a MongoDB transaction, which needs a replica set. The mocked test `recordMessage Throws, Next Message Repairs The Last Message` checks that the next message corrects it.
 
 **Test-only routes for the end-to-end tests.** The front-end tests in Section 4 create their data through these routes. They exist only when the backend runs with `ENABLE_E2E_ROUTES=true`, and only touch made-up users tied to the caller: an "E2E Buyer" for deals and an "E2E Seller" for conversations. The `/api/e2e/partner/conversations` routes are the real conversation and proposal routes run as the E2E Seller, so the tests can play the second user through the same code; their full behaviour is tested with the Messaging routes.
