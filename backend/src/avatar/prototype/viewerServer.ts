@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { calculateAvatarAnchors, calculateBodyDimensions } from "./anchorsAndFitting.js";
 import { exportPartGLB, exportSegmentedGLB } from "./exportPrototype.js";
+import { getBodyJoints } from "./partsSdf.js";
 import { PART_METADATA, type BodyPartName } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +18,12 @@ const FIT_HTML_PATH = path.join(__dirname, "fitViewer.html");   // avatar + garm
 const REQUIRED_POINTS: Record<string, string[]> = {
   top: ["leftShoulder", "rightShoulder", "bottomHem"],
   bottom: ["topHemLeft", "topHemRight", "bottomHemLeft", "bottomHemRight"],
+};
+
+// Optional, but all-or-none: both sleeve openings or neither.
+const OPTIONAL_POINTS: Record<string, string[]> = {
+  top: ["sleeveOpeningLeft", "sleeveOpeningRight"],
+  bottom: [],
 };
 
 function sendJson(res: http.ServerResponse, data: unknown, status = 200) {
@@ -126,6 +133,19 @@ export function startViewerServer(port = PORT): http.Server {
         return;
       }
 
+      // 2c. Joint positions (shoulder/elbow/wrist/hip/knee/ankle/foot) for both sides
+      if (pathname === "/api/joints") {
+        const params = parsedUrl.searchParams;
+        const height = Number(params.get("height")) || 1.80;
+        const shoulderWidth = Number(params.get("shoulderWidth")) || 0.40;
+        const chestWidth = Number(params.get("chestWidth")) || 0.35;
+        const waistWidth = Number(params.get("waistWidth")) || 0.30;
+        const hipWidth = Number(params.get("hipWidth")) || 0.32;
+
+        sendJson(res, getBodyJoints({ height, shoulderWidth, chestWidth, waistWidth, hipWidth }));
+        return;
+      }
+
       // 3. Segmented Avatar GLB API (avatar - untouched)
       if (pathname === "/api/avatar.glb") {
         const params = parsedUrl.searchParams;
@@ -208,11 +228,30 @@ export function startViewerServer(port = PORT): http.Server {
               return;
             }
           }
+          const optional = OPTIONAL_POINTS[body.type] ?? [];
+          const givenOptional = optional.filter((k) => body.points?.[k] !== undefined);
+          if (givenOptional.length !== 0 && givenOptional.length !== optional.length) {
+            sendJson(res, { error: `Give all of ${optional.join(", ")} or none of them` }, 400);
+            return;
+          }
+          for (const key of givenOptional) {
+            const p = body.points[key];
+            if (!p || ![p.x, p.y, p.z].every(Number.isFinite)) {
+              sendJson(res, { error: `Invalid point: ${key}` }, 400);
+              return;
+            }
+          }
+          const keys = [...required, ...givenOptional];
+          const sleeve =
+            body.type === "top" && (body.sleeve === "long" || body.sleeve === "short")
+              ? body.sleeve
+              : undefined;
           const out = {
             garment: glbName,
             type: body.type,
+            ...(sleeve ? { sleeve } : {}),
             boundingBox: body.boundingBox,
-            points: Object.fromEntries(required.map((k) => [k, body.points[k]])),
+            points: Object.fromEntries(keys.map((k) => [k, body.points[k]])),
             savedAt: new Date().toISOString(),
           };
           fs.writeFileSync(file, JSON.stringify(out, null, 2));

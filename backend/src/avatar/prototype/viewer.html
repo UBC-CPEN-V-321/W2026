@@ -12,21 +12,28 @@
       --text: #f3f4f6;
     }
     body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg-dark);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-    #canvas{width:100%;height:100%;display:block;touch-action:none;}
-    #ui{position:absolute;top:10px;left:10px;background:var(--card-bg);padding:10px;border-radius:8px;max-width:340px;}
+    #canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
+    #ui{position:absolute;top:10px;left:10px;background:var(--card-bg);padding:10px;border-radius:8px;width:350px;max-height:calc(100% - 20px);overflow-y:auto;box-sizing:border-box;}
     button,select{background:#1f2937;color:#fff;border:none;padding:6px 10px;margin:2px;border-radius:4px;cursor:pointer;font-size:13px;}
     button:hover,select:hover{background:#374151;}
     button.primary{background:var(--accent);}
     button:disabled{opacity:.4;cursor:not-allowed;}
+    #modes{display:flex;gap:4px;margin:6px 2px;}
+    #modes button{flex:1;margin:0;padding:8px 10px;border:1px solid #374151;}
+    #modes button.active{background:var(--accent);border-color:var(--accent);}
+    #sleeveRow{display:flex;align-items:center;justify-content:space-between;margin:4px 2px;font-size:13px;}
     #info{margin-top:6px;font-size:13px;line-height:1.4;}
     #points{margin-top:8px;font-size:12px;color:#d1d5db;}
-    .prow{margin-bottom:6px;}
-    .pname{margin-bottom:2px;}
+    .prow{margin-bottom:6px;padding:3px 4px;border-radius:4px;}
+    .prow.active{background:rgba(99,102,241,.22);outline:1px solid var(--accent);}
+    .pname{margin-bottom:2px;cursor:pointer;}
+    .pname:hover{color:#fff;}
+    .opt{color:#9ca3af;font-size:11px;margin-left:4px;}
     .axes{display:flex;gap:4px;}
     .axes input{width:78px;box-sizing:border-box;background:#1f2937;color:#fff;border:1px solid #374151;border-radius:4px;padding:4px 6px;font-size:12px;font-family:ui-monospace,Menlo,monospace;}
     .axes input:disabled{opacity:.35;}
     .axes input:focus{outline:none;border-color:var(--accent);}
-    .hint{font-size:11px;color:#9ca3af;margin-top:6px;}
+    .hint{font-size:11px;color:#9ca3af;margin-top:6px;line-height:1.4;}
   </style>
   <!-- Import map is required: GLTFLoader/OrbitControls import the bare specifier "three" -->
   <script type="importmap">
@@ -43,15 +50,33 @@
   <div id="ui">
     <select id="garmentSelect"></select>
     <button id="loadBtn">Load</button>
+
+    <div id="modes">
+      <button id="moveBtn" class="active" title="Shortcut: M">Move (M)</button>
+      <button id="pickBtn" title="Shortcut: P">Pick points (P)</button>
+    </div>
+
+    <div id="sleeveRow" style="display:none;">
+      <span>Sleeve type</span>
+      <select id="sleeveSel">
+        <option value="long">Long sleeve (shirt, hoodie)</option>
+        <option value="short">Short sleeve (t-shirt)</option>
+      </select>
+    </div>
+
     <div>
-      <button id="pickBtn">Pick Points</button>
       <button id="undoBtn">Undo</button>
       <button id="resetBtn">Reset</button>
       <button id="saveBtn" class="primary" disabled>Save</button>
     </div>
+
     <div id="info">Loading garment list…</div>
     <div id="points"></div>
-    <div class="hint">Left/Right are the wearer's own sides (the wearer's left appears on screen-right when viewed from the front). Drag to orbit, scroll to zoom, click to place a point. Then edit a point's x / y / z (type, or use the arrow keys) and its marker moves live; click Save to store the edited values.</div>
+    <div class="hint">
+      <b>Move mode (M):</b> drag to orbit, right-drag to pan, scroll to zoom; clicks never place points.<br />
+      <b>Pick mode (P):</b> orbit/pan are locked, scroll still zooms; a single click on the garment sets the highlighted point. Click a point's name to re-pick just that one.<br />
+      Edit a point's x / y / z (type, or arrow keys) and its marker moves live. Left/Right are the wearer's own sides (the wearer's left appears on screen-right when viewed from the front). Sleeve openings are optional, but set both or neither.
+    </div>
   </div>
 
   <script type="module">
@@ -72,6 +97,10 @@
     const pointsEl = document.getElementById('points');
     const selectEl = document.getElementById('garmentSelect');
     const saveBtn = document.getElementById('saveBtn');
+    const moveBtn = document.getElementById('moveBtn');
+    const pickBtn = document.getElementById('pickBtn');
+    const sleeveRow = document.getElementById('sleeveRow');
+    const sleeveSel = document.getElementById('sleeveSel');
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -96,46 +125,116 @@
     let garmentFile = null;
     let garmentBox = new THREE.Box3();
     let markerScale = 0.02;
+    let coordStep = 0.001;                 // arrow-key step for the coordinate inputs
     const markers = new THREE.Group();
     scene.add(markers);
+    const markerObjs = {};                 // key -> { sph, spr }
 
-    const state = { type: null, step: 0, points: {} };
-    const markerObjs = {};      // key -> { sph, spr }
-    let coordStep = 0.001;      // arrow-key step for the coordinate inputs
-    let picking = false;
+    // Ghost sphere that follows the cursor in pick mode
+    const preview = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthTest: false })
+    );
+    preview.visible = false;
+    preview.renderOrder = 12;
+    scene.add(preview);
 
-    const STEPS = {
-      top:    [{ key: 'leftShoulder',   label: 'Left Shoulder' },
-               { key: 'rightShoulder',  label: 'Right Shoulder' },
-               { key: 'bottomHem',      label: 'Bottom Hem' }],
-      bottom: [{ key: 'topHemLeft',    label: 'Top Hem Left' },
-               { key: 'topHemRight',   label: 'Top Hem Right' },
-               { key: 'bottomHemLeft',  label: 'Bottom Hem Left' },
-               { key: 'bottomHemRight', label: 'Bottom Hem Right' }],
+    const state = {
+      type: null,
+      points: {},        // key -> THREE.Vector3
+      active: 0,         // index (in STEPS[type]) of the point the next click will set, -1 = none
+      history: [],       // keys in the order they were placed (for Undo)
+      mode: 'move',      // 'move' | 'pick'
     };
 
-    function detectType(filename) {
-      return /(pant|short|skirt|jean|trouser|legging)/i.test(filename) ? 'bottom' : 'top';
+    const STEPS = {
+      top: [
+        { key: 'leftShoulder',      label: 'Left Shoulder' },
+        { key: 'rightShoulder',     label: 'Right Shoulder' },
+        { key: 'bottomHem',         label: 'Bottom Hem' },
+        { key: 'sleeveOpeningLeft',  label: 'Sleeve Opening Left',  optional: true },
+        { key: 'sleeveOpeningRight', label: 'Sleeve Opening Right', optional: true },
+      ],
+      bottom: [
+        { key: 'topHemLeft',     label: 'Top Hem Left' },
+        { key: 'topHemRight',    label: 'Top Hem Right' },
+        { key: 'bottomHemLeft',  label: 'Bottom Hem Left' },
+        { key: 'bottomHemRight', label: 'Bottom Hem Right' },
+      ],
+    };
+
+    const detectType = (f) => /(pant|short|skirt|jean|trouser|legging)/i.test(f) ? 'bottom' : 'top';
+    const detectSleeve = (f) => /(t[-_ ]?shirt|tee|tank)/i.test(f) ? 'short' : 'long';
+    const setInfo = (t) => { infoEl.textContent = t; };
+
+    // ---------- Modes ----------
+    function setMode(mode) {
+      state.mode = mode;
+      const pick = mode === 'pick';
+      controls.enableRotate = !pick;      // pick mode: a click can never turn into an orbit drag
+      controls.enablePan = !pick;
+      canvas.style.cursor = pick ? 'crosshair' : 'grab';
+      moveBtn.classList.toggle('active', !pick);
+      pickBtn.classList.toggle('active', pick);
+      if (!pick) preview.visible = false;
+      updateInfo();
     }
 
-    const setInfo = (t) => { infoEl.textContent = t; };
+    function updateInfo() {
+      if (!garmentMesh || !state.type) return;
+      const step = STEPS[state.type][state.active];
+      if (state.mode === 'move') {
+        setInfo(`Move mode: drag to orbit, right-drag to pan, scroll to zoom. Switch to Pick (P) to place points.`);
+      } else if (step) {
+        setInfo(`Pick mode: click the garment to set ${step.label}${step.optional ? ' (optional)' : ''}.`);
+      } else {
+        setInfo('Pick mode: all points are set. Click a point name to re-pick it, or Save.');
+      }
+    }
+
+    // ---------- Points ----------
+    function nextUnset(from) {
+      const steps = STEPS[state.type] || [];
+      for (let k = 1; k <= steps.length; k++) {
+        const i = (from + k + steps.length) % steps.length;
+        if (!state.points[steps[i].key]) return i;
+      }
+      return -1;
+    }
 
     function updateSaveState() {
       const steps = STEPS[state.type] || [];
-      saveBtn.disabled = !(state.type && steps.every(s => state.points[s.key]));
+      const required = steps.filter(s => !s.optional);
+      const optional = steps.filter(s => s.optional);
+      const requiredOk = required.every(s => state.points[s.key]);
+      const nOptional = optional.filter(s => state.points[s.key]).length;
+      saveBtn.disabled = !(state.type && requiredOk && (nOptional === 0 || nOptional === optional.length));
     }
 
-    // Rebuilds the coordinate rows (call when points are added/removed, not while typing).
-    function renderPointsText() {
+    // Rebuilds the rows (call when points are added/removed/selected, not while typing).
+    function renderRows() {
       const steps = STEPS[state.type] || [];
       pointsEl.innerHTML = '';
-      for (const s of steps) {
+      steps.forEach((s, i) => {
         const p = state.points[s.key];
         const row = document.createElement('div');
-        row.className = 'prow';
+        row.className = 'prow' + (i === state.active ? ' active' : '');
+
         const name = document.createElement('div');
         name.className = 'pname';
+        name.title = 'Click to (re-)pick this point';
         name.textContent = (p ? '✓ ' : '· ') + s.label;
+        if (s.optional) {
+          const o = document.createElement('span');
+          o.className = 'opt';
+          o.textContent = '(optional)';
+          name.appendChild(o);
+        }
+        name.onclick = () => {
+          state.active = i;
+          setMode('pick');
+          renderRows();
+        };
         row.appendChild(name);
 
         const axes = document.createElement('div');
@@ -160,121 +259,42 @@
         }
         row.appendChild(axes);
         pointsEl.appendChild(row);
-      }
+      });
       updateSaveState();
     }
 
-    // ---------- Garment list ----------
-    async function loadGarmentList() {
-      let files = [];
-      try {
-        const r = await fetch('/api/garments');
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        files = (await r.json()).files;
-      } catch (e) {
-        console.error('Could not list garments', e);
-      }
-      selectEl.innerHTML = '';
-      for (const f of files) {
-        const o = document.createElement('option');
-        o.value = f;
-        o.textContent = `${detectType(f) === 'top' ? 'Top' : 'Bottom'}: ${f}`;
-        selectEl.appendChild(o);
-      }
-      if (files.length) {
-        loadGarment(files[0]);
-      } else {
-        setInfo('No .glb files found in the baseMeshes folder.');
-      }
+    function placePoint(pt) {
+      const step = (STEPS[state.type] || [])[state.active];
+      if (!step) return;
+      state.points[step.key] = pt;
+      state.history = state.history.filter(k => k !== step.key);
+      state.history.push(step.key);
+      addMarker(step.key, step.label, pt);
+      state.active = nextUnset(state.active);
+      renderRows();
+      updateInfo();
     }
 
-    // ---------- Load garment ----------
-    function disposeGarment() {
-      if (!garmentMesh) return;
-      scene.remove(garmentMesh);
-      garmentMesh.traverse(c => {
-        if (c.isMesh) {
-          c.geometry?.dispose();
-          (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m?.dispose());
-        }
-      });
-      garmentMesh = null;
-    }
-
-    async function loadGarment(filename) {
-      const url = `/api/garments/${encodeURIComponent(filename)}`;
-      setInfo(`Loading ${filename}…`);
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const buf = await resp.arrayBuffer();
-        const gltf = await loader.parseAsync(buf, '');
-
-        disposeGarment();
-        picking = false;
-        garmentMesh = gltf.scene;
-        garmentFile = filename;
-        garmentMesh.traverse(c => { if (c.isMesh && c.material) c.material.side = THREE.DoubleSide; });
-        scene.add(garmentMesh);
-        garmentMesh.updateMatrixWorld(true);
-
-        state.type = detectType(filename);
-        resetPicking();
-
-        // Fit camera (camera moves, garment does not)
-        garmentBox = new THREE.Box3().setFromObject(garmentMesh);
-        const size = garmentBox.getSize(new THREE.Vector3());
-        const centre = garmentBox.getCenter(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        markerScale = maxDim * 0.015;
-        coordStep = Number((maxDim / 1000).toPrecision(2));
-        controls.target.copy(centre);
-        camera.position.set(centre.x, centre.y, centre.z + maxDim * 2.2);
-        camera.near = maxDim / 100;
-        camera.far = maxDim * 100;
-        camera.updateProjectionMatrix();
-        controls.update();
-
-        await loadSavedPoints(filename);
-        if (Object.keys(state.points).length) {
-          setInfo(`Loaded ${filename} as ${state.type} (saved points restored). Click "Pick Points" to redo them.`);
-        } else {
-          setInfo(`Loaded ${filename} as ${state.type}. Click "Pick Points" to start.`);
-        }
-      } catch (err) {
-        console.error('Load error', err);
-        setInfo(`Failed to load ${filename}: ${err.message}`);
-      }
-    }
-
-    async function loadSavedPoints(filename) {
-      try {
-        const r = await fetch(`/api/garments/${encodeURIComponent(filename)}/points`);
-        if (!r.ok) return;
-        const saved = await r.json();
-        if (saved.type !== state.type) return;
-        for (const s of STEPS[state.type]) {
-          const p = saved.points?.[s.key];
-          if (p) {
-            const v = new THREE.Vector3(p.x, p.y, p.z);
-            state.points[s.key] = v;
-            addMarker(s.key, s.label, v);
-          }
-        }
-        state.step = Object.keys(state.points).length;
-        renderPointsText();
-      } catch (e) { /* no saved points yet */ }
+    function resetPicking() {
+      state.points = {};
+      state.history = [];
+      clearMarkers();
+      state.active = nextUnset(-1);
+      renderRows();
     }
 
     // ---------- Markers ----------
-    function resetPicking() {
-      state.step = 0;
-      state.points = {};
-      clearMarkers();
-      renderPointsText();
+    function removeMarker(key) {
+      const m = markerObjs[key];
+      if (!m) return;
+      markers.remove(m.sph, m.spr);
+      m.sph.geometry.dispose(); m.sph.material.dispose();
+      m.spr.material.map?.dispose(); m.spr.material.dispose();
+      delete markerObjs[key];
     }
 
     function addMarker(key, label, pos) {
+      removeMarker(key);
       const sph = new THREE.Mesh(
         new THREE.SphereGeometry(markerScale, 16, 16),
         new THREE.MeshBasicMaterial({ color: 0xffd700, depthTest: false })
@@ -301,8 +321,7 @@
     }
 
     function clearMarkers() {
-      markers.clear();
-      for (const k of Object.keys(markerObjs)) delete markerObjs[k];
+      for (const k of Object.keys(markerObjs)) removeMarker(k);
     }
 
     function makeLabelSprite(txt) {
@@ -327,41 +346,135 @@
       return spr;
     }
 
+    // ---------- Garment list ----------
+    async function loadGarmentList() {
+      let files = [];
+      try {
+        const r = await fetch('/api/garments');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        files = (await r.json()).files;
+      } catch (e) {
+        console.error('Could not list garments', e);
+      }
+      selectEl.innerHTML = '';
+      for (const f of files) {
+        const o = document.createElement('option');
+        o.value = f;
+        o.textContent = `${detectType(f) === 'top' ? 'Top' : 'Bottom'}: ${f}`;
+        selectEl.appendChild(o);
+      }
+      if (files.length) loadGarment(files[0]);
+      else setInfo('No .glb files found in the baseMeshes folder.');
+    }
+
+    // ---------- Load garment ----------
+    function disposeGarment() {
+      if (!garmentMesh) return;
+      scene.remove(garmentMesh);
+      garmentMesh.traverse(c => {
+        if (c.isMesh) {
+          c.geometry?.dispose();
+          (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m?.dispose());
+        }
+      });
+      garmentMesh = null;
+    }
+
+    async function loadGarment(filename) {
+      const url = `/api/garments/${encodeURIComponent(filename)}`;
+      setInfo(`Loading ${filename}…`);
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        const gltf = await loader.parseAsync(buf, '');
+
+        disposeGarment();
+        garmentMesh = gltf.scene;
+        garmentFile = filename;
+        garmentMesh.traverse(c => { if (c.isMesh && c.material) c.material.side = THREE.DoubleSide; });
+        scene.add(garmentMesh);
+        garmentMesh.updateMatrixWorld(true);
+
+        state.type = detectType(filename);
+        sleeveRow.style.display = state.type === 'top' ? 'flex' : 'none';
+        sleeveSel.value = detectSleeve(filename);
+
+        // Fit camera (camera moves, garment does not)
+        garmentBox = new THREE.Box3().setFromObject(garmentMesh);
+        const size = garmentBox.getSize(new THREE.Vector3());
+        const centre = garmentBox.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        markerScale = maxDim * 0.015;
+        coordStep = Number((maxDim / 1000).toPrecision(2));
+        preview.scale.setScalar(markerScale * 0.8);
+        controls.target.copy(centre);
+        camera.position.set(centre.x, centre.y, centre.z + maxDim * 2.2);
+        camera.near = maxDim / 100;
+        camera.far = maxDim * 100;
+        camera.updateProjectionMatrix();
+        controls.update();
+
+        resetPicking();
+        const restored = await loadSavedPoints(filename);
+        state.active = nextUnset(-1);
+        renderRows();
+        setMode('move');
+        if (restored) setInfo(`Loaded ${filename} as ${state.type} (saved points restored). Move mode: orbit freely; switch to Pick (P) to redo points.`);
+      } catch (err) {
+        console.error('Load error', err);
+        setInfo(`Failed to load ${filename}: ${err.message}`);
+      }
+    }
+
+    async function loadSavedPoints(filename) {
+      try {
+        const r = await fetch(`/api/garments/${encodeURIComponent(filename)}/points`);
+        if (!r.ok) return false;
+        const saved = await r.json();
+        if (saved.type !== state.type) return false;
+        if (saved.sleeve === 'long' || saved.sleeve === 'short') sleeveSel.value = saved.sleeve;
+        let any = false;
+        for (const s of STEPS[state.type]) {
+          const p = saved.points?.[s.key];
+          if (p) {
+            const v = new THREE.Vector3(p.x, p.y, p.z);
+            state.points[s.key] = v;
+            addMarker(s.key, s.label, v);
+            any = true;
+          }
+        }
+        return any;
+      } catch (e) { return false; /* no saved points yet */ }
+    }
+
     // ---------- UI ----------
     document.getElementById('loadBtn').onclick = () => loadGarment(selectEl.value);
     selectEl.onchange = () => loadGarment(selectEl.value);
+    moveBtn.onclick = () => setMode('move');
+    pickBtn.onclick = () => { if (!garmentMesh) { alert('Load a garment first'); return; } setMode('pick'); };
 
     document.getElementById('resetBtn').onclick = () => {
       resetPicking();
-      picking = false;
-      setInfo('Points cleared.');
+      updateInfo();
     };
 
     document.getElementById('undoBtn').onclick = () => {
-      if (!state.type || state.step === 0) return;
-      const steps = STEPS[state.type];
-      const last = steps[state.step - 1];
-      delete state.points[last.key];
-      state.step--;
-      clearMarkers();
-      for (const s of steps) if (state.points[s.key]) addMarker(s.key, s.label, state.points[s.key]);
-      renderPointsText();
-      if (picking) setInfo(`Click to set ${steps[state.step].label}`);
-    };
-
-    document.getElementById('pickBtn').onclick = () => {
-      if (!garmentMesh) { alert('Load a garment first'); return; }
-      resetPicking();
-      picking = true;
-      setInfo(`Click to set ${STEPS[state.type][0].label}`);
+      const key = state.history.pop();
+      if (!key) return;
+      delete state.points[key];
+      removeMarker(key);
+      state.active = STEPS[state.type].findIndex(s => s.key === key);
+      renderRows();
+      updateInfo();
     };
 
     saveBtn.onclick = async () => {
-      const steps = STEPS[state.type];
       const size = garmentBox.getSize(new THREE.Vector3());
       const pts = {};
-      for (const s of steps) {
+      for (const s of STEPS[state.type]) {
         const p = state.points[s.key];
+        if (!p) continue;
         pts[s.key] = {
           x: p.x, y: p.y, z: p.z,
           normalized: {                       // 0..1 within the garment's bounding box
@@ -374,6 +487,7 @@
       const body = {
         garment: garmentFile,
         type: state.type,
+        ...(state.type === 'top' ? { sleeve: sleeveSel.value } : {}),
         boundingBox: {
           min: garmentBox.min.toArray(),
           max: garmentBox.max.toArray(),
@@ -396,40 +510,52 @@
       }
     };
 
-    // ---------- Picking (click, not drag) ----------
+    window.addEventListener('keydown', e => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement) return;
+      if (e.key === 'm' || e.key === 'M') setMode('move');
+      else if ((e.key === 'p' || e.key === 'P') && garmentMesh) setMode('pick');
+    });
+
+    // ---------- Picking (single click, pick mode only) ----------
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let downPos = null;
 
-    renderer.domElement.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; });
-    renderer.domElement.addEventListener('pointerup', e => {
-      if (!picking || !garmentMesh || !downPos) return;
+    function hitAt(clientX, clientY) {
+      if (!garmentMesh) return null;
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObject(garmentMesh, true)[0] ?? null;
+    }
+
+    canvas.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; });
+    canvas.addEventListener('pointerup', e => {
+      if (state.mode !== 'pick' || e.button !== 0 || !downPos) return;
       const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
       downPos = null;
-      if (moved > 5) return; // it was an orbit drag
-
-      const rect = renderer.domElement.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const hits = raycaster.intersectObject(garmentMesh, true);
-      if (!hits.length) return;
-
-      const steps = STEPS[state.type];
-      const step = steps[state.step];
-      const pt = hits[0].point.clone();
-      state.points[step.key] = pt;
-      addMarker(step.key, step.label, pt);
-      state.step++;
-      renderPointsText();
-
-      if (state.step < steps.length) {
-        setInfo(`Click to set ${steps[state.step].label}`);
-      } else {
-        picking = false;
-        setInfo('All points set. Click Save to store them (or Undo / Pick Points to redo).');
-      }
+      if (moved > 5) return;                         // not a click
+      const hit = hitAt(e.clientX, e.clientY);
+      if (hit) placePoint(hit.point.clone());
     });
+
+    let hoverQueued = false;
+    canvas.addEventListener('pointermove', e => {
+      const canPlace = state.mode === 'pick' && garmentMesh && STEPS[state.type]?.[state.active];
+      if (!canPlace) { preview.visible = false; return; }
+      if (hoverQueued) return;
+      hoverQueued = true;
+      const { clientX, clientY } = e;
+      requestAnimationFrame(() => {
+        hoverQueued = false;
+        const hit = hitAt(clientX, clientY);
+        preview.visible = !!hit && state.mode === 'pick';
+        if (hit) preview.position.copy(hit.point);
+      });
+    });
+    canvas.addEventListener('pointerleave', () => { preview.visible = false; });
 
     // ---------- Render loop / resize ----------
     function animate() {
