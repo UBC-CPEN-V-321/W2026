@@ -12,6 +12,7 @@ import com.example.cpen321application.post.AddressSearch
 import com.example.cpen321application.post.AddressSuggestion
 import com.example.cpen321application.post.Mode
 import com.example.cpen321application.post.SUGGEST_DELAY_MS
+import com.example.cpen321application.profile.ProfileApi
 import java.io.IOException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,9 +21,13 @@ import org.json.JSONException
 
 private const val TAG = "FeedViewModel"
 
+// Agreed with the team: wide enough to cover a city, so the default doesn't hide too much.
+private const val HOME_RADIUS_KM = 50.0
+
 // Keeps the feed loaded while the user switches tabs or rotates the screen.
 class FeedViewModel(app: Application) : AndroidViewModel(app) {
     private val api = FeedApi(SessionManager.get(app))
+    private val profileApi = ProfileApi(SessionManager.get(app))
     private val feed = FeedModel(api)
     private val addressSearch = AddressSearch(app)
     private var suggestJob: Job? = null
@@ -38,8 +43,9 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     var addressSuggestions by mutableStateOf<List<AddressSuggestion>>(emptyList())
         private set
 
+    // The feed starts filtered to near the user's home address, when they have set one.
     init {
-        loadMore()
+        viewModelScope.launch { feed.show(FeedQuery(filter = homeFilter())) }
     }
 
     fun loadMore() {
@@ -85,6 +91,21 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     fun clearAddressSuggestions() {
         suggestJob?.cancel()
         addressSuggestions = emptyList()
+    }
+
+    // Without the profile the feed still works, just unfiltered. An expired session is an IOException
+    // too, and the feed's own first request then signs the user out.
+    private suspend fun homeFilter(): FeedFilter {
+        val home = try {
+            profileApi.me().home
+        } catch (e: IOException) {
+            Log.w(TAG, "Could not load the home address", e)
+            null
+        } catch (e: JSONException) {
+            Log.w(TAG, "Unexpected profile response", e)
+            null
+        }
+        return if (home == null) FeedFilter() else FeedFilter(near = home, radiusKm = HOME_RADIUS_KM)
     }
 
     private fun show(newQuery: FeedQuery) {

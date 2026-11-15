@@ -1,6 +1,7 @@
 package com.example.cpen321application.profile
 
 import com.example.cpen321application.auth.SessionManager
+import com.example.cpen321application.feed.Place
 import com.example.cpen321application.post.AddressSuggestion
 import com.example.cpen321application.post.Mode
 import java.io.IOException
@@ -18,7 +19,8 @@ data class Profile(
     val lastName: String,
     val email: String,
     val pictureUrl: String?,
-    val address: String?,
+    // The home address and its coordinates, or null when the user has not set one.
+    val home: Place?,
     // The day the account was made, in the user's time zone.
     val memberSince: LocalDate
 ) {
@@ -66,9 +68,16 @@ private fun parseProfile(user: JSONObject): Profile = Profile(
     lastName = user.getString("lastName"),
     email = user.getString("email"),
     pictureUrl = user.optText("pictureUrl"),
-    // address is left out of the response when the user has not set one.
-    address = user.optText("address"),
+    home = homeOf(user),
     memberSince = Instant.parse(user.getString("createdAt")).atZone(ZoneId.systemDefault()).toLocalDate()
 )
+
+// The backend leaves address and location out of the response when the user has not set them.
+// location is GeoJSON, so its coordinates are [longitude, latitude].
+private fun homeOf(user: JSONObject): Place? {
+    if (user.isNull("address") || user.isNull("location")) return null
+    val coordinates = user.getJSONObject("location").getJSONArray("coordinates")
+    return Place(user.getString("address"), lat = coordinates.getDouble(1), lng = coordinates.getDouble(0))
+}
 
 private fun JSONObject.optText(key: String): String? = if (isNull(key)) null else getString(key)

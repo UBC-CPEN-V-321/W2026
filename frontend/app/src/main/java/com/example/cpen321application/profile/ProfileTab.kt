@@ -80,7 +80,7 @@ fun ProfileTab(
             Text(stringResource(R.string.profile_sign_out))
         }
     }
-    viewModel.addressEditor?.let { ProfileAddressDialog(it, hasAddress = state.profile?.address != null, viewModel) }
+    viewModel.addressEditor?.let { ProfileAddressDialog(it, hasAddress = state.profile?.home != null, viewModel) }
 }
 
 @Composable
@@ -108,7 +108,7 @@ private fun ProfileDetails(
         ProfileCard(modifier = Modifier.fillMaxWidth()) {
             DetailRow(
                 stringResource(R.string.profile_address),
-                profile.address ?: stringResource(R.string.profile_address_not_set),
+                profile.home?.label ?: stringResource(R.string.profile_address_not_set),
                 onEdit = onEditAddress,
             )
             DetailRow(stringResource(R.string.profile_member_since), profile.memberSince.format(MONTH_YEAR))

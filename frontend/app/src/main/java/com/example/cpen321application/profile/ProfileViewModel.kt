@@ -89,7 +89,7 @@ class ProfileViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openAddressEditor() {
-        addressEditor = AddressEditor(text = state.profile?.address.orEmpty())
+        addressEditor = AddressEditor(text = state.profile?.home?.label.orEmpty())
     }
 
     fun closeAddressEditor() {

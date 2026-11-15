@@ -247,7 +247,7 @@ Each use case covers one goal, and the user starts each of them directly, so the
 
 **Main success scenario**:
 1. The user opens the Feed tab and chooses "I'm buying" (listings) or "I'm selling" (requests).
-2. The app shows other users' open posts of that kind, newest first.
+2. The app shows other users' open posts of that kind, newest first. If the user has set a home address on their profile, the feed starts filtered to posts within 50 km of it, and the Filters sheet shows that address and distance.
 3. The user taps "Filters" and sets any of: category, minimum and maximum price ("Min budget" and "Max budget" for requests), and "Near address", picked from the suggestions, with "Within (km)".
 4. The user taps "Apply".
 5. The app reloads the list with only the posts that pass the filters; "Clear" removes the filters.
@@ -729,7 +729,7 @@ Condition is one of five ordered levels: new, like new, good, fair, poor.
 - Both post types require name, category, address and coordinates. Requests require a built-in price field. Listings require non-negative top-level price, a valid condition and at least one photo ID. Request price, radius and size cannot be negative. The 1–50 km radius rule is not enforced by the inspected request-field validation; it must not be claimed as completed validation.
 - Requests allow 0–10 photo IDs and listings 1–10. Actual upload size is at most 5 MB per file. Post validation checks ID format/count; photo existence and ownership checks are not established by that validation.
 - Categories are normalized, extendable option values rather than a fixed list. They are saved in the singular, so desks is saved as desk, except words that only look plural, such as glass and electronics. Existing posts and category options are converted when the backend starts. Description is supported, up to 2,000 characters. The name, up to 80 characters, is the post's title; posts saved before names were added use their category as the name. Dimensions use cm and radius uses km; CAD remains the intended currency.
-- Unfilled optional editor rows are omitted. Existing post addresses and coordinates are saved with each post. Profile-based defaults are planned. Closed listings are excluded from the current open-listings feed.
+- Unfilled optional editor rows are omitted. Existing post addresses and coordinates are saved with each post. The post editor does not pre-fill the profile address. The feed starts filtered to 50 km around the profile address when one is set. Closed listings are excluded from the current open-listings feed.
 
 **Feature 4 data rules:**
 - A conversation has the same listingId, requestId, sellerId and buyerId as a deal, taken from the posts rather than the request body. Partial unique indexes allow one conversation per tapped post and the user who started it.
