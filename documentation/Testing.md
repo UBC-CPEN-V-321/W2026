@@ -17,6 +17,7 @@
 | 2026-11-14 | 2 | Added the interface tests of the Messaging proposal routes, including the tests that a failed accept can be retried. |
 | 2026-11-14 | 2 | Added the interface tests of `GET /api/events`, the live updates, and how they read the event stream and fake the heartbeat timer. |
 | 2026-11-14 | 4 | Create deal is no longer a separate use case, so the Respond to a proposal tests are described as recording the deal when a proposal is accepted. Close post and Reopen post are now part of Edit post, so the ManagePostsTest row names the use cases it covers. |
+| 2026-11-15 | 2 | Re-ran the back-end interface tests at commit `6533060` and replaced the coverage screenshots, commit hash and test counts (629 tests: 95 with mocks, 534 without). Added that `routes/users.ts` has full coverage. |
 | 2026-11-15 | 2 | Added the interface tests of the profile routes, `GET /api/users/me` and `PATCH /api/users/me`, and listed the existing `GET /api/users/:id/reputation` tests. A body over 4 KB to `/api/users` now returns 413 instead of 500. |
 | 2026-11-14 | 2 | Added the Messaging coverage: which files are at 100%, a test for a conversation about a post saved before posts had names, and why the one remaining branch in `routes/conversations.ts` and `routes/paging.ts` cannot be reached. |
 
@@ -32,11 +33,11 @@ This section covers the Deals and Messaging components and the profile routes of
 
 | **Interface** | **Describe Group Location, No Mocks** | **Describe Group Location, With Mocks** | **Mocked Components** |
 | ------------- | ------------------------------------- | --------------------------------------- | --------------------- |
-| **GET /api/deals** | [`tests/no-mock/getDeals.test.ts#L94`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/getDeals.test.ts#L94) | [`tests/mock/getDeals.test.ts#L45`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/mock/getDeals.test.ts#L45) | Deals DB, Ratings DB, Reputations DB, Users DB, Listings DB, Requests DB |
-| **POST /api/deals/:id/ratings** | [`tests/no-mock/ratings.test.ts#L260`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/ratings.test.ts#L260) | [`tests/mock/ratings.test.ts#L81`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/mock/ratings.test.ts#L81) | Deals DB, Ratings DB, Reputations DB |
-| **PUT /api/deals/:id/ratings** | [`tests/no-mock/ratings.test.ts#L334`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/ratings.test.ts#L334) | [`tests/mock/ratings.test.ts#L116`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/mock/ratings.test.ts#L116) | Deals DB, Ratings DB, Reputations DB |
-| **GET /api/feed/listings/:id** | [`tests/no-mock/dealPost.test.ts#L97`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/dealPost.test.ts#L97) | [`tests/mock/dealPost.test.ts#L34`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/mock/dealPost.test.ts#L34) | Listings DB |
-| **GET /api/feed/requests/:id** | [`tests/no-mock/dealPost.test.ts#L102`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/dealPost.test.ts#L102) | [`tests/mock/dealPost.test.ts#L54`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/mock/dealPost.test.ts#L54) | Requests DB |
+| **GET /api/deals** | [`tests/no-mock/getDeals.test.ts#L95`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/getDeals.test.ts#L95) | [`tests/mock/getDeals.test.ts#L45`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/mock/getDeals.test.ts#L45) | Deals DB, Ratings DB, Reputations DB, Users DB, Listings DB, Requests DB |
+| **POST /api/deals/:id/ratings** | [`tests/no-mock/ratings.test.ts#L260`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/ratings.test.ts#L260) | [`tests/mock/ratings.test.ts#L81`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/mock/ratings.test.ts#L81) | Deals DB, Ratings DB, Reputations DB |
+| **PUT /api/deals/:id/ratings** | [`tests/no-mock/ratings.test.ts#L334`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/ratings.test.ts#L334) | [`tests/mock/ratings.test.ts#L116`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/mock/ratings.test.ts#L116) | Deals DB, Ratings DB, Reputations DB |
+| **GET /api/feed/listings/:id** | [`tests/no-mock/dealPost.test.ts#L97`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/dealPost.test.ts#L97) | [`tests/mock/dealPost.test.ts#L34`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/mock/dealPost.test.ts#L34) | Listings DB |
+| **GET /api/feed/requests/:id** | [`tests/no-mock/dealPost.test.ts#L102`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/dealPost.test.ts#L102) | [`tests/mock/dealPost.test.ts#L54`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/mock/dealPost.test.ts#L54) | Requests DB |
 | **POST /api/conversations** | [`tests/no-mock/conversations.test.ts#L51`](../backend/tests/no-mock/conversations.test.ts#L51) | [`tests/mock/conversations.test.ts#L40`](../backend/tests/mock/conversations.test.ts#L40) | Listings DB, Requests DB, Conversations DB |
 | **GET /api/conversations** | [`tests/no-mock/conversations.test.ts#L245`](../backend/tests/no-mock/conversations.test.ts#L245) | [`tests/mock/conversations.test.ts#L64`](../backend/tests/mock/conversations.test.ts#L64) | Conversations DB, Users DB, Listings DB |
 | **GET /api/conversations/:id/messages** | [`tests/no-mock/conversations.test.ts#L334`](../backend/tests/no-mock/conversations.test.ts#L334) | [`tests/mock/conversations.test.ts#L85`](../backend/tests/mock/conversations.test.ts#L85) | Conversations DB, Messages DB |
@@ -73,11 +74,11 @@ How the Messaging conversation tests are organized:
 | **POST /api/e2e/partner/conversations/:id/proposal** | [`tests/no-mock/e2eConversations.test.ts#L260`](../backend/tests/no-mock/e2eConversations.test.ts#L260) | [`tests/mock/e2eConversations.test.ts#L70`](../backend/tests/mock/e2eConversations.test.ts#L70) | Conversations DB |
 | **POST /api/e2e/partner/conversations/:id/proposal/decline** | [`tests/no-mock/e2eConversations.test.ts#L282`](../backend/tests/no-mock/e2eConversations.test.ts#L282) | [`tests/mock/e2eConversations.test.ts#L70`](../backend/tests/mock/e2eConversations.test.ts#L70) | Conversations DB |
 
-Rules that the HTTP interfaces cannot reach or prove are tested directly in [`no-mock/dealStore.test.ts`](https://github.com/m1lun/m1skeletonProject/blob/953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f/backend/tests/no-mock/dealStore.test.ts): the database validators, the unique indexes, and the store methods behind the routes. `deals.insert`, which records a new deal, is tested there.
+Rules that the HTTP interfaces cannot reach or prove are tested directly in [`no-mock/dealStore.test.ts`](https://github.com/m1lun/m1skeletonProject/blob/653306006d853609a66c1bd4d9bfe8f031008a4f/backend/tests/no-mock/dealStore.test.ts): the database validators, the unique indexes, and the store methods behind the routes. `deals.insert`, which records a new deal, is tested there.
 
 #### 2.1.2. Commit Hash Where Tests Run
 
-`953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f`
+`653306006d853609a66c1bd4d9bfe8f031008a4f`
 
 #### 2.1.3. Explanation on How to Run the Tests
 
@@ -87,7 +88,7 @@ Rules that the HTTP interfaces cannot reach or prove are tested directly in [`no
      ```
      git clone https://github.com/m1lun/m1skeletonProject.git
      cd m1skeletonProject
-     git checkout 953fbeb42f6481a2b5335e85e557c7c7bbbd5a6f
+     git checkout 653306006d853609a66c1bd4d9bfe8f031008a4f
      ```
 
 2. **Install the Tools**:
@@ -123,7 +124,7 @@ To run tests from an IDE or with `npx jest`, start the database first with `dock
 
 ### 2.3. Jest Coverage Report Screenshots With Mocks
 
-These are the Jest reports for every back-end file at the commit above: 164 tests in total, 15 with mocks and 149 without. Each image shows Jest's text report from the script.
+These are the Jest reports for every back-end file at the commit above: 629 tests in total, 95 with mocks and 534 without. Each image shows Jest's text report from the script.
 
 ![Coverage with mocks](images/deals_coverage_mock.png)
 
@@ -137,13 +138,15 @@ These are the Jest reports for every back-end file at the commit above: 164 test
 
 **Reasons for coverage below 100%:**
 
-These reports cover the whole back-end, but only the Deals component has been tested against all of its interfaces so far. Files with no Deals code, such as `routes/users.ts` and `routes/customFields.ts`, are low because their own components' tests are not written yet.
+These reports cover the whole back-end. Combined, the tests reach 91.29% of statements, 84.86% of branches, 89.6% of functions and 91.16% of lines.
 
 The Uncovered Line # column shows lines of the compiled JavaScript, not the TypeScript source. The line numbers below are the real source lines.
 
 Combined coverage is 100% for statements, lines, functions and branches in `models/deal.ts`, `models/rating.ts`, `models/reputation.ts`, `models/schema.ts`, `reputation/score.ts` and `routes/ratings.ts`.
 
 For Messaging, combined coverage is 100% for statements, lines, functions and branches in `events.ts`, `routes/proposals.ts` and `routes/e2e.ts`, and 100% for statements, lines and functions in `routes/conversations.ts` and `routes/paging.ts`, with one defensive branch each (below).
+
+For the profile routes, combined coverage is 100% for statements, lines, functions and branches in `routes/users.ts`.
 
 | **File** | **Statements** | **Branches** | **Reason** |
 | -------- | -------------- | ------------ | ---------- |
