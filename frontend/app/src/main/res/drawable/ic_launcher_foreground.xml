@@ -1,30 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SportsNow mark: basketball, soccer ball and tennis ball, drawn like the balls in the launch animation -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="85.84757"
-                android:endY="92.4963"
-                android:startX="42.9492"
-                android:startY="49.59793"
-                android:type="linear">
-                <item
-                    android:color="#44000000"
-                    android:offset="0.0" />
-                <item
-                    android:color="#00000000"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillType="nonZero"
-        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
-        android:strokeWidth="1"
-        android:strokeColor="#00000000" />
+    <!-- basketball -->
+    <group>
+        <clip-path android:pathData="M31.9,45.5a20.4,20.4 0,1 0,40.8,0a20.4,20.4 0,1 0,-40.8,0z" />
+        <path android:pathData="M31.9,45.5a20.4,20.4 0,1 0,40.8,0a20.4,20.4 0,1 0,-40.8,0z" android:fillColor="#E8772E" />
+        <path android:pathData="M52.3,25.1V65.9M31.9,45.5H72.7" android:strokeColor="#2B1609" android:strokeWidth="1.53" />
+        <path android:pathData="M8.44,45.5a18.36,18.36 0,1 0,36.72,0a18.36,18.36 0,1 0,-36.72,0zM59.44,45.5a18.36,18.36 0,1 0,36.72,0a18.36,18.36 0,1 0,-36.72,0z" android:strokeColor="#2B1609" android:strokeWidth="1.53" />
+        <path android:pathData="M31.9,45.5a20.4,20.4 0,1 0,40.8,0a20.4,20.4 0,1 0,-40.8,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="45.16" android:centerY="37.34" android:gradientRadius="29.58"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
+    <!-- gap ring -->
+    <path android:pathData="M28.33,69.3a13.77,13.77 0,1 0,27.54,0a13.77,13.77 0,1 0,-27.54,0z" android:fillColor="#F2F5FB" />
+    <!-- soccer ball -->
+    <group>
+        <clip-path android:pathData="M30.2,69.3a11.9,11.9 0,1 0,23.8,0a11.9,11.9 0,1 0,-23.8,0z" />
+        <path android:pathData="M30.2,69.3a11.9,11.9 0,1 0,23.8,0a11.9,11.9 0,1 0,-23.8,0z" android:fillColor="#FFFFFF" />
+        <path android:pathData="M42.1,65.02L46.17,67.98L44.62,72.77L39.58,72.77L38.03,67.98z" android:fillColor="#16181D" />
+        <path android:pathData="M46.72,62.95L45.25,58.42L49.09,55.63L52.94,58.42L51.47,62.95z" android:fillColor="#16181D" />
+        <path android:pathData="M49.57,71.73L53.42,68.93L57.27,71.73L55.8,76.25L51.04,76.25z" android:fillColor="#16181D" />
+        <path android:pathData="M42.1,77.15L45.95,79.95L44.48,84.47L39.72,84.47L38.25,79.95z" android:fillColor="#16181D" />
+        <path android:pathData="M34.63,71.73L33.16,76.25L28.4,76.25L26.93,71.73L30.78,68.93z" android:fillColor="#16181D" />
+        <path android:pathData="M37.48,62.95L32.73,62.95L31.26,58.42L35.11,55.63L38.95,58.42z" android:fillColor="#16181D" />
+        <path android:pathData="M42.1,65.02L42.1,60.73M46.17,67.98L50.25,66.65M44.62,72.77L47.14,76.23M39.58,72.77L37.06,76.23M38.03,67.98L33.95,66.65" android:strokeColor="#16181D" android:strokeWidth="0.71" />
+        <path android:pathData="M30.2,69.3a11.9,11.9 0,1 0,23.8,0a11.9,11.9 0,1 0,-23.8,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="37.94" android:centerY="64.54" android:gradientRadius="17.25"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
+    <!-- gap ring -->
+    <path android:pathData="M55.53,71a12.07,12.07 0,1 0,24.14,0a12.07,12.07 0,1 0,-24.14,0z" android:fillColor="#F2F5FB" />
+    <!-- tennis ball -->
+    <group>
+        <clip-path android:pathData="M57.4,71a10.2,10.2 0,1 0,20.4,0a10.2,10.2 0,1 0,-20.4,0z" />
+        <path android:pathData="M57.4,71a10.2,10.2 0,1 0,20.4,0a10.2,10.2 0,1 0,-20.4,0z" android:fillColor="#D4E23C" />
+        <path android:pathData="M47.4,71a7.96,7.96 0,1 0,15.91,0a7.96,7.96 0,1 0,-15.91,0zM71.88,71a7.96,7.96 0,1 0,15.91,0a7.96,7.96 0,1 0,-15.91,0z" android:strokeColor="#FFFFFF" android:strokeWidth="1.12" />
+        <path android:pathData="M57.4,71a10.2,10.2 0,1 0,20.4,0a10.2,10.2 0,1 0,-20.4,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="64.03" android:centerY="66.92" android:gradientRadius="14.79"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
 </vector>

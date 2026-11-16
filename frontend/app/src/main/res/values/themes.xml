@@ -4,5 +4,7 @@
     <style name="Theme.CPEN321Application" parent="android:Theme.Material.Light.NoActionBar">
         <!-- stops Android from darkening the app by itself in dark mode -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+        <!-- Android 12+ shows its own splash before the app draws; same colour as the launch animation -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">#F2F5FB</item>
     </style>
 </resources>
