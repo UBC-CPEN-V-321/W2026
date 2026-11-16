@@ -40,6 +40,7 @@ class EventsApi(private val backendClient: BackendClient) : EventsRepository {
                 description = event.optionalString("description"),
                 imageUrl = event.getString("imageUrl"),
                 startDateTime = event.getString("startDateTime"),
+                endDateTime = event.optionalString("endDateTime"),
                 venueName = event.getString("venueName"),
                 city = event.getString("city"),
                 category = event.getString("category"),
@@ -47,7 +48,7 @@ class EventsApi(private val backendClient: BackendClient) : EventsRepository {
                 priceMin = event.optionalDouble("priceMin"),
                 priceMax = event.optionalDouble("priceMax"),
                 currency = event.optionalString("currency"),
-                distanceKm = event.getDouble("distanceKm")
+                distanceKm = event.getDouble("distanceKm"),
             )
         }
     }

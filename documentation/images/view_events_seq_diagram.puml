@@ -1,5 +1,5 @@
 @startuml
-title Use Case 7: View Event Recommendations
+title Use Case 4: View Event Recommendations
 
 skinparam ArrowFontStyle plain
 skinparam ParticipantStyle rectangle

@@ -2,11 +2,14 @@ package com.exploreUBC.cpen321application.ui.profile
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import com.exploreUBC.cpen321application.data.users.BudgetPreference
 import com.exploreUBC.cpen321application.data.users.InterestPreference
 import com.exploreUBC.cpen321application.data.users.TransportationMode
@@ -80,7 +83,6 @@ class ProfileScreenTest {
         composeRule.setContent {
             ProfileRoute(
                 userId = null,
-                displayName = "Test User",
                 usersRepository = repository,
             )
         }
@@ -121,13 +123,12 @@ class ProfileScreenTest {
         composeRule.setContent {
             ProfileRoute(
                 userId = "6acd519c76376cefc61e97f1",
-                displayName = "Google User",
                 usersRepository = repository,
             )
         }
 
         composeRule.onNodeWithTag("profile_display_name").assertTextContains("Database User")
-        composeRule.onNodeWithTag("profile_start_location").assertTextContains("UBC Bus Exchange")
+        composeRule.onNodeWithText("UBC Bus Exchange").assertIsDisplayed()
         composeRule.onNodeWithTag("profile_transportation_dropdown").assertTextContains("Transit")
         composeRule.onNodeWithTag("profile_budget_dropdown").assertTextContains("Balanced")
         composeRule.onNodeWithTag("profile_interest_dropdown").performScrollTo()
@@ -157,14 +158,43 @@ class ProfileScreenTest {
             )
         }
 
-        composeRule.onNodeWithTag("profile_display_name_input").performTextInput(" Updated")
-        composeRule.onNodeWithTag("profile_start_location").performTextInput(" Updated")
+        composeRule.onNodeWithTag("profile_display_name_input")
+            .performTextReplacement("Updated User")
+        composeRule.onNodeWithTag("profile_start_location")
+            .performTextReplacement("Updated Location")
         composeRule.onNodeWithTag("profile_details_save").performClick()
 
         composeRule.runOnIdle {
-            assertEquals("Original User Updated", savedUpdate?.displayName)
-            assertEquals("Original Location Updated", savedUpdate?.startLocation)
+            assertEquals("Updated User", savedUpdate?.displayName)
+            assertEquals("Updated Location", savedUpdate?.startLocation)
         }
+    }
+
+    @Test
+    fun profileEditShowsLiveLengthErrorAndDisablesSave() {
+        composeRule.setContent {
+            ProfilePreferencesForm(
+                state = ProfileScreenState(
+                    displayName = "Original User",
+                    startLocation = "Original Location",
+                    preferences = UserPreferences(
+                        transportation = TransportationPreference(TransportationMode.WALKING),
+                        budget = BudgetPreference.ECONOMICAL,
+                        interest = InterestPreference.FOOD,
+                    ),
+                    isSaving = false,
+                    isEditingProfile = true,
+                ),
+                actions = ProfileScreenActions(),
+            )
+        }
+
+        composeRule.onNodeWithTag("profile_display_name_input")
+            .performTextReplacement("a".repeat(201))
+        composeRule.onNodeWithTag("profile_display_name_length_error").assertIsDisplayed()
+        composeRule.onNodeWithText("Display name must be at most 200 characters.")
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("profile_details_save").assertIsNotEnabled()
     }
 
     @Test

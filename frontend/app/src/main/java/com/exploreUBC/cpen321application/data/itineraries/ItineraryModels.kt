@@ -1,5 +1,7 @@
 package com.exploreUBC.cpen321application.data.itineraries
 
+import java.io.IOException
+
 data class Itinerary(
     val id: String,
     val ownerId: String,
@@ -19,6 +21,19 @@ sealed interface ItineraryItem {
     val startTime: String
     val endTime: String
 }
+
+data class ItineraryTimeConflict(
+    val id: String,
+    val type: String,
+    val name: String,
+    val startTime: String,
+    val endTime: String,
+)
+
+class ItineraryTimeConflictException(
+    message: String,
+    val conflicts: List<ItineraryTimeConflict>,
+) : IOException(message)
 
 data class ActivityItem(
     override val id: String,
@@ -68,6 +83,14 @@ data class ItineraryDetails(
     val name: String,
     val description: String? = null,
     val startingLocation: String? = null,
+)
+
+data class ItineraryUpdate(
+    val name: String? = null,
+    val description: String? = null,
+    val startingLocation: String? = null,
+    val saved: Boolean? = null,
+    val inRecommendation: Boolean? = null,
 )
 
 data class CreateItineraryInput(

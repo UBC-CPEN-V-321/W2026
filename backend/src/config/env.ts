@@ -54,6 +54,22 @@ if (
   throw new Error(`Invalid EVENT_SEARCH_PAGE_SIZE: ${rawEventSearchPageSize}`);
 }
 
+const rawSoclaasMaxOutputTokens = process.env.SOCLAAS_MAX_OUTPUT_TOKENS;
+const soclaasMaxOutputTokens =
+  rawSoclaasMaxOutputTokens === undefined || rawSoclaasMaxOutputTokens === ""
+    ? 16_384
+    : Number.parseInt(rawSoclaasMaxOutputTokens, 10);
+
+if (
+  !Number.isInteger(soclaasMaxOutputTokens) ||
+  soclaasMaxOutputTokens < 1 ||
+  soclaasMaxOutputTokens > 16_384
+) {
+  throw new Error(
+    `Invalid SOCLAAS_MAX_OUTPUT_TOKENS: ${rawSoclaasMaxOutputTokens}`,
+  );
+}
+
 export const env = {
   port,
   mongodbUri,
@@ -68,5 +84,17 @@ export const env = {
     stateCode: process.env.EVENT_SEARCH_STATE_CODE ?? "BC",
     countryCode: process.env.EVENT_SEARCH_COUNTRY_CODE ?? "CA",
     pageSize: eventSearchPageSize,
+  },
+  soclaas: {
+    endpoint: process.env.SOCLAAS_ENDPOINT?.trim(),
+    apiKey: process.env.SOCLAAS_API_KEY?.trim(),
+    model: process.env.SOCLAAS_MODEL?.trim(),
+    maxOutputTokens: soclaasMaxOutputTokens,
+  },
+  googleMaps: {
+    mapsApiKey: process.env.MAPS_API_KEY,
+    geocodingApiKey: process.env.GEOCODING_API_KEY,
+    routesApiKey: process.env.ROUTES_API_KEY,
+    placesApiKey: process.env.PLACES_API_KEY,
   },
 } as const;

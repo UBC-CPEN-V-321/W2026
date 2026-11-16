@@ -5,6 +5,7 @@ import java.io.IOException
 open class ApiException(
     val statusCode: Int,
     val errorCode: String?,
+    val responseBody: String? = null,
     message: String,
 ) : IOException(message) {
     companion object {
@@ -14,10 +15,15 @@ open class ApiException(
             "You do not have permission to perform this action."
         private const val DEFAULT_MESSAGE = "The request could not be completed."
 
-        fun fromHttpStatus(statusCode: Int, errorCode: String? = null): ApiException =
+        fun fromHttpStatus(
+            statusCode: Int,
+            errorCode: String? = null,
+            responseBody: String? = null,
+        ): ApiException =
             ApiException(
                 statusCode = statusCode,
                 errorCode = errorCode,
+                responseBody = responseBody,
                 message = when (statusCode) {
                     401 -> UNAUTHORIZED_MESSAGE
                     403 -> FORBIDDEN_MESSAGE

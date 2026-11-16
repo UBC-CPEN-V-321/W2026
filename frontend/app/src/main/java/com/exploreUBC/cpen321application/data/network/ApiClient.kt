@@ -15,6 +15,7 @@ data class ApiRequest(
     val path: String,
     val body: String? = null,
     val requiresAuthentication: Boolean = true,
+    val timeoutMillis: Int = AppConstants.Network.READ_TIMEOUT_MILLIS,
 )
 
 fun interface BackendClient {
@@ -61,11 +62,19 @@ class ApiClient internal constructor(
 
         val firstError = parseError(firstResponse.body)
         if (!shouldRenew(firstError, failedSession)) {
-            throw ApiException.fromHttpStatus(firstResponse.statusCode, firstError.code)
+            throw ApiException.fromHttpStatus(
+                firstResponse.statusCode,
+                firstError.code,
+                firstResponse.body,
+            )
         }
 
         val replacement = renewalHandler?.renew(checkNotNull(failedSession))
-            ?: throw ApiException.fromHttpStatus(firstResponse.statusCode, firstError.code)
+            ?: throw ApiException.fromHttpStatus(
+                firstResponse.statusCode,
+                firstError.code,
+                firstResponse.body,
+            )
         val retryResponse = executeOnce(request, replacement.token)
         return requireSuccess(retryResponse)
     }
@@ -79,7 +88,7 @@ class ApiClient internal constructor(
         try {
             connection.requestMethod = request.method
             connection.connectTimeout = AppConstants.Network.CONNECT_TIMEOUT_MILLIS
-            connection.readTimeout = AppConstants.Network.READ_TIMEOUT_MILLIS
+            connection.readTimeout = request.timeoutMillis
             connection.setRequestProperty(
                 AppConstants.Network.ACCEPT_HEADER,
                 AppConstants.Network.JSON_MEDIA_TYPE,
@@ -127,7 +136,7 @@ class ApiClient internal constructor(
         if (response.statusCode in 200..299) return response.body
 
         val error = parseError(response.body)
-        throw ApiException.fromHttpStatus(response.statusCode, error.code)
+        throw ApiException.fromHttpStatus(response.statusCode, error.code, response.body)
     }
 }
 

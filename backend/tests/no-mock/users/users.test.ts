@@ -1,189 +1,157 @@
-import supertest from 'supertest';
+import 'dotenv/config';
 
-import { InvalidSessionError } from '../../../src/session/sessionError';
-import type { Session } from '../../../src/session/sessionTypes';
+import * as os from 'node:os';
+
+import type { Express } from 'express';
+import { Db, MongoClient, ObjectId } from 'mongodb';
+import request from 'supertest';
+
 import { createApp } from '../../../src/index';
-import type { UserRepository } from '../../../src/users/userRepository';
-import {
-  INTEREST_PREFERENCES,
-  type GoogleUserIdentity,
-  type OnboardingInput,
-  type User,
-  type UserPreferences,
-  type UserUpdate,
-} from '../../../src/users/userTypes';
+import { UserDao } from '../../../src/users/userDao';
 
-const USER_ID = 'user-123';
-const SESSION_TOKEN = 'valid-test-session';
-const INITIAL_PREFERENCES: UserPreferences = {
-  transportation: { mode: 'transit' },
-  budget: 'balanced',
-  interest: 'outdoors',
-};
+jest.setTimeout(30_000);
 
-class TestUserRepository implements UserRepository {
-  private displayName = 'Test User';
-  private startLocation = 'UBC Bus Exchange';
-  private onboardingCompletedAt: Date | null = null;
-  private preferences: UserPreferences | null = {
-    ...INITIAL_PREFERENCES,
-    transportation: { ...INITIAL_PREFERENCES.transportation },
-  };
+const USER_ID = new ObjectId();
+const MISSING_USER_ID = new ObjectId();
+const DATABASE_NAME = `eubc_u_${new ObjectId().toHexString()}`;
 
-  async findOrCreateByGoogleIdentity(
-    identity: GoogleUserIdentity,
-  ): Promise<User> {
-    return {
-      id: USER_ID,
-      googleSubject: identity.googleSubject,
-      email: identity.email,
-      displayName: identity.displayName,
-      profileImageUrl: identity.profileImageUrl,
-      start_location: this.startLocation,
-      preferences: this.preferences ?? INITIAL_PREFERENCES,
-      onboardingCompletedAt: this.onboardingCompletedAt,
-      create_at: new Date('2026-10-12T12:00:00.000Z'),
-      updated_at: new Date('2026-10-12T12:00:00.000Z'),
-    };
+let client: MongoClient;
+let database: Db;
+let app: Express;
+
+beforeAll(async () => {
+  const uri = process.env.MONGODB_URI;
+  if (uri === undefined || uri.trim() === '') {
+    throw new Error('MONGODB_URI is required for no-mock tests.');
   }
 
-  async findPreferences(userId: string): Promise<UserPreferences | null> {
-    return userId === USER_ID ? this.preferences : null;
-  }
-
-  async findUser(userId: string): Promise<User | null> {
-    if (userId !== USER_ID || this.preferences === null) {
-      return null;
-    }
-
-    return {
-      id: USER_ID,
-      googleSubject: USER_ID,
-      email: 'test.user@student.ubc.ca',
-      displayName: this.displayName,
-      profileImageUrl: null,
-      start_location: this.startLocation,
-      preferences: this.preferences,
-      onboardingCompletedAt: this.onboardingCompletedAt,
-      create_at: new Date('2026-10-12T12:00:00.000Z'),
-      updated_at: new Date('2026-10-12T12:00:00.000Z'),
-    };
-  }
-
-  async updateUser(userId: string, update: UserUpdate): Promise<User | null> {
-    if (userId !== USER_ID || this.preferences === null) {
-      return null;
-    }
-
-    this.displayName = update.displayName ?? this.displayName;
-    this.startLocation = update.start_location ?? this.startLocation;
-    this.preferences = {
-      transportation:
-        update.preferences?.transportation ?? this.preferences.transportation,
-      budget: update.preferences?.budget ?? this.preferences.budget,
-      interest: update.preferences?.interest ?? this.preferences.interest,
-    };
-    return this.findUser(userId);
-  }
-
-  async completeOnboarding(
-    userId: string,
-    onboarding: OnboardingInput,
-    completedAt: Date,
-  ): Promise<User | null> {
-    if (userId !== USER_ID || this.preferences === null) {
-      return null;
-    }
-
-    this.startLocation = onboarding.start_location;
-    this.preferences = onboarding.preferences;
-    this.onboardingCompletedAt = completedAt;
-    return this.findUser(userId);
-  }
-}
-
-const sessionService = {
-  async validateSession(token: string): Promise<Session> {
-    if (token !== SESSION_TOKEN) {
-      throw new InvalidSessionError();
-    }
-
-    return {
-      id: 'session-123',
-      userId: USER_ID,
-      tokenHash: 'test-hash',
-      createdAt: new Date('2026-10-12T12:00:00.000Z'),
-      expiresAt: new Date('2026-11-11T12:00:00.000Z'),
-    };
-  },
-};
-
-function request(app: Parameters<typeof supertest>[0]) {
-  return supertest
-    .agent(app)
-    .set('Authorization', `Bearer ${SESSION_TOKEN}`);
-}
-
-function createTestApp() {
-  return createApp({
-    sessionService,
-    userRepository: new TestUserRepository(),
+  client = new MongoClient(uri, {
+    runtimeAdapters: { os },
+    serverSelectionTimeoutMS: 10_000,
   });
-}
+  database = client.db(DATABASE_NAME);
+  app = createApp({ userRepository: new UserDao(database) });
+  await client.connect();
+});
 
-describe('Unmocked: GET /api/v1/users/:userId', () => {
-  test('returns the complete user, including profile fields and preferences', async () => {
-    const response = await request(createTestApp()).get(
-      `/api/v1/users/${USER_ID}`,
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
-      user: {
-        id: USER_ID,
-        googleSubject: USER_ID,
-        email: 'test.user@student.ubc.ca',
-        displayName: 'Test User',
-        profileImageUrl: null,
-        start_location: 'UBC Bus Exchange',
-        preferences: INITIAL_PREFERENCES,
-        onboardingCompletedAt: null,
-        create_at: '2026-10-12T12:00:00.000Z',
-        updated_at: '2026-10-12T12:00:00.000Z',
-      },
-    });
-  });
-
-  test('returns 403 when requesting a different user', async () => {
-    const response = await request(createTestApp()).get(
-      '/api/v1/users/missing-user',
-    );
-
-    expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('FORBIDDEN');
+beforeEach(async () => {
+  await database.collection('users').deleteMany({});
+  await database.collection('users').insertOne({
+    _id: USER_ID,
+    googleSubject: 'google-subject-123',
+    email: 'test.user@student.ubc.ca',
+    displayName: 'Test User',
+    profileImageUrl: null,
+    start_location: 'UBC Bus Exchange',
+    preferences: {
+      transportation: { mode: 'transit' },
+      budget: 'balanced',
+      interest: 'outdoors',
+    },
+    onboardingCompletedAt: new Date('2026-10-12T12:00:00.000Z'),
+    create_at: new Date('2026-10-12T12:00:00.000Z'),
+    updated_at: new Date('2026-10-12T12:00:00.000Z'),
   });
 });
 
-describe('Unmocked: PATCH /api/v1/users/:userId', () => {
-  test('updates the display name and starting location', async () => {
-    const app = createTestApp();
+afterAll(async () => {
+  await database.collection('users').deleteMany({});
+  await client.close();
+});
+
+describe('GET /api/v1/users/:userId — no mocks', () => {
+  test('returns the complete user stored in MongoDB', async () => {
+    // Input: existing user ID. Expect: 200 and the complete persisted profile.
+    // Behavior: the real UserDao reads from MongoDB; no component is mocked.
+    const response = await request(app).get(`/api/v1/users/${USER_ID}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({
+      id: USER_ID.toHexString(),
+      googleSubject: 'google-subject-123',
+      email: 'test.user@student.ubc.ca',
+      displayName: 'Test User',
+      profileImageUrl: null,
+      start_location: 'UBC Bus Exchange',
+      preferences: {
+        transportation: { mode: 'transit' },
+        budget: 'balanced',
+        interest: 'outdoors',
+      },
+      onboardingCompletedAt: '2026-10-12T12:00:00.000Z',
+      create_at: '2026-10-12T12:00:00.000Z',
+      updated_at: '2026-10-12T12:00:00.000Z',
+    });
+  });
+
+  test('returns USER_NOT_FOUND for an absent user', async () => {
+    // Input: absent valid ObjectId. Expect: 404 USER_NOT_FOUND and no mutation.
+    // Behavior: the real MongoDB query returns no document; no component is mocked.
+    const response = await request(app).get(`/api/v1/users/${MISSING_USER_ID}`);
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('USER_NOT_FOUND');
+  });
+
+  test('returns USER_NOT_FOUND for a malformed user ID', async () => {
+    // Input: malformed ID. Expect: 404 without issuing a matching MongoDB query.
+    // Behavior: the real UserDao rejects the ID; no component is mocked.
+    const response = await request(app).get('/api/v1/users/not-an-object-id');
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('USER_NOT_FOUND');
+  });
+
+  test('reads preferences directly and safely handles missing users', async () => {
+    const userDao = new UserDao(database);
+
+    await expect(userDao.findPreferences(USER_ID.toHexString()))
+      .resolves.toEqual({
+        transportation: { mode: 'transit' },
+        budget: 'balanced',
+        interest: 'outdoors',
+      });
+    await expect(userDao.findPreferences(MISSING_USER_ID.toHexString()))
+      .resolves.toBeNull();
+    await expect(userDao.findPreferences('not-an-object-id'))
+      .resolves.toBeNull();
+  });
+});
+
+describe('PATCH /api/v1/users/:userId — no mocks', () => {
+  test('updates profile fields and nested preferences in MongoDB', async () => {
+    // Input: display name, start location, and preferences. Expect: 200 and merged user.
+    // Behavior: the real UserDao updates MongoDB and the API reads the saved document back.
     const response = await request(app)
       .patch(`/api/v1/users/${USER_ID}`)
       .send({
         displayName: 'Updated User',
         start_location: 'UBC Bookstore',
+        preferences: {
+          transportation: { mode: 'walking' },
+          budget: 'premium',
+          interest: 'art',
+        },
       });
 
     expect(response.status).toBe(200);
     expect(response.body.user).toMatchObject({
       displayName: 'Updated User',
       start_location: 'UBC Bookstore',
-      preferences: INITIAL_PREFERENCES,
+      preferences: {
+        transportation: { mode: 'walking' },
+        budget: 'premium',
+        interest: 'art',
+      },
     });
+    await expect(database.collection('users').findOne({ _id: USER_ID }))
+      .resolves.toMatchObject({ displayName: 'Updated User' });
   });
 
-  test('supports a partial user update', async () => {
-    const response = await request(createTestApp())
+  test('preserves omitted fields during a partial update', async () => {
+    // Input: only a new start location. Expect: 200 with all omitted fields unchanged.
+    // Behavior: MongoDB receives a partial $set through the real UserDao.
+    const response = await request(app)
       .patch(`/api/v1/users/${USER_ID}`)
       .send({ start_location: 'Nitobe Memorial Garden' });
 
@@ -191,11 +159,13 @@ describe('Unmocked: PATCH /api/v1/users/:userId', () => {
     expect(response.body.user).toMatchObject({
       displayName: 'Test User',
       start_location: 'Nitobe Memorial Garden',
+      preferences: { budget: 'balanced' },
     });
   });
 
-  test('rejects empty and unexpected user updates', async () => {
-    const app = createTestApp();
+  test('rejects an empty or unexpected update before changing MongoDB', async () => {
+    // Input: empty body and immutable email field. Expect: 400 INVALID_USER_UPDATE.
+    // Behavior: validation rejects both requests; the real stored document stays unchanged.
     const emptyResponse = await request(app)
       .patch(`/api/v1/users/${USER_ID}`)
       .send({});
@@ -209,117 +179,57 @@ describe('Unmocked: PATCH /api/v1/users/:userId', () => {
     expect(unexpectedResponse.body.error.details).toContain(
       "Unexpected field 'email'.",
     );
+    await expect(database.collection('users').findOne({ _id: USER_ID }))
+      .resolves.toMatchObject({ email: 'test.user@student.ubc.ca' });
   });
 
-  test('returns 403 when updating a different user', async () => {
-    const response = await request(createTestApp())
-      .patch('/api/v1/users/missing-user')
+  test('returns USER_NOT_FOUND without inserting an absent user', async () => {
+    // Input: update for an absent valid ObjectId. Expect: 404 USER_NOT_FOUND.
+    // Behavior: the real MongoDB update matches zero documents and inserts nothing.
+    const response = await request(app)
+      .patch(`/api/v1/users/${MISSING_USER_ID}`)
       .send({ displayName: 'Missing User' });
 
-    expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('FORBIDDEN');
-  });
-});
-
-describe('Unmocked: PATCH /api/v1/users/:userId with preferences', () => {
-  test.each(INTEREST_PREFERENCES)(
-    'updates the interest preference to %s',
-    async (interest) => {
-      const app = createTestApp();
-
-      const response = await request(app)
-        .patch(`/api/v1/users/${USER_ID}`)
-        .send({ preferences: { interest } });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toMatchObject({
-        user: {
-          preferences: {
-            ...INITIAL_PREFERENCES,
-            interest,
-          },
-        },
-      });
-    },
-  );
-
-  test('preserves the interest when another preference changes', async () => {
-    const response = await request(createTestApp())
-      .patch(`/api/v1/users/${USER_ID}`)
-      .send({
-        preferences: {
-          transportation: { mode: 'cycling' },
-          budget: 'economical',
-        },
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      user: {
-        preferences: {
-          transportation: { mode: 'cycling' },
-          budget: 'economical',
-          interest: INITIAL_PREFERENCES.interest,
-        },
-      },
-    });
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('USER_NOT_FOUND');
+    await expect(
+      database.collection('users').countDocuments({ _id: MISSING_USER_ID }),
+    ).resolves.toBe(0);
   });
 
-  test('rejects an unsupported interest', async () => {
-    const response = await request(createTestApp())
+  test.each([
+    [['not-an-object']],
+    [{ displayName: 42 }],
+    [{ displayName: '   ' }],
+    [{ displayName: 'a'.repeat(201) }],
+    [{ start_location: 'a'.repeat(501) }],
+    [{ preferences: null }],
+    [{ preferences: {} }],
+    [{ preferences: { unknown: true } }],
+    [{ preferences: { transportation: null } }],
+    [{ preferences: { transportation: {} } }],
+    [{ preferences: { transportation: { mode: 'flying' } } }],
+    [{ preferences: { budget: 'free' } }],
+    [{ preferences: { interest: 'sports' } }],
+  ])('rejects invalid update payload %#', async (body) => {
+    // Input: malformed field or preference. Expect: 400 INVALID_USER_UPDATE.
+    // Behavior: live request validation rejects it before the real database changes.
+    const response = await request(app)
       .patch(`/api/v1/users/${USER_ID}`)
-      .send({ preferences: { interest: 'sports' } });
+      .send(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toMatchObject({
-      code: 'INVALID_USER_UPDATE',
-      message: 'The user update is invalid.',
-    });
-    expect(response.body.error.details).toContain(
-      'preferences.interest must be one of: food, art, outdoors, markets, live_music, gaming.',
-    );
+    expect(response.body.error.code).toBe('INVALID_USER_UPDATE');
   });
 
-  test('rejects an empty update', async () => {
-    const response = await request(createTestApp())
-      .patch(`/api/v1/users/${USER_ID}`)
-      .send({ preferences: {} });
+  test('rejects a valid update sent to a malformed user ID', async () => {
+    // Input: malformed route ID and valid body. Expect: 404 USER_NOT_FOUND.
+    // Behavior: the real UserDao returns false without updating MongoDB.
+    const response = await request(app)
+      .patch('/api/v1/users/not-an-object-id')
+      .send({ displayName: 'Valid Name' });
 
-    expect(response.status).toBe(400);
-    expect(response.body.error.details).toContain(
-      'preferences must contain at least one field.',
-    );
-  });
-
-  test('rejects unexpected fields', async () => {
-    const response = await request(createTestApp())
-      .patch(`/api/v1/users/${USER_ID}`)
-      .send({ preferences: { interests: ['food'] } });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error.details).toContain(
-      "Unexpected field 'preferences.interests'.",
-    );
-  });
-
-  test('does not change stored preferences after a rejected update', async () => {
-    const app = createTestApp();
-
-    await request(app)
-      .patch(`/api/v1/users/${USER_ID}`)
-      .send({ preferences: { interest: 'sports' } })
-      .expect(400);
-
-    const response = await request(app).get(`/api/v1/users/${USER_ID}`);
-    expect(response.body.user.preferences).toEqual(INITIAL_PREFERENCES);
-  });
-
-  test('returns 403 when updating another user\'s preferences', async () => {
-    const response = await request(createTestApp())
-      .patch('/api/v1/users/missing-user')
-      .send({ preferences: { interest: 'food' } });
-
-    expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('FORBIDDEN');
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('USER_NOT_FOUND');
   });
 });

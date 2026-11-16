@@ -4,49 +4,105 @@ import android.net.Uri
 import com.google.android.gms.maps.model.LatLng
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONArray
 import org.json.JSONObject
 
-class GoogleMapsApiClient(private val apiKey: String) {
+class GoogleMapsApiClient(
+    private val mapsApiKey: String,
+    private val placesApiKey: String = mapsApiKey,
+) {
+    fun autocompleteAddresses(query: String): AddressAutocompleteResult {
+        val trimmed = query.trim()
+        if (trimmed.length < 3) return AddressAutocompleteResult(emptyList())
+        val keys = listOf(placesApiKey, mapsApiKey)
+            .map { it.trim() }
+            .filter { it.isNotBlank() && it != "YOUR_API_KEY" }
+            .distinct()
+        if (keys.isEmpty()) {
+            return AddressAutocompleteResult(
+                emptyList(),
+                "Address suggestions are unavailable. Configure a Places API key.",
+            )
+        }
+        var lastError: String? = null
+        for (key in keys) {
+            val result = autocompleteAddressesWithKey(trimmed, key) ?: continue
+            if (result.errorMessage == null) return result
+            lastError = result.errorMessage
+        }
+        return AddressAutocompleteResult(
+            emptyList(),
+            lastError ?: "Address suggestions are unavailable. Check your connection and Places API settings.",
+        )
+    }
 
-    fun fetchRoutePolyline(stops: List<ItineraryStop>): List<LatLng>? {
-        if (stops.size < 2 || apiKey.isBlank() || apiKey == "YOUR_API_KEY") return null
-
-        val origin = stops.first().location
-        val destination = stops.last().location
-        val waypoints = stops.drop(1).dropLast(1).joinToString("|") { "${it.location.latitude},${it.location.longitude}" }
-
-        val uri = Uri.parse("https://maps.googleapis.com/maps/api/directions/json").buildUpon()
-            .appendQueryParameter("origin", "${origin.latitude},${origin.longitude}")
-            .appendQueryParameter("destination", "${destination.latitude},${destination.longitude}")
-            .appendQueryParameter("mode", "walking")
-            .apply {
-                if (waypoints.isNotBlank()) {
-                    appendQueryParameter("waypoints", waypoints)
-                }
+    private fun autocompleteAddressesWithKey(
+        query: String,
+        key: String,
+    ): AddressAutocompleteResult? {
+        val uri = Uri.parse("https://places.googleapis.com/v1/places:autocomplete")
+        val requestBody = JSONObject()
+            .put("input", query)
+            .put("includedRegionCodes", JSONArray().put("ca"))
+            .put(
+                "locationBias",
+                JSONObject().put(
+                    "circle",
+                    JSONObject()
+                        .put(
+                            "center",
+                            JSONObject()
+                                .put("latitude", 49.2606)
+                                .put("longitude", -123.2460),
+                        )
+                        .put("radius", 30_000),
+                ),
+            )
+        val json = postJson(uri, key, requestBody) ?: return null
+        val apiError = json.optJSONObject("error")
+        if (apiError != null) {
+            val responseStatus = apiError.optString("status").ifBlank { "unknown error" }
+            val responseMessage = apiError.optString("message")
+            val detail = responseMessage.takeIf(String::isNotBlank)?.let { ": $it" }.orEmpty()
+            return AddressAutocompleteResult(
+                emptyList(),
+                "Places API error ($responseStatus)$detail",
+            )
+        }
+        val predictions = json.optJSONArray("suggestions") ?: return AddressAutocompleteResult(emptyList())
+        val suggestions = buildList {
+            for (i in 0 until minOf(predictions.length(), 6)) {
+                val prediction = predictions.optJSONObject(i)
+                    ?.optJSONObject("placePrediction")
+                    ?: continue
+                val fullAddress = prediction.optJSONObject("text")
+                    ?.optString("text")
+                    .orEmpty()
+                if (fullAddress.isBlank()) continue
+                val primaryText = prediction.optJSONObject("structuredFormat")
+                    ?.optJSONObject("mainText")
+                    ?.optString("text")
+                add(
+                    AddressSuggestion(
+                        primaryText = primaryText.orEmpty().ifBlank { fullAddress },
+                        fullAddress = fullAddress,
+                        placeId = prediction.optString("placeId"),
+                    ),
+                )
             }
-            .appendQueryParameter("key", apiKey)
-            .build()
-
-        val json = getJson(uri) ?: return null
-        if (json.optString("status") != "OK") return null
-
-        val encoded = json.getJSONArray("routes")
-            .optJSONObject(0)
-            ?.getJSONObject("overview_polyline")
-            ?.optString("points")
-            .orEmpty()
-
-        return encoded.takeIf { it.isNotBlank() }?.let { decodePolyline(it) }
+        }
+        return AddressAutocompleteResult(suggestions)
     }
 
     fun fetchPopularPlaces(center: LatLng): List<PopularPlace>? {
-        if (apiKey.isBlank() || apiKey == "YOUR_API_KEY") return null
+        val key = placesApiKey.ifBlank { mapsApiKey }
+        if (key.isBlank() || key == "YOUR_API_KEY") return null
 
         val uri = Uri.parse("https://maps.googleapis.com/maps/api/place/nearbysearch/json").buildUpon()
             .appendQueryParameter("location", "${center.latitude},${center.longitude}")
             .appendQueryParameter("radius", "3000")
             .appendQueryParameter("type", "tourist_attraction")
-            .appendQueryParameter("key", apiKey)
+            .appendQueryParameter("key", key)
             .build()
 
         val json = getJson(uri) ?: return null
@@ -70,15 +126,27 @@ class GoogleMapsApiClient(private val apiKey: String) {
         }
     }
 
-    private fun getJson(uri: Uri): JSONObject? {
+    private fun postJson(uri: Uri, apiKey: String, body: JSONObject): JSONObject? {
         val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+            requestMethod = "POST"
             connectTimeout = 8_000
             readTimeout = 8_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("X-Goog-Api-Key", apiKey)
+            setRequestProperty("X-Goog-FieldMask", "suggestions.placePrediction")
         }
         return try {
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            connection.outputStream.bufferedWriter().use { writer ->
+                writer.write(body.toString())
+            }
+            val responseCode = connection.responseCode
+            val responseStream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: return null
+            }
+            JSONObject(responseStream.bufferedReader().use { it.readText() })
         } catch (_: Exception) {
             null
         } finally {
@@ -86,34 +154,24 @@ class GoogleMapsApiClient(private val apiKey: String) {
         }
     }
 
-    private fun decodePolyline(encoded: String): List<LatLng> {
-        val points = mutableListOf<LatLng>()
-        var index = 0
-        var lat = 0
-        var lng = 0
-
-        while (index < encoded.length) {
-            var result = 0
-            var shift = 0
-            var byte: Int
-            do {
-                byte = encoded[index++].code - 63
-                result = result or ((byte and 0x1f) shl shift)
-                shift += 5
-            } while (byte >= 0x20)
-            lat += if (result and 1 != 0) (result shr 1).inv() else result shr 1
-
-            result = 0
-            shift = 0
-            do {
-                byte = encoded[index++].code - 63
-                result = result or ((byte and 0x1f) shl shift)
-                shift += 5
-            } while (byte >= 0x20)
-            lng += if (result and 1 != 0) (result shr 1).inv() else result shr 1
-
-            points.add(LatLng(lat / 1e5, lng / 1e5))
+    private fun getJson(uri: Uri): JSONObject? {
+        val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8_000
+            readTimeout = 8_000
         }
-        return points
+        return try {
+            val responseCode = connection.responseCode
+            val responseStream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: return null
+            }
+            JSONObject(responseStream.bufferedReader().use { it.readText() })
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 }

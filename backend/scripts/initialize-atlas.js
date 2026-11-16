@@ -214,6 +214,12 @@ async function initializeDatabase() {
       [{ userId: 1 }, { name: 'sessions_by_user' }],
     ]);
 
+    const itineraryMaps = database.collection('itineraryMaps');
+    await itineraryMaps.createIndex(
+      { itineraryId: 1 },
+      { unique: true, name: 'unique_itinerary_map' },
+    );
+
     const liveEvents = database.collection('liveevents');
     await liveEvents.createIndex(
       { externalId: 1 },

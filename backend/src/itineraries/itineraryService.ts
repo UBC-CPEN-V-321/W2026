@@ -17,6 +17,8 @@ import type {
   ItineraryDetails,
   ItineraryDetailsUpdate,
   ItineraryFilters,
+  ItineraryItem,
+  ItineraryTimeConflict,
   TransportationItem,
   TransportationSegmentUpdate,
 } from './itineraryTypes';
@@ -80,27 +82,28 @@ export class ItineraryService {
     userId: string,
     itineraryId: string,
     activityInput: CreateActivityInput,
+    replaceConflicts = false,
   ): Promise<ActivityItem> {
     const itinerary = await this.getItinerary(userId, itineraryId);
-    const newStartTime = Date.parse(activityInput.startTime);
-    const newEndTime = Date.parse(activityInput.endTime);
-    const conflictingItem = itinerary.items.find(
-      (item) =>
-        newStartTime < Date.parse(item.endTime) &&
-        newEndTime > Date.parse(item.startTime),
+    const conflicts = this.findTimeConflicts(
+      itinerary,
+      activityInput.startTime,
+      activityInput.endTime,
     );
-    if (conflictingItem !== undefined) {
-      const conflictName =
-        conflictingItem.type === 'activity'
-          ? conflictingItem.name
-          : 'transportation segment';
-      throw new ItineraryTimeConflictError(conflictName);
-    }
 
     const activity: ActivityItem = {
       ...activityInput,
       id: randomUUID(),
     };
+    if (await this.resolveTimeConflicts(
+      userId,
+      itineraryId,
+      conflicts,
+      activity,
+      replaceConflicts,
+    )) {
+      return activity;
+    }
     const inserted = await this.repository.insertEmbeddedActivity(
       userId,
       itineraryId,
@@ -116,11 +119,28 @@ export class ItineraryService {
     userId: string,
     itineraryId: string,
     segmentInput: CreateTransportationInput,
+    replaceConflicts = false,
   ): Promise<TransportationItem> {
+    const itinerary = await this.getItinerary(userId, itineraryId);
+    const conflicts = this.findTimeConflicts(
+      itinerary,
+      segmentInput.startTime,
+      segmentInput.endTime,
+    );
+
     const segment: TransportationItem = {
       ...segmentInput,
       id: randomUUID(),
     };
+    if (await this.resolveTimeConflicts(
+      userId,
+      itineraryId,
+      conflicts,
+      segment,
+      replaceConflicts,
+    )) {
+      return segment;
+    }
     const inserted = await this.repository.insertEmbeddedTransportationSegment(
       userId,
       itineraryId,
@@ -177,15 +197,32 @@ export class ItineraryService {
     itineraryId: string,
     activityId: string,
     update: ActivityUpdate,
+    replaceConflicts = false,
   ): Promise<ActivityItem> {
-    const current = await this.findSavedItem(
-      userId,
-      itineraryId,
+    const itinerary = await this.getItinerary(userId, itineraryId);
+    const current = this.findItem(
+      itinerary,
       activityId,
       'activity',
     ) as ActivityItem;
     const activity: ActivityItem = { ...current, ...update };
     this.validateMergedTimeOrder(activity.startTime, activity.endTime);
+    const conflicts = this.findTimeConflicts(
+      itinerary,
+      activity.startTime,
+      activity.endTime,
+      activityId,
+    );
+    if (await this.resolveTimeConflicts(
+      userId,
+      itineraryId,
+      conflicts,
+      activity,
+      replaceConflicts,
+      activityId,
+    )) {
+      return activity;
+    }
 
     const updated = await this.repository.updateEmbeddedActivity(
       userId,
@@ -204,15 +241,32 @@ export class ItineraryService {
     itineraryId: string,
     segmentId: string,
     update: TransportationSegmentUpdate,
+    replaceConflicts = false,
   ): Promise<TransportationItem> {
-    const current = await this.findSavedItem(
-      userId,
-      itineraryId,
+    const itinerary = await this.getItinerary(userId, itineraryId);
+    const current = this.findItem(
+      itinerary,
       segmentId,
       'transportation',
     ) as TransportationItem;
     const segment: TransportationItem = { ...current, ...update };
     this.validateMergedTimeOrder(segment.startTime, segment.endTime);
+    const conflicts = this.findTimeConflicts(
+      itinerary,
+      segment.startTime,
+      segment.endTime,
+      segmentId,
+    );
+    if (await this.resolveTimeConflicts(
+      userId,
+      itineraryId,
+      conflicts,
+      segment,
+      replaceConflicts,
+      segmentId,
+    )) {
+      return segment;
+    }
 
     const updated =
       await this.repository.updateEmbeddedTransportationSegment(
@@ -245,8 +299,16 @@ export class ItineraryService {
     type: 'activity' | 'transportation',
   ): Promise<ActivityItem | TransportationItem> {
     const itinerary = await this.getItinerary(userId, itineraryId);
+    return this.findItem(itinerary, itemId, type);
+  }
+
+  private findItem(
+    itinerary: Itinerary,
+    itemId: string,
+    type: 'activity' | 'transportation',
+  ): ActivityItem | TransportationItem {
     if (!itinerary.saved) {
-      throw new ItineraryNotFoundError(itineraryId);
+      throw new ItineraryNotFoundError(itinerary.id);
     }
     const item = itinerary.items.find(
       (candidate) => candidate.id === itemId && candidate.type === type,
@@ -255,6 +317,83 @@ export class ItineraryService {
       throw new ItineraryItemNotFoundError(itemId);
     }
     return item;
+  }
+
+  private findTimeConflicts(
+    itinerary: Itinerary,
+    startTime: string,
+    endTime: string,
+    excludedItemId?: string,
+  ): ItineraryTimeConflict[] {
+    const newStartTime = Date.parse(startTime);
+    const newEndTime = Date.parse(endTime);
+    return itinerary.items
+      .filter(
+        (item) =>
+        item.id !== excludedItemId &&
+        newStartTime < Date.parse(item.endTime) &&
+        newEndTime > Date.parse(item.startTime),
+      )
+      .map((item) => ({
+        id: item.id,
+        type: item.type,
+        name: item.type === 'activity'
+          ? item.name
+          : `${item.startLocation} to ${item.endLocation}`,
+        startTime: item.startTime,
+        endTime: item.endTime,
+      }));
+  }
+
+  private async replaceConflicts(
+    userId: string,
+    itineraryId: string,
+    conflicts: ItineraryTimeConflict[],
+    replacement: ItineraryItem,
+    replacedItemId?: string,
+  ): Promise<void> {
+    const replaceEmbeddedItems = this.repository.replaceEmbeddedItems;
+    if (replaceEmbeddedItems === undefined) {
+      throw new Error('The itinerary repository does not support replacement.');
+    }
+    const removedItemIds = conflicts.map((conflict) => conflict.id);
+    if (replacedItemId !== undefined) {
+      removedItemIds.push(replacedItemId);
+    }
+    const replaced = await replaceEmbeddedItems.call(
+      this.repository,
+      userId,
+      itineraryId,
+      removedItemIds,
+      replacement,
+    );
+    if (!replaced) {
+      throw new ItineraryNotFoundError(itineraryId);
+    }
+  }
+
+  private async resolveTimeConflicts(
+    userId: string,
+    itineraryId: string,
+    conflicts: ItineraryTimeConflict[],
+    item: ItineraryItem,
+    shouldReplace: boolean,
+    replacedItemId?: string,
+  ): Promise<boolean> {
+    if (conflicts.length === 0) {
+      return false;
+    }
+    if (!shouldReplace) {
+      throw new ItineraryTimeConflictError(conflicts);
+    }
+    await this.replaceConflicts(
+      userId,
+      itineraryId,
+      conflicts,
+      item,
+      replacedItemId,
+    );
+    return true;
   }
 
   private validateMergedTimeOrder(startTime: string, endTime: string): void {

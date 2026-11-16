@@ -2,12 +2,12 @@ import { attachDatabasePool } from '@vercel/functions';
 import express, { type Express } from 'express';
 import { MongoClient } from 'mongodb';
 
-import { createAuthRouter } from './auth/authRouter';
-import { AuthService } from './auth/authService';
 import {
   authenticateSession,
   requireUserOwnership,
 } from './auth/authMiddleware';
+import { createAuthRouter } from './auth/authRouter';
+import { AuthService } from './auth/authService';
 import { GoogleIdTokenVerifier } from './auth/googleTokenVerifier';
 import { env } from './config/env';
 import { EventDao } from './events/eventDao';
@@ -18,6 +18,19 @@ import { ItineraryDao } from './itineraries/itineraryDao';
 import type { ItineraryRepository } from './itineraries/itineraryRepository';
 import { createItineraryRouter } from './itineraries/itineraryRouter';
 import { ItineraryService } from './itineraries/itineraryService';
+import { ItineraryMapDao } from './maps/itineraryMapDao';
+import type { ItineraryMapRepository } from './maps/itineraryMapRepository';
+import { ItineraryMapService } from './maps/itineraryMapService';
+import { RecommendationDao } from './recommendation/recommendationDao';
+import type { RecommendationRepository } from './recommendation/recommendationRepository';
+import { createRecommendationRouter } from './recommendation/recommendationRouter';
+import { RecommendationService } from './recommendation/recommendationService';
+import { SoclaasClient } from './recommendation/soclaasClient';
+import type {
+  ItineraryGenerator,
+  ItineraryRanker,
+} from './recommendation/recommendationTypes';
+import { UniversalSentenceEncoderItineraryRanker } from './recommendation/universalSentenceEncoderRanker';
 import { SessionDao } from './session/sessionDao';
 import { SessionService } from './session/sessionService';
 import { UserDao } from './users/userDao';
@@ -28,12 +41,16 @@ import { UserService } from './users/userService';
 export type AppDependencies = {
   authService?: AuthService;
   eventRepository?: EventRepository;
+  itineraryMapRepository?: ItineraryMapRepository;
   itineraryRepository?: ItineraryRepository;
-  sessionService: Pick<SessionService, 'validateSession'>;
+  recommendationGenerator?: ItineraryGenerator;
+  recommendationRanker?: ItineraryRanker;
+  recommendationRepository?: RecommendationRepository;
+  sessionService?: Pick<SessionService, 'validateSession'>;
   userRepository?: UserRepository;
 };
 
-export function createApp(dependencies: AppDependencies): Express {
+export function createApp(dependencies: AppDependencies = {}): Express {
   const app = express();
 
   app.use(express.json());
@@ -46,11 +63,13 @@ export function createApp(dependencies: AppDependencies): Express {
     app.use('/api/v1/auth', createAuthRouter(dependencies.authService));
   }
 
-  app.use(
-    '/api/v1/users/:userId',
-    authenticateSession(dependencies.sessionService),
-    requireUserOwnership,
-  );
+  if (dependencies.sessionService !== undefined) {
+    app.use(
+      '/api/v1/users/:userId',
+      authenticateSession(dependencies.sessionService),
+      requireUserOwnership,
+    );
+  }
 
   if (dependencies.userRepository !== undefined) {
     const userService = new UserService(dependencies.userRepository);
@@ -61,9 +80,16 @@ export function createApp(dependencies: AppDependencies): Express {
     const itineraryService = new ItineraryService(
       dependencies.itineraryRepository,
     );
+    const itineraryMapService =
+      dependencies.itineraryMapRepository === undefined
+        ? undefined
+        : new ItineraryMapService(
+            dependencies.itineraryRepository,
+            dependencies.itineraryMapRepository,
+          );
     app.use(
       '/api/v1/users/:userId/itineraries',
-      createItineraryRouter(itineraryService),
+      createItineraryRouter(itineraryService, itineraryMapService),
     );
   }
 
@@ -78,6 +104,24 @@ export function createApp(dependencies: AppDependencies): Express {
     app.use(
       '/api/v1/users/:userId/events',
       createEventRouter(eventService),
+    );
+  }
+
+  if (
+    dependencies.recommendationRepository !== undefined &&
+    dependencies.recommendationGenerator !== undefined &&
+    dependencies.recommendationRanker !== undefined &&
+    dependencies.userRepository !== undefined
+  ) {
+    const recommendationService = new RecommendationService(
+      dependencies.recommendationRepository,
+      dependencies.userRepository,
+      dependencies.recommendationGenerator,
+      dependencies.recommendationRanker,
+    );
+    app.use(
+      '/api/v1/users/:userId/recommendations',
+      createRecommendationRouter(recommendationService),
     );
   }
 
@@ -96,6 +140,8 @@ if (process.env.VERCEL === '1') {
 const database = mongoClient.db('cpen321');
 const eventDao = new EventDao(database);
 const userDao = new UserDao(database);
+const itineraryDao = new ItineraryDao(database);
+const itineraryMapDao = new ItineraryMapDao(database);
 const sessionService = new SessionService(
   new SessionDao(database),
   env.sessionTtlDays,
@@ -107,7 +153,11 @@ const app = createApp({
     sessionService,
   ),
   eventRepository: eventDao,
-  itineraryRepository: new ItineraryDao(database),
+  itineraryMapRepository: itineraryMapDao,
+  itineraryRepository: itineraryDao,
+  recommendationGenerator: new SoclaasClient(env.soclaas),
+  recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
+  recommendationRepository: new RecommendationDao(database),
   sessionService,
   userRepository: userDao,
 });
@@ -115,6 +165,7 @@ const app = createApp({
 async function start(): Promise<void> {
   await mongoClient.connect();
   await eventDao.createIndexes();
+  await itineraryMapDao.createIndexes();
 
   const server = app.listen(env.port, () => {
     console.log(`Server listening on port ${env.port}`);

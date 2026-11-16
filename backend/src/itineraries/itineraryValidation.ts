@@ -103,28 +103,28 @@ function parseActivity(
   );
 
   const name = requiredString(value.name, `${path}name`, 200, details);
-  const image = requiredString(value.image, `${path}image`, 2_000, details);
+  const image = optionalString(value.image, `${path}image`, 2_000, details);
   const location = requiredString(value.location, `${path}location`, 500, details);
   const description = optionalString(value.description, `${path}description`, 1_000, details);
-  const category = optionalString(value.category, `${path}category`, 100, details);
+  const category = requiredString(value.category, `${path}category`, 100, details);
   const startTime = timestamp(value.startTime, `${path}startTime`, details);
   const endTime = timestamp(value.endTime, `${path}endTime`, details);
   validateTimeOrder(startTime, endTime, path, details);
 
   if (
-    name === undefined || image === undefined ||
+    name === undefined || category === undefined ||
     location === undefined || startTime === undefined || endTime === undefined
   ) return undefined;
 
   return {
     type: 'activity',
     name,
-    image,
+    image: image ?? '',
     location,
     startTime,
     endTime,
     ...(description === undefined ? {} : { description }),
-    ...(category === undefined ? {} : { category }),
+    category,
   };
 }
 
@@ -259,7 +259,7 @@ export function parseActivityUpdate(value: unknown): ActivityUpdate {
     if (name !== undefined) update.name = name;
   }
   if ('image' in value) {
-    const image = requiredString(value.image, 'image', 2_000, details);
+    const image = optionalString(value.image, 'image', 2_000, details);
     if (image !== undefined) update.image = image;
   }
   if ('description' in value) {
@@ -267,7 +267,7 @@ export function parseActivityUpdate(value: unknown): ActivityUpdate {
     if (description !== undefined) update.description = description;
   }
   if ('category' in value) {
-    const category = optionalString(value.category, 'category', 100, details);
+    const category = requiredString(value.category, 'category', 100, details);
     if (category !== undefined) update.category = category;
   }
   if ('location' in value) {
@@ -448,7 +448,7 @@ export function parseItineraryDetailsUpdate(
   const details: string[] = [];
   addUnexpectedFields(
     value,
-    ['name', 'description', 'startingLocation'],
+    ['name', 'description', 'startingLocation', 'saved', 'inRecommendation'],
     '',
     details,
   );
@@ -467,11 +467,21 @@ export function parseItineraryDetailsUpdate(
     500,
     details,
   );
+  const saved = value.saved;
+  if (saved !== undefined && typeof saved !== 'boolean') {
+    details.push('saved must be a boolean.');
+  }
+  const inRecommendation = value.inRecommendation;
+  if (inRecommendation !== undefined && typeof inRecommendation !== 'boolean') {
+    details.push('inRecommendation must be a boolean.');
+  }
 
   if (
     name === undefined &&
     description === undefined &&
     startingLocation === undefined &&
+    saved === undefined &&
+    inRecommendation === undefined &&
     details.length === 0
   ) {
     details.push('At least one itinerary detail must be provided.');
@@ -485,6 +495,8 @@ export function parseItineraryDetailsUpdate(
     ...(name === undefined ? {} : { name }),
     ...(description === undefined ? {} : { description }),
     ...(startingLocation === undefined ? {} : { startingLocation }),
+    ...(typeof saved === 'boolean' ? { saved } : {}),
+    ...(typeof inRecommendation === 'boolean' ? { inRecommendation } : {}),
   };
 }
 

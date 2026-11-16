@@ -47,6 +47,11 @@ android {
             "MAPS_API_KEY",
             "\"${localProperty("MAPS_API_KEY")}\""
         )
+        buildConfigField(
+            "String",
+            "PLACES_API_KEY",
+            "\"${localProperty("PLACES_API_KEY")}\""
+        )
         resValue("string", "google_maps_key", localProperty("MAPS_API_KEY", "YOUR_API_KEY"))
     }
 
@@ -90,6 +95,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { type Collection, type Db, type Document, ObjectId } from 'mongodb';
+import {
+  type Collection,
+  type Db,
+  type Document,
+  type Filter,
+  ObjectId,
+} from 'mongodb';
 
 import { InvalidItineraryOwnerError } from './itineraryErrors';
 import type { ItineraryRepository } from './itineraryRepository';
@@ -170,6 +176,12 @@ export class ItineraryDao implements ItineraryRepository {
     if (details.startingLocation !== undefined) {
       setFields.startingLocation = details.startingLocation;
     }
+    if (details.saved !== undefined) {
+      setFields.saved = details.saved;
+    }
+    if (details.inRecommendation !== undefined) {
+      setFields.inRecommendation = details.inRecommendation;
+    }
 
     const result = await this.itineraries.updateOne(
       { _id: ids.itineraryId, ownerId: ids.userId },
@@ -250,6 +262,44 @@ export class ItineraryDao implements ItineraryRepository {
     );
   }
 
+  async replaceEmbeddedItems(
+    userId: string,
+    itineraryId: string,
+    removedItemIds: string[],
+    replacement: ItineraryItem,
+  ): Promise<boolean> {
+    const filter = this.savedItineraryFilter(userId, itineraryId);
+    if (filter === null) {
+      return false;
+    }
+
+    const result = await this.itineraries.updateOne(
+      filter,
+      [
+        {
+          $set: {
+            items: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: '$items',
+                    as: 'item',
+                    cond: {
+                      $not: [{ $in: ['$$item.id', removedItemIds] }],
+                    },
+                  },
+                },
+                [replacement],
+              ],
+            },
+            updatedAt: '$$NOW',
+          },
+        },
+      ],
+    );
+    return result.matchedCount === 1;
+  }
+
   async removeItinerary(
     userId: string,
     itineraryId: string,
@@ -284,17 +334,13 @@ export class ItineraryDao implements ItineraryRepository {
     itineraryId: string,
     item: ItineraryItem,
   ): Promise<boolean> {
-    const ids = this.parseIds(userId, itineraryId);
-    if (ids === null) {
+    const filter = this.savedItineraryFilter(userId, itineraryId);
+    if (filter === null) {
       return false;
     }
 
     const result = await this.itineraries.updateOne(
-      {
-        _id: ids.itineraryId,
-        ownerId: ids.userId,
-        saved: true,
-      },
+      filter,
       {
         $push: { items: item },
         $set: { updatedAt: new Date() },
@@ -309,16 +355,14 @@ export class ItineraryDao implements ItineraryRepository {
     itemId: string,
     type: ItineraryItem['type'],
   ): Promise<boolean> {
-    const ids = this.parseIds(userId, itineraryId);
-    if (ids === null) {
+    const filter = this.savedItineraryFilter(userId, itineraryId);
+    if (filter === null) {
       return false;
     }
 
     const result = await this.itineraries.updateOne(
       {
-        _id: ids.itineraryId,
-        ownerId: ids.userId,
-        saved: true,
+        ...filter,
         items: { $elemMatch: { id: itemId, type } },
       },
       {
@@ -336,8 +380,8 @@ export class ItineraryDao implements ItineraryRepository {
     type: ItineraryItem['type'],
     update: ActivityUpdate | TransportationSegmentUpdate,
   ): Promise<boolean> {
-    const ids = this.parseIds(userId, itineraryId);
-    if (ids === null) {
+    const filter = this.savedItineraryFilter(userId, itineraryId);
+    if (filter === null) {
       return false;
     }
 
@@ -348,14 +392,27 @@ export class ItineraryDao implements ItineraryRepository {
 
     const result = await this.itineraries.updateOne(
       {
-        _id: ids.itineraryId,
-        ownerId: ids.userId,
-        saved: true,
+        ...filter,
         items: { $elemMatch: { id: itemId, type } },
       },
       { $set: setFields },
     );
     return result.matchedCount === 1;
+  }
+
+  private savedItineraryFilter(
+    userId: string,
+    itineraryId: string,
+  ): Filter<ItineraryDocument> | null {
+    const ids = this.parseIds(userId, itineraryId);
+    if (ids === null) {
+      return null;
+    }
+    return {
+      _id: ids.itineraryId,
+      ownerId: ids.userId,
+      saved: true,
+    };
   }
 
   private toItinerary(document: ItineraryDocument): Itinerary {
