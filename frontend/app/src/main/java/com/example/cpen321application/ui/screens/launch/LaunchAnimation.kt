@@ -42,7 +42,6 @@ import com.example.cpen321application.ui.theme.SportsSurfaceContainer
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
@@ -91,8 +90,6 @@ private val LOGO_BALLS = listOf(
     LogoBall(R.drawable.ball_tennis, -20f, 12f),
 )
 private const val WORD_SIZE = 62f
-// space kept free beside the word for the ring and balls (design units)
-private const val RING_MARGIN = 110f
 // how far the ring reaches past the ends of the word, and how tall it is relative to the word size
 private const val RING_PAD_X = 34f
 private const val RING_HEIGHT = .95f
@@ -152,12 +149,9 @@ fun LaunchAnimation(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         val shake = if (t > T_HIT && t < T_HIT + 260) (1 - (t - T_HIT) / 260) * 4 * u else 0f
         translate((Random.nextFloat() - .5f) * 2 * shake, (Random.nextFloat() - .5f) * 2 * shake) {
             if (t < T_HIT) drawOrbit(t, u, centre) else drawImpact(t, u, centre, sparks)
-            if (t >= T_LOGO) {
-                drawLogo(t - T_LOGO, u, centre, ballPictures) { fontPx ->
-                    val style = TextStyle(fontFamily = Wordmark, fontSize = fontPx.toSp())
-                    textMeasurer.measure("Sports", style) to textMeasurer.measure("Now", style)
-                }
-            }
+            // before T_LOGO everything in the logo is still fully transparent
+            val style = TextStyle(fontFamily = Wordmark, fontSize = (WORD_SIZE * u).toSp())
+            drawLogo(t - T_LOGO, u, centre, ballPictures, textMeasurer.measure("Sports", style), textMeasurer.measure("Now", style))
         }
     }
 }
@@ -187,37 +181,32 @@ private fun DrawScope.drawOrbit(t: Float, u: Float, centre: Offset) {
     }
 }
 
+// flash (gone after 0.22 s), shockwave ring (0.5 s) and sparks (0.9 s); each just fades to transparent
 private fun DrawScope.drawImpact(t: Float, u: Float, centre: Offset, sparks: List<Spark>) {
     val s = (t - T_HIT) / 1000f
-    if (s < .22f) {
-        val a = 1 - s / .22f
-        drawRect(
-            Brush.radialGradient(
-                listOf(FlashColor.copy(alpha = .9f * a), FlashColor.copy(alpha = 0f)),
-                center = centre,
-                radius = 140f * u,
-            )
-        )
-    }
-    if (s < .5f) {
-        val k = easeOutCubic(s / .5f)
-        drawCircle(
-            FlashColor.copy(alpha = .7f * (1 - k)),
-            radius = (10f + 170f * k) * u,
+    val flash = (1 - s / .22f).coerceIn(0f, 1f)
+    drawRect(
+        Brush.radialGradient(
+            listOf(FlashColor.copy(alpha = .9f * flash), FlashColor.copy(alpha = 0f)),
             center = centre,
-            style = Stroke(width = (3 * (1 - k) + .5f) * u),
+            radius = 140f * u,
         )
-    }
-    if (s < .9f) {
-        val alpha = (1 - s / .9f).coerceIn(0f, 1f)
-        sparks.forEach { spark ->
-            val distance = spark.speed * (1 - exp(-4 * s)) / 4 * u
-            drawCircle(
-                spark.color.copy(alpha = alpha),
-                radius = spark.size * (1 - s * .6f) * u,
-                center = centre + Offset(cos(spark.angle) * distance, sin(spark.angle) * distance),
-            )
-        }
+    )
+    val k = easeOutCubic((s / .5f).coerceIn(0f, 1f))
+    drawCircle(
+        FlashColor.copy(alpha = .7f * (1 - k)),
+        radius = (10f + 170f * k) * u,
+        center = centre,
+        style = Stroke(width = (3 * (1 - k) + .5f) * u),
+    )
+    val sparkAlpha = (1 - s / .9f).coerceIn(0f, 1f)
+    sparks.forEach { spark ->
+        val distance = spark.speed * (1 - exp(-4 * s)) / 4 * u
+        drawCircle(
+            spark.color.copy(alpha = sparkAlpha),
+            radius = spark.size * (1 - s * .6f) * u,
+            center = centre + Offset(cos(spark.angle) * distance, sin(spark.angle) * distance),
+        )
     }
 }
 
@@ -226,26 +215,17 @@ private fun DrawScope.drawLogo(
     u: Float,
     centre: Offset,
     ballPictures: List<Painter>,
-    measure: (Float) -> Pair<TextLayoutResult, TextLayoutResult>,
+    sports: TextLayoutResult,
+    now: TextLayoutResult,
 ) {
-    // fit the word in the middle, leaving room either side for the ring and balls
-    var fontPx = WORD_SIZE * u
-    var (sports, now) = measure(fontPx)
-    val maxWidth = (DESIGN_W - RING_MARGIN) * u
-    val fullWidth = (sports.size.width + now.size.width).toFloat()
-    if (fullWidth > maxWidth) {
-        fontPx *= maxWidth / fullWidth
-        val fitted = measure(fontPx)
-        sports = fitted.first
-        now = fitted.second
-    }
+    // the word in the middle; its size scales with the screen, so it always fits inside the ring
     val wordWidth = (sports.size.width + now.size.width).toFloat()
     val wordX = centre.x - wordWidth / 2
     val wordY = centre.y
 
     // the orbit ring: a tilted ellipse around the word
     val ringRx = wordWidth / 2 + RING_PAD_X * u
-    val ringRy = fontPx * RING_HEIGHT
+    val ringRy = WORD_SIZE * u * RING_HEIGHT
     val tilt = radians(RING_TILT_DEGREES)
     fun onRing(degrees: Float): Offset {
         val a = radians(degrees)
@@ -254,24 +234,22 @@ private fun DrawScope.drawLogo(
         return centre + Offset(x * cos(tilt) - y * sin(tilt), x * sin(tilt) + y * cos(tilt))
     }
 
-    // the word and ring pop in together with a small overshoot
+    // the word and ring pop in together with a small overshoot (fully transparent until then)
     val qw = ((elapsed - 110f) / 560f).coerceIn(0f, 1f)
-    if (qw > 0f) {
-        val scale = max(0.01f, lerp(.55f, 1f, easeOutBack(qw)))
-        val alpha = (qw * 2.2f).coerceIn(0f, 1f)
-        val top = wordY - sports.size.height / 2f
-        withTransform({ scale(scale, scale, pivot = Offset(centre.x, wordY)) }) {
-            rotateRad(tilt, pivot = centre) {
-                drawOval(
-                    SportsPrimary.copy(alpha = .35f * alpha),
-                    topLeft = centre - Offset(ringRx, ringRy),
-                    size = Size(ringRx * 2, ringRy * 2),
-                    style = Stroke(width = 1.5f * u, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f * u, 5f * u))),
-                )
-            }
-            drawText(sports, color = SportsOnSurface, topLeft = Offset(wordX, top), alpha = alpha)
-            drawText(now, color = SportsPrimary, topLeft = Offset(wordX + sports.size.width, top), alpha = alpha)
+    val scale = lerp(.55f, 1f, easeOutBack(qw))
+    val alpha = (qw * 2.2f).coerceIn(0f, 1f)
+    val top = wordY - sports.size.height / 2f
+    withTransform({ scale(scale, scale, pivot = Offset(centre.x, wordY)) }) {
+        rotateRad(tilt, pivot = centre) {
+            drawOval(
+                SportsPrimary.copy(alpha = .35f * alpha),
+                topLeft = centre - Offset(ringRx, ringRy),
+                size = Size(ringRx * 2, ringRy * 2),
+                style = Stroke(width = 1.5f * u, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f * u, 5f * u))),
+            )
         }
+        drawText(sports, color = SportsOnSurface, topLeft = Offset(wordX, top), alpha = alpha)
+        drawText(now, color = SportsPrimary, topLeft = Offset(wordX + sports.size.width, top), alpha = alpha)
     }
 
     // the balls fly out of the impact point onto the ring, spinning anticlockwise to rest
@@ -290,7 +268,8 @@ private fun DrawScope.drawLogo(
 
 // soft, borderless blob: solid core fading out to nothing
 private fun DrawScope.blob(at: Offset, radius: Float, color: Color, alpha: Float) {
-    if (radius <= .5f || alpha <= 0f) return
+    // a gradient needs a radius above zero, and the smears start at size zero
+    if (radius <= .5f) return
     drawCircle(
         Brush.radialGradient(
             0f to color.copy(alpha = alpha),
@@ -306,7 +285,6 @@ private fun DrawScope.blob(at: Offset, radius: Float, color: Color, alpha: Float
 
 // draws one of the ball pictures (res/drawable/ball_*.xml) centred on [at], turned by [rotation]
 private fun DrawScope.sportBall(picture: Painter, at: Offset, r: Float, rotation: Float, ringWidth: Float) {
-    if (r <= .5f) return
     // a ring in the background colour keeps overlapping balls apart
     drawCircle(Background, radius = r + ringWidth, center = at)
     rotateRad(-rotation, pivot = at) {
