@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| Nov 16, 2026 | 3.4, 3.5, 4.6 | Following CP2 feedback, use case names are now active verbs (e.g. View Player Statistics), and use cases with more than one goal are split: Add Friends into Search Users, Send, Accept and Decline Friend Request; Accept Players to Join into Accept and Reject Join Request; and each chat into send, view and receive messages. Formal Use Case 3 is renamed Join Game to match the list and diagram, and Use Case 4 is renamed Send Friend Message. The failure scenarios of Use Cases 1, 3 and 5 now name each specific failure and the message shown, instead of "along with the reason". |
 | Nov 10, 2026 | 4.1 | `GET /api/friends` now returns each friend's `chat_id`, so the app opens a friend's chat straight from the friends list (or a message notification) without asking for it first. Removed `GET /api/friends/{userId}/chat`. Whether the two are still friends is checked when the chat's messages load. |
 | Nov 3, 2026 | 3 (Use Case 4), 4.1 | Friend chat is built on the same tables, WebSocket and screen as game chat. Added `GET /api/friends/{userId}/chat` and `createFriendChat`. Use Case 4 now starts from the Friends tab. |
 | Nov 3, 2026 | 4.1 | Player ratings are built. Section 4.1 lists Player Review's real interfaces. No-shows are sent when the organiser marks a game completed, so there is no separate no-shows endpoint, and the score is computed when it's read instead of by `updateReputation`. |
@@ -45,35 +46,43 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 
 ### **3.4. Use Case Description**
 #### - Use cases for Feature 1 Authentication: 
-1. Login: A returning user opens the app and signs in by verifying their identity with Google.
-2. Logout: A logged-in user signs out of their account and is returned to the first screen. 
-3. Account Creation: A new user opens the app and signs up. The user verifies their identity with Google, then provides their first name, last name, and birth year.
+1. Log In: A returning user opens the app and signs in by verifying their identity with Google.
+2. Log Out: A logged-in user signs out of their account and is returned to the first screen. 
+3. Create Account: A new user opens the app and signs up. The user verifies their identity with Google, then provides their first name, last name, and birth year.
 
 #### - Use cases for Feature 2 Friend System: 
-4. Add Friends: A user searches for another user and sends them a friend request, which the other user can accept or decline. 
-5. Remove Friends: A user removes someone from their list of friends. 
-6. Friend Chat: A user chats with one of their friends. The user selects a friend from their friend list, opens the chat, and sends a message.
-7. View Friend Profile: A user views a friend’s profile, including their badges and upcoming games.
+4. Search Users: A user searches for other users by name.
+5. Send Friend Request: A user sends a friend request to a user they found, and the other user is notified.
+6. Accept Friend Request: A user accepts a friend request sent to them, and the two users become friends.
+7. Decline Friend Request: A user declines a friend request sent to them.
+8. Remove Friend: A user removes someone from their list of friends. 
+9. Send Friend Message: A user selects a friend from their friend list, opens their chat, and sends them a message.
+10. View Friend Messages: A user opens the chat with a friend and reads their earlier messages.
+11. Receive Friend Message: A user receives a new message from a friend, live if the chat is open or as a push notification if it is not.
+12. View Friend Profile: A user views a friend’s profile, including their badges and upcoming games.
 
 #### - Use cases for Feature 3 Game Discovery: 
-8. Discover Game: A player finds games happening nearby. The system uses the player’s location, or a place they choose on the map, to show nearby games and their information, and the player can filter the list by sport.
-9. Join Game: A player views the details of a game and sends a request to join it, stating their skill level, how often they play, and an optional message. 
-10. Game Chat: Players who have joined a game chat with the other participants in a temporary chat room, which is closed after the game ends. 
-11. Leave Game: A player who has joined a game withdraws from it before it starts. 
-12. View Upcoming Games: A user views the upcoming games they organise and the games they have joined.
+13. Discover Game: A player finds games happening nearby. The system uses the player’s location, or a place they choose on the map, to show nearby games and their information, and the player can filter the list by sport.
+14. Join Game: A player views the details of a game and sends a request to join it, stating their skill level, how often they play, and an optional message. 
+15. Send Game Chat Message: A player who has joined a game sends a message to the other participants in the game’s temporary chat room, which is closed after the game ends.
+16. View Game Chat Messages: A player who has joined a game opens its chat room and reads the earlier messages.
+17. Receive Game Chat Message: A player who has the game’s chat room open sees new messages from the other participants as they are sent.
+18. Leave Game: A player who has joined a game withdraws from it before it starts. 
+19. View Upcoming Games: A user views the upcoming games they organise and the games they have joined.
 
 #### - Use cases for Feature 4 Player Reputation and Statistics: 
-13. Rate Players: After a game has finished, a user rates the other players. The user selects a player and rates them on punctuality, sportsmanship, skill, and reliability, along with an overall rating.
-14. Mark No-shows: After a game has finished, the game organiser marks the players who did not show up.
-15. Player Statistics: A user views their player’s statistics, including their reputation score and the badges they have earned. 
+20. Rate Players: After a game has finished, a user rates the other players. The user selects a player and rates them on punctuality, sportsmanship, skill, and reliability, along with an overall rating.
+21. Mark No-shows: After a game has finished, the game organiser marks the players who did not show up.
+22. View Player Statistics: A user views a player’s statistics, including their reputation score and the badges they have earned. 
 
 #### - Use cases for Feature 5 Game Planning: 
-16. Create Game: A game organiser creates a new game by entering its details and selecting a location on the map.
-17. Edit Game: A game organiser changes the details of a game they created, such as the date, time, or location. 
-18. Cancel Game: A game organiser cancels a game they created, and its players are notified.
-19. Accept Players to Join: A game organiser reviews the join requests for their game, using each player’s rating, history, and badges, and accepts or rejects each one. 
-20. Kick People from Group: A game organiser removes a player from a game they created. 
-21. Invite Friend: A game organiser invites one or more of their friends to a game they created. 
+23. Create Game: A game organiser creates a new game by entering its details and selecting a location on the map.
+24. Edit Game: A game organiser changes the details of a game they created, such as the date, time, or location. 
+25. Cancel Game: A game organiser cancels a game they created, and its players are notified.
+26. Accept Join Request: A game organiser reviews a join request for their game, using the player’s rating, history, and badges, and accepts it, adding the player to the game.
+27. Reject Join Request: A game organiser reviews a join request for their game, using the player’s rating, history, and badges, and rejects it.
+28. Remove Player: A game organiser removes a player from a game they created. 
+29. Invite Friends: A game organiser invites one or more of their friends to a game they created. 
 
 
 
@@ -112,8 +121,10 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
     - 7a1. System displays an error message identifying the missing fields.
 - 7b. Game Organiser entered an invalid value in any field.
     - 7b1. System displays an error message identifying the invalid field and the reason.
-- 8a. The game could not be created.
-    - 8a1. System displays a message saying the game could not be created, along with the reason.
+- 8a. The phone cannot reach the server (e.g. no internet connection).
+    - 8a1. System displays "Couldn't reach the server, try again" and lets the Game Organiser try again.
+- 8b. The server fails while creating the game.
+    - 8b1. System displays "Could not create game, try again" and lets the Game Organiser try again.
 
 
 <a id="uc2r"></a>
@@ -145,7 +156,7 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 
 
 <a id="uc3r"></a>
-#### **Use Case 3: Join Request**
+#### **Use Case 3: Join Game**
 
 **Description**: A player sends a request to join a game, stating their skill level, how often they play, and an optional message. The request waits for the organiser’s approval.
 
@@ -166,14 +177,18 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 **Failure scenario(s)**:
 - 3a. Player did not select a skill level.
     -  3a1. System displays an error message asking the Player to select their skill level.
-- 4a. The request could not be sent.
-    -  4a1. System displays a message saying the request could not be sent, along with the reason.
+- 4a. The organiser cancelled the game before the request was sent.
+    - 4a1. System displays "This game was cancelled" and does not send the request.
+- 4b. The game started before the request was sent.
+    - 4b1. System displays "This game has already started" and does not send the request.
+- 4c. The phone cannot reach the server (e.g. no internet connection).
+    - 4c1. System displays "Couldn't reach the server, try again" and lets the Player try again.
 
 
 <a id="uc4r"></a>
-#### **Use Case 4: Friend Chat**
+#### **Use Case 4: Send Friend Message**
 
-**Description**:  A user chats with one of their friends. The user selects a friend from their friend list, opens the chat, and sends a message.
+**Description**: A user selects a friend from their friend list, opens their chat, and sends them a message.
 
 **Primary actor(s)**: User
 
@@ -222,8 +237,12 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 **Failure scenario(s)**:
 - 7a. User did not give a rating for one or more categories.
     - 7a1. System displays an error message identifying the missing ratings.
-- 8a. The rating could not be submitted (e.g. no internet connection).
-    - 8a1. System displays a message saying the rating could not be submitted along with a reason for the failure
+- 8a. The User already rated this player for this game.
+    - 8a1. System displays "You already rated this player" and does not record a second rating.
+- 8b. The phone cannot reach the server (e.g. no internet connection).
+    - 8b1. System displays "Couldn't reach the server, try again" and lets the User try again.
+- 8c. The server fails while saving the rating.
+    - 8c1. System displays "Couldn't submit your rating, try again" and lets the User try again.
 
 
 
@@ -442,11 +461,11 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
 ![Sequence Diagram UC2](images/UC2%20-%20Discover_ver4.png)
 <br><br>
 
-3. <a id="seq-uc3"></a> [**Use Case 3: Join Request**](#uc3r)\
+3. <a id="seq-uc3"></a> [**Use Case 3: Join Game**](#uc3r)\
 ![Sequence Diagram UC3](images/UC3%20-%20Join%20Game_ver4.png)
 <br><br>
 
-4. <a id="seq-uc4"></a> [**Use Case 4: Friend Chat**](#uc4r)\
+4. <a id="seq-uc4"></a> [**Use Case 4: Send Friend Message**](#uc4r)\
 ![Sequence Diagram UC4](images/UC4%20-%20Friend%20Chat_ver4.png)
 <br><br>
 
