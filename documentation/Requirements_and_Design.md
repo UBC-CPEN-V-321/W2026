@@ -40,6 +40,7 @@
 | 2026-11-14 | 4.1 | Accepting a proposal again after a failed accept now finishes the same deal, using the new Deals interface `findByPosts`, and the proposal is marked accepted last. Listed what proposing returns, that the note is trimmed, and that either user can propose again after a decline. |
 | 2026-11-14 | 4.1 | `GET /api/events`: listed what each event carries, that it reaches every open stream of the other user and nobody else, and the 401, as tested by its interface tests. |
 | 2026-11-14 | 3.2, 3.4 | Following TA feedback to simplify the use case diagram, removed every include and extend relationship and connected each use case directly to the user, showed Respond to a proposal as one use case, and merged Close post and Reopen post into Edit post. Removed Create deal as a separate use case, since the user never starts it: Respond to a proposal now describes recording the deal when a proposal is accepted. |
+| 2026-11-15 | 3.2, 3.4, 4.1, 5 | Added the Manage profile use case, covering the Profile tab and setting the home address, to the Authentication and Profile group and the use case diagram; the use cases after it are renumbered. Listed the `PATCH /api/users/me` errors covered by its interface tests, including 413 for a body over 4 KB, and added the profile data rules. |
 
 ---
 
@@ -83,38 +84,39 @@ The use case diagram shows a single **User (Buyer or Seller)** actor because eve
 
 Each use case covers one goal, and the user starts each of them directly, so the use case diagram connects every use case to the user. The five marked with a link have a formal specification in Section 3.5.
 
-**Authentication** (baseline requirement, not counted as a feature)
+**Authentication and Profile** (baseline requirement, not counted as a feature)
 
 1. **Sign in with Google**: The user signs in with their Google account and gains access to their posts and the feed.
 2. **Sign out**: The user taps "Sign out" on the Profile tab, which ends their session on the device and the backend.
+3. **Manage profile**: The user opens the Profile tab and sees their Google name, email and photo, their reputation score, when they joined, and how many requests and listings they have; tapping a count opens those posts in My Posts. They can set, change or remove their home address, picked from the address suggestions. When a home address is set, the feed starts filtered to posts within 50 km of it (see Filter feed).
 
 **Feature 1: Buyer Requests and Seller Listings**
 
-3. **Create post** ([Use Case 1](#uc1)): A user creates a buyer request or a seller listing.
-4. **View my posts**: A user opens My Posts and sees their own open and closed requests or listings.
-5. **Edit post**: A user changes the fields of one of their posts and saves it, or closes or reopens it. Closing an open post removes it from the feeds and recommendations but keeps it in My Posts, and reopening shows it there again. Closed posts can also be edited.
-6. **Delete post**: A user deletes one of their posts permanently, after confirming.
+4. **Create post** ([Use Case 1](#uc1)): A user creates a buyer request or a seller listing.
+5. **View my posts**: A user opens My Posts and sees their own open and closed requests or listings.
+6. **Edit post**: A user changes the fields of one of their posts and saves it, or closes or reopens it. Closing an open post removes it from the feeds and recommendations but keeps it in My Posts, and reopening shows it there again. Closed posts can also be edited.
+7. **Delete post**: A user deletes one of their posts permanently, after confirming.
 
 **Feature 2: Two-Sided Matching and Recommended Feeds**
 
-7. **View recommendations for a post** ([Use Case 3](#uc3)): A user sees the posts that fit one of their open posts, ranked by how well they fit, with the distance to each and the travel time for the first page.
-8. **Browse feed**: A user scrolls through other users' open posts, newest first.
-9. **Filter feed** ([Use Case 5](#uc5)): A user narrows the feed by category, price or distance.
-10. **View a post**: A user opens another user's post from the feed or the recommendations to see its details and photos.
+8. **View recommendations for a post** ([Use Case 3](#uc3)): A user sees the posts that fit one of their open posts, ranked by how well they fit, with the distance to each and the travel time for the first page.
+9. **Browse feed**: A user scrolls through other users' open posts, newest first.
+10. **Filter feed** ([Use Case 5](#uc5)): A user narrows the feed by category, price or distance.
+11. **View a post**: A user opens another user's post from the feed or the recommendations to see its details and photos.
 
 **Feature 3: Deals, Ratings and Reputation**
 
-11. **View deals**: A user opens the Deals tab and sees their deals, newest first, as buyer or seller. Each deal shows its title, agreed price, date, the listing and request it came from, the other user's score, and both ratings. Tapping the listing or request opens it, even if it has since closed. A user with no deals sees "No deals yet".
-12. **Rate a deal** ([Use Case 2](#uc2)): A user rates the other side of a deal from 1 to 5 stars with an optional comment. The other user's score updates on the card.
-13. **Edit a rating**: A user changes the stars or comment of a rating they gave earlier, and the other user's score updates.
+12. **View deals**: A user opens the Deals tab and sees their deals, newest first, as buyer or seller. Each deal shows its title, agreed price, date, the listing and request it came from, the other user's score, and both ratings. Tapping the listing or request opens it, even if it has since closed. A user with no deals sees "No deals yet".
+13. **Rate a deal** ([Use Case 2](#uc2)): A user rates the other side of a deal from 1 to 5 stars with an optional comment. The other user's score updates on the card.
+14. **Edit a rating**: A user changes the stars or comment of a rating they gave earlier, and the other user's score updates.
 
 **Feature 4: Messaging**
 
-14. **Start a conversation**: On another user's open post, a user taps "Message" and sends a proposal (a price with an optional note), and the conversation with the post's owner opens. A post opened from the recommendations for one of the user's posts also links that post to the conversation.
-15. **View conversations**: A user opens the Messages tab and sees their conversations, newest activity first, each with the other user, the listing and request, and the last message.
-16. **Send a message** ([Use Case 4](#uc4)): A user sends a message in a conversation, and it appears in the other user's open conversation without refreshing.
-17. **Send a proposal**: A user proposes a price, with an optional note, in a conversation that has no pending or accepted proposal. The proposal appears in the other user's open conversation without refreshing.
-18. **Respond to a proposal**: A user accepts or declines the other user's pending proposal. Accepting records the deal between the two users at that price, closes both posts, and shows the deal in both users' Deals tabs. After a decline, either user can propose again.
+15. **Start a conversation**: On another user's open post, a user taps "Message" and sends a proposal (a price with an optional note), and the conversation with the post's owner opens. A post opened from the recommendations for one of the user's posts also links that post to the conversation.
+16. **View conversations**: A user opens the Messages tab and sees their conversations, newest activity first, each with the other user, the listing and request, and the last message.
+17. **Send a message** ([Use Case 4](#uc4)): A user sends a message in a conversation, and it appears in the other user's open conversation without refreshing.
+18. **Send a proposal**: A user proposes a price, with an optional note, in a conversation that has no pending or accepted proposal. The proposal appears in the other user's open conversation without refreshing.
+19. **Respond to a proposal**: A user accepts or declines the other user's pending proposal. Accepting records the deal between the two users at that price, closes both posts, and shows the deal in both users' Deals tabs. After a decline, either user can propose again.
 
 ### **3.5. Formal Use Case Specifications (5 Most Major Use Cases)**
 
@@ -338,7 +340,7 @@ Each use case covers one goal, and the user starts each of them directly, so the
         4. `GET /api/users/me`
             - **Purpose**: Return the signed-in user's profile: names, email, photo URL, address and location if set, and when it was created and updated. 404 if there is none.
         5. `PATCH /api/users/me`
-            - **Purpose**: Set the profile address from JSON `{ address, location: { longitude, latitude } }`, or clear it with `{ address: null, location: null }`. Returns the updated profile; 400 for an unsupported field, a missing address, a location out of range, or only one of the two cleared.
+            - **Purpose**: Set the profile address from JSON `{ address, location: { longitude, latitude } }`, or clear it with `{ address: null, location: null }`. Returns the updated profile, with the address trimmed. 400 for an unsupported field, a missing or blank address, an address over 200 characters, a missing, malformed or out-of-range location, only one of the two cleared, or malformed JSON; 413 for a body over 4 KB; 404 if the user has no profile.
         6. `GET /api/users/:id/reputation`
             - **Purpose**: Return a user's reputation as `{ userId, score, ratingCount }`: score is the average of the ratings they received, or null when nobody has rated them.
         7. `userId requireAuth(token)`
@@ -740,5 +742,9 @@ Condition is one of five ordered levels: new, like new, good, fair, poor.
 - A deal must have a listing, a request or both. Unique indexes allow one deal per listing and one per request; deals with a null post do not collide.
 - A unique index on dealId and raterId allows each user one rating per deal. The rated user is always the other side of the deal, taken from the deal rather than the request.
 - Each user has at most one reputation, created by their first rating. Adding a rating updates starSum and ratingCount in one atomic write, so simultaneous ratings all count, and editing a rating adds the star difference to starSum.
+
+**Profile data rules:**
+- A user's profile is created at their first sign-in. Each later sign-in updates the email, and the photo when Google sends one; the name is only set at the first sign-in, and a session refresh keeps the stored photo.
+- The database validator requires the address to be 1 to 200 characters and to be stored together with its location. Clearing the address removes both fields instead of storing null.
 
 Condition values remain, best to worst: new, like new, good, fair, poor.
