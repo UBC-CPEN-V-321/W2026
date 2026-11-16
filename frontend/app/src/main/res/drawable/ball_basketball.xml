@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Basketball. Drawn by the launch animation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <group>
+        <clip-path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" />
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" android:fillColor="#E8772E" />
+        <path android:pathData="M24,0V48M0,24H48" android:strokeColor="#2B1609" android:strokeWidth="1.8" />
+        <path android:pathData="M-27.6,24a21.6,21.6 0,1 0,43.2,0a21.6,21.6 0,1 0,-43.2,0zM32.4,24a21.6,21.6 0,1 0,43.2,0a21.6,21.6 0,1 0,-43.2,0z" android:strokeColor="#2B1609" android:strokeWidth="1.8" />
+        <!-- light from the top left, darker towards the far edge -->
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="15.6" android:centerY="14.4" android:gradientRadius="34.8"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
+</vector>

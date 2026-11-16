@@ -12,20 +12,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotateRad
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -56,7 +55,7 @@ private const val T_LOGO = 960f
 private const val T_END = 2450f
 private const val PI_F = PI.toFloat()
 private const val TWO_PI = 2 * PI_F
-// straight up, where the first smear and the soccer ball's top pentagon point
+// straight up, where the first smear starts
 private const val UP = -PI_F / 2
 
 // Plays the timeline above this many times faster (1.5 = about 1.6 s in total)
@@ -72,28 +71,24 @@ private const val DESIGN_H = 760f
 private val Background = SportsSurfaceContainer
 private val BackgroundCentre = Color(0xFFDFE8F6)
 private val FlashColor = SportsPrimary
-// near-black used by the black smear and the soccer ball's patches
-private val Ink = Color(0xFF16181D)
 
 private class Smear(val color: Color, val startAngle: Float)
 
 private val SMEARS = listOf(
     Smear(Color(0xFFF08A24), UP),
     Smear(Color(0xFFCFE23A), UP + TWO_PI / 3),
-    Smear(Ink, UP + 2 * TWO_PI / 3),
+    Smear(Color(0xFF16181D), UP + 2 * TWO_PI / 3),
 )
 
 private class Spark(val angle: Float, val speed: Float, val size: Float, val color: Color)
 
-private enum class SportBall { BASKETBALL, SOCCER, TENNIS }
-
-// Where each ball sits on the orbit ring around the word: angle on the ring in degrees, radius in design units
-private class LogoBall(val kind: SportBall, val ringAngle: Float, val r: Float)
+// Each ball's picture, where it sits on the orbit ring around the word (degrees), and its radius in design units
+private class LogoBall(val drawable: Int, val ringAngle: Float, val r: Float)
 
 private val LOGO_BALLS = listOf(
-    LogoBall(SportBall.BASKETBALL, 205f, 21f),
-    LogoBall(SportBall.SOCCER, 95f, 14f),
-    LogoBall(SportBall.TENNIS, -20f, 12f),
+    LogoBall(R.drawable.ball_basketball, 205f, 21f),
+    LogoBall(R.drawable.ball_soccer, 95f, 14f),
+    LogoBall(R.drawable.ball_tennis, -20f, 12f),
 )
 private const val WORD_SIZE = 62f
 // space kept free beside the word for the ring and balls (design units)
@@ -124,6 +119,7 @@ fun LaunchAnimation(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
     val textMeasurer = rememberTextMeasurer()
+    val ballPictures = LOGO_BALLS.map { painterResource(it.drawable) }
 
     LaunchedEffect(Unit) {
         time.animateTo(T_END, tween(durationMillis = (T_END / SPEED).toInt(), easing = LinearEasing))
@@ -157,7 +153,7 @@ fun LaunchAnimation(onFinished: () -> Unit, modifier: Modifier = Modifier) {
         translate((Random.nextFloat() - .5f) * 2 * shake, (Random.nextFloat() - .5f) * 2 * shake) {
             if (t < T_HIT) drawOrbit(t, u, centre) else drawImpact(t, u, centre, sparks)
             if (t >= T_LOGO) {
-                drawLogo(t - T_LOGO, u, centre) { fontPx ->
+                drawLogo(t - T_LOGO, u, centre, ballPictures) { fontPx ->
                     val style = TextStyle(fontFamily = Wordmark, fontSize = fontPx.toSp())
                     textMeasurer.measure("Sports", style) to textMeasurer.measure("Now", style)
                 }
@@ -229,6 +225,7 @@ private fun DrawScope.drawLogo(
     elapsed: Float,
     u: Float,
     centre: Offset,
+    ballPictures: List<Painter>,
     measure: (Float) -> Pair<TextLayoutResult, TextLayoutResult>,
 ) {
     // fit the word in the middle, leaving room either side for the ring and balls
@@ -280,11 +277,12 @@ private fun DrawScope.drawLogo(
     // the balls fly out of the impact point onto the ring, spinning anticlockwise to rest
     LOGO_BALLS.forEachIndexed { i, ball ->
         val q = ((elapsed - i * 70f) / 540f).coerceIn(0f, 1f)
-        if (q <= 0f) return@forEachIndexed
-        val e = easeOutBack(q)
-        val position = lerp(centre, onRing(ball.ringAngle), e)
-        val rotation = (1 - easeOutCubic(q)) * TWO_PI * 1.25f
-        sportBall(ball.kind, position, ball.r * u * e.coerceIn(0f, 1.15f), rotation, ringWidth = 2.2f * u)
+        if (q > 0f) {
+            val e = easeOutBack(q)
+            val position = lerp(centre, onRing(ball.ringAngle), e)
+            val rotation = (1 - easeOutCubic(q)) * TWO_PI * 1.25f
+            sportBall(ballPictures[i], position, ball.r * u * e.coerceIn(0f, 1.15f), rotation, ringWidth = 2.2f * u)
+        }
     }
 }
 
@@ -306,74 +304,15 @@ private fun DrawScope.blob(at: Offset, radius: Float, color: Color, alpha: Float
     )
 }
 
-private fun DrawScope.sportBall(kind: SportBall, at: Offset, r: Float, rotation: Float, ringWidth: Float) {
+// draws one of the ball pictures (res/drawable/ball_*.xml) centred on [at], turned by [rotation]
+private fun DrawScope.sportBall(picture: Painter, at: Offset, r: Float, rotation: Float, ringWidth: Float) {
     if (r <= .5f) return
     // a ring in the background colour keeps overlapping balls apart
     drawCircle(Background, radius = r + ringWidth, center = at)
-    val outline = Path().apply { addOval(Rect(at, r)) }
-    clipPath(outline) {
-        rotateRad(-rotation, pivot = at) {
-            when (kind) {
-                SportBall.BASKETBALL -> basketball(at, r)
-                SportBall.TENNIS -> tennisBall(at, r)
-                SportBall.SOCCER -> soccerBall(at, r)
-            }
+    rotateRad(-rotation, pivot = at) {
+        translate(at.x - r, at.y - r) {
+            with(picture) { draw(Size(2 * r, 2 * r)) }
         }
-        // light from the top left, darker towards the far edge
-        drawCircle(
-            Brush.radialGradient(
-                0f to Color.White.copy(alpha = .28f),
-                .45f to Color.Transparent,
-                1f to Color.Black.copy(alpha = .22f),
-                center = at + Offset(-.35f * r, -.4f * r),
-                radius = r * 1.45f,
-            ),
-            radius = r,
-            center = at,
-        )
-    }
-}
-
-private fun DrawScope.basketball(c: Offset, r: Float) {
-    drawCircle(Color(0xFFE8772E), radius = r, center = c)
-    val seam = Color(0xFF2B1609)
-    val stroke = Stroke(width = max(1f, r * .075f))
-    drawLine(seam, c + Offset(0f, -r), c + Offset(0f, r), stroke.width)
-    drawLine(seam, c + Offset(-r, 0f), c + Offset(r, 0f), stroke.width)
-    drawCircle(seam, radius = r * .9f, center = c + Offset(-r * 1.25f, 0f), style = stroke)
-    drawCircle(seam, radius = r * .9f, center = c + Offset(r * 1.25f, 0f), style = stroke)
-}
-
-private fun DrawScope.tennisBall(c: Offset, r: Float) {
-    drawCircle(Color(0xFFD4E23C), radius = r, center = c)
-    val stroke = Stroke(width = max(1f, r * .11f))
-    drawCircle(Color.White, radius = r * .78f, center = c + Offset(-r * 1.2f, 0f), style = stroke)
-    drawCircle(Color.White, radius = r * .78f, center = c + Offset(r * 1.2f, 0f), style = stroke)
-}
-
-private fun DrawScope.soccerBall(c: Offset, r: Float) {
-    drawCircle(Color.White, radius = r, center = c)
-    fun pentagon(centre: Offset, size: Float, angle: Float) {
-        val path = Path()
-        for (k in 0 until 5) {
-            val a = angle + k * TWO_PI / 5
-            val p = centre + Offset(cos(a) * size, sin(a) * size)
-            if (k == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
-        }
-        path.close()
-        drawPath(path, Ink)
-    }
-    pentagon(c, r * .36f, UP)
-    for (k in 0 until 5) {
-        val va = UP + k * TWO_PI / 5
-        drawLine(
-            Ink,
-            c + Offset(cos(va) * r * .36f, sin(va) * r * .36f),
-            c + Offset(cos(va) * r * .72f, sin(va) * r * .72f),
-            strokeWidth = max(1f, r * .06f),
-        )
-        val pa = va + PI_F / 5
-        pentagon(c + Offset(cos(pa) * r, sin(pa) * r), r * .34f, pa + PI_F)
     }
 }
 
