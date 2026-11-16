@@ -11,11 +11,17 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
@@ -24,7 +30,13 @@ import com.example.cpen321application.core.notifications.invitedGameId
 import com.example.cpen321application.core.notifications.FriendChatLink
 import com.example.cpen321application.core.notifications.messagedFriendChat
 import com.example.cpen321application.navigation.AppNavigation
+import com.example.cpen321application.ui.screens.launch.LAUNCH_FADE_OUT_MS
+import com.example.cpen321application.ui.screens.launch.LaunchAnimation
 import com.example.cpen321application.ui.theme.CPEN321ApplicationTheme
+
+// Kept in memory only, so it resets whenever the app is closed (e.g. swiped away from recent apps)
+// and the launch animation plays again on the next fresh open, but not when coming back from the background
+private var launchAnimationPlayed = false
 
 class MainActivity : ComponentActivity() {
     // result ignored: if denied, notifications just aren't shown
@@ -51,14 +63,29 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) readNotification(intent)
         setContent {
             CPEN321ApplicationTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    AppNavigation(
-                        modifier = Modifier.padding(innerPadding),
-                        gameToOpen = gameToOpen,
-                        onGameOpened = { gameToOpen = null },
-                        friendChatToOpen = friendChatToOpen,
-                        onFriendChatOpened = { friendChatToOpen = null }
-                    )
+                // saveable, so rotating the phone doesn't replay the launch animation
+                var showLaunchAnimation by rememberSaveable { mutableStateOf(!launchAnimationPlayed) }
+                Box(Modifier.fillMaxSize()) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        AppNavigation(
+                            modifier = Modifier.padding(innerPadding),
+                            gameToOpen = gameToOpen,
+                            onGameOpened = { gameToOpen = null },
+                            friendChatToOpen = friendChatToOpen,
+                            onFriendChatOpened = { friendChatToOpen = null }
+                        )
+                    }
+                    // plays over the app while it loads underneath, then fades away
+                    AnimatedVisibility(
+                        visible = showLaunchAnimation,
+                        enter = EnterTransition.None,
+                        exit = fadeOut(tween(durationMillis = LAUNCH_FADE_OUT_MS))
+                    ) {
+                        LaunchAnimation(onFinished = {
+                            showLaunchAnimation = false
+                            launchAnimationPlayed = true
+                        })
+                    }
                 }
             }
         }

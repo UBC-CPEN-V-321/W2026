@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Soccer ball. Drawn by the launch animation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <group>
+        <clip-path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" />
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" android:fillColor="#FFFFFF" />
+        <path android:pathData="M24,15.36L32.22,21.33L29.08,30.99L18.92,30.99L15.78,21.33z" android:fillColor="#16181D" />
+        <path android:pathData="M33.31,11.19L30.35,2.06L38.11,-3.58L45.87,2.06L42.9,11.19z" android:fillColor="#16181D" />
+        <path android:pathData="M39.06,28.89L46.83,23.26L54.59,28.89L51.62,38.02L42.03,38.02z" android:fillColor="#16181D" />
+        <path android:pathData="M24,39.84L31.76,45.48L28.8,54.6L19.2,54.6L16.24,45.48z" android:fillColor="#16181D" />
+        <path android:pathData="M8.94,28.89L5.97,38.02L-3.62,38.02L-6.59,28.89L1.17,23.26z" android:fillColor="#16181D" />
+        <path android:pathData="M14.69,11.19L5.1,11.19L2.13,2.06L9.89,-3.58L17.65,2.06z" android:fillColor="#16181D" />
+        <path android:pathData="M24,15.36L24,6.72M32.22,21.33L40.43,18.66M29.08,30.99L34.16,37.98M18.92,30.99L13.84,37.98M15.78,21.33L7.57,18.66" android:strokeColor="#16181D" android:strokeWidth="1.44" />
+        <!-- light from the top left, darker towards the far edge -->
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="15.6" android:centerY="14.4" android:gradientRadius="34.8"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
+</vector>

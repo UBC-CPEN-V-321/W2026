@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tennis ball. Drawn by the launch animation. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <group>
+        <clip-path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" />
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z" android:fillColor="#D4E23C" />
+        <path android:pathData="M-23.52,24a18.72,18.72 0,1 0,37.44,0a18.72,18.72 0,1 0,-37.44,0zM34.08,24a18.72,18.72 0,1 0,37.44,0a18.72,18.72 0,1 0,-37.44,0z" android:strokeColor="#FFFFFF" android:strokeWidth="2.64" />
+        <!-- light from the top left, darker towards the far edge -->
+        <path android:pathData="M0,24a24,24 0,1 0,48,0a24,24 0,1 0,-48,0z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="15.6" android:centerY="14.4" android:gradientRadius="34.8"
+                    android:startColor="#47FFFFFF" android:centerColor="#00FFFFFF" android:endColor="#38000000" />
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
