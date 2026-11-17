@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| November 17, 2026 | 3.1, 3.2              | Added frontend and backend NFR coverage for secure authentication and session management. |
 | October 28, 2026  | 3.1, 3.2              | Added automated and manual verification details and results for the Accessibility NFR. |
 
 ---
@@ -41,11 +42,11 @@
 
 1. Add a reachable `MONGODB_URI` and valid `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, and `SOCLAAS_MODEL` values to `backend/.env`. The no-mock suites create uniquely named temporary databases and drop them after the run.
 2. From `backend`, install dependencies with `npm install`.
-3. Run the user, itinerary, and recommendation API suites with coverage. A live recommendation POST can take up to one minute. The test retries one transient generation failure and allows up to three and a half minutes for both attempts, ranking, and persistence:
+3. Run the user, itinerary, recommendation, and no-mock authentication/session suites with coverage. A live recommendation POST can take up to one minute. The test retries one transient generation failure and allows up to three and a half minutes for both attempts, ranking, and persistence:
    ```sh
    npm run test:no-mock
    ```
-4. Run the mocked database-failure and race-condition suites with coverage:
+4. Run the mocked feature-failure and authentication/session suites with coverage:
    ```sh
    npm run test:mock
    ```
@@ -80,6 +81,7 @@ The combined user, itinerary, and recommendation suites cover 98.24% of statemen
 
 The no-mock run is intentionally below 100% because database/network failure branches require controlled mocks, empty Express path parameters cannot be produced through normal HTTP routing, and race conditions in which a document is removed between a service read and write cannot be triggered deterministically without mocking.
 The main remaining branches are unreachable empty Express route parameters. Recommendation interface tests run in both suites; the no-mock suite covers live generation, real persistence, parsing, configuration, profile validation, and ranking, while the mock suite covers provider failures and database publication races. `*Types.ts` and `*Repository.ts` files contain only TypeScript types and interfaces that are erased at runtime, so both focused coverage configurations exclude them.
+The no-mock configuration also excludes `googleTokenVerifier.ts` because CI cannot non-interactively obtain a valid user Google ID token. The mocked NFR suite still covers verified claims, invalid claims, expiry, audience and issuer checks, and Google transport failures.
 
 ---
 
@@ -90,8 +92,32 @@ The main remaining branches are unreachable empty Express route parameters. Reco
 | **Non-Functional Requirement**  | **Location in Git**                              |
 | ------------------------------- | ------------------------------------------------ |
 | **Accessibility**               | [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt)<br>[`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt) |
+| **Secure authentication and session management** | Frontend: [`AuthRepositoryNfrTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AuthRepositoryNfrTest.kt), [`SessionStoreNfrTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/SessionStoreNfrTest.kt)<br>Backend with mocks: [`auth.test.ts`](../backend/tests/nfr/mock/auth/auth.test.ts)<br>Backend without mocks: [`auth.test.ts`](../backend/tests/nfr/no-mock/auth/auth.test.ts) |
 
 ### 3.2. Test Verification and Logs
+
+#### Secure authentication and session management
+
+- **Use Case:** A user signs in with Google once, and ExploreUBC protects subsequent application and API access with a revocable session that is encrypted on Android and stored only as a hash on the backend.
+
+  | **Scenario ID** | **Scenario** | **Expected Behavior** |
+  | --- | --- | --- |
+  | **NFR-AUTH-FE-1** | The Android app authenticates, restores, or logs out a user through `AuthRepository`. | `POST /api/v1/auth/google` persists only the returned ExploreUBC session; a rejected login persists nothing. `GET /api/v1/auth/session` restores the matching user and updated expiry without replacing the token. `DELETE /api/v1/auth/session` is used for logout. |
+  | **NFR-AUTH-FE-2** | Android saves, replaces, loads, or clears an ExploreUBC session. | The session round-trips through Android Keystore encryption, neither the current nor replaced raw token appears in the file, and corrupted data or a missing key fails closed by deleting the unreadable session. |
+  | **NFR-AUTH-BE-1** | Authentication and session requests run with controlled Google, user, and session dependencies. | `POST /api/v1/auth/google` validates the Google token, finds or creates the user, and issues a one-day session. `GET /api/v1/auth/session` validates and rolls the session expiry forward without issuing a token. `DELETE /api/v1/auth/session` revokes only the presented session. Invalid credentials, unavailable Google verification, missing/expired sessions, and cross-user access return the appropriate error. |
+  | **NFR-AUTH-BE-2** | Session endpoints and ownership middleware run against MongoDB without mocked application or persistence components. | A bearer session restores its persisted user, rolls expiry to approximately 24 hours from the request, and remains hashed in MongoDB. Logout and expiry remove the session, missing credentials return `401`, malformed Google input is rejected before persistence, and a session cannot read another user's route. |
+
+  Backend endpoint coverage for this NFR:
+
+  | **Endpoint** | **With Mocks** | **Without Mocks** |
+  | --- | --- | --- |
+  | **POST /api/v1/auth/google** | Successful first/repeated sign-in, invalid token, and Google unavailability | Request validation before Google verification or persistence |
+  | **GET /api/v1/auth/session** | Restore, rolling expiry, missing/invalid/expired/revoked sessions | Real MongoDB restore, rolling expiry, hash-at-rest, and expiry cleanup |
+  | **DELETE /api/v1/auth/session** | Revoke only the presented session and require bearer authentication | Real MongoDB revocation and rejection of the revoked token |
+  | **Authenticated `/api/v1/users/:userId` routes** | Session middleware and ownership branches | Real middleware permits the session user and rejects another user ID |
+
+  - **Verification:** The frontend tests are Android instrumentation tests in the NFR source package. The backend mock suite covers deterministic security failures and the Google-verification boundary; the no-mock suite exercises the real Express, service, DAO, and MongoDB session path.
+  - **Log Output:** Not recorded in this change; test execution was intentionally deferred.
 
 - **Accessibility: Visual Label and Content Description Consistency**
 

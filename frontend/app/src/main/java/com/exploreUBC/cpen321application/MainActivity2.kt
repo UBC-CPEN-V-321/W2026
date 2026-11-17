@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.credentials.exceptions.ClearCredentialException
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
 import java.io.IOException
+import java.security.GeneralSecurityException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -154,6 +156,10 @@ class MainActivity2 : ComponentActivity() {
                     throw error
                 } catch (error: IOException) {
                     Log.w(TAG, "Backend logout failed", error)
+                } catch (error: ClearCredentialException) {
+                    Log.w(TAG, "Credential state cleanup failed", error)
+                } catch (error: GeneralSecurityException) {
+                    Log.w(TAG, "Session key cleanup failed", error)
                 } finally {
                     returnToLogin()
                 }

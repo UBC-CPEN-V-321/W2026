@@ -27,6 +27,8 @@ internal interface SessionCipher {
     fun encrypt(plaintext: ByteArray): EncryptedSessionPayload
 
     fun decrypt(payload: EncryptedSessionPayload): ByteArray
+
+    fun deleteKey() = Unit
 }
 
 internal class AndroidKeystoreSessionCipher(
@@ -54,7 +56,7 @@ internal class AndroidKeystoreSessionCipher(
         return cipher.doFinal(payload.ciphertext)
     }
 
-    internal fun deleteKey() {
+    override fun deleteKey() {
         val keyStore = loadKeyStore()
         if (keyStore.containsAlias(keyAlias)) {
             keyStore.deleteEntry(keyAlias)
@@ -187,5 +189,6 @@ class SessionStore internal constructor(
 
     fun clear() = synchronized(lock) {
         atomicFile.delete()
+        cipher.deleteKey()
     }
 }

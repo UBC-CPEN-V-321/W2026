@@ -126,10 +126,7 @@ class ApiClient internal constructor(
     ): Boolean {
         if (failedSession == null || renewalHandler == null) return false
         return error.code == AppConstants.Network.SESSION_EXPIRED_ERROR_CODE ||
-            (
-                error.code == AppConstants.Network.INVALID_SESSION_ERROR_CODE &&
-                    failedSession.isExpired(nowEpochMillis())
-                )
+            error.code == AppConstants.Network.INVALID_SESSION_ERROR_CODE
     }
 
     private fun requireSuccess(response: HttpResponse): String {

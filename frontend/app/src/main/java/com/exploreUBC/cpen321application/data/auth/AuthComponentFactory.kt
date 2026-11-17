@@ -43,25 +43,10 @@ class AuthComponentFactory(
 
     fun createLoginComponents(activity: ComponentActivity): LoginAuthComponents {
         val core = createCore(activity, SessionStore(applicationContext), null)
-        val startupCoordinator = SessionStartupCoordinator(
-            sessionManager = core.sessionManager,
-            loadSession = { loadSession(core.sessionStore) },
-            clearPersistedSession = { clearStoredSession(core.sessionStore) },
-            restoreSession = core.authRepository::restoreSession,
-            renewSession = {
-                try {
-                    core.authRepository.authenticateWithGoogle(
-                        core.credentialProvider.requestAuthorizedIdToken(),
-                    )
-                } catch (_: NoCredentialException) {
-                    null
-                }
-            },
-        )
         return LoginAuthComponents(
             authRepository = core.authRepository,
             credentialProvider = core.credentialProvider,
-            startupCoordinator = startupCoordinator,
+            startupCoordinator = createStartupCoordinator(core),
         )
     }
 
@@ -72,6 +57,12 @@ class AuthComponentFactory(
         val sessionStore = SessionStore(applicationContext)
         val storedSession = loadSession(sessionStore) ?: return null
         val core = createCore(activity, sessionStore, storedSession)
+        val restored = when (val result = createStartupCoordinator(core).restore()) {
+            is SessionStartupResult.Authenticated -> result
+            SessionStartupResult.RetryableFailure,
+            SessionStartupResult.SignedOut,
+            -> return null
+        }
         val renewer = createSessionRenewer(core, onSessionInvalidated)
         val apiClient = ApiClient(
             apiBaseUrl = apiBaseUrl,
@@ -80,16 +71,46 @@ class AuthComponentFactory(
         )
 
         return AuthenticatedAuthComponents(
-            userId = storedSession.userId,
+            userId = restored.userId,
             apiClient = apiClient,
             logoutAction = {
                 try {
                     core.authRepository.logout()
                 } finally {
-                    clearSession(core)
+                    try {
+                        clearSession(core)
+                    } finally {
+                        core.credentialProvider.clearCredentialState()
+                    }
                 }
             },
         )
+    }
+
+    private fun createStartupCoordinator(core: CoreAuthComponents) =
+        SessionStartupCoordinator(
+            sessionManager = core.sessionManager,
+            loadSession = { loadSession(core.sessionStore) },
+            clearPersistedSession = { clearStoredSession(core.sessionStore) },
+            restoreSession = core.authRepository::restoreSession,
+            renewSession = {
+                try {
+                    renewStoredUserSession(core)
+                } catch (_: NoCredentialException) {
+                    null
+                }
+            },
+        )
+
+    private suspend fun renewStoredUserSession(
+        core: CoreAuthComponents,
+    ): GoogleAuthenticationResult? {
+        val expectedUserId = core.sessionManager.currentSession()?.userId ?: return null
+        val replacement = core.authRepository.requestReplacementSession(
+            core.credentialProvider.requestAuthorizedIdToken(),
+        )
+        if (replacement.session.userId != expectedUserId) return null
+        return core.authRepository.activateSession(replacement)
     }
 
     private fun createCore(
@@ -129,8 +150,8 @@ class AuthComponentFactory(
                 val replacement = core.authRepository.requestReplacementSession(
                     core.credentialProvider.requestAuthorizedIdToken(),
                 )
-                if (replacement.userId == failedSession.userId) {
-                    replacement
+                if (replacement.session.userId == failedSession.userId) {
+                    replacement.session
                 } else {
                     invalidateSession(core, onSessionInvalidated)
                     null

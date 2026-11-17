@@ -4,11 +4,17 @@ import * as os from 'node:os';
 
 import type { Express } from 'express';
 import { Db, MongoClient, ObjectId } from 'mongodb';
-import request from 'supertest';
 
-import { createApp } from '../../../src/index';
+import {
+  createApp as createBackendApp,
+  type AppDependencies,
+} from '../../../src/index';
 import { ItineraryDao } from '../../../src/itineraries/itineraryDao';
 import type { ActivityItem } from '../../../src/itineraries/itineraryTypes';
+import {
+  authenticatedAgent,
+  MongoTestSessions,
+} from '../../support/authTestUtils';
 
 jest.setTimeout(30_000);
 
@@ -55,6 +61,17 @@ let client: MongoClient;
 let database: Db;
 let app: Express;
 let itineraryDao: ItineraryDao;
+let testSessions: MongoTestSessions;
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: testSessions.service });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(
+  expressApp,
+  (userId) =>
+    testSessions.tokenFor(userId) ?? testSessions.tokenFor(USER_ID.toHexString()),
+);
 
 function seededItinerary() {
   return {
@@ -104,18 +121,24 @@ beforeAll(async () => {
     serverSelectionTimeoutMS: 10_000,
   });
   database = client.db(DATABASE_NAME);
+  testSessions = new MongoTestSessions(database);
   itineraryDao = new ItineraryDao(database);
   app = createApp({ itineraryRepository: itineraryDao });
   await client.connect();
 });
 
 beforeEach(async () => {
+  await testSessions.reset([
+    USER_ID.toHexString(),
+    OTHER_USER_ID.toHexString(),
+  ]);
   await database.collection('itineraries').deleteMany({});
   await database.collection('itineraries').insertOne(seededItinerary());
 });
 
 afterAll(async () => {
   await database.collection('itineraries').deleteMany({});
+  await database.collection('sessions').deleteMany({});
   await client.close();
 });
 
@@ -129,6 +152,20 @@ describe('Itinerary repository malformed-ID guards — no mocks', () => {
       id: 'invalid-owner-activity',
       image: '',
     };
+
+    await expect(
+      itineraryDao.insertItinerary('invalid-owner', {
+        ownerId: USER_ID.toHexString(),
+        name: 'Invalid owner itinerary',
+        items: [],
+        saved: false,
+        inRecommendation: false,
+        score: {},
+      }),
+    ).rejects.toMatchObject({
+      name: 'InvalidItineraryOwnerError',
+      message: "User ID 'invalid-owner' is not valid.",
+    });
 
     await expect(
       itineraryDao.findItinerary('invalid-owner', ITINERARY_ID.toHexString()),
@@ -303,15 +340,14 @@ describe('POST /api/v1/users/:userId/itineraries — no mocks', () => {
     expect(response.body.error.code).toBe('INVALID_ITINERARY_DETAILS');
   });
 
-  test('rejects a valid body when the route owner ID is malformed', async () => {
-    // Input: malformed route owner ID with matching body owner. Expect: 400 INVALID_USER_ID.
-    // Behavior: the real ItineraryDao rejects the owner before inserting.
+  test('forbids a malformed route owner before inserting', async () => {
+    // No valid session can own a malformed MongoDB user ID.
     const response = await request(app)
       .post('/api/v1/users/not-an-object-id/itineraries')
       .send({ ...CREATE_ITINERARY_INPUT, ownerId: 'not-an-object-id' });
 
-    expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('INVALID_USER_ID');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 });
 
@@ -357,15 +393,13 @@ describe('GET /api/v1/users/:userId/itineraries — no mocks', () => {
     expect(response.body.itineraries).toHaveLength(count);
   });
 
-  test('returns an empty list for a malformed owner ID', async () => {
-    // Input: malformed route owner ID. Expect: 200 with an empty list.
-    // Behavior: the real DAO safely rejects the owner ID.
+  test('forbids a malformed itinerary owner scope', async () => {
     const response = await request(app).get(
       '/api/v1/users/not-an-object-id/itineraries',
     );
 
-    expect(response.status).toBe(200);
-    expect(response.body.itineraries).toEqual([]);
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 });
 
@@ -395,15 +429,13 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/details — no mock
     expect(response.body.error.code).toBe('ITINERARY_NOT_FOUND');
   });
 
-  test('returns not found for malformed detail IDs', async () => {
-    // Input: malformed owner and itinerary IDs. Expect: 404 ITINERARY_NOT_FOUND.
-    // Behavior: the real DAO rejects invalid ObjectIds without querying MongoDB.
+  test('forbids malformed detail ownership before querying MongoDB', async () => {
     const response = await request(app).get(
       '/api/v1/users/not-an-id/itineraries/not-an-id/details',
     );
 
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('ITINERARY_NOT_FOUND');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 });
 
@@ -541,14 +573,22 @@ describe('DELETE /api/v1/users/:userId/itineraries/:itineraryId — no mocks', (
   test.each([
     [`/api/v1/users/${OTHER_USER_ID}/itineraries/${ITINERARY_ID}`],
     [`/api/v1/users/${USER_ID}/itineraries/${MISSING_ITINERARY_ID}`],
-    ['/api/v1/users/not-an-id/itineraries/not-an-id'],
   ])('returns not found instead of deleting through %s', async (path) => {
-    // Input: wrong owner, absent itinerary, or malformed IDs. Expect: 404.
+    // Input: wrong owner or absent itinerary. Expect: 404.
     // Behavior: the real DAO deletes no MongoDB document.
     const response = await request(app).delete(path);
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('ITINERARY_NOT_FOUND');
+  });
+
+  test('forbids deleting through a malformed user scope', async () => {
+    const response = await request(app).delete(
+      '/api/v1/users/not-an-id/itineraries/not-an-id',
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 });
 

@@ -1,10 +1,16 @@
-import supertest from 'supertest';
+import express, { type Express } from 'express';
 import type { Db } from 'mongodb';
+import request from 'supertest';
 
-import { createApp } from '../../../src/index';
+import {
+  createApp as createBackendApp,
+  type AppDependencies,
+} from '../../../src/index';
 import type { Itinerary } from '../../../src/itineraries/itineraryTypes';
 import { RecommendationDao } from '../../../src/recommendation/recommendationDao';
 import type { RecommendationRepository } from '../../../src/recommendation/recommendationRepository';
+import { createRecommendationRouter } from '../../../src/recommendation/recommendationRouter';
+import type { RecommendationService } from '../../../src/recommendation/recommendationService';
 import { SoclaasClient } from '../../../src/recommendation/soclaasClient';
 import {
   cleanTextForRanking,
@@ -25,13 +31,47 @@ import type {
   UserPreferences,
   UserUpdate,
 } from '../../../src/users/userTypes';
+import {
+  authenticatedAgent,
+  createPathSessionValidator,
+} from '../../support/authTestUtils';
 
 const USER_ID = '6705f0000000000000000001';
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({
+    ...dependencies,
+    sessionService: createPathSessionValidator(),
+  });
+}
+
+const supertest = (app: Express) => authenticatedAgent(app);
 const PREFERENCES: UserPreferences = {
   transportation: { mode: 'transit' },
   budget: 'balanced',
   interest: 'art',
 };
+
+describe('Recommendation route ownership validation', () => {
+  test.each(['GET', 'POST'])(
+    '%s rejects a route mounted without a user ID',
+    async (method) => {
+      const service = {
+        findLatestRecommendations: jest.fn(),
+        generateRecommendations: jest.fn(),
+      } as unknown as RecommendationService;
+      const app = express();
+      app.use('/recommendations', createRecommendationRouter(service));
+
+      const response = method === 'GET'
+        ? await request(app).get('/recommendations')
+        : await request(app).post('/recommendations');
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('INVALID_USER_ID');
+    },
+  );
+});
 
 function generatedJson(count = 4): string {
   return JSON.stringify({
@@ -271,10 +311,11 @@ describe('Mocked: POST /api/v1/users/:userId/recommendations', () => {
 describe('Mocked: GET /api/v1/users/:userId/recommendations', () => {
   test('returns the current recommendations sorted by score', async () => {
     const repository = new TestRecommendationRepository();
-    const scoredRecommendations: Array<[string, number]> = [
+    const scoredRecommendations: Array<[string, number | undefined]> = [
       ['Low', 0.25],
       ['High', 0.9],
       ['Medium', 0.5],
+      ['No score', undefined],
     ];
     repository.itineraries = scoredRecommendations.map(
       ([name, interestSimilarity], index) => ({
@@ -286,7 +327,7 @@ describe('Mocked: GET /api/v1/users/:userId/recommendations', () => {
         updatedAt: '2026-11-01T00:00:00.000Z',
         saved: false,
         inRecommendation: true,
-        score: { interestSimilarity },
+        score: interestSimilarity === undefined ? {} : { interestSimilarity },
       }),
     );
     const { app } = buildApp(new TestGenerator(generatedJson()), repository);
@@ -296,7 +337,7 @@ describe('Mocked: GET /api/v1/users/:userId/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.itineraries.map((itinerary: Itinerary) => itinerary.name))
-      .toEqual(['High', 'Medium', 'Low']);
+      .toEqual(['High', 'Medium', 'Low', 'No score']);
   });
 
   test('returns an empty list when the repository has no recommendations', async () => {

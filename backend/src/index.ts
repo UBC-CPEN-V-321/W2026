@@ -63,7 +63,17 @@ export function createApp(dependencies: AppDependencies = {}): Express {
     app.use('/api/v1/auth', createAuthRouter(dependencies.authService));
   }
 
-  if (dependencies.sessionService !== undefined) {
+  const hasUserScopedRoutes =
+    dependencies.userRepository !== undefined ||
+    dependencies.itineraryRepository !== undefined;
+
+  if (hasUserScopedRoutes) {
+    if (dependencies.sessionService === undefined) {
+      throw new Error(
+        'A session service is required when user-scoped routes are configured.',
+      );
+    }
+
     app.use(
       '/api/v1/users/:userId',
       authenticateSession(dependencies.sessionService),

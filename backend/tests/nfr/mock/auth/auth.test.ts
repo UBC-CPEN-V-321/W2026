@@ -9,33 +9,33 @@ import request from 'supertest';
 import {
   GoogleTokenVerificationUnavailableError,
   InvalidGoogleTokenError,
-} from '../../../src/auth/authError';
+} from '../../../../src/auth/authError';
 import {
   authenticateSession,
   requireUserOwnership,
-} from '../../../src/auth/authMiddleware';
-import { AuthService } from '../../../src/auth/authService';
+} from '../../../../src/auth/authMiddleware';
+import { AuthService } from '../../../../src/auth/authService';
 import {
   GoogleIdTokenVerifier,
   type GoogleVerificationClient,
   type GoogleTokenVerifier,
-} from '../../../src/auth/googleTokenVerifier';
-import { createApp } from '../../../src/index';
+} from '../../../../src/auth/googleTokenVerifier';
+import { createApp } from '../../../../src/index';
 import {
   ExpiredSessionError,
   InvalidSessionError,
-} from '../../../src/session/sessionError';
-import type { SessionRepository } from '../../../src/session/sessionRepository';
-import { SessionService } from '../../../src/session/sessionService';
-import type { NewSession, Session } from '../../../src/session/sessionTypes';
-import type { UserRepository } from '../../../src/users/userRepository';
+} from '../../../../src/session/sessionError';
+import type { SessionRepository } from '../../../../src/session/sessionRepository';
+import { SessionService } from '../../../../src/session/sessionService';
+import type { NewSession, Session } from '../../../../src/session/sessionTypes';
+import type { UserRepository } from '../../../../src/users/userRepository';
 import type {
   GoogleUserIdentity,
   OnboardingInput,
   User,
   UserPreferences,
   UserUpdate,
-} from '../../../src/users/userTypes';
+} from '../../../../src/users/userTypes';
 
 const NOW = new Date('2026-10-22T12:00:00.000Z');
 const USER_ID = '6705f0000000000000000001';
@@ -45,6 +45,10 @@ class TestGoogleTokenVerifier implements GoogleTokenVerifier {
   async verify(idToken: string): Promise<GoogleUserIdentity> {
     if (idToken === 'google-service-unavailable') {
       throw new GoogleTokenVerificationUnavailableError();
+    }
+
+    if (idToken === 'unexpected-auth-error') {
+      throw new Error('Sensitive provider failure');
     }
 
     if (idToken !== VALID_GOOGLE_TOKEN) {
@@ -116,6 +120,10 @@ class TestUserRepository implements UserRepository {
   async updateUser(_userId: string, _update: UserUpdate): Promise<User | null> {
     return null;
   }
+
+  removeUser(): void {
+    this.user = null;
+  }
 }
 
 class TestSessionRepository implements SessionRepository {
@@ -155,11 +163,11 @@ class TestSessionRepository implements SessionRepository {
   }
 }
 
-function createTestApp(clock: () => Date = () => NOW) {
+function createTestContext(clock: () => Date = () => NOW) {
   const userRepository = new TestUserRepository();
   const sessionService = new SessionService(
     new TestSessionRepository(),
-    30,
+    1,
     clock,
   );
   const authService = new AuthService(
@@ -167,11 +175,16 @@ function createTestApp(clock: () => Date = () => NOW) {
     userRepository,
     sessionService,
   );
-  return createApp({
+  const app = createApp({
     authService,
     sessionService,
     userRepository,
   });
+  return { app, userRepository };
+}
+
+function createTestApp(clock: () => Date = () => NOW) {
+  return createTestContext(clock).app;
 }
 
 async function login(app: ReturnType<typeof createTestApp>) {
@@ -180,13 +193,14 @@ async function login(app: ReturnType<typeof createTestApp>) {
     .send({ idToken: VALID_GOOGLE_TOKEN });
 }
 
-describe('Authentication endpoints', () => {
+// NFR-AUTH-BE-1 — See documentation/Testing.md, "Secure authentication and session management".
+describe('Authentication endpoints — with mocks', () => {
   test('first login creates a user and returns a session', async () => {
     const response = await login(createTestApp());
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      expiresAt: '2026-11-21T12:00:00.000Z',
+      expiresAt: '2026-10-23T12:00:00.000Z',
       onboardingRequired: true,
       user: {
         id: USER_ID,
@@ -221,7 +235,7 @@ describe('Authentication endpoints', () => {
 
     expect(currentSession.status).toBe(200);
     expect(currentSession.body).toMatchObject({
-      expiresAt: '2026-11-21T18:00:00.000Z',
+      expiresAt: '2026-10-23T18:00:00.000Z',
       onboardingRequired: true,
       user: { id: USER_ID },
     });
@@ -238,6 +252,7 @@ describe('Authentication endpoints', () => {
       'AUTH_SERVICE_UNAVAILABLE',
       503,
     ],
+    [{ idToken: 'unexpected-auth-error' }, 'INTERNAL_SERVER_ERROR', 500],
   ])('rejects invalid login input %#', async (body, code, status) => {
     const response = await request(createTestApp())
       .post('/api/v1/auth/google')
@@ -245,6 +260,26 @@ describe('Authentication endpoints', () => {
 
     expect(response.status).toBe(status);
     expect(response.body.error.code).toBe(code);
+    expect(JSON.stringify(response.body)).not.toContain('Sensitive provider failure');
+  });
+
+  test('revokes a session whose user no longer exists', async () => {
+    const context = createTestContext();
+    const authenticated = await login(context.app);
+    const authorization = `Bearer ${authenticated.body.sessionToken}`;
+    context.userRepository.removeUser();
+
+    const missingUser = await request(context.app)
+      .get('/api/v1/auth/session')
+      .set('Authorization', authorization);
+    const revoked = await request(context.app)
+      .get('/api/v1/auth/session')
+      .set('Authorization', authorization);
+
+    expect(missingUser.status).toBe(401);
+    expect(missingUser.body.error.code).toBe('INVALID_SESSION');
+    expect(revoked.status).toBe(401);
+    expect(revoked.body.error.code).toBe('INVALID_SESSION');
   });
 
   test('logout revokes only the presented session', async () => {
@@ -383,6 +418,24 @@ describe('Authentication endpoints', () => {
     };
   }
 
+  function payloadWithoutExpiry(): TokenPayload {
+    const { exp: _expiry, ...claims } = payload();
+    return claims as TokenPayload;
+  }
+
+  function payloadWithoutProfileClaims(): TokenPayload {
+    const {
+      email: _email,
+      name: _name,
+      picture: _picture,
+      ...claims
+    } = payload();
+    return {
+      ...claims,
+      aud: ['another-client', CLIENT_ID] as unknown as string,
+    };
+  }
+
   function clientReturning(claims: TokenPayload | undefined): {
     client: GoogleVerificationClient;
     verifyIdToken: jest.Mock<
@@ -419,8 +472,51 @@ describe('Authentication endpoints', () => {
       });
     });
 
+    test('accepts an audience list and defaults optional profile claims', async () => {
+      const fake = clientReturning(payloadWithoutProfileClaims());
+      const verifier = new GoogleIdTokenVerifier(
+        CLIENT_ID,
+        fake.client,
+        () => NOW,
+      );
+
+      await expect(verifier.verify(ID_TOKEN)).resolves.toEqual({
+        googleSubject: 'google-subject-123',
+        email: '',
+        displayName: '',
+        profileImageUrl: null,
+      });
+    });
+
+    test('uses the system clock when no test clock is provided', async () => {
+      const fake = clientReturning(
+        payload({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+      );
+      const verifier = new GoogleIdTokenVerifier(CLIENT_ID, fake.client);
+
+      await expect(verifier.verify(ID_TOKEN)).resolves.toMatchObject({
+        googleSubject: 'google-subject-123',
+      });
+    });
+
+    test('rejects an empty token before calling Google', async () => {
+      const fake = clientReturning(payload());
+      const verifier = new GoogleIdTokenVerifier(
+        CLIENT_ID,
+        fake.client,
+        () => NOW,
+      );
+
+      await expect(verifier.verify('   ')).rejects.toBeInstanceOf(
+        InvalidGoogleTokenError,
+      );
+      expect(fake.verifyIdToken).not.toHaveBeenCalled();
+    });
+
     test.each([
+      ['missing payload', undefined],
       ['missing subject', payload({ sub: '' })],
+      ['missing expiry', payloadWithoutExpiry()],
       ['wrong audience', payload({ aud: 'different-client-id' })],
       [
         'expired claims',
@@ -494,13 +590,19 @@ describe('Authentication endpoints', () => {
   ): SessionService {
     return new SessionService(
       repository,
-      30,
+      1,
       () => now,
       () => FIXED_RANDOM_BYTES,
     );
   }
 
   describe('Session lifecycle', () => {
+    test.each([0, 1.5])('rejects invalid TTL value %s', (ttlDays) => {
+      expect(
+        () => new SessionService(new TestSessionRepository(), ttlDays),
+      ).toThrow('Session TTL must be a positive whole number of days.');
+    });
+
     test('creates a URL-safe token but persists only its hash', async () => {
       const repository = new TestSessionRepository();
 
@@ -514,7 +616,7 @@ describe('Authentication endpoints', () => {
         created.token,
       );
       expect(created.expiresAt).toEqual(
-        new Date('2026-11-21T12:00:00.000Z'),
+        new Date('2026-10-23T12:00:00.000Z'),
       );
     });
 
@@ -549,6 +651,22 @@ describe('Authentication endpoints', () => {
       expect(refreshed.createdAt).toEqual(NOW);
     });
 
+    test('rejects refresh when the session disappears during the update', async () => {
+      class VanishingSessionRepository extends TestSessionRepository {
+        override async updateExpiryByTokenHash(): Promise<Session | null> {
+          return null;
+        }
+      }
+
+      const repository = new VanishingSessionRepository();
+      const sessionService = service(repository);
+      const created = await sessionService.createSession(USER_ID);
+
+      await expect(
+        sessionService.refreshSession(created.token),
+      ).rejects.toBeInstanceOf(InvalidSessionError);
+    });
+
     test('rejects an unknown or revoked session', async () => {
       const repository = new TestSessionRepository();
       const sessionService = service(repository);
@@ -568,7 +686,7 @@ describe('Authentication endpoints', () => {
       const repository = new TestSessionRepository();
       const creator = service(repository);
       const created = await creator.createSession(USER_ID);
-      const afterExpiry = new Date('2026-11-21T12:00:00.001Z');
+      const afterExpiry = new Date('2026-10-23T12:00:00.001Z');
 
       await expect(
         service(repository, afterExpiry).validateSession(created.token),
@@ -583,7 +701,7 @@ describe('Authentication endpoints', () => {
       const random = jest.fn(() => FIXED_RANDOM_BYTES);
       const sessionService = new SessionService(
         repository,
-        30,
+        1,
         () => NOW,
         random,
       );
@@ -630,7 +748,26 @@ describe('Authentication endpoints', () => {
     return app;
   }
 
+  function createOwnershipOnlyApp() {
+    const app = express();
+    app.get(
+      '/api/v1/users/:userId/probe',
+      requireUserOwnership,
+      (_req, res) => res.sendStatus(204),
+    );
+    return app;
+  }
+
   describe('Authentication and ownership middleware', () => {
+    test('requires authentication context before checking ownership', async () => {
+      const response = await request(createOwnershipOnlyApp()).get(
+        `/api/v1/users/${USER_ID}/probe`,
+      );
+
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('SESSION_REQUIRED');
+    });
+
     test.each([
       [undefined, 'SESSION_REQUIRED'],
       ['Basic credentials', 'SESSION_REQUIRED'],

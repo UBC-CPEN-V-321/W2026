@@ -18,7 +18,7 @@ data class SessionRestorationResult(
     val onboardingRequired: Boolean,
 )
 
-private data class GoogleAuthenticationResponse(
+internal data class GoogleAuthenticationResponse(
     val session: AuthenticatedSession,
     val displayName: String,
     val onboardingRequired: Boolean,
@@ -31,7 +31,15 @@ class AuthRepository(
 ) {
     suspend fun authenticateWithGoogle(idToken: String): GoogleAuthenticationResult {
         val response = exchangeGoogleIdToken(idToken)
+        return activateSession(response)
+    }
 
+    internal suspend fun requestReplacementSession(idToken: String): GoogleAuthenticationResponse =
+        exchangeGoogleIdToken(idToken)
+
+    internal suspend fun activateSession(
+        response: GoogleAuthenticationResponse,
+    ): GoogleAuthenticationResult {
         // Persist first so a storage failure cannot leave only a transient in-memory login.
         persistSession(response.session)
         sessionManager.replace(response.session)
@@ -42,9 +50,6 @@ class AuthRepository(
             onboardingRequired = response.onboardingRequired,
         )
     }
-
-    suspend fun requestReplacementSession(idToken: String): AuthenticatedSession =
-        exchangeGoogleIdToken(idToken).session
 
     suspend fun logout() {
         backendClient.execute(

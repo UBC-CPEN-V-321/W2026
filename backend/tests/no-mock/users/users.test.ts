@@ -4,10 +4,16 @@ import * as os from 'node:os';
 
 import type { Express } from 'express';
 import { Db, MongoClient, ObjectId } from 'mongodb';
-import request from 'supertest';
 
-import { createApp } from '../../../src/index';
+import {
+  createApp as createBackendApp,
+  type AppDependencies,
+} from '../../../src/index';
 import { UserDao } from '../../../src/users/userDao';
+import {
+  authenticatedAgent,
+  MongoTestSessions,
+} from '../../support/authTestUtils';
 
 jest.setTimeout(30_000);
 
@@ -18,6 +24,17 @@ const DATABASE_NAME = `eubc_u_${new ObjectId().toHexString()}`;
 let client: MongoClient;
 let database: Db;
 let app: Express;
+let testSessions: MongoTestSessions;
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: testSessions.service });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(
+  expressApp,
+  (userId) =>
+    testSessions.tokenFor(userId) ?? testSessions.tokenFor(USER_ID.toHexString()),
+);
 
 beforeAll(async () => {
   const uri = process.env.MONGODB_URI;
@@ -30,11 +47,16 @@ beforeAll(async () => {
     serverSelectionTimeoutMS: 10_000,
   });
   database = client.db(DATABASE_NAME);
+  testSessions = new MongoTestSessions(database);
   app = createApp({ userRepository: new UserDao(database) });
   await client.connect();
 });
 
 beforeEach(async () => {
+  await testSessions.reset([
+    USER_ID.toHexString(),
+    MISSING_USER_ID.toHexString(),
+  ]);
   await database.collection('users').deleteMany({});
   await database.collection('users').insertOne({
     _id: USER_ID,
@@ -56,6 +78,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await database.collection('users').deleteMany({});
+  await database.collection('sessions').deleteMany({});
   await client.close();
 });
 
@@ -93,13 +116,12 @@ describe('GET /api/v1/users/:userId — no mocks', () => {
     expect(response.body.error.code).toBe('USER_NOT_FOUND');
   });
 
-  test('returns USER_NOT_FOUND for a malformed user ID', async () => {
-    // Input: malformed ID. Expect: 404 without issuing a matching MongoDB query.
-    // Behavior: the real UserDao rejects the ID; no component is mocked.
+  test('forbids a malformed user scope before querying MongoDB', async () => {
+    // A valid session can never own a malformed MongoDB user ID.
     const response = await request(app).get('/api/v1/users/not-an-object-id');
 
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('USER_NOT_FOUND');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 
   test('reads preferences directly and safely handles missing users', async () => {
@@ -222,14 +244,66 @@ describe('PATCH /api/v1/users/:userId — no mocks', () => {
     expect(response.body.error.code).toBe('INVALID_USER_UPDATE');
   });
 
-  test('rejects a valid update sent to a malformed user ID', async () => {
-    // Input: malformed route ID and valid body. Expect: 404 USER_NOT_FOUND.
-    // Behavior: the real UserDao returns false without updating MongoDB.
+  test('forbids a valid update sent to a malformed user scope', async () => {
+    // Ownership middleware rejects the malformed scope before the DAO runs.
     const response = await request(app)
       .patch('/api/v1/users/not-an-object-id')
       .send({ displayName: 'Valid Name' });
 
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('USER_NOT_FOUND');
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
+  });
+});
+
+describe('PUT /api/v1/users/:userId/onboarding — no mocks', () => {
+  test('completes onboarding and persists all required profile fields', async () => {
+    const response = await request(app)
+      .put(`/api/v1/users/${USER_ID}/onboarding`)
+      .send({
+        start_location: 'UBC Bookstore',
+        preferences: {
+          transportation: { mode: 'cycling' },
+          budget: 'premium',
+          interest: 'markets',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      onboardingRequired: false,
+      user: {
+        start_location: 'UBC Bookstore',
+        preferences: {
+          transportation: { mode: 'cycling' },
+          budget: 'premium',
+          interest: 'markets',
+        },
+        onboardingCompletedAt: expect.any(String),
+      },
+    });
+    await expect(database.collection('users').findOne({ _id: USER_ID }))
+      .resolves.toMatchObject({
+        start_location: 'UBC Bookstore',
+        onboardingCompletedAt: expect.any(Date),
+      });
+  });
+
+  test('safely rejects malformed IDs at the DAO boundary', async () => {
+    const userDao = new UserDao(database);
+
+    await expect(
+      userDao.completeOnboarding(
+        'not-an-object-id',
+        {
+          start_location: 'UBC Bookstore',
+          preferences: {
+            transportation: { mode: 'walking' },
+            budget: 'balanced',
+            interest: 'food',
+          },
+        },
+        new Date('2026-11-17T12:00:00.000Z'),
+      ),
+    ).resolves.toBeNull();
   });
 });

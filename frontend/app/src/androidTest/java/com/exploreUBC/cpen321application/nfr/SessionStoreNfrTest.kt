@@ -1,7 +1,10 @@
-package com.exploreUBC.cpen321application.data.auth
+package com.exploreUBC.cpen321application.nfr
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.exploreUBC.cpen321application.data.auth.AndroidKeystoreSessionCipher
+import com.exploreUBC.cpen321application.data.auth.AuthenticatedSession
+import com.exploreUBC.cpen321application.data.auth.SessionStore
 import java.util.UUID
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -13,7 +16,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SessionStoreTest {
+// NFR-AUTH-FE-2 — See documentation/Testing.md, "Secure authentication and session management".
+class SessionStoreNfrTest {
     private lateinit var cipher: AndroidKeystoreSessionCipher
     private lateinit var store: SessionStore
 

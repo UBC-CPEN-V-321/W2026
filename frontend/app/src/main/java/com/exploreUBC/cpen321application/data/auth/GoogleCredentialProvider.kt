@@ -1,6 +1,7 @@
 package com.exploreUBC.cpen321application.data.auth
 
 import androidx.activity.ComponentActivity
+import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -32,6 +33,12 @@ class GoogleCredentialProvider(
             .setAutoSelectEnabled(true)
             .build()
         return requestIdToken(option)
+    }
+
+    suspend fun clearCredentialState() {
+        withContext(Dispatchers.Main.immediate) {
+            credentialManager.clearCredentialState(ClearCredentialStateRequest())
+        }
     }
 
     private suspend fun requestIdToken(option: androidx.credentials.CredentialOption): String {

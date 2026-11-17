@@ -166,7 +166,7 @@ class ItinerariesApi(backendClient: BackendClient) : ItinerariesRepository {
         withContext(Dispatchers.IO) {
             val response = apiClient.execute(
                 method = "POST",
-                path = "/api/v1/users/${apiClient.encode(userId)}/recommendations",
+                path = "/users/${apiClient.encode(userId)}/recommendations",
                 requestBody = JSONObject().toString(),
                 timeoutMillis = 60_000,
             )

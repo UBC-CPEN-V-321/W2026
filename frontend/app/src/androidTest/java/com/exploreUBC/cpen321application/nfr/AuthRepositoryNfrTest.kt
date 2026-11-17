@@ -1,6 +1,9 @@
-package com.exploreUBC.cpen321application.data.auth
+package com.exploreUBC.cpen321application.nfr
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.exploreUBC.cpen321application.data.auth.AuthRepository
+import com.exploreUBC.cpen321application.data.auth.AuthenticatedSession
+import com.exploreUBC.cpen321application.data.auth.SessionManager
 import com.exploreUBC.cpen321application.data.network.ApiException
 import com.exploreUBC.cpen321application.data.network.ApiRequest
 import com.exploreUBC.cpen321application.data.network.BackendClient
@@ -16,7 +19,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class AuthRepositoryTest {
+// NFR-AUTH-FE-1 — See documentation/Testing.md, "Secure authentication and session management".
+class AuthRepositoryNfrTest {
     private val backendSession = AuthenticatedSession(
         token = "exploreubc-session-token",
         userId = "backend-user-id",

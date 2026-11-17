@@ -4,10 +4,12 @@ import * as os from 'node:os';
 
 import type { Express } from 'express';
 import { Db, MongoClient, ObjectId } from 'mongodb';
-import request from 'supertest';
 
 import { env } from '../../../src/config/env';
-import { createApp } from '../../../src/index';
+import {
+  createApp as createBackendApp,
+  type AppDependencies,
+} from '../../../src/index';
 import { RecommendationDao } from '../../../src/recommendation/recommendationDao';
 import {
   InvalidRecommendationOwnerError,
@@ -22,6 +24,10 @@ import {
   UniversalSentenceEncoderItineraryRanker,
 } from '../../../src/recommendation/universalSentenceEncoderRanker';
 import { UserDao } from '../../../src/users/userDao';
+import {
+  authenticatedAgent,
+  MongoTestSessions,
+} from '../../support/authTestUtils';
 
 // SoCLaaS can take a full minute and may occasionally return unusable generated
 // output. Leave enough time for one retry plus ranking and MongoDB work.
@@ -35,6 +41,17 @@ let client: MongoClient;
 let database: Db;
 let app: Express;
 let recommendationService: RecommendationService;
+let testSessions: MongoTestSessions;
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: testSessions.service });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(
+  expressApp,
+  (userId) =>
+    testSessions.tokenFor(userId) ?? testSessions.tokenFor(USER_ID.toHexString()),
+);
 
 function validCandidate(index = 1) {
   return {
@@ -99,6 +116,7 @@ beforeAll(async () => {
     serverSelectionTimeoutMS: 10_000,
   });
   database = client.db(DATABASE_NAME);
+  testSessions = new MongoTestSessions(database);
   const repository = new RecommendationDao(database);
   const userRepository = new UserDao(database);
   const generator = new SoclaasClient(env.soclaas);
@@ -119,6 +137,10 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await testSessions.reset([
+    USER_ID.toHexString(),
+    MISSING_USER_ID.toHexString(),
+  ]);
   await database.collection('users').deleteMany({});
   await database.collection('itineraries').deleteMany({});
   await database.collection('users').insertOne({
@@ -170,12 +192,12 @@ describe('GET /api/v1/users/:userId/recommendations — no mocks', () => {
     ]));
   });
 
-  test('returns an empty list for a malformed user ID', async () => {
+  test('forbids a malformed recommendation owner scope', async () => {
     const response = await request(app)
       .get('/api/v1/users/not-an-object-id/recommendations');
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ itineraries: [] });
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 
   test('maps documents without optional fields and rejects an invalid owner', async () => {
