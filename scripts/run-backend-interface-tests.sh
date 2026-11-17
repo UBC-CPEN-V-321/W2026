@@ -23,6 +23,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$ROOT/backend"
 MOCK_DIR="$BACKEND_DIR/tests/mock"
 NO_MOCK_DIR="$BACKEND_DIR/tests/no-mock"
+# Every Jest worker connects to the test MongoDB in beforeAll. On machines with
+# many cores, too many workers connect at once and the hooks time out.
+JEST_MAX_WORKERS=4
 
 info()  { printf '\033[34m==>\033[0m %s\n' "$*"; }
 warn()  { printf '\033[33mWARN:\033[0m %s\n' "$*"; }
@@ -54,7 +57,7 @@ run_interface_tests() {
   local -a test_paths=("$@")
 
   info "Running $label interface tests with coverage (${test_paths[*]})..."
-  npm test -- "${test_paths[@]}" --coverage --coverageDirectory="$coverage_dir"
+  npm test -- "${test_paths[@]}" --coverage --coverageDirectory="$coverage_dir" --maxWorkers="$JEST_MAX_WORKERS"
   label_html_report "$title" "$coverage_dir"
   echo
 }

@@ -29,6 +29,9 @@ $Root = (Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Pat
 $BackendDir = Join-Path $Root 'backend'
 $MockDir = Join-Path $BackendDir 'tests\mock'
 $NoMockDir = Join-Path $BackendDir 'tests\no-mock'
+# Every Jest worker connects to the test MongoDB in beforeAll. On machines with
+# many cores, too many workers connect at once and the hooks time out.
+$JestMaxWorkers = 4
 
 function Info($msg) { Write-Host "==> $msg" -ForegroundColor Blue }
 function Warn($msg) { Write-Host "WARN: $msg" -ForegroundColor Yellow }
@@ -58,7 +61,7 @@ function Set-HtmlReportTitle($title, $coverageDir) {
 
 function Run-InterfaceTests($label, $title, $coverageDir, [string[]]$testPaths) {
     Info "Running $label interface tests with coverage ($($testPaths -join ' '))..."
-    npm test -- @testPaths --coverage "--coverageDirectory=$coverageDir"
+    npm test -- @testPaths --coverage "--coverageDirectory=$coverageDir" "--maxWorkers=$JestMaxWorkers"
     if ($LASTEXITCODE -ne 0) { Die "$label interface tests failed." }
     Set-HtmlReportTitle $title $coverageDir
     Write-Host ""

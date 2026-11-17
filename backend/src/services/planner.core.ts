@@ -1,4 +1,4 @@
-import type { ParkingSpot, Transit, Vehicle } from '../models/user.model';
+import type { ParkingSpot, Transit, User, Vehicle } from '../models/user.model';
 import { DEFAULT_GAS_CENTS_PER_LITRE, DEFAULT_LITRES_PER_100KM, singleTransitFareCents } from './planner.constants';
 
 export interface PlannerPlace {
@@ -47,10 +47,29 @@ export interface CandidateRoute extends PricedChain {
   walkSeconds: number;
 }
 
+/** A time, cost and score that a spot's real chain can never beat, or a baseline's screened values. */
+export interface ChainEstimate {
+  durationSeconds: number;
+  costCents: number;
+  score: number;
+}
+
+/** The fields of a detailed route that choosing among Google's alternatives needs. */
+export interface RouteChoice {
+  durationSeconds: number;
+  longestWalkSeconds: number;
+  transitLines: readonly unknown[];
+}
+
 const EARTH_RADIUS_METERS = 6_371_000;
 const MAX_CANDIDATES = 8;
 const MAX_WALK_SECONDS = 10 * 60;
 const PARKING_BUFFER_SECONDS = 5 * 60;
+const KM_PER_HOUR_TO_METERS_PER_SECOND = 1000 / 3600;
+// No Metro Vancouver transit trip can cover straight-line distance faster than its fastest vehicle. The fastest is
+// the West Coast Express, at 110 km/h top speed (https://en.wikipedia.org/wiki/West_Coast_Express, checked
+// 2026-11-15). 120 km/h sits above it, so a bound built on it never overestimates a real transit time.
+export const MAX_TRANSIT_SPEED_METERS_PER_SECOND = 120 * KM_PER_HOUR_TO_METERS_PER_SECOND;
 
 function radians(degrees: number): number {
   return (degrees * Math.PI) / 180;
@@ -164,6 +183,67 @@ export function priceChain(input: {
     costEstimated,
     score,
   };
+}
+
+/** The fewest seconds any transit trip from [spot] to [destination] could take: straight-line distance at top speed. */
+export function transitLowerBoundSeconds(spot: CandidateSpot['location'], destination: PlannerPlace): number {
+  return distanceMeters(spot, destination) / MAX_TRANSIT_SPEED_METERS_PER_SECOND;
+}
+
+/**
+ * The best time, cost and score a Drive -> Transit chain through [spot] could reach, before its transit leg is priced.
+ * The drive is already known; the transit ride is at its lower bound, parking covers only that ride, and the fare is
+ * the one-zone minimum, so every term is a floor.
+ */
+export function chainLowerBound(input: {
+  driveSeconds: number;
+  driveMeters: number;
+  spot: CandidateSpot;
+  destination: PlannerPlace;
+  user: Pick<User, 'vehicle' | 'transit' | 'lastGasPrice'>;
+  costVsTime: number;
+}): ChainEstimate {
+  const transitSeconds = transitLowerBoundSeconds(input.spot.location, input.destination);
+  const price = priceChain({
+    driveDistanceMeters: input.driveMeters,
+    transitDistanceMeters: 0,
+    totalDurationSeconds: input.driveSeconds + PARKING_BUFFER_SECONDS + transitSeconds,
+    parkedSeconds: PARKING_BUFFER_SECONDS + transitSeconds,
+    spot: input.spot,
+    vehicle: input.user.vehicle,
+    gasCentsPerLitre: input.user.lastGasPrice?.centsPerLitre ?? null,
+    transit: input.user.transit,
+    transitZones: 1,
+    costVsTime: input.costVsTime,
+  });
+  return { durationSeconds: price.totalDurationSeconds, costCents: price.totalCostCents, score: price.score };
+}
+
+/**
+ * Keeps the spots that could still win: a spot is dropped only when some baseline is strictly faster and scores
+ * strictly better than its bound, and the transit-only baseline is strictly cheaper. Drive-only's cost leaves out
+ * parking at the destination, so it isn't a fair cost reference; with no transit-only baseline nothing is dropped.
+ * The spot with the best bound score is always kept, so Balanced still has a chain to choose.
+ */
+export function pruneSpots<T extends ChainEstimate>(
+  bounds: readonly T[],
+  baselines: readonly ChainEstimate[],
+  costReferenceCents: number | null,
+): T[] {
+  if (costReferenceCents === null || bounds.length === 0) return [...bounds];
+  const best = bounds.reduce((winner, bound) => (bound.score < winner.score ? bound : winner));
+  return bounds.filter((bound) => bound === best || !(
+    costReferenceCents < bound.costCents &&
+    baselines.some((baseline) => baseline.durationSeconds < bound.durationSeconds && baseline.score < bound.score)
+  ));
+}
+
+/** The shortest of Google's alternative routes whose longest walk fits [maxWalkSeconds]; ties go to fewer lines. */
+export function chooseRoute<T extends RouteChoice>(routes: readonly T[], maxWalkSeconds: number): T | null {
+  const fitting = routes
+    .filter((route) => route.longestWalkSeconds <= maxWalkSeconds)
+    .sort((a, b) => a.durationSeconds - b.durationSeconds || a.transitLines.length - b.transitLines.length);
+  return fitting[0] ?? null;
 }
 
 /** Drops impossible chains while retaining their spot-specific constraints. */

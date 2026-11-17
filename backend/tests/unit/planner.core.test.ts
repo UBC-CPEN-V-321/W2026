@@ -1,7 +1,11 @@
 import {
+  chainLowerBound,
+  chooseRoute,
   filterChains,
   pickThree,
   priceChain,
+  pruneSpots,
+  transitLowerBoundSeconds,
   scheduleChain,
   scheduleDetailedChain,
   scheduleDetailedSingle,
@@ -268,5 +272,123 @@ describe('pickThree', () => {
     ]);
 
     expect(picked.map(({ spotId, lateByMinutes }) => [spotId, lateByMinutes])).toEqual([['earlier', 5]]);
+  });
+});
+describe('transitLowerBoundSeconds and chainLowerBound', () => {
+  const ubc = { lat: 49.2606, lng: -123.246 };
+  const waterfront = { label: 'Waterfront', lat: 49.2857, lng: -123.111, placeId: null };
+  const driver = {
+    vehicle: { make: 'Honda', model: 'Civic', colour: null, litresPer100km: 8 },
+    transit: { fareType: 'ADULT_STORED_VALUE', monthlyPassZones: null } as const,
+    lastGasPrice: { centsPerLitre: 200, savedAt: new Date('2026-11-02T00:00:00Z') },
+  };
+
+  // Input: UBC to Waterfront, whose transit ride in the planner's fixtures takes 25 minutes
+  // Expected: the lower bound is positive and below that real ride
+  test('never exceeds a real transit time', () => {
+    const bound = transitLowerBoundSeconds(ubc, waterfront);
+
+    expect(bound).toBeGreaterThan(0);
+    expect(bound).toBeLessThan(1500);
+  });
+
+  // Input: a 10-minute, 10 km drive to an hourly spot, then the lower-bound ride to Waterfront
+  // Expected: time is drive + 5-minute buffer + bound; cost is 160 fuel + one 500-cent hour + the 285-cent one-zone
+  //           fare; and both are no more than the same chain priced with a real 25-minute, two-zone ride
+  test('is a floor on time, cost and score', () => {
+    const paid = spot('paid', ubc.lat, ubc.lng);
+    const bound = chainLowerBound({ driveSeconds: 600, driveMeters: 10_000, spot: paid, destination: waterfront, user: driver, costVsTime: 50 });
+    const real = priceChain({
+      driveDistanceMeters: 10_000,
+      transitDistanceMeters: 15_000,
+      totalDurationSeconds: 600 + 300 + 1500,
+      parkedSeconds: 300 + 1500,
+      spot: paid,
+      vehicle: driver.vehicle,
+      gasCentsPerLitre: 200,
+      transit: driver.transit,
+      transitZones: 2,
+      costVsTime: 50,
+    });
+
+    expect(bound.durationSeconds).toBeCloseTo(900 + transitLowerBoundSeconds(ubc, waterfront));
+    expect(bound.costCents).toBe(945);
+    expect(bound.durationSeconds).toBeLessThanOrEqual(real.totalDurationSeconds);
+    expect(bound.costCents).toBeLessThanOrEqual(real.totalCostCents);
+    expect(bound.score).toBeLessThanOrEqual(real.score);
+  });
+});
+
+describe('pruneSpots', () => {
+  const transitOnly = { durationSeconds: 1200, costCents: 300, score: 1300 };
+  const bound = (id: string, durationSeconds: number, costCents: number, score: number) => ({ id, durationSeconds, costCents, score });
+
+  // Input: against a transit-only baseline, a best-scoring spot, a slower and costlier spot, a slower but cheaper
+  //        spot, a faster but costlier spot, and a spot tied with the baseline
+  // Expected: only the slower and costlier spot is dropped
+  test('drops only spots the baselines beat on time, cost and score', () => {
+    const kept = pruneSpots([
+      bound('best', 600, 400, 900),
+      bound('dominated', 2000, 500, 2500),
+      bound('cheaper', 2000, 200, 2200),
+      bound('faster', 900, 500, 1400),
+      bound('tied', 1200, 300, 1300),
+    ], [transitOnly], transitOnly.costCents);
+
+    expect(kept.map(({ id }) => id)).toStrictEqual(['best', 'cheaper', 'faster', 'tied']);
+  });
+
+  // Input: a drive-only baseline that is faster and scores better than the spot, and the transit-only cost to compare
+  // Expected: the spot is dropped when transit-only is cheaper, and kept when transit-only costs more
+  test('takes cost only from the transit-only baseline', () => {
+    const driveOnly = { durationSeconds: 900, costCents: 100, score: 1000 };
+    const spots = [bound('best', 600, 400, 900), bound('slow', 1500, 500, 2000)];
+
+    expect(pruneSpots(spots, [driveOnly], 300).map(({ id }) => id)).toStrictEqual(['best']);
+    expect(pruneSpots(spots, [driveOnly], 600).map(({ id }) => id)).toStrictEqual(['best', 'slow']);
+  });
+
+  // Input: a dominated spot with no transit-only baseline, and no spots at all
+  // Expected: nothing is pruned on cost without a transit-only cost, and no spots stay no spots
+  test('prunes nothing without a transit-only baseline', () => {
+    const spots = [bound('dominated', 2000, 500, 2500), bound('worse', 3000, 600, 3500)];
+
+    expect(pruneSpots(spots, [transitOnly], null)).toStrictEqual(spots);
+    expect(pruneSpots([], [transitOnly], transitOnly.costCents)).toStrictEqual([]);
+  });
+
+  // Input: two spots that the transit-only baseline beats on time, cost and score
+  // Expected: the spot with the better bound score is kept so Balanced still has a chain
+  test('always keeps the best-scoring spot', () => {
+    const kept = pruneSpots([bound('worse', 3000, 600, 3500), bound('better', 2000, 500, 2500)], [transitOnly], transitOnly.costCents);
+
+    expect(kept.map(({ id }) => id)).toStrictEqual(['better']);
+  });
+});
+
+describe('chooseRoute', () => {
+  const choice = (id: string, durationSeconds: number, longestWalkSeconds: number, lines: number) => ({
+    id, durationSeconds, longestWalkSeconds, transitLines: Array.from({ length: lines }, () => 'line'),
+  });
+
+  // Input: Google's first route walks 12 minutes, and two alternatives fit a 10-minute max walk
+  // Expected: the shortest alternative that fits
+  test('picks the shortest alternative within the max walk', () => {
+    const picked = chooseRoute([choice('long walk', 2400, 720, 1), choice('slow', 4800, 120, 1), choice('quick', 2520, 300, 2)], 600);
+
+    expect(picked?.id).toBe('quick');
+  });
+
+  // Input: two routes of the same length, one with fewer transit lines
+  // Expected: the one with fewer lines
+  test('breaks ties with fewer transit lines', () => {
+    expect(chooseRoute([choice('two lines', 1800, 0, 2), choice('one line', 1800, 0, 1)], 600)?.id).toBe('one line');
+  });
+
+  // Input: routes that all walk further than the max, and no routes
+  // Expected: null
+  test('returns null when no route fits', () => {
+    expect(chooseRoute([choice('far', 1800, 900, 1)], 600)).toBeNull();
+    expect(chooseRoute([], 600)).toBeNull();
   });
 });
