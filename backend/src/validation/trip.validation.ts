@@ -6,6 +6,7 @@ import {
   type NavigationStep,
   type NewTrip,
   type Place,
+  type StopLocation,
   type TransitLine,
   type TripStatusChange,
 } from '../models/trip.model';
@@ -36,6 +37,7 @@ type Totals = Pick<
   'totalDurationSeconds' | 'totalDistanceMeters' | 'totalCostCents' | 'costEstimated' | 'baselineDriveCostCents'
 >;
 type TransitDetails = Pick<TransitLine, 'colour' | 'headsign' | 'departureStop' | 'arrivalStop' | 'stopCount'>;
+type TransitStops = Pick<TransitLine, 'departureStopLocation' | 'arrivalStopLocation' | 'departAt' | 'arriveAt'>;
 
 /** Checks a whole number of cents, metres, seconds or stops. */
 function isCount(value: unknown): value is number {
@@ -116,6 +118,25 @@ function parseTransitDetails(line: Record<string, unknown>): TransitDetails | un
   return { colour, headsign, departureStop, arrivalStop, stopCount };
 }
 
+/** Checks a stop's `{ lat, lng }`. Missing or `null` means Google left it out. */
+function parseOptionalStopLocation(value: unknown): StopLocation | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { lat, lng } = value;
+  return isCoordinate(lat, MAX_LATITUDE) && isCoordinate(lng, MAX_LONGITUDE) ? { lat, lng } : undefined;
+}
+
+/** Checks where a line's stops are and its scheduled times there, which trips saved before #87 don't have. */
+function parseTransitStops(line: Record<string, unknown>): TransitStops | undefined {
+  const departureStopLocation = parseOptionalStopLocation(line.departureStopLocation);
+  const arrivalStopLocation = parseOptionalStopLocation(line.arrivalStopLocation);
+  const departAt = parseOptionalDate(line.departAt);
+  const arriveAt = parseOptionalDate(line.arriveAt);
+  if (departureStopLocation === undefined || arrivalStopLocation === undefined) return undefined;
+  if (departAt === undefined || arriveAt === undefined) return undefined;
+  return { departureStopLocation, arrivalStopLocation, departAt, arriveAt };
+}
+
 /** Checks one transit line a leg rides. */
 function parseTransitLine(value: unknown): TransitLine | undefined {
   if (!isRecord(value)) return undefined;
@@ -123,8 +144,10 @@ function parseTransitLine(value: unknown): TransitLine | undefined {
   const shortName = parseOptionalText(value.shortName);
   const vehicle = parseText(value.vehicle);
   const details = parseTransitDetails(value);
-  if (name === undefined || shortName === undefined || vehicle === undefined || details === undefined) return undefined;
-  return { name, shortName, vehicle, ...details };
+  const stops = parseTransitStops(value);
+  if (name === undefined || shortName === undefined || vehicle === undefined) return undefined;
+  if (details === undefined || stops === undefined) return undefined;
+  return { name, shortName, vehicle, ...details, ...stops };
 }
 
 /** Checks one turn-by-turn instruction of a driving or walking leg. */
