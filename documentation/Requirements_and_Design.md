@@ -41,6 +41,7 @@
 | 2026-11-14 | 4.1 | `GET /api/events`: listed what each event carries, that it reaches every open stream of the other user and nobody else, and the 401, as tested by its interface tests. |
 | 2026-11-14 | 3.2, 3.4 | Following TA feedback to simplify the use case diagram, removed every include and extend relationship and connected each use case directly to the user, showed Respond to a proposal as one use case, and merged Close post and Reopen post into Edit post. Removed Create deal as a separate use case, since the user never starts it: Respond to a proposal now describes recording the deal when a proposal is accepted. |
 | 2026-11-15 | 3.2, 3.4, 4.1, 5 | Added the Manage profile use case, covering the Profile tab and setting the home address, to the Authentication and Profile group and the use case diagram; the use cases after it are renumbered. Listed the `PATCH /api/users/me` errors covered by its interface tests, including 413 for a body over 4 KB, and added the profile data rules. |
+| 2026-11-17 | 4.7 | NFR 1 is now measured: the NFR test `feedLatency.test.ts` ranks 1,000 candidate posts, and 95% of 100 feed requests return within 45 ms. |
 
 ---
 
@@ -704,7 +705,7 @@ sequenceDiagram
         - Measurement environment: a backend Jest NFR test in `backend/tests/nfr/`, run with `scripts/run-backend-nfr-tests.sh`, that sends 100 `GET /api/feed?postId=<id>` requests through Supertest. It measures the backend's response time only, without the phone's network.
 2. **Graceful degradation without the routing service**
     - **Implementation**: The feed requests travel times only for the first page of recommendations, in one OpenRouteService matrix request with a timeout of 2 seconds (`ROUTING_TIMEOUT_MS` in `matching/travelTime.ts`). If the service fails, times out or is rate-limited, the feed returns the ranked recommendations with `travelTimesAvailable: false`, and the app shows "Travel time unavailable". The timeout lets the feed meet the 3-second response target in Section 3.7.
-    - **Implementation status**: Matching on main filters candidates and ranks them before pagination. `backend/tests/nfr/routingFallback.test.ts` checks NFR 2: with a routing service that never answers, the feed returns its ranked recommendations in about 2 seconds, under the 3-second limit. NFR 1 is not measured yet.
+    - **Implementation status**: Matching on main filters candidates and ranks them before pagination. `backend/tests/nfr/routingFallback.test.ts` checks NFR 2: with a routing service that never answers, the feed returns its ranked recommendations in about 2 seconds, under the 3-second limit. `backend/tests/nfr/feedLatency.test.ts` checks NFR 1: with 1,000 candidate posts, 95% of 100 feed requests return within 45 ms, well under the 1-second target.
 
 ---
 
