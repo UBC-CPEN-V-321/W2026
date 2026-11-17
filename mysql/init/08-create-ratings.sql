@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS player_ratings (
     -- the ratings a player received
     KEY idx_player_ratings_rated (rated_id, game_id),
     CONSTRAINT chk_player_ratings_range CHECK (
-        punctuality BETWEEN 1 AND 5 AND sportsmanship BETWEEN 1 AND 5 AND skill BETWEEN 1 AND 5
-        AND reliability BETWEEN 1 AND 5 AND overall BETWEEN 1 AND 5
+        punctuality BETWEEN 1 AND 6 AND sportsmanship BETWEEN 1 AND 6 AND skill BETWEEN 1 AND 6
+        AND reliability BETWEEN 1 AND 6 AND overall BETWEEN 1 AND 6
     ),
     CONSTRAINT fk_player_ratings_rater FOREIGN KEY (rater_id)
         REFERENCES users (user_id) ON DELETE CASCADE,

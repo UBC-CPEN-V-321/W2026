@@ -1,5 +1,5 @@
 import type { ParseResult } from '../../core/validation';
-import type { RatingScores } from '../reputation';
+import { MAX_STARS, type RatingScores } from '../reputation';
 
 /*  body of POST /api/games/:gameId/ratings. Fields are unknown until checked since they
     come straight from the request
@@ -23,10 +23,10 @@ function isPositiveWholeNumber(value: unknown): value is number {
 }
 
 function isStars(value: unknown): boolean {
-  return isPositiveWholeNumber(value) && value <= 5;
+  return isPositiveWholeNumber(value) && value <= MAX_STARS;
 }
 
-/*  checks who is rated and that every category is a whole number of stars from 1 to 5.
+/*  checks who is rated and that every category is a whole number of stars from 1 to MAX_STARS.
     Returns a description of the problem if anything is invalid, naming the categories
  */
 export function parseRating(body: RatingBody | undefined): ParseResult<NewRating> {
@@ -36,7 +36,7 @@ export function parseRating(body: RatingBody | undefined): ParseResult<NewRating
   const stars = { punctuality, sportsmanship, skill, reliability, overall };
   const invalid = Object.entries(stars).filter(([, value]) => !isStars(value)).map(([category]) => category);
   if (invalid.length > 0) {
-    return { ok: false, error: `${invalid.join(', ')} must be a whole number from 1 to 5` };
+    return { ok: false, error: `${invalid.join(', ')} must be a whole number from 1 to ${MAX_STARS}` };
   }
   return { ok: true, value: { ratedUserId, scores: stars as RatingScores } };
 }

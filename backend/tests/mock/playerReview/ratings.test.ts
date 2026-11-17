@@ -50,7 +50,7 @@ describe('Mocked: POST /api/games/{gameId}/ratings', () => {
   });
 
   // Mocked behavior: createRating is replaced to check that it's never reached
-  // Input: a rating with skill left out and overall above 5
+  // Input: a rating with skill left out and overall above 6
   // Expected status code: 400
   // Expected behavior: nothing is recorded
   // Expected output: { msg: "invalid_request" } with an error naming both categories
@@ -58,7 +58,7 @@ describe('Mocked: POST /api/games/{gameId}/ratings', () => {
     const token = signIn(testPlayer());
     const createRating = jest.spyOn(ratingsDb, 'createRating').mockResolvedValue({ ok: true });
 
-    const response = await postRating(token, { ...VALID_RATING, skill: undefined, overall: 6 });
+    const response = await postRating(token, { ...VALID_RATING, skill: undefined, overall: 7 });
 
     expect(response.status).toBe(400);
     expect(response.body.msg).toBe('invalid_request');

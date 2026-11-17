@@ -142,7 +142,7 @@ data class PendingJoinRequestDto(
     @SerializedName("play_frequency") val playFrequency: String?,
     val message: String?,
     @field:Required @SerializedName("created_at") val createdAt: String,
-    // their reputation score out of 5
+    // their reputation score out of 6
     @SerializedName("reputation_score") val reputationScore: Double
 )
 

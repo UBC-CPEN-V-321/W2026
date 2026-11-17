@@ -132,7 +132,7 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 3. User selects “Rate player”.
 4. System displays all the players of the game.
 5. User selects a player.
-6. System displays the rating categories of punctuality, sportsmanship, skill, and reliability, each out of 5, as well as an overall rating.
+6. System displays the rating categories of punctuality, sportsmanship, skill, and reliability, each out of 6, as well as an overall rating.
 7. User enters the ratings and clicks “Submit”.
 8. System records the rating and displays a confirmation message.
 

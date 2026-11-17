@@ -22,7 +22,7 @@ private val FREQUENCY_TEXT = mapOf(
 // the game at the top of Join Requests: "Volleyball Night" and "Fri, Oct 17 · 8/12 players · 4 spots left"
 data class JoinRequestsHeader(val title: String, val subtitle: String, val isFull: Boolean)
 
-// a request card: who asked, "Rating 4.7/5 · Intermediate · Plays weekly", "Requested 2h ago" and their message
+// a request card: who asked, "Rating 4.7/6 · Intermediate · Plays weekly", "Requested 2h ago" and their message
 data class JoinRequestItem(
     val requestId: Int,
     val userId: Int,

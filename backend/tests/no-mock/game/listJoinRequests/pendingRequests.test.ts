@@ -1,7 +1,7 @@
 import { executeWrite } from '../../../../src/core/db/mysql';
 import { addGame, addUser, api, asUser, cleanUpAfterTests } from '../../helpers';
 
-// a new player's score: every game counts as perfect until they have played some
+// a new player's score: every game counts as 5 stars until they have played some
 const NEW_PLAYER_SCORE = 5;
 
 let organizerId: number;

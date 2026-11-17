@@ -29,7 +29,7 @@ import com.example.cpen321application.ui.theme.SportsOnSurfaceVariant
 import com.example.cpen321application.ui.theme.SportsOutlineVariant
 import com.example.cpen321application.ui.theme.SportsPrimary
 
-private const val MAX_STARS = 5
+private const val MAX_STARS = 6
 
 /*  the rating form, opened from a player on Rate Players. Every category is needed, Submit
     says which are missing. isSending shows progress on Submit while the rating is sent,
@@ -82,7 +82,7 @@ internal fun RatingSheet(
     }
 }
 
-// a category's name with its five stars, tapping a star gives that many
+// a category's name with its six stars, tapping a star gives that many
 @Composable
 private fun StarsRow(category: RatingCategory, stars: Int, enabled: Boolean, onStars: (Int) -> Unit) {
     Column {

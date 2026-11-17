@@ -1,6 +1,6 @@
 // how a player's reputation score is worked out. No database here so the rules are in one place
 
-// the stars given to a player in one rating, each from 1 to 5
+// the stars given to a player in one rating, each from 1 to MAX_STARS
 export interface RatingScores {
   punctuality: number;
   sportsmanship: number;
@@ -18,9 +18,11 @@ export interface PlayedGame {
   ratings: RatingScores[];
 }
 
-// a score is the average of this many games, new players start with this many perfect games
+// the most stars a category can be given
+export const MAX_STARS = 6;
+// a score is the average of this many games, new players start with this many default games
 export const GAMES_IN_SCORE = 5;
-// a player who showed up gets this from anyone who didn't rate them
+// a player who showed up gets this from anyone who didn't rate them, one below the top
 const DEFAULT_RATING = 5;
 const NO_SHOW_RATING = 1;
 const CATEGORY_COUNT = 5;
@@ -30,7 +32,7 @@ function ratingAverage(rating: RatingScores): number {
 }
 
 /*  a player's score for one game: a no-show gets the lowest score, otherwise the average
-    of every other player who showed up, counting anyone who didn't rate them as perfect
+    of every other player who showed up, counting anyone who didn't rate them as DEFAULT_RATING
  */
 export function gameScore(game: PlayedGame): number {
   if (game.noShow) return NO_SHOW_RATING;
@@ -40,7 +42,7 @@ export function gameScore(game: PlayedGame): number {
 }
 
 /*  a player's score: the average of their most recent games, to two decimal places. Until
-    they have played GAMES_IN_SCORE games the rest count as perfect
+    they have played GAMES_IN_SCORE games the rest count as DEFAULT_RATING
  */
 export function reputationScore(recentGames: PlayedGame[]): number {
   const games = recentGames.slice(0, GAMES_IN_SCORE);
