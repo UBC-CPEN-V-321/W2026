@@ -1,4 +1,4 @@
-import { addGame, addPlayer, addUser, api, asUser, cleanUpAfterTests, getPlayerIds } from '../../helpers';
+import { addGame, addPlayer, addUser, api, asUser, cleanUpAfterTests, getPlayerIds } from '../helpers';
 
 let organizerId: number;
 let playerId: number;

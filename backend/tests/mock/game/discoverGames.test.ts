@@ -1,8 +1,8 @@
-import * as gamesDb from '../../../../src/game/db/games';
-import type * as MockEnv from '../../mockEnv';
-import { api, cleanUpAfterTests, signIn, testOrganizer, withToken } from '../../helpers';
+import * as gamesDb from '../../../src/game/db/games';
+import type * as MockEnv from '../mockEnv';
+import { api, cleanUpAfterTests, signIn, testOrganizer, withToken } from '../helpers';
 
-jest.mock('../../../../src/core/config/env', () => jest.requireActual<typeof MockEnv>('../../mockEnv'));
+jest.mock('../../../src/core/config/env', () => jest.requireActual<typeof MockEnv>('../mockEnv'));
 
 const LATITUDE = 49.26;
 const LONGITUDE = -123.25;

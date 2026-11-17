@@ -1,4 +1,4 @@
-import { addGame, addPlayer, addUser, api, asUser, cleanUpAfterTests } from '../../helpers';
+import { addGame, addPlayer, addUser, api, asUser, cleanUpAfterTests } from '../helpers';
 
 let userId: number;
 let otherUserId: number;
@@ -43,5 +43,16 @@ describe('Unmocked: GET /api/games/mine', () => {
       title: 'Their Game',
       player_count: 2,
     });
+  });
+
+  // Input: a signed in user who has no games
+  // Expected status code: 200
+  // Expected behavior: nothing changes
+  // Expected output: { msg: "no_games" }
+  test('No games', async () => {
+    const response = await api.get('/api/games/mine').set(asUser(userId));
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ msg: 'no_games' });
   });
 });

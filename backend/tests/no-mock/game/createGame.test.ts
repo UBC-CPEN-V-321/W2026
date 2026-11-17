@@ -1,6 +1,6 @@
-import { selectRows } from '../../../../src/core/db/mysql';
-import { createAuthToken } from '../../../../src/user/auth/jwt';
-import { addUser, api, cleanUpAfterTests, getPlayerIds, ONE_DAY_MS, withToken } from '../../helpers';
+import { selectRows } from '../../../src/core/db/mysql';
+import { createAuthToken } from '../../../src/user/auth/jwt';
+import { addUser, api, cleanUpAfterTests, getPlayerIds, ONE_DAY_MS, withToken } from '../helpers';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
