@@ -4,6 +4,8 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| Nov 17, 2026 | 3.7, 4.7 | Following CP2 feedback, the Energy Efficiency requirement (at most 1% battery in 10 minutes) is replaced by Chat Responsiveness (a message reaches the other members within 1 second), because battery drain can't be checked by an automated test. Section 4.7 describes how chat meets it and how each requirement will be tested. |
+| Nov 16, 2026 | 4.1, 4.3, 4.6, 4.7 | Following CP2 feedback, the components are renamed to match their code folders: Message is now Chat, Social is now Friend, and Player Review is now Review. Section 4.1 now matches the code: added complete game, leave game and delete account, remove player is built and only for the organiser, and `getReputation` returns the real score. Sending push notifications moved from User to a shared Notifications module, where the code has it. Section 4.3 adds the Google Places API, the Android Geocoder and Android Location, which the app uses for place search, addresses and the phone's location, and the Google Maps interface now matches the code. The planned `getFinishedGames` is removed, because rating starts from the finished game on the home screen. The sequence diagrams for Send Friend Message, Rate Players and Discover Game use the new component names and the REST replies the app receives. Section 4.7 says how the performance requirement will be tested. |
 | Nov 16, 2026 | 3.1, 3.2, 3.3, 3.4, 3.5, 4.6 | Following CP2 feedback, use case names are now active verbs (e.g. View Player Statistics), and use cases with more than one goal are split: Add Friends into Search Users, Send, Accept and Decline Friend Request; Accept Players to Join into Accept and Reject Join Request; and each chat into send, view and receive messages. The game organiser now also takes part in game chat. The formal Join Request use case is renamed Join Game to match the list and diagram, and Friend Chat is renamed Send Friend Message. The failure scenarios of Create Game, Join Game and Rate Players now name each specific failure and the message shown, instead of "along with the reason". Features, use cases, formal use cases and sequence diagrams now all follow the same order as the use case diagram: Authentication, Friend System, Player Reputation and Statistics, Game Planning, Game Discovery. |
 | Nov 10, 2026 | 4.1 | `GET /api/friends` now returns each friend's `chat_id`, so the app opens a friend's chat straight from the friends list (or a message notification) without asking for it first. Removed `GET /api/friends/{userId}/chat`. Whether the two are still friends is checked when the chat's messages load. |
 | Nov 3, 2026 | 3 (Use Case 4), 4.1 | Friend chat is built on the same tables, WebSocket and screen as game chat. Added `GET /api/friends/{userId}/chat` and `createFriendChat`. Use Case 4 now starts from the Friends tab. |
@@ -254,9 +256,9 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 
 <a id="nfr2"></a>
 
-2. **Energy Efficiency**
-    - **Description**: Using the app for 10 minutes should reduce the phone’s battery level by no more than 1%.
-    - **Justification**: People spend an average of 4 hours and 37 minutes on their phones each day. If an average user drains about 80% of their battery over that time, the average phone uses roughly 17% of its battery per hour of use (80% ÷ 4.62 hours). SportsNow is not designed to be as energy intensive as typical apps such as video, games, or social media, so its target is about one-third of that rate, or 6% per hour. A drain of 1% per 10 minutes meets this target and helps avoid battery concerns, which Ickin et al. (2017) found to be one of the top reasons users uninstall apps. 
+2. **Chat Responsiveness**
+    - **Description**: When a user sends a message in a game chat or friend chat, the other members who have the chat open should receive it within 1 second.
+    - **Justification**: In Nielsen’s Response Times: The 3 Important Limits, about 1 second is the limit for the user’s flow of thought to stay uninterrupted, even though they notice the delay. Chat is a back-and-forth conversation, often used to arrange a game that is about to start, such as who is bringing the ball or where to meet. If a reply takes longer than 1 second to appear, the conversation stops feeling live and users start wondering whether their message was sent. A 1-second target keeps chat within Nielsen’s limit for an uninterrupted flow.
 
 
 ---
@@ -279,15 +281,15 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
             - **Purpose**: Returns the signed in user's profile.
         5. `PUT /api/users/me` body `{ f_name, l_name, birthYear }` → `200 { user }`
             - **Purpose**: Updates the signed in user's profile.
-        6. `User findUserById(int userId)`
+        6. `DELETE /api/users/me` → `200 { msg: "success" }`
+            - **Purpose**: Deletes the signed in user's account and everything tied to it. Players of games they organise that are still on are told the game was cancelled.
+        7. `User findUserById(int userId)`
             - **Purpose**: Used by the other components to get a user's name and details, returning null if no user has the id.
-        7. `int sendPushToUser(int userId, PushMessage message)`
-            - **Purpose**: Sends a push notification to every device the user is signed into and returns how many devices it reached.
         8. `GET /api/users/{userId}` → `200 { profile }`
             - **Purpose**: Returns another player's public profile for the profile popup: name, age range, games played, reputation score and badges, and a `friendship_status` (`self` on the user's own profile) so the app knows whether to offer Add Friend. Never returns email or birth year.
 
 2. **Game**
-    - **Purpose**: Handles creating, editing, discovering, joining, and leaving games, accepting and removing players, and invitations, using the Google Maps API for locations.
+    - **Purpose**: Handles creating, editing, cancelling, completing, discovering, joining, and leaving games, accepting and removing players, and invitations, using the Google Maps API for locations.
     - **Rationale**: Games, their players and join requests change together, so one component owns them and can lock a game while it changes, so two approvals at once can't go over the player limit. We chose to search by distance in a MySQL query over loading every game into the server so Discover Game stays fast.
     - **Interfaces**: 
         1. `POST /api/games` body `{ title, sport, description, starts_at, ends_at, location_name, address, latitude, longitude, max_players, skill_level }` → `201 { game }`
@@ -308,16 +310,18 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
             - **Purpose**: Returns the pending join requests for the organiser to review.
         9. `PATCH /api/games/{gameId}/join-requests/{requestId}` body `{ decision: "approve" | "decline" }` → `200 { game }`
             - **Purpose**: Lets the organiser approve or decline a join request and notifies the requester.
-        10. `DELETE /api/games/{gameId}/players/{userId}` → `200 { game }` *(planned)*
-            - **Purpose**: Lets a player leave a game, or the organiser remove a player, before the game starts.
-        11. `POST /api/games/{gameId}/invites` body `{ friend_ids }` → `201 { msg: "success" }`
+        10. `POST /api/games/{gameId}/complete` body `{ no_show_user_ids }` (optional) → `200 { game }`
+            - **Purpose**: Lets the organiser mark a game that has started as completed, recording the players who didn't show up, and notifies its players. Fails with `game_not_started` before the start time.
+        11. `POST /api/games/{gameId}/leave` → `200 { game, game_deleted }`
+            - **Purpose**: Lets a player leave a game and tells the organiser if the game is still on. The organiser can't leave a game that is still on and must cancel or complete it instead (`organizer_must_cancel`, `organizer_must_complete`). The last player to leave a cancelled or completed game deletes it, and `game_deleted` is then true.
+        12. `DELETE /api/games/{gameId}/players/{userId}` → `200 { game }`
+            - **Purpose**: Lets the organiser remove a player from their game before it starts, and notifies the player, who can send a new join request later.
+        13. `POST /api/games/{gameId}/invites` body `{ friend_ids }` → `201 { msg: "success" }`
             - **Purpose**: Lets the organiser invite friends to their game by notifying them. Tapping the notification opens the game, where the friend can send a join request. Only the organiser can invite, only their friends who aren't in the game yet, and not once the game is cancelled, started or full.
-        12. `List<GamePlayer> getGamePlayers(int gameId)`
-            - **Purpose**: Used by Player Review and Message to check who played in a game.
-        13. `List<Game> getFinishedGames(int userId)` *(planned)*
-            - **Purpose**: Used by Player Review to find the user's finished games that can be rated.
+        14. `List<GamePlayer> getGamePlayers(int gameId)`
+            - **Purpose**: Used by Review and Chat to check who played in a game.
 
-3. **Player Review**
+3. **Review**
     - **Purpose**: Handles player ratings after a game, no-shows, reputation scores, and badges.
     - **Rationale**: The reputation score and badges are computed from ratings, so keeping them apart from games keeps the scoring algorithm in one place. We chose to compute the score when it's read over storing it, because players can still rate a game after it's completed.
     - **Interfaces**:
@@ -330,11 +334,11 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
         4. `double getReputationScore(int userId)`
             - **Purpose**: Used by Game to show each requester's score on the join request list.
         5. `Reputation getReputation(int userId)`
-            - **Purpose**: Used by User's public profile to show a player's games played. Its score and badges stay empty for now.
+            - **Purpose**: Used by User's public profile to show a player's reputation score and games played. Its badges stay empty until badges are built.
         6. `GET /api/users/{userId}/stats` → `200 { reputation_score, games_played, badges }` *(planned)*
             - **Purpose**: Returns a user's reputation score, game history, and badges.
 
-4. **Message**
+4. **Chat**
     - **Purpose**: Handles chat messages for both game chat and friend chat.
     - **Rationale**: Game chat and friend chat send and store messages the same way, so one component handles both. We chose a WebSocket connection over polling so messages arrive live and the app doesn't use battery asking for new ones.
     - **Interfaces**: Game chat and friend chat are built and share these interfaces. A chat's members are its game's current players, or the two friends.
@@ -345,9 +349,9 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
         3. `int createGameChat(Queryable connection, int gameId)`
             - **Purpose**: Used by Game to open the chat room for a new game in the same transaction that creates the game, returning its chat id.
         4. `void createFriendChat(Queryable connection, int userId, int otherUserId)`
-            - **Purpose**: Used by Social to open two users' chat room in the same transaction that makes them friends.
+            - **Purpose**: Used by Friend to open two users' chat room in the same transaction that makes them friends.
 
-5. **Social**
+5. **Friend**
     - **Purpose**: Handles friend search, friend requests, removing friends, and viewing friends' profiles.
     - **Rationale**: Friendships are used by friend chat, game invites and friend profiles, so one component owns them. We chose to keep it apart from User so the User component only handles accounts and profiles.
     - **Interfaces**: Search, friend requests, the friends list, `areFriends` and `getFriendshipStatus` are built. Removing friends and friend profiles are *(planned)*.
@@ -370,6 +374,14 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
         9. `String getFriendshipStatus(int userId, int otherUserId)`
             - **Purpose**: Used by User's public profile to say whether the two users are friends or one has a pending request to the other, so the popup shows Add Friend or where the request stands.
 
+**Shared module: Notifications** (`backend/src/core/notifications`)
+
+Push notifications are sent by several components, so sending them lives in a shared module instead of in one component. It also stores each user's device tokens, which `POST /api/register_notif` saves.
+- `int sendPushToUser(int userId, PushMessage message)`
+    - **Purpose**: Used by Game and Friend to send a push notification to every device one user is signed into, such as for a join request or friend request, returning how many devices it reached.
+- `int sendPushToUsers(List<Integer> userIds, PushMessage message)`
+    - **Purpose**: Used by Game, Chat and User to notify several users at once, such as a game's players when it is cancelled, a chat's members about a new message, or players when an account is deleted, returning how many devices it reached.
+
 
 ### **4.2. Databases**
 1. **Relational Database (MySQL)**
@@ -384,10 +396,22 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
     - **Rationale**: We chose it over our own password accounts so we don't store passwords, and most Android users already have a Google account.
     - **Interface**: `OAuth2Client.verifyIdToken(String idToken, String audience)` → `LoginTicket` holding the Google account id and verified email.
 2. **Google Maps API** 
-    - **Purpose**: Provides the map for selecting a game location and determines addresses, and gives the location for nearby game search.
+    - **Purpose**: Provides the map for selecting a game location and for choosing a place to search for nearby games.
     - **Rationale**: We chose it over OpenStreetMap because it is made for Android, is well documented, and uses the same Google Cloud project as Google sign in.
-    - **Interface**: `GoogleMap(CameraPositionState cameraPositionState, Function<LatLng, Unit> onMapClick)` from the Maps SDK for Android, which shows the map in the app and returns the coordinates of the spot the user taps.
-3. **Firebase Cloud Messaging** 
+    - **Interface**: `GoogleMap(CameraPositionState cameraPositionState, MapProperties properties, MapUiSettings uiSettings)` from Maps Compose, which shows the map in the app. A fixed pin marks the map's centre, and `cameraPositionState` gives the coordinates under it once the user stops moving the map.
+3. **Google Places API** 
+    - **Purpose**: Lets the user search for a place by name when picking a game location or a place to discover games near, and returns its name, address and coordinates.
+    - **Rationale**: We chose it because it uses the same Google Cloud project and API key as the Maps SDK, and typing a place name is quicker than finding it on the map.
+    - **Interface**: `Task<FindAutocompletePredictionsResponse> PlacesClient.findAutocompletePredictions(FindAutocompletePredictionsRequest request)`, which returns place suggestions for the typed text, and `Task<FetchPlaceResponse> PlacesClient.fetchPlace(FetchPlaceRequest request)`, which returns the chosen place's details.
+4. **Android Geocoder** 
+    - **Purpose**: Turns the spot the user picks on the map into a place name and address.
+    - **Rationale**: We chose it over the Google Geocoding web API because it is built into Android and needs no extra API key or billing.
+    - **Interface**: `List<Address> Geocoder.getFromLocation(double latitude, double longitude, int maxResults)`, which returns the addresses nearest a point.
+5. **Android Location (LocationManager)** 
+    - **Purpose**: Gives the phone's current location once when Discover Game opens, so the app can search for games nearby.
+    - **Rationale**: We chose it over Google Play services' fused location client because it is built into Android and needs no extra library, and Android 12+ still offers a fused provider through it.
+    - **Interface**: `Location LocationManager.getLastKnownLocation(String provider)`, which returns the last location a provider such as fused, network or GPS found, or null if there is none. If that location is too old, the app asks for a fresh one with `LocationManagerCompat.getCurrentLocation(...)`.
+6. **Firebase Cloud Messaging** 
     - **Purpose**: Sends push notifications, such as new join requests, friend requests and their decisions, to users' phones.
     - **Rationale**: We chose it over keeping a connection open or polling the server because it is built into Android and saves battery.
     - **Interface**: `BatchResponse messaging.sendEachForMulticast(MulticastMessage message)`, which sends a title, body and data to a list of device tokens and reports which tokens no longer work.
@@ -450,11 +474,11 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
 
 ### **4.6. Use Case Sequence Diagram (5 Most Major Use Cases)**
 1. <a id="seq-uc1"></a> [**Use Case 1: Send Friend Message**](#uc1r)\
-![Sequence Diagram UC1](images/UC1%20-%20Send%20Friend%20Message_ver4.png)
+![Sequence Diagram UC1](images/UC1%20-%20Send%20Friend%20Message_ver5.png)
 <br><br>
 
 2. <a id="seq-uc2"></a> [**Use Case 2: Rate Players**](#uc2r)\
-![Sequence Diagram UC2](images/UC2%20-%20Rate%20Players_ver4.png)
+![Sequence Diagram UC2](images/UC2%20-%20Rate%20Players_ver5.png)
 <br><br>
 
 3. <a id="seq-uc3"></a> [**Use Case 3: Create Game**](#uc3r)\
@@ -462,7 +486,7 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
 <br><br>
 
 4. <a id="seq-uc4"></a> [**Use Case 4: Discover Game**](#uc4r)\
-![Sequence Diagram UC4](images/UC4%20-%20Discover%20Game_ver4.png)
+![Sequence Diagram UC4](images/UC4%20-%20Discover%20Game_ver5.png)
 <br><br>
 
 5. <a id="seq-uc5"></a> [**Use Case 5: Join Game**](#uc5r)\
@@ -472,5 +496,7 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
 ### **4.7. Design of Non-Functional Requirements**
 1. [**Performance**](#nfr1)
     - **Implementation**: The front-end sends a single request to the Game component, which gets the nearby games with one MySQL query that filters by distance, sorts them closest first, and returns a limited number of games. The front-end shows a loading indicator while it waits, and filters the list by sport on the phone without sending another request.
-2. [**Energy Efficiency**](#nfr2)
-    - **Implementation**: The app requests the user’s location once when Discover Game opens, not continuously, and it doesn’t poll the server in the background. Updates such as join request results arrive as push notifications through Firebase, and chat uses a connection that is open only while the chat screen is shown.
+    - **Verification**: A Jest test seeds 1,000 games around a point and checks that `GET /api/games/discover` answers in under 1 second, returning at most 50 games, closest first.
+2. [**Chat Responsiveness**](#nfr2)
+    - **Implementation**: While a chat screen is open, the app keeps a WebSocket connection to the Chat component, so a message is pushed to the other members as soon as it is sent, without them polling for it. When a message arrives, the Chat component checks that the sender can still write to the chat, saves the message with a single MySQL insert, and immediately sends it to every open connection for that chat. The push notification for a friend who doesn’t have the chat open is sent afterwards, so it never delays delivery to the members who do.
+    - **Verification**: A Jest test connects two members of a chat over WebSocket, sends 20 messages from one, and checks that the other receives each `new_message` within 1 second of it being sent.

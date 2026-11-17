@@ -2,7 +2,7 @@
 
 The backend lives in `backend/src/`. It is a Node.js server written in TypeScript with Express, and it stores data in MySQL. It runs with Docker Compose (see the README).
 
-The code is grouped by the components in the design doc (User, Game, Social, Message), plus shared code in `core/`. This matches the frontend layout.
+The code is grouped by the components in the design doc (User, Game, Friend, Chat, Review), plus shared code in `core/`. This matches the frontend layout.
 
 ## Folder overview
 
@@ -13,9 +13,9 @@ backend/src/
 ├── core/             shared by every component
 ├── user/             User component: sign up, login, JWTs, profile
 ├── game/             Game component: games, discover, join requests
-├── friend/           Social component: user search, friend requests, friends list
-├── chat/             Message component: game chats, message history, WebSocket
-└── review/           Player Review component: ratings and reputation scores
+├── friend/           Friend component: user search, friend requests, friends list
+├── chat/             Chat component: game chats, message history, WebSocket
+└── review/           Review component: ratings and reputation scores
 ```
 
 **Dependency rules**
@@ -146,4 +146,4 @@ If anything throws along the way (e.g. the database is down), `asyncRoute` catch
 
 ## Not built yet
 
-Player Review's stats endpoint and badges aren't built yet, and Social doesn't have removing friends or friend profiles yet. New components should follow the same layout: a folder with `routes/`, `db/` and `validation/`, using `core/` and `requireAuth` from `user/`.
+Review's stats endpoint and badges aren't built yet, and Friend doesn't have removing friends or friend profiles yet. New components should follow the same layout: a folder with `routes/`, `db/` and `validation/`, using `core/` and `requireAuth` from `user/`.
