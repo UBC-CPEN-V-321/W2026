@@ -2,7 +2,7 @@
 
 The Android app lives in `frontend/app/src/main/java/com/example/cpen321application/`. It is written in Kotlin with Jetpack Compose.
 
-The code is grouped by the components in the design doc (User, Game, Social, Message), plus shared code in `core/`, the wiring in `navigation/`, and the screens in `ui/`.
+The code is grouped by the components in the design doc (User, Game, Friend, Chat, Review), plus shared code in `core/`, the wiring in `navigation/`, and the screens in `ui/`.
 
 ## Folder overview
 
@@ -12,9 +12,9 @@ cpen321application/
 ├── core/                      shared by every component
 ├── user/                      User component: sign in, sign up, profile
 ├── game/                      Game component: games, discover, join requests
-├── friend/                    Social component: user search, friend requests, friends list
-├── chat/                      Message component: game and friend chats
-├── review/                    Player Review component: rating players after a game
+├── friend/                    Friend component: user search, friend requests, friends list
+├── chat/                      Chat component: game and friend chats
+├── review/                    Review component: rating players after a game
 ├── navigation/                connects routes to screens and holds shared state
 └── ui/                        screens and reusable UI pieces (drawing only)
 ```
@@ -211,4 +211,4 @@ If loading fails after the game was already shown, the old details stay on scree
 
 ## Not built yet
 
-Player Review's badges have no frontend code yet apart from the profile popup, and Social doesn't have removing friends or friend profiles yet. New components should follow the same layout: a folder with `repository/`, `dto/` and `model/`, routes in `navigation/routes/`, and screens in `ui/screens/`.
+Review's badges have no frontend code yet apart from the profile popup, and Friend doesn't have removing friends or friend profiles yet. New components should follow the same layout: a folder with `repository/`, `dto/` and `model/`, routes in `navigation/routes/`, and screens in `ui/screens/`.

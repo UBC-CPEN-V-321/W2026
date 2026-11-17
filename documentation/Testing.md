@@ -266,7 +266,7 @@ _To be added at CP2._
 
 ### 4.2. Tests
 
-- **Use Case: Discover Game (Use Case 2)**
+- **Use Case: Discover Game (Use Case 4)**
 
   - **Before the tests:**
     - **Signed in:** Each test starts signed in, on the Home screen.
