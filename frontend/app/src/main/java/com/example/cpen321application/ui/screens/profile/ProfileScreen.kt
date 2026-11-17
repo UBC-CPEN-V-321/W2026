@@ -15,6 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,11 +32,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.cpen321application.review.model.MAX_STARS
 import com.example.cpen321application.review.model.formatReputationScore
 import com.example.cpen321application.ui.components.AppBottomBar
 import com.example.cpen321application.ui.components.BottomTab
@@ -45,12 +53,15 @@ import com.example.cpen321application.ui.components.SurfaceCard
 import com.example.cpen321application.ui.theme.SportsOnPrimaryContainer
 import com.example.cpen321application.ui.theme.SportsOnSurface
 import com.example.cpen321application.ui.theme.SportsOnSurfaceVariant
+import com.example.cpen321application.ui.theme.SportsOutlineVariant
 import com.example.cpen321application.ui.theme.SportsPrimary
 import com.example.cpen321application.ui.theme.SportsPrimaryContainer
 import com.example.cpen321application.user.repository.UserProfile
 
 // width of the labels in the details card, so the values line up
 private val DETAIL_LABEL_WIDTH = 104.dp
+// size of each star under the reputation score
+private val SCORE_STAR_SIZE = 32.dp
 
 // the Profile actions the user confirms first, each with its own button
 enum class ProfileAction { SignOut, DeleteAccount }
@@ -223,7 +234,7 @@ private fun ProfileIdentity(profile: UserProfile) {
     }
 }
 
-// the signed in user's current reputation score
+// the signed in user's current reputation score, as the number and as stars
 @Composable
 private fun ReputationCard(score: Double) {
     SurfaceCard {
@@ -241,6 +252,35 @@ private fun ReputationCard(score: Double) {
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold
             )
+        }
+        ScoreStars(score)
+    }
+}
+
+/*  the score as MAX_STARS stars lit from left to right, e.g. 3.2 lights three stars fully
+    and the left fifth of the fourth
+ */
+@Composable
+private fun ScoreStars(score: Double) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = "Rating ${formatReputationScore(score)} stars"
+        }
+    ) {
+        for (star in 0 until MAX_STARS) {
+            val lit = (score - star).coerceIn(0.0, 1.0).toFloat()
+            Box {
+                Icon(Icons.Filled.Star, null, tint = SportsOutlineVariant, modifier = Modifier.size(SCORE_STAR_SIZE))
+                Icon(
+                    Icons.Filled.Star,
+                    null,
+                    tint = SportsPrimary,
+                    modifier = Modifier
+                        .size(SCORE_STAR_SIZE)
+                        .drawWithContent { clipRect(right = size.width * lit) { this@drawWithContent.drawContent() } }
+                )
+            }
         }
     }
 }

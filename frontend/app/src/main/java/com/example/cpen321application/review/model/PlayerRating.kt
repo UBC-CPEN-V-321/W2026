@@ -3,8 +3,11 @@ package com.example.cpen321application.review.model
 import com.example.cpen321application.review.dto.PlayersToRateResponse
 import java.util.Locale
 
+// the most stars a rating category, and so a reputation score, can have
+const val MAX_STARS = 6
+
 // a reputation score as it reads everywhere, e.g. "4.7/6"
-fun formatReputationScore(score: Double): String = String.format(Locale.US, "%.1f/6", score)
+fun formatReputationScore(score: Double): String = String.format(Locale.US, "%.1f/%d", score, MAX_STARS)
 
 // the categories of a rating, in the order the form shows them
 enum class RatingCategory(val label: String) {
