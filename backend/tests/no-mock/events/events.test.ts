@@ -23,7 +23,8 @@ jest.setTimeout(30_000);
 
 const USER_ID = new ObjectId();
 const MISSING_USER_ID = new ObjectId();
-const DATABASE_NAME = `eubc_e_${new ObjectId().toHexString()}`;
+// A fixed name, reused every run, so test databases never pile up on the shared cluster.
+const DATABASE_NAME = 'eubc_events_api';
 const EVENTS_PATH = `/api/v1/users/${USER_ID.toHexString()}/events`;
 
 // MongoDB's spherical queries use an Earth radius of 6378.1 km.

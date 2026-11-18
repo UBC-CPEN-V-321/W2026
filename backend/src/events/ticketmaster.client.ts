@@ -126,7 +126,8 @@ async function fetchTicketmasterEventPage(
     sort: "date,asc",
   });
 
-  for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+  // The last attempt always returns or throws, so the loop needs no code after it.
+  for (let attempt = 1; ; attempt += 1) {
     try {
       const response = await fetch(
         `${env.ticketmaster.baseUrl}/events.json?${query.toString()}`,
@@ -152,8 +153,6 @@ async function fetchTicketmasterEventPage(
       await wait(attempt * 1000);
     }
   }
-
-  throw new Error('Ticketmaster request failed');
 }
 
 /**

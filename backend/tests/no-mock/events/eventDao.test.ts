@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import * as os from 'node:os';
 
-import { Collection, Db, MongoClient, ObjectId } from 'mongodb';
+import { Collection, Db, MongoClient } from 'mongodb';
 
 import { EventDao } from '../../../src/events/eventDao';
 import type { LiveEvent } from '../../../src/events/eventTypes';
@@ -16,7 +16,8 @@ import {
 
 jest.setTimeout(30_000);
 
-const DATABASE_NAME = `eubc_d_${new ObjectId().toHexString()}`;
+// A fixed name, reused every run, so test databases never pile up on the shared cluster.
+const DATABASE_NAME = 'eubc_events_dao';
 // MongoDB's spherical queries use an Earth radius of 6378.1 km.
 const KM_PER_DEGREE_LATITUDE = (6378.1 * Math.PI) / 180;
 const NEARBY_QUERY = {
