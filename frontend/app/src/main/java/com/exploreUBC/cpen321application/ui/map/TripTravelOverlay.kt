@@ -302,12 +302,14 @@ private fun TravelLegDirections(
             text = "$modeLabel ${formatTravelDuration(option.durationSeconds)}" +
                 " (${formatTravelDistance(option.distanceMeters)})",
             style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag("map_travel_summary"),
         )
         option.steps.forEachIndexed { index, step ->
             Text(
                 text = "${index + 1}. ${step.instruction.replace('\n', ' ')}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("map_direction_step_$index"),
             )
         }
     }
