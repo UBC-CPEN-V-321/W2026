@@ -21,6 +21,7 @@
 | 2026-11-15 | 2 | Added the interface tests of the profile routes, `GET /api/users/me` and `PATCH /api/users/me`, and listed the existing `GET /api/users/:id/reputation` tests. A body over 4 KB to `/api/users` now returns 413 instead of 500. |
 | 2026-11-14 | 2 | Added the Messaging coverage: which files are at 100%, a test for a conversation about a post saved before posts had names, and why the one remaining branch in `routes/conversations.ts` and `routes/paging.ts` cannot be reached. |
 | 2026-11-17 | 2, 3 | Added the interface tests of the Matching component, `GET /api/feed`, `GET /api/feed/listings` and `GET /api/feed/requests`, and why the two remaining branches in `matching/rank.ts` and `matching/satisfies.ts` cannot be reached. Added the NFR 1 test, feed ranking latency, with its verification and logs. |
+| 2026-11-18 | 3 | The NFR 2 test now also times a rate-limited, failing and unreachable routing service, and logs each response time, so the verification log shows the measured times rather than only the pass count. |
 
 ---
 
@@ -188,10 +189,14 @@ NFR 1: 100 requests, 1000 candidates: p50 43.0 ms, p95 45.0 ms, max 65.4 ms, mea
 Tests:       1 passed, 1 total
 ```
 
-**NFR 2:** the test mocks a routing service that never answers. It checks that `GET /api/feed` abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds) and returns the ranked match with `travelMinutes` null and `travelTimesAvailable` false in under 3 seconds.
+**NFR 2:** the test replaces OpenRouteService with a mock for each way it can fail, and times one `GET /api/feed` request for my request, which one listing matches. For a service that never answers, it checks that the feed abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds), so the time is at least 2 seconds, and still answers in under 3 seconds. For a service that is rate-limited (429), fails (500) or refuses the connection, it checks that the feed answers in under 3 seconds without waiting for the timeout. In every case the routing service is called once and the feed returns the ranked match with `travelMinutes` null and `travelTimesAvailable` false, which the app shows as "Travel time unavailable".
 
 ```
-Tests:       1 passed, 1 total
+NFR 2: routing service never answers: feed answered in 2023 ms (limit 3000 ms)
+NFR 2: routing service is rate-limited (429): feed answered in 8 ms (limit 3000 ms)
+NFR 2: routing service fails (500): feed answered in 6 ms (limit 3000 ms)
+NFR 2: routing service is unreachable: feed answered in 6 ms (limit 3000 ms)
+Tests:       4 passed, 4 total
 ```
 
 ---
