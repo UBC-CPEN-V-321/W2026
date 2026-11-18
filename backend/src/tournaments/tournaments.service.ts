@@ -1,3 +1,4 @@
+import { AppError, commonErrors, type ErrorDefinition, mapPrismaErrors } from "../errors";
 import { getForecast } from "../external/weather";
 import {
   type CancelResult,
@@ -13,34 +14,19 @@ import {
 } from "./tournaments.repository";
 import type { CreateTournamentInput } from "./tournaments.schemas";
 
-export const joinTournamentErrors = {
-  NotFound: "Tournament not found",
-  NotOpen: "Tournament is not open for registration",
-  Full: "Tournament is full",
-  AlreadyRegistered: "User already registered",
-} as const;
-
-export type JoinTournamentError =
-  (typeof joinTournamentErrors)[keyof typeof joinTournamentErrors];
-
-export const leaveTournamentErrors = {
-  NotFound: "Tournament not found",
-  NotRegistered: "User not registered",
-  NotOpen: "Tournament is not open for registration",
-  Creator: "The creator cannot leave the tournament, cancel it instead",
-} as const;
-
-export type LeaveTournamentError =
-  (typeof leaveTournamentErrors)[keyof typeof leaveTournamentErrors];
-
-export const cancelTournamentErrors = {
-  NotFound: "Tournament not found",
-  NotCreator: "Only the creator can cancel the tournament",
-  NotOpen: "Tournament is not open for registration",
-} as const;
-
-export type CancelTournamentError =
-  (typeof cancelTournamentErrors)[keyof typeof cancelTournamentErrors];
+export const tournamentErrors = {
+  NotFound: { status: 404, code: "TOURNAMENT_NOT_FOUND", message: "Tournament not found" },
+  NotOpen: { status: 409, code: "TOURNAMENT_NOT_OPEN", message: "Tournament is not open for registration" },
+  Full: { status: 409, code: "TOURNAMENT_FULL", message: "Tournament is full" },
+  AlreadyRegistered: { status: 409, code: "ALREADY_REGISTERED", message: "User already registered" },
+  NotRegistered: { status: 404, code: "NOT_REGISTERED", message: "User not registered" },
+  CreatorCannotLeave: {
+    status: 409,
+    code: "CREATOR_CANNOT_LEAVE",
+    message: "The creator cannot leave the tournament, cancel it instead",
+  },
+  NotCreator: { status: 403, code: "NOT_CREATOR", message: "Only the creator can cancel the tournament" },
+} satisfies Record<string, ErrorDefinition>;
 
 /**
  * @param result why the repository did not register the user
@@ -48,16 +34,16 @@ export type CancelTournamentError =
  */
 function toJoinError(
   result: Exclude<RegisterResult, "registered" | "drawn">,
-): JoinTournamentError {
+): ErrorDefinition {
   switch (result) {
     case "notFound":
-      return joinTournamentErrors.NotFound;
+      return tournamentErrors.NotFound;
     case "notOpen":
-      return joinTournamentErrors.NotOpen;
+      return tournamentErrors.NotOpen;
     case "full":
-      return joinTournamentErrors.Full;
+      return tournamentErrors.Full;
     case "alreadyRegistered":
-      return joinTournamentErrors.AlreadyRegistered;
+      return tournamentErrors.AlreadyRegistered;
   }
 }
 
@@ -67,16 +53,16 @@ function toJoinError(
  */
 function toLeaveError(
   result: Exclude<UnregisterResult, "left">,
-): LeaveTournamentError {
+): ErrorDefinition {
   switch (result) {
     case "notFound":
-      return leaveTournamentErrors.NotFound;
+      return tournamentErrors.NotFound;
     case "notOpen":
-      return leaveTournamentErrors.NotOpen;
+      return tournamentErrors.NotOpen;
     case "creator":
-      return leaveTournamentErrors.Creator;
+      return tournamentErrors.CreatorCannotLeave;
     case "notRegistered":
-      return leaveTournamentErrors.NotRegistered;
+      return tournamentErrors.NotRegistered;
   }
 }
 
@@ -86,14 +72,14 @@ function toLeaveError(
  */
 function toCancelError(
   result: Exclude<CancelResult, "cancelled">,
-): CancelTournamentError {
+): ErrorDefinition {
   switch (result) {
     case "notFound":
-      return cancelTournamentErrors.NotFound;
+      return tournamentErrors.NotFound;
     case "notCreator":
-      return cancelTournamentErrors.NotCreator;
+      return tournamentErrors.NotCreator;
     case "notOpen":
-      return cancelTournamentErrors.NotOpen;
+      return tournamentErrors.NotOpen;
   }
 }
 
@@ -102,12 +88,13 @@ function toCancelError(
  * @param tournament the tournament to be created
  * @param userId the user creating the tournament
  * @returns the created tournament
+ * @throws AppError if the court is not found
  */
 export async function newTournament(
   tournament: CreateTournamentInput,
   userId: string,
 ) {
-  return await createTournament(tournament, userId);
+  return await mapPrismaErrors(createTournament(tournament, userId), { P2003: commonErrors.CourtNotFound });
 }
 
 /**
@@ -141,10 +128,15 @@ export async function getUserTournaments(userId: string) {
 /**
  * Gets a tournament with its players and bracket
  * @param tournamentId the ID of the requested tournament
- * @returns the tournament details, or null if the tournament is not found
+ * @returns the tournament details
+ * @throws AppError if the tournament is not found
  */
 export async function getTournament(tournamentId: string) {
-  return await fetchTournamentDetails(tournamentId);
+  const tournament = await fetchTournamentDetails(tournamentId);
+  if (tournament === null) {
+    throw new AppError(tournamentErrors.NotFound);
+  }
+  return tournament;
 }
 
 /**
@@ -152,40 +144,39 @@ export async function getTournament(tournamentId: string) {
  * and books the quarterfinals
  * @param tournamentId the ID of the tournament to join
  * @param userId the user registering
- * @returns success, or the reason the user cannot register
+ * @throws AppError with the reason the user cannot register, or if the user is not found
  */
-export async function joinTournament(tournamentId: string, userId: string) {
-  const result = await registerPlayer(tournamentId, userId, new Date());
-  if (result === "registered" || result === "drawn") {
-    return { success: true } as const;
+export async function joinTournament(tournamentId: string, userId: string): Promise<void> {
+  const result = await mapPrismaErrors(registerPlayer(tournamentId, userId, new Date()), {
+    P2003: commonErrors.UserNotFound,
+  });
+  if (result !== "registered" && result !== "drawn") {
+    throw new AppError(toJoinError(result));
   }
-  return { success: false, error: toJoinError(result) } as const;
 }
 
 /**
  * Removes a user from a tournament that is still open for registration
  * @param tournamentId the ID of the tournament to leave
  * @param userId the user leaving
- * @returns success, or the reason the user cannot leave
+ * @throws AppError with the reason the user cannot leave
  */
-export async function leaveTournament(tournamentId: string, userId: string) {
+export async function leaveTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await unregisterPlayer(tournamentId, userId);
-  if (result === "left") {
-    return { success: true } as const;
+  if (result !== "left") {
+    throw new AppError(toLeaveError(result));
   }
-  return { success: false, error: toLeaveError(result) } as const;
 }
 
 /**
  * Cancels a tournament that is still open for registration; only its creator can
  * @param tournamentId the ID of the tournament to cancel
  * @param userId the user cancelling the tournament
- * @returns success, or the reason the user cannot cancel it
+ * @throws AppError with the reason the user cannot cancel it
  */
-export async function cancelTournament(tournamentId: string, userId: string) {
+export async function cancelTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await markTournamentCancelled(tournamentId, userId);
-  if (result === "cancelled") {
-    return { success: true } as const;
+  if (result !== "cancelled") {
+    throw new AppError(toCancelError(result));
   }
-  return { success: false, error: toCancelError(result) } as const;
 }

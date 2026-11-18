@@ -11,6 +11,9 @@ import {
   fetchFriendship,
 } from "../../src/friends/friends.repository";
 import { signAccessToken } from "../../src/auth/tokens";
+import { authErrors } from "../../src/auth/requireAuth";
+import { commonErrors, errorBody } from "../../src/errors";
+import { friendErrors } from "../../src/friends/friends.service";
 
 // Every /friends route is behind requireAuth, so requests need a valid token
 process.env.JWT_SECRET = "test-jwt-secret";
@@ -81,24 +84,24 @@ describe("Mocked: /friends requireAuth", () => {
   // Input: request to each route with no Authorization header
   // Expected status code: 401
   // Expected behavior: the database is never touched
-  // Expected output: { error: "Missing auth token" }
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test.each(routes())("Rejects %s without an Authorization header", async (_route, send) => {
     const response = await send();
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Missing auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expectNoRepositoryCalls();
   });
 
   // Input: request to each route with a malformed bearer token
   // Expected status code: 401
   // Expected behavior: the database is never touched
-  // Expected output: { error: "Invalid or expired auth token" }
+  // Expected output: { error: "Invalid or expired auth token", code: "INVALID_AUTH_TOKEN" }
   test.each(routes())("Rejects %s with an invalid token", async (_route, send) => {
     const response = await send().set("Authorization", "Bearer not-a-jwt");
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Invalid or expired auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.InvalidToken));
     expectNoRepositoryCalls();
   });
 });
@@ -149,7 +152,7 @@ describe("Mocked: GET /friends", () => {
 
   // Input: valid request while the database is unavailable
   // Expected status code: 500
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the database fails", async () => {
     const consoleError = silenceConsoleError();
     mockedFetchFriends.mockRejectedValue(new Error("Database unavailable"));
@@ -157,7 +160,7 @@ describe("Mocked: GET /friends", () => {
     const response = await request(createApp()).get("/friends").set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -195,7 +198,7 @@ describe("Mocked: GET /friends/requests", () => {
 
   // Input: valid request while the database is unavailable
   // Expected status code: 500
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the database fails", async () => {
     const consoleError = silenceConsoleError();
     mockedFetchFriendRequests.mockRejectedValue(new Error("Database unavailable"));
@@ -203,7 +206,7 @@ describe("Mocked: GET /friends/requests", () => {
     const response = await request(createApp()).get("/friends/requests").set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -261,7 +264,7 @@ describe("Mocked: POST /friends/requests", () => {
     const response = await send({ userId });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: "Cannot friend yourself", code: "SELF_REQUEST" });
+    expect(response.body).toEqual(errorBody(friendErrors.SelfRequest));
     expect(mockedCreateFriendRequest).not.toHaveBeenCalled();
     expect(mockedAcceptFriendRequest).not.toHaveBeenCalled();
   });
@@ -271,23 +274,23 @@ describe("Mocked: POST /friends/requests", () => {
   // Expected behavior: nothing is written to the database
   // Expected output: { error, code: "ALREADY_FRIENDS" | "REQUEST_ALREADY_SENT" }
   test.each([
-    ["the users are already friends", userId, otherUserId, FriendshipStatus.ACCEPTED, "ALREADY_FRIENDS", "Already friends"],
-    ["they became friends from the other side", otherUserId, userId, FriendshipStatus.ACCEPTED, "ALREADY_FRIENDS", "Already friends"],
-    ["the caller already sent a request", userId, otherUserId, FriendshipStatus.PENDING, "REQUEST_ALREADY_SENT", "Request already sent"],
-  ])("Returns 409 when %s", async (_description, requesterId, addresseeId, status, code, error) => {
+    ["the users are already friends", userId, otherUserId, FriendshipStatus.ACCEPTED, friendErrors.AlreadyFriends],
+    ["they became friends from the other side", otherUserId, userId, FriendshipStatus.ACCEPTED, friendErrors.AlreadyFriends],
+    ["the caller already sent a request", userId, otherUserId, FriendshipStatus.PENDING, friendErrors.RequestAlreadySent],
+  ])("Returns 409 when %s", async (_description, requesterId, addresseeId, status, error) => {
     mockedFetchFriendship.mockResolvedValue(friendship(requesterId, addresseeId, status));
 
     const response = await send({ userId: otherUserId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error, code });
+    expect(response.body).toEqual(errorBody(error));
     expect(mockedCreateFriendRequest).not.toHaveBeenCalled();
     expect(mockedAcceptFriendRequest).not.toHaveBeenCalled();
   });
 
   // Input: { userId } while the other user's request is inserted at the same moment
   // Expected status code: 409
-  // Expected output: { error: "Request already exists" }
+  // Expected output: { error: "Request already exists", code: "REQUEST_ALREADY_EXISTS" }
   test("Returns 409 when both users send a request at the same time", async () => {
     mockedFetchFriendship.mockResolvedValue(null);
     mockedCreateFriendRequest.mockRejectedValue(prismaError("P2002"));
@@ -295,12 +298,12 @@ describe("Mocked: POST /friends/requests", () => {
     const response = await send({ userId: otherUserId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Request already exists" });
+    expect(response.body).toEqual(errorBody(friendErrors.RequestAlreadyExists));
   });
 
   // Input: { userId } of a user that does not exist
   // Expected status code: 404
-  // Expected output: { error: "User not found" }
+  // Expected output: { error: "User not found", code: "USER_NOT_FOUND" }
   test("Returns 404 when the other user does not exist", async () => {
     mockedFetchFriendship.mockResolvedValue(null);
     mockedCreateFriendRequest.mockRejectedValue(prismaError("P2003"));
@@ -308,13 +311,13 @@ describe("Mocked: POST /friends/requests", () => {
     const response = await send({ userId: otherUserId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
+    expect(response.body).toEqual(errorBody(commonErrors.UserNotFound));
   });
 
   // Input: body with a missing, invalid, or unexpected field
   // Expected status code: 400
   // Expected behavior: the database is never touched
-  // Expected output: { error: "Invalid request body", details }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["no userId", {}],
     ["a non-UUID userId", { userId: "not-a-uuid" }],
@@ -324,15 +327,14 @@ describe("Mocked: POST /friends/requests", () => {
     const response = await send(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
-    expect(response.body.details).toBeDefined();
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedFetchFriendship).not.toHaveBeenCalled();
     expect(mockedCreateFriendRequest).not.toHaveBeenCalled();
   });
 
   // Input: valid request while the database is unavailable
   // Expected status code: 500
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the database fails", async () => {
     const consoleError = silenceConsoleError();
     mockedFetchFriendship.mockRejectedValue(new Error("Database unavailable"));
@@ -340,7 +342,7 @@ describe("Mocked: POST /friends/requests", () => {
     const response = await send({ userId: otherUserId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -369,20 +371,20 @@ describe("Mocked: POST /friends/requests/accept", () => {
 
   // Input: { userId } of a user with no pending request to the caller
   // Expected status code: 404
-  // Expected output: { error: "Friend request not found" }
+  // Expected output: { error: "Friend request not found", code: "FRIEND_REQUEST_NOT_FOUND" }
   test("Returns 404 when there is no pending request from that user", async () => {
     mockedAcceptFriendRequest.mockResolvedValue(false);
 
     const response = await accept({ userId: otherUserId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Friend request not found" });
+    expect(response.body).toEqual(errorBody(friendErrors.RequestNotFound));
   });
 
   // Input: body with a missing, invalid, or unexpected field
   // Expected status code: 400
   // Expected behavior: the database is never touched
-  // Expected output: { error: "Invalid request body", details }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["no userId", {}],
     ["a non-UUID userId", { userId: "not-a-uuid" }],
@@ -391,13 +393,13 @@ describe("Mocked: POST /friends/requests/accept", () => {
     const response = await accept(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedAcceptFriendRequest).not.toHaveBeenCalled();
   });
 
   // Input: valid request while the database is unavailable
   // Expected status code: 500
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the database fails", async () => {
     const consoleError = silenceConsoleError();
     mockedAcceptFriendRequest.mockRejectedValue(new Error("Database unavailable"));
@@ -405,7 +407,7 @@ describe("Mocked: POST /friends/requests/accept", () => {
     const response = await accept({ userId: otherUserId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -433,20 +435,20 @@ describe("Mocked: DELETE /friends", () => {
 
   // Input: ?userId= of a user with no friendship or request with the caller
   // Expected status code: 404
-  // Expected output: { error: "Friendship not found" }
+  // Expected output: { error: "Friendship not found", code: "FRIENDSHIP_NOT_FOUND" }
   test("Returns 404 when there is nothing to remove", async () => {
     mockedDeleteFriendship.mockResolvedValue(false);
 
     const response = await remove({ userId: otherUserId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Friendship not found" });
+    expect(response.body).toEqual(errorBody(friendErrors.FriendshipNotFound));
   });
 
   // Input: missing or non-UUID userId query
   // Expected status code: 400
   // Expected behavior: the database is never touched
-  // Expected output: { error: "Invalid request query", details }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["no userId", {}],
     ["a non-UUID userId", { userId: "not-a-uuid" }],
@@ -454,13 +456,13 @@ describe("Mocked: DELETE /friends", () => {
     const response = await remove(query);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedDeleteFriendship).not.toHaveBeenCalled();
   });
 
   // Input: valid request while the database is unavailable
   // Expected status code: 500
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the database fails", async () => {
     const consoleError = silenceConsoleError();
     mockedDeleteFriendship.mockRejectedValue(new Error("Database unavailable"));
@@ -468,7 +470,7 @@ describe("Mocked: DELETE /friends", () => {
     const response = await remove({ userId: otherUserId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

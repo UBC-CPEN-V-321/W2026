@@ -1,6 +1,8 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { authErrors } from "../../src/auth/requireAuth";
 import { signAccessToken } from "../../src/auth/tokens";
+import { commonErrors, errorBody } from "../../src/errors";
 import { getForecast } from "../../src/external/weather";
 import { Prisma } from "../../src/generated/prisma/client";
 import {
@@ -18,11 +20,7 @@ import {
   type TournamentSummary,
   unregisterPlayer,
 } from "../../src/tournaments/tournaments.repository";
-import {
-  cancelTournamentErrors,
-  joinTournamentErrors,
-  leaveTournamentErrors,
-} from "../../src/tournaments/tournaments.service";
+import { tournamentErrors } from "../../src/tournaments/tournaments.service";
 
 // Every /tournaments route is behind requireAuth, so requests need a valid token
 process.env.JWT_SECRET = "test-jwt-secret";
@@ -103,7 +101,7 @@ const details = (): TournamentDetails => ({
   ],
 });
 
-// Silences the console.error the controllers log for unexpected errors
+// Silences the console.error errorHandler logs for unexpected errors
 const silenceConsoleError = () =>
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 
@@ -134,12 +132,12 @@ describe("Mocked: /tournaments requireAuth", () => {
   // Input: a request to each route without an Authorization header
   // Expected status code: 401
   // Expected behavior: the repository is never called
-  // Expected output: { error: "Missing auth token" }
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test.each(routes())("%s rejects a request without a token", async (_route, send) => {
     const response = await send();
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Missing auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedCreateTournament).not.toHaveBeenCalled();
     expect(mockedFetchTournamentDetails).not.toHaveBeenCalled();
     expect(mockedFetchFeedTournaments).not.toHaveBeenCalled();
@@ -207,7 +205,7 @@ describe("Mocked: POST /tournaments", () => {
   // Input: an invalid body
   // Expected status code: 400
   // Expected behavior: nothing is created
-  // Expected output: { error: "Invalid request body", details }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["an empty name", { name: "" }],
     ["a blank name", { name: "   " }],
@@ -225,14 +223,14 @@ describe("Mocked: POST /tournaments", () => {
       .send({ ...validBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details).toBeDefined();
     expect(mockedCreateTournament).not.toHaveBeenCalled();
   });
 
   // Input: a court ID that does not exist
   // Expected status code: 404
-  // Expected output: { error: "Court not found" }
+  // Expected output: { error: "Court not found", code: "COURT_NOT_FOUND" }
   test("Returns 404 when the court does not exist", async () => {
     mockedCreateTournament.mockRejectedValue(prismaError("P2003"));
 
@@ -242,7 +240,7 @@ describe("Mocked: POST /tournaments", () => {
       .send(validBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Court not found" });
+    expect(response.body).toEqual(errorBody(commonErrors.CourtNotFound));
   });
 
   test("Returns 500 when the repository throws unexpectedly", async () => {
@@ -255,7 +253,7 @@ describe("Mocked: POST /tournaments", () => {
       .send(validBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -285,7 +283,7 @@ describe("Mocked: GET /tournaments", () => {
 
   // Input: the ID of a tournament that does not exist
   // Expected status code: 404
-  // Expected output: { error: "Tournament not found" }
+  // Expected output: { error: "Tournament not found", code: "TOURNAMENT_NOT_FOUND" }
   test("Returns 404 when the tournament does not exist", async () => {
     mockedFetchTournamentDetails.mockResolvedValue(null);
 
@@ -295,12 +293,12 @@ describe("Mocked: GET /tournaments", () => {
       .query({ tournamentId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Tournament not found" });
+    expect(response.body).toEqual(errorBody(tournamentErrors.NotFound));
   });
 
   // Input: a missing or malformed tournamentId
   // Expected status code: 400
-  // Expected output: { error: "Invalid request query", details }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["a missing tournamentId", {}],
     ["a non-UUID tournamentId", { tournamentId: "not-a-uuid" }],
@@ -312,7 +310,7 @@ describe("Mocked: GET /tournaments", () => {
       .query(query);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedFetchTournamentDetails).not.toHaveBeenCalled();
   });
 
@@ -326,7 +324,7 @@ describe("Mocked: GET /tournaments", () => {
       .query({ tournamentId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -374,7 +372,7 @@ describe("Mocked: GET /tournaments/feed", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -406,7 +404,7 @@ describe("Mocked: GET /tournaments/me", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -433,23 +431,24 @@ describe("Mocked: POST /tournaments/join", () => {
 
   // Input: a tournament the caller cannot join
   // Expected status code: 404 or 409
-  // Expected output: { error } with the reason
+  // Expected output: { error, code } with the reason
   test.each([
-    ["notFound", 404, joinTournamentErrors.NotFound],
-    ["notOpen", 409, joinTournamentErrors.NotOpen],
-    ["full", 409, joinTournamentErrors.Full],
-    ["alreadyRegistered", 409, joinTournamentErrors.AlreadyRegistered],
+    ["notFound", 404, tournamentErrors.NotFound],
+    ["notOpen", 409, tournamentErrors.NotOpen],
+    ["full", 409, tournamentErrors.Full],
+    ["alreadyRegistered", 409, tournamentErrors.AlreadyRegistered],
   ] as const)("Returns the error for %s", async (result, status, error) => {
     mockedRegisterPlayer.mockResolvedValue(result);
 
     const response = await join();
 
     expect(response.status).toBe(status);
-    expect(response.body).toEqual({ error });
+    expect(response.body).toEqual(errorBody(error));
   });
 
   // Input: a missing, malformed or extended body
   // Expected status code: 400
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test.each([
     ["a missing tournamentId", {}],
     ["a non-UUID tournamentId", { tournamentId: "nope" }],
@@ -458,20 +457,20 @@ describe("Mocked: POST /tournaments/join", () => {
     const response = await join(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedRegisterPlayer).not.toHaveBeenCalled();
   });
 
   // Input: a caller whose user row no longer exists
   // Expected status code: 404
-  // Expected output: { error: "User not found" }
+  // Expected output: { error: "User not found", code: "USER_NOT_FOUND" }
   test("Returns 404 when the caller's user does not exist", async () => {
     mockedRegisterPlayer.mockRejectedValue(prismaError("P2003"));
 
     const response = await join();
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
+    expect(response.body).toEqual(errorBody(commonErrors.UserNotFound));
   });
 
   test("Returns 500 when the repository throws unexpectedly", async () => {
@@ -481,7 +480,7 @@ describe("Mocked: POST /tournaments/join", () => {
     const response = await join();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -508,25 +507,26 @@ describe("Mocked: POST /tournaments/leave", () => {
 
   // Input: a tournament the caller cannot leave
   // Expected status code: 404 or 409
-  // Expected output: { error } with the reason
+  // Expected output: { error, code } with the reason
   test.each([
-    ["notFound", 404, leaveTournamentErrors.NotFound],
-    ["notRegistered", 404, leaveTournamentErrors.NotRegistered],
-    ["notOpen", 409, leaveTournamentErrors.NotOpen],
-    ["creator", 409, leaveTournamentErrors.Creator],
+    ["notFound", 404, tournamentErrors.NotFound],
+    ["notRegistered", 404, tournamentErrors.NotRegistered],
+    ["notOpen", 409, tournamentErrors.NotOpen],
+    ["creator", 409, tournamentErrors.CreatorCannotLeave],
   ] as const)("Returns the error for %s", async (result, status, error) => {
     mockedUnregisterPlayer.mockResolvedValue(result);
 
     const response = await leave();
 
     expect(response.status).toBe(status);
-    expect(response.body).toEqual({ error });
+    expect(response.body).toEqual(errorBody(error));
   });
 
   test("Rejects a body without a tournamentId", async () => {
     const response = await leave({});
 
     expect(response.status).toBe(400);
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedUnregisterPlayer).not.toHaveBeenCalled();
   });
 
@@ -537,7 +537,7 @@ describe("Mocked: POST /tournaments/leave", () => {
     const response = await leave();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -564,25 +564,25 @@ describe("Mocked: DELETE /tournaments", () => {
 
   // Input: a tournament the caller cannot cancel
   // Expected status code: 403, 404 or 409
-  // Expected output: { error } with the reason
+  // Expected output: { error, code } with the reason
   test.each([
-    ["notFound", 404, cancelTournamentErrors.NotFound],
-    ["notCreator", 403, cancelTournamentErrors.NotCreator],
-    ["notOpen", 409, cancelTournamentErrors.NotOpen],
+    ["notFound", 404, tournamentErrors.NotFound],
+    ["notCreator", 403, tournamentErrors.NotCreator],
+    ["notOpen", 409, tournamentErrors.NotOpen],
   ] as const)("Returns the error for %s", async (result, status, error) => {
     mockedMarkTournamentCancelled.mockResolvedValue(result);
 
     const response = await cancel();
 
     expect(response.status).toBe(status);
-    expect(response.body).toEqual({ error });
+    expect(response.body).toEqual(errorBody(error));
   });
 
   test("Rejects a query without a valid tournamentId", async () => {
     const response = await cancel({ tournamentId: "nope" });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedMarkTournamentCancelled).not.toHaveBeenCalled();
   });
 
@@ -593,7 +593,7 @@ describe("Mocked: DELETE /tournaments", () => {
     const response = await cancel();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

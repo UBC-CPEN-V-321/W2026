@@ -9,11 +9,6 @@ courtsRouter.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 courtsRouter.get("/", async (_req: Request, res: Response) => {
-  try {
-    const courts = await getCourts();
-    res.status(200).json({ courts });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Internal server error" });
-  }
+  const courts = await getCourts();
+  res.status(200).json({ courts });
 });

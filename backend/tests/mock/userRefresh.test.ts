@@ -1,7 +1,9 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
 import { rotateRefreshToken } from '../../src/auth/auth.repository';
+import { refreshTokenErrors } from '../../src/auth/auth.service';
 import { hashRefreshToken, verifyAccessToken } from '../../src/auth/tokens';
+import { commonErrors, errorBody } from '../../src/errors';
 
 jest.mock('../../src/auth/auth.repository', () => ({
   rotateRefreshToken: jest.fn(),
@@ -18,50 +20,50 @@ describe('Mocked: POST /user/refresh', () => {
 
   // Input: request with no body
   // Expected status code: 400
-  // Expected output: { error: "A refresh token is required" }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test('Rejects a request with no body', async () => {
     const response = await request(createApp()).post('/user/refresh');
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.formErrors.length).toBeGreaterThan(0);
     expect(mockedRotateRefreshToken).not.toHaveBeenCalled();
   });
 
   // Input: body with an empty refreshToken
   // Expected status code: 400
-  // Expected output: { error: "A refresh token is required" }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test('Rejects an empty refresh token', async () => {
     const response = await request(createApp()).post('/user/refresh').send({ refreshToken: '' });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.fieldErrors.refreshToken).toBeDefined();
     expect(mockedRotateRefreshToken).not.toHaveBeenCalled();
   });
 
   // Input: body where refreshToken is a number instead of a string
   // Expected status code: 400
-  // Expected output: { error: "A refresh token is required" }
+  // Expected output: { error: "Invalid request", code: "INVALID_REQUEST", details }
   test('Rejects a non-string refresh token', async () => {
     const response = await request(createApp()).post('/user/refresh').send({ refreshToken: 123 });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.fieldErrors.refreshToken).toBeDefined();
     expect(mockedRotateRefreshToken).not.toHaveBeenCalled();
   });
 
   // Input: a refresh token the database rejects (never issued, already used, logged out, or expired)
   // Expected status code: 401
-  // Expected output: { error: "Invalid or expired refresh token" }
+  // Expected output: { error: "Invalid or expired refresh token", code: "INVALID_REFRESH_TOKEN" }
   test('Rejects an unknown or expired refresh token', async () => {
     mockedRotateRefreshToken.mockResolvedValue(null);
 
     const response = await request(createApp()).post('/user/refresh').send({ refreshToken: 'unknown' });
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Invalid or expired refresh token' });
+    expect(response.body).toEqual(errorBody(refreshTokenErrors.Invalid));
     expect(mockedRotateRefreshToken).toHaveBeenCalledWith(hashRefreshToken('unknown'), {
       tokenHash: expect.any(String),
       expiresAt: expect.any(Date),
@@ -93,11 +95,13 @@ describe('Mocked: POST /user/refresh', () => {
 
   // Input: a refresh token while the database is unavailable
   // Expected status code: 500
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test('Returns a server error when the database fails', async () => {
     mockedRotateRefreshToken.mockRejectedValue(new Error('Database unavailable'));
 
     const response = await request(createApp()).post('/user/refresh').send({ refreshToken: 'some-token' });
 
     expect(response.status).toBe(500);
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
   });
 });

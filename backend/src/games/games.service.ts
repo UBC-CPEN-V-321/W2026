@@ -1,3 +1,4 @@
+import { AppError, commonErrors, type ErrorDefinition, mapPrismaErrors } from "../errors";
 import { isPushEnabled } from "../external/fcm";
 import { getForecast } from "../external/weather";
 import { fetchFriendship } from "../friends/friends.repository";
@@ -32,67 +33,36 @@ import {
   ReportScoreInput,
 } from "./games.schemas";
 
-export const gameEditErrors = {
-  NotFound: "Game not found",
-  NotInGame: "User not in game",
-  Closed: "Game is already completed or cancelled",
-  IncompleteTeams: "Game does not have full teams",
-  Matched: "Matched games can't be moved",
-} as const;
-
-export type GameEditError =
-  (typeof gameEditErrors)[keyof typeof gameEditErrors];
-
-export const joinGameErrors = {
-  NotFound: "Game not found",
-  NotJoinable: "Game is not open to join",
-  TeamFull: "Team is full",
-} as const;
-
-export type JoinGameError =
-  (typeof joinGameErrors)[keyof typeof joinGameErrors];
-
-export const leaveGameErrors = {
-  NotFound: "Game not found",
-  TournamentGame: "Players cannot leave a tournament game",
-  Closed: "Game is already completed or cancelled",
-  TooLate: "Game starts in less than 30 minutes",
-  Matched: "Matched games can't be left",
-} as const;
-
-export type LeaveGameError =
-  (typeof leaveGameErrors)[keyof typeof leaveGameErrors];
-
-export const acceptMatchErrors = {
-  NotFound: "Game not found",
-  NotInGame: "User not in game",
-  NotPending: "Match is no longer waiting for answers",
-  AlreadyAccepted: "Match already accepted",
-} as const;
-
-export type AcceptMatchError =
-  (typeof acceptMatchErrors)[keyof typeof acceptMatchErrors];
-
-export const cancelGameErrors = {
-  NotFound: "Game not found",
-  NotInGame: "User not in game",
-  TournamentGame: "Tournament games cannot be cancelled",
-  Closed: "Game is already completed or cancelled",
-} as const;
-
-export type CancelGameError =
-  (typeof cancelGameErrors)[keyof typeof cancelGameErrors];
-
-export const inviteFriendErrors = {
-  NotFound: "Game not found",
-  NotInGame: "User not in game",
-  NotJoinable: "Game is not open to join",
-  NotFriends: "Users are not friends",
-  AlreadyInGame: "User already in game",
-} as const;
-
-export type InviteFriendError =
-  (typeof inviteFriendErrors)[keyof typeof inviteFriendErrors];
+export const gameErrors = {
+  NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
+  NotInGame: { status: 403, code: "NOT_IN_GAME", message: "User not in game" },
+  // Leaving a game the user is not in
+  PlayerNotFound: { status: 404, code: "PLAYER_NOT_FOUND", message: "User not in game" },
+  GameOrUserNotFound: { status: 404, code: "GAME_OR_USER_NOT_FOUND", message: "Game or user not found" },
+  Closed: { status: 409, code: "GAME_CLOSED", message: "Game is already completed or cancelled" },
+  IncompleteTeams: { status: 409, code: "INCOMPLETE_TEAMS", message: "Game does not have full teams" },
+  MatchedNotMovable: { status: 409, code: "MATCHED_NOT_MOVABLE", message: "Matched games can't be moved" },
+  MatchedNotLeavable: { status: 409, code: "MATCHED_NOT_LEAVABLE", message: "Matched games can't be left" },
+  TournamentNotLeavable: {
+    status: 409,
+    code: "TOURNAMENT_NOT_LEAVABLE",
+    message: "Players cannot leave a tournament game",
+  },
+  TournamentNotCancellable: {
+    status: 409,
+    code: "TOURNAMENT_NOT_CANCELLABLE",
+    message: "Tournament games cannot be cancelled",
+  },
+  NotJoinable: { status: 409, code: "NOT_JOINABLE", message: "Game is not open to join" },
+  TeamFull: { status: 409, code: "TEAM_FULL", message: "Team is full" },
+  AlreadyInGame: { status: 409, code: "ALREADY_IN_GAME", message: "User already in game" },
+  TooLate: { status: 409, code: "LEAVE_TOO_LATE", message: "Game starts in less than 30 minutes" },
+  NotPending: { status: 409, code: "MATCH_NOT_PENDING", message: "Match is no longer waiting for answers" },
+  AlreadyAccepted: { status: 409, code: "MATCH_ALREADY_ACCEPTED", message: "Match already accepted" },
+  NotFriends: { status: 403, code: "NOT_FRIENDS", message: "Users are not friends" },
+  // Two games sharing a player finished at the same moment and Postgres aborted one of them
+  ScoreConflict: { status: 409, code: "SCORE_CONFLICT", message: "The score could not be saved, please try again" },
+} satisfies Record<string, ErrorDefinition>;
 
 const teamSize: Record<Format, number> = {
   [Format.SINGLES]: 1,
@@ -107,9 +77,12 @@ const LEAVE_DEADLINE_MS = 30 * 60 * 1000;
  * @param game the game to be created
  * @param userId the user to be added to the game
  * @returns the created game
+ * @throws AppError if the court does not exist
  */
 export async function newGame(game: CreateGameInput, userId: string) {
-  return await createGame({ ...game, status: GameStatus.OPEN }, userId);
+  return await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
+    P2003: commonErrors.CourtNotFound,
+  });
 }
 
 /**
@@ -138,11 +111,15 @@ async function withForecast(game: GameDetails) {
 /**
  * Gets a game with the given game ID, with the weather forecast at its court and start time
  * @param gameId the game ID of the requested game
- * @returns the game with its court, players, rounds and forecast, or null if the game is not found
+ * @returns the game with its court, players, rounds and forecast
+ * @throws AppError if the game is not found
  */
 export async function getGame(gameId: GameIdInput) {
   const game = await fetchGameDetails(gameId);
-  return game === null ? null : await withForecast(game);
+  if (game === null) {
+    throw new AppError(gameErrors.NotFound);
+  }
+  return await withForecast(game);
 }
 
 /**
@@ -180,36 +157,35 @@ export async function getUserHistory(userId: string) {
  * since their players' ratings already include the result
  * @param gameId the game ID of the game to be cancelled
  * @param userId the user cancelling the game, who must be in it
- * @returns success, or the reason the game cannot be cancelled
+ * @throws AppError if the game is not found, is a tournament game, is closed, or the user is not in it
  */
-export async function cancelGame(gameId: GameIdInput, userId: string) {
+export async function cancelGame(gameId: GameIdInput, userId: string): Promise<void> {
   const game = await fetchGame(gameId);
   if (game === null) {
-    return { success: false, error: cancelGameErrors.NotFound } as const;
+    throw new AppError(gameErrors.NotFound);
   }
 
   if (game.gameSource === GameSource.TOURNAMENT) {
-    return { success: false, error: cancelGameErrors.TournamentGame } as const;
+    throw new AppError(gameErrors.TournamentNotCancellable);
   }
 
   if (!(await isUserInGame(userId, gameId))) {
-    return { success: false, error: cancelGameErrors.NotInGame } as const;
+    throw new AppError(gameErrors.NotInGame);
   }
 
   if (game.gameSource === GameSource.MATCHED) {
     const matchCancelled = await cancelMatchedGame(gameId);
     if (!matchCancelled) {
-      return { success: false, error: cancelGameErrors.Closed } as const;
+      throw new AppError(gameErrors.Closed);
     }
     await notifyMatchCancelled(gameId, userId);
-    return { success: true } as const;
+    return;
   }
 
   // A completed scheduled game is kept: its ratings were already applied
   if (!(await deleteGame(gameId))) {
-    return { success: false, error: cancelGameErrors.Closed } as const;
+    throw new AppError(gameErrors.Closed);
   }
-  return { success: true } as const;
 }
 
 /**
@@ -217,12 +193,12 @@ export async function cancelGame(gameId: GameIdInput, userId: string) {
  * @param gameId the game ID of the game to join
  * @param userId the user joining the game
  * @param team the team to join, 1 or 2
- * @returns success, or the reason the user cannot join the game
+ * @throws AppError if the game is not found or not joinable, the team is full, or the user is already in it
  */
-export async function joinGame(gameId: string, userId: string, team: number) {
+export async function joinGame(gameId: string, userId: string, team: number): Promise<void> {
   const game = await fetchGame(gameId);
   if (game === null) {
-    return { success: false, error: joinGameErrors.NotFound } as const;
+    throw new AppError(gameErrors.NotFound);
   }
 
   const now = new Date();
@@ -232,25 +208,20 @@ export async function joinGame(gameId: string, userId: string, team: number) {
     game.status !== GameStatus.OPEN ||
     game.startsAt <= now
   ) {
-    return { success: false, error: joinGameErrors.NotJoinable } as const;
+    throw new AppError(gameErrors.NotJoinable);
   }
 
   // The repository checks the game again once it holds the lock, in case it changed since
-  const result = await addPlayerToTeam(
-    gameId,
-    userId,
-    team,
-    teamSize[game.format],
-    now,
+  const result = await mapPrismaErrors(
+    addPlayerToTeam(gameId, userId, team, teamSize[game.format], now),
+    { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
   if (result === "notJoinable") {
-    return { success: false, error: joinGameErrors.NotJoinable } as const;
+    throw new AppError(gameErrors.NotJoinable);
   }
   if (result === "teamFull") {
-    return { success: false, error: joinGameErrors.TeamFull } as const;
+    throw new AppError(gameErrors.TeamFull);
   }
-
-  return { success: true } as const;
 }
 
 /**
@@ -259,7 +230,9 @@ export async function joinGame(gameId: string, userId: string, team: number) {
  * @param gameId the game ID of the game to invite to
  * @param inviterId the user inviting, who must be in the game
  * @param friendId the friend being invited, who must not be in the game
- * @returns whether the friend's device was notified, or the reason the friend cannot be invited
+ * @returns whether the friend's device was notified
+ * @throws AppError if the game is not found or not joinable, the inviter is not in it, the friend already is,
+ * or they are not friends
  */
 export async function inviteFriend(
   gameId: string,
@@ -268,12 +241,12 @@ export async function inviteFriend(
 ) {
   const game = await fetchGameDetails(gameId);
   if (game === null) {
-    return { success: false, error: inviteFriendErrors.NotFound } as const;
+    throw new AppError(gameErrors.NotFound);
   }
 
   const inviter = game.players.find((player) => player.id === inviterId);
   if (inviter === undefined) {
-    return { success: false, error: inviteFriendErrors.NotInGame } as const;
+    throw new AppError(gameErrors.NotInGame);
   }
 
   // Only games the friend could join from the feed: matched and tournament games pick their own players
@@ -282,22 +255,22 @@ export async function inviteFriend(
     game.status !== GameStatus.OPEN ||
     game.startsAt <= new Date()
   ) {
-    return { success: false, error: inviteFriendErrors.NotJoinable } as const;
+    throw new AppError(gameErrors.NotJoinable);
   }
 
   if (game.players.some((player) => player.id === friendId)) {
-    return { success: false, error: inviteFriendErrors.AlreadyInGame } as const;
+    throw new AppError(gameErrors.AlreadyInGame);
   }
 
   const friendship = await fetchFriendship(inviterId, friendId);
   if (friendship?.status !== FriendshipStatus.ACCEPTED) {
-    return { success: false, error: inviteFriendErrors.NotFriends } as const;
+    throw new AppError(gameErrors.NotFriends);
   }
 
   // Without Firebase credentials pushToUsers counts skipped tokens as reached, which would look like a delivered push
   if (!isPushEnabled()) {
     console.warn("FIREBASE_* not set, the game invite was not sent");
-    return { success: true, notified: false } as const;
+    return { notified: false };
   }
 
   const reached = await pushToUsers([friendId], {
@@ -306,7 +279,7 @@ export async function inviteFriend(
     data: { gameId, type: "gameInvite" },
   });
 
-  return { success: true, notified: reached > 0 } as const;
+  return { notified: reached > 0 };
 }
 
 /**
@@ -314,67 +287,64 @@ export async function inviteFriend(
  * in less than 30 minutes
  * @param gameId the game ID of the game to leave
  * @param userId the user leaving the game
- * @returns success, or the reason the user cannot leave the game
+ * @throws AppError if the game is not found, can't be left, or the user is not in it
  */
-export async function leaveGame(gameId: string, userId: string) {
+export async function leaveGame(gameId: string, userId: string): Promise<void> {
   const game = await fetchGame(gameId);
   if (game === null) {
-    return { success: false, error: leaveGameErrors.NotFound } as const;
+    throw new AppError(gameErrors.NotFound);
   }
 
   // Leaving would leave a team short in the bracket
   if (game.gameSource === GameSource.TOURNAMENT) {
-    return { success: false, error: leaveGameErrors.TournamentGame } as const;
+    throw new AppError(gameErrors.TournamentNotLeavable);
   }
 
   // Matched games keep the players matchmaking picked
   if (game.gameSource === GameSource.MATCHED) {
-    return { success: false, error: leaveGameErrors.Matched } as const;
+    throw new AppError(gameErrors.MatchedNotLeavable);
   }
 
   if (
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED
   ) {
-    return { success: false, error: leaveGameErrors.Closed } as const;
+    throw new AppError(gameErrors.Closed);
   }
 
   if (game.startsAt.getTime() - Date.now() < LEAVE_DEADLINE_MS) {
-    return { success: false, error: leaveGameErrors.TooLate } as const;
+    throw new AppError(gameErrors.TooLate);
   }
 
-  await deleteGameUser(gameId, userId);
-  return { success: true } as const;
+  await mapPrismaErrors(deleteGameUser(gameId, userId), { P2025: gameErrors.PlayerNotFound });
 }
 
 /**
  * Accepts a matched game for one of its players. The game is booked once every player has accepted
  * @param gameId the game ID of the matched game
  * @param userId the player accepting
- * @returns success, or the reason the match cannot be accepted
+ * @throws AppError if the game is not found, the user is not in it, or the match is not waiting for their answer
  */
-export async function acceptMatch(gameId: string, userId: string) {
+export async function acceptMatch(gameId: string, userId: string): Promise<void> {
   const game = await fetchGame(gameId);
   if (game === null) {
-    return { success: false, error: acceptMatchErrors.NotFound } as const;
+    throw new AppError(gameErrors.NotFound);
   }
 
   if (!(await isUserInGame(userId, gameId))) {
-    return { success: false, error: acceptMatchErrors.NotInGame } as const;
+    throw new AppError(gameErrors.NotInGame);
   }
 
   const result = await recordAcceptance(gameId, userId, new Date());
   if (result === "notPending") {
-    return { success: false, error: acceptMatchErrors.NotPending } as const;
+    throw new AppError(gameErrors.NotPending);
   }
 
   if (result === "alreadyAccepted") {
-    return { success: false, error: acceptMatchErrors.AlreadyAccepted } as const;
+    throw new AppError(gameErrors.AlreadyAccepted);
   }
 
   await notifyMatchAccepted(gameId, userId, result === "booked");
-
-  return { success: true } as const;
 }
 
 /**
@@ -460,35 +430,33 @@ async function fetchMatchAudience(gameId: string, userId: string) {
  * @param gameId the game ID of the game to edit
  * @param userId the user editing the game
  * @param isMove true when changing the time or court, which matched games don't allow
- * @returns the reason the user cannot edit the game, or null if they can
+ * @throws AppError with the reason the user cannot edit the game
  */
 async function checkCanEditGame(
   gameId: string,
   userId: string,
   isMove = false,
-): Promise<GameEditError | null> {
+): Promise<void> {
   const game = await fetchGame(gameId);
   if (game === null) {
-    return gameEditErrors.NotFound;
+    throw new AppError(gameErrors.NotFound);
   }
 
   if (!(await isUserInGame(userId, gameId))) {
-    return gameEditErrors.NotInGame;
+    throw new AppError(gameErrors.NotInGame);
   }
 
   if (
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED
   ) {
-    return gameEditErrors.Closed;
+    throw new AppError(gameErrors.Closed);
   }
 
   // Matched players accepted this time and court
   if (isMove && game.gameSource === GameSource.MATCHED) {
-    return gameEditErrors.Matched;
+    throw new AppError(gameErrors.MatchedNotMovable);
   }
-
-  return null;
 }
 
 /**
@@ -496,22 +464,16 @@ async function checkCanEditGame(
  * @param gameId the game ID of the game to change
  * @param userId the user changing the game, who must be in it
  * @param startsAt the new start time
- * @returns the updated game, or the reason the game cannot be changed
+ * @returns the updated game
+ * @throws AppError with the reason the game cannot be changed
  */
 export async function changeGameTime(
   gameId: string,
   userId: string,
   startsAt: Date,
 ) {
-  const error = await checkCanEditGame(gameId, userId, true);
-  if (error) {
-    return { success: false, error } as const;
-  }
-
-  return {
-    success: true,
-    game: await updateGame(gameId, { startsAt }),
-  } as const;
+  await checkCanEditGame(gameId, userId, true);
+  return await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
 }
 
 /**
@@ -519,22 +481,19 @@ export async function changeGameTime(
  * @param gameId the game ID of the game to change
  * @param userId the user changing the game, who must be in it
  * @param courtId the ID of the new court
- * @returns the updated game, or the reason the game cannot be changed
+ * @returns the updated game
+ * @throws AppError with the reason the game cannot be changed
  */
 export async function changeGameLocation(
   gameId: string,
   userId: string,
   courtId: number,
 ) {
-  const error = await checkCanEditGame(gameId, userId, true);
-  if (error) {
-    return { success: false, error } as const;
-  }
-
-  return {
-    success: true,
-    game: await updateGame(gameId, { courtId }),
-  } as const;
+  await checkCanEditGame(gameId, userId, true);
+  return await mapPrismaErrors(updateGame(gameId, { courtId }), {
+    P2003: commonErrors.CourtNotFound,
+    P2025: gameErrors.NotFound,
+  });
 }
 
 /**
@@ -542,31 +501,29 @@ export async function changeGameLocation(
  * @param gameId the game ID of the game the score is for
  * @param userId the user reporting the score, who must be in the game
  * @param rounds the [team 1 score, team 2 score] of each round, in order
- * @returns the completed game, its rounds and each player's rating change, or the reason the score cannot be reported
+ * @returns the completed game, its rounds and each player's rating change
+ * @throws AppError with the reason the score cannot be reported
  */
 export async function reportScore(
   gameId: string,
   userId: string,
   rounds: ReportScoreInput["rounds"],
 ) {
-  const error = await checkCanEditGame(gameId, userId);
-  if (error) {
-    return { success: false, error } as const;
-  }
+  await checkCanEditGame(gameId, userId);
 
   let completed;
   try {
-    completed = await completeGame(gameId, rounds);
+    completed = await mapPrismaErrors(completeGame(gameId, rounds), { P2034: gameErrors.ScoreConflict });
   } catch (e) {
     if (e instanceof IncompleteTeamsError) {
-      return { success: false, error: gameEditErrors.IncompleteTeams } as const;
+      throw new AppError(gameErrors.IncompleteTeams);
     }
     throw e;
   }
   if (completed === null) {
     // Another report completed the game after the check above
-    return { success: false, error: gameEditErrors.Closed } as const;
+    throw new AppError(gameErrors.Closed);
   }
 
-  return { success: true, ...completed } as const;
+  return completed;
 }

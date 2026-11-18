@@ -1,6 +1,7 @@
 import request from 'supertest';
 
 import { createApp } from '../../src/app';
+import { commonErrors, errorBody } from '../../src/errors';
 
 // Interface GET /health
 describe('Unmocked: GET /health', () => {
@@ -21,11 +22,11 @@ describe('Unmocked: GET /does-not-exist', () => {
   // Input: GET request to an unregistered route
   // Expected status code: 404
   // Expected behavior: request is rejected; no state is changed
-  // Expected output: { error: "Not Found" }
+  // Expected output: { error: "Not Found", code: "ROUTE_NOT_FOUND" }
   test('Unregistered route', async () => {
     const response = await request(createApp()).get('/does-not-exist');
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'Not Found' });
+    expect(response.body).toEqual(errorBody(commonErrors.RouteNotFound));
   });
 });

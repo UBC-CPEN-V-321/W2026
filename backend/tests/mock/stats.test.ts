@@ -1,6 +1,8 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { authErrors } from "../../src/auth/requireAuth";
 import { signAccessToken } from "../../src/auth/tokens";
+import { commonErrors, errorBody } from "../../src/errors";
 import {
   fetchLeaderboardUser,
   fetchRatedGames,
@@ -122,7 +124,7 @@ describe("Mocked: GET /stats", () => {
 
   // Input: a userId that doesn't exist
   // Expected behavior: nothing to summarize
-  // Expected output: 404 "User not found"
+  // Expected output: 404 user not found error
   test("Returns 404 for an unknown user", async () => {
     mockedFetchLeaderboardUser.mockResolvedValue(null);
     mockedFetchRatedGames.mockResolvedValue([]);
@@ -133,12 +135,12 @@ describe("Mocked: GET /stats", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not found" });
+    expect(response.body).toEqual(errorBody(commonErrors.UserNotFound));
   });
 
   // Input: a userId that isn't a UUID, or an unknown parameter
   // Expected behavior: rejected before reaching the repository
-  // Expected output: 400
+  // Expected output: 400 invalid request error with the failed checks
   test.each([
     ["a userId that isn't a UUID", { userId: "bob" }],
     ["an unknown parameter", { sport: "TENNIS" }],
@@ -149,17 +151,18 @@ describe("Mocked: GET /stats", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedFetchRatedGames).not.toHaveBeenCalled();
   });
 
   // Input: no Authorization header
   // Expected behavior: requireAuth rejects the request
-  // Expected output: 401
+  // Expected output: 401 missing token error
   test("Rejects a request without a token", async () => {
     const response = await request(createApp()).get("/stats");
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedFetchRatedGames).not.toHaveBeenCalled();
   });
 
@@ -176,7 +179,7 @@ describe("Mocked: GET /stats", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

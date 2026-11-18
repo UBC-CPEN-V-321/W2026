@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
+import { authErrors } from '../../src/auth/requireAuth';
 import { signAccessToken } from '../../src/auth/tokens';
+import { commonErrors, errorBody } from '../../src/errors';
 import { getUserById } from '../../src/users/users.repository';
 
 // /user/me is behind requireAuth, so requests need a valid token
@@ -48,7 +50,7 @@ describe('Mocked: GET /user/me', () => {
 
   // Input: a valid token for a user that no longer exists
   // Expected behavior: nothing to return
-  // Expected output: 404
+  // Expected output: 404 { error: "User not found", code: "USER_NOT_FOUND" }
   test('Returns 404 when the user does not exist', async () => {
     mockedGetUserById.mockResolvedValue(null);
 
@@ -57,22 +59,23 @@ describe('Mocked: GET /user/me', () => {
       .set('Authorization', authHeader);
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'User not found' });
+    expect(response.body).toEqual(errorBody(commonErrors.UserNotFound));
   });
 
   // Input: no Authorization header
   // Expected behavior: requireAuth rejects the request
-  // Expected output: 401
+  // Expected output: 401 { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test('Rejects a request without a token', async () => {
     const response = await request(createApp()).get('/user/me');
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedGetUserById).not.toHaveBeenCalled();
   });
 
   // Input: the repository throws
   // Expected behavior: the error is logged
-  // Expected output: 500
+  // Expected output: 500 { error: "Internal server error", code: "INTERNAL_ERROR" }
   test('Returns 500 when the database fails', async () => {
     const consoleError = jest.spyOn(console, 'error').mockImplementation();
     mockedGetUserById.mockRejectedValue(new Error('database down'));
@@ -82,7 +85,7 @@ describe('Mocked: GET /user/me', () => {
       .set('Authorization', authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: 'Internal server error' });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

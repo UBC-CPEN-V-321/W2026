@@ -1,6 +1,8 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { signAccessToken } from "../../src/auth/tokens";
+import { authErrors } from "../../src/auth/requireAuth";
+import { commonErrors, errorBody } from "../../src/errors";
 import { fetchCourts } from "../../src/courts/courts.repository";
 import { getCourts } from "../../src/courts/courts.service";
 
@@ -51,7 +53,7 @@ describe("Mocked: GET /courts", () => {
     const response = await request(createApp()).get("/courts");
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Missing auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedFetchCourts).not.toHaveBeenCalled();
   });
 
@@ -61,7 +63,7 @@ describe("Mocked: GET /courts", () => {
       .set("Authorization", "Bearer not-a-jwt");
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Invalid or expired auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.InvalidToken));
     expect(mockedFetchCourts).not.toHaveBeenCalled();
   });
 
@@ -76,7 +78,7 @@ describe("Mocked: GET /courts", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

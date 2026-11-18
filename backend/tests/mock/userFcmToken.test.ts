@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
+import { authErrors } from '../../src/auth/requireAuth';
 import { signAccessToken } from '../../src/auth/tokens';
+import { commonErrors, errorBody } from '../../src/errors';
 import { saveFcmToken } from '../../src/users/users.repository';
 
 // /user/me/fcm-token is behind requireAuth, so requests need a valid token
@@ -36,7 +38,7 @@ describe('Mocked: PUT /user/me/fcm-token', () => {
 
   // Input: a signed-in user sends an empty token
   // Expected behavior: the body is rejected before anything is saved
-  // Expected output: 400
+  // Expected output: 400 { error: "Invalid request", code: "INVALID_REQUEST", details }
   test('Returns 400 when the token is empty', async () => {
     const response = await request(createApp())
       .put('/user/me/fcm-token')
@@ -44,18 +46,20 @@ describe('Mocked: PUT /user/me/fcm-token', () => {
       .send({ token: '' });
 
     expect(response.status).toBe(400);
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedSaveFcmToken).not.toHaveBeenCalled();
   });
 
   // Input: no Authorization header
   // Expected behavior: requireAuth stops the request
-  // Expected output: 401, nothing saved
+  // Expected output: 401 { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }, nothing saved
   test('Returns 401 without an access token', async () => {
     const response = await request(createApp())
       .put('/user/me/fcm-token')
       .send({ token: 'device-token' });
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedSaveFcmToken).not.toHaveBeenCalled();
   });
 });
