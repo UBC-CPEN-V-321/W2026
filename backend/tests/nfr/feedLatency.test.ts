@@ -63,16 +63,17 @@ function candidate(i: number): Parameters<typeof makeListing>[2] {
   };
 }
 
-async function insertCandidates(): Promise<void> {
+// A failed insert rejects the returned promise, which fails the test.
+const insertCandidates = async (): Promise<void> => {
   for (let start = 0; start < CANDIDATES; start += INSERT_BATCH) {
     const batch = Array.from({ length: INSERT_BATCH }, (_unused, offset) => makeListing(mongo.store, OTHER, candidate(start + offset)));
     await Promise.all(batch);
   }
-}
+};
 
 function percentile(sortedMs: number[], fraction: number): number {
   const index = Math.min(sortedMs.length - 1, Math.ceil(fraction * sortedMs.length) - 1);
-  return sortedMs[index] ?? Number.NaN;
+  return sortedMs.at(index) ?? Number.NaN;
 }
 
 // Interface GET /api/feed
@@ -109,7 +110,7 @@ describe('NFR 1: GET /api/feed ranking latency', () => {
     const sorted = [...timesMs].sort((a, b) => a - b);
     const p95 = percentile(sorted, PERCENTILE);
     const mean = timesMs.reduce((sum, ms) => sum + ms, 0) / timesMs.length;
-    console.log(
+    console.info(
       `NFR 1: ${REQUESTS} requests, ${CANDIDATES} candidates: ` +
         `p50 ${percentile(sorted, 0.5).toFixed(1)} ms, p95 ${p95.toFixed(1)} ms, ` +
         `max ${(sorted[sorted.length - 1] ?? 0).toFixed(1)} ms, mean ${mean.toFixed(1)} ms (limit ${LATENCY_LIMIT_MS} ms at p95)`

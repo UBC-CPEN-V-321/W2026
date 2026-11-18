@@ -69,7 +69,8 @@ function matchIds(body: unknown): string[] {
 }
 
 function browseIds(body: unknown, key: 'listings' | 'requests'): string[] {
-  return ((body as BrowseBody)[key] ?? []).map((post) => post.id);
+  const page = body as BrowseBody;
+  return ((key === 'listings' ? page.listings : page.requests) ?? []).map((post) => post.id);
 }
 
 // Requests every route in this file must refuse before reading the database.
@@ -357,15 +358,20 @@ describe('Unmocked: GET /api/feed', () => {
   });
 
   // Input: my request with a $100 budget, matching listings at $20, $60 and $90 (the $90 one about 1.5 km away),
-  // and feed filters: minPrice 50, maxPrice 70, both together, a 1 km radius around my location, and another category
+  // a $150 listing over the budget and a $50 listing about 18 km away, outside the default 10 km radius,
+  // and feed filters: minPrice 50, maxPrice 70, both together, a 1 km radius around my location, another category,
+  // and filters looser than the request (maxPrice 500 and a 50 km radius)
   // Expected status code: 200
-  // Expected behavior: feed filters narrow the matches on top of the hard requirements (Use Case 3, step 3)
-  // Expected output: the listings that pass each filter, best first
+  // Expected behavior: feed filters narrow the matches on top of the hard requirements (Use Case 3, step 3),
+  // and a filter looser than the request is ignored
+  // Expected output: the listings that pass each filter, best first; the looser filters return the three matches
   test('Feed Filters Narrow The Matches', async () => {
     const buyerRequest = await makeRequest(mongo.store, ME, { requestFields: [hardField('price', 100, 'number')] });
     const cheap = await makeListing(mongo.store, OTHER, { price: 20 });
     const middle = await makeListing(mongo.store, OTHER, { price: 60 });
     const dear = await makeListing(mongo.store, OTHER, { price: 90, location: { type: 'Point', coordinates: [-123.23, 49.26] } });
+    await makeListing(mongo.store, OTHER, { price: 150 });
+    await makeListing(mongo.store, OTHER, { price: 50, location: FAR_AWAY });
     const feed = (filters: string): request.Test => getFeed(`postId=${buyerRequest.id}&${filters}`);
 
     const minimum = await feed('minPrice=50');
@@ -373,7 +379,12 @@ describe('Unmocked: GET /api/feed', () => {
     const range = await feed('minPrice=50&maxPrice=70');
     const near = await feed('lat=49.26&lng=-123.25&radiusKm=1');
     const otherCategory = await feed('category=Lamps');
+    const looser = await feed('maxPrice=500&lat=49.26&lng=-123.25&radiusKm=50');
 
+    for (const response of [minimum, maximum, range, near, otherCategory, looser]) {
+      expect(response.status).toBe(200);
+    }
+    expect(new Set(matchIds(looser.body))).toEqual(new Set([cheap.id, middle.id, dear.id]));
     expect(new Set(matchIds(minimum.body))).toEqual(new Set([middle.id, dear.id]));
     expect(new Set(matchIds(maximum.body))).toEqual(new Set([cheap.id, middle.id]));
     expect(matchIds(range.body)).toEqual([middle.id]);
@@ -515,6 +526,8 @@ describe('Unmocked: GET /api/feed/listings', () => {
     const range = await request(app).get('/api/feed/listings?minPrice=50&maxPrice=70').set('Authorization', bearer(ME));
     const exact = await request(app).get('/api/feed/listings?minPrice=60&maxPrice=60').set('Authorization', bearer(ME));
 
+    expect(range.status).toBe(200);
+    expect(exact.status).toBe(200);
     expect(browseIds(range.body, 'listings')).toEqual([middle.id]);
     expect(browseIds(exact.body, 'listings')).toEqual([middle.id]);
   });

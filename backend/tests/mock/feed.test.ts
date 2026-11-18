@@ -227,21 +227,35 @@ describe('Mocked: GET /api/feed', () => {
   });
 });
 
-// Interface GET /api/feed/listings and GET /api/feed/requests
-describe.each([
-  { kind: 'listings' as const, fail: () => rejecting(mongo.store.listings, 'listOpen') },
-  { kind: 'requests' as const, fail: () => rejecting(mongo.store.requests, 'listOpen') },
-])('Mocked: GET /api/feed/$kind', ({ kind, fail }: { kind: 'listings' | 'requests'; fail: () => jest.SpyInstance }) => {
-  // Mocked behavior: <kind>.listOpen rejects, as when MongoDB is unreachable
-  // Input: GET /api/feed/<kind> with a valid filter
+// Interface GET /api/feed/listings
+describe('Mocked: GET /api/feed/listings', () => {
+  // Mocked behavior: listings.listOpen rejects, as when MongoDB is unreachable
+  // Input: GET /api/feed/listings with a valid filter
   // Expected status code: 500
   // Expected behavior: the error is handled and no posts are returned
   // Expected output: { error: 'Internal Server Error' }
   test('listOpen Throws: 500', async () => {
     await makeFeed();
-    const spy = fail();
+    const spy = rejecting(mongo.store.listings, 'listOpen');
 
-    const response = await request(app).get(`/api/feed/${kind}?category=chair`).set('Authorization', bearer(ME));
+    const response = await request(app).get('/api/feed/listings?category=chair').set('Authorization', bearer(ME));
+
+    expectServerError(response, spy);
+  });
+});
+
+// Interface GET /api/feed/requests
+describe('Mocked: GET /api/feed/requests', () => {
+  // Mocked behavior: requests.listOpen rejects, as when MongoDB is unreachable
+  // Input: GET /api/feed/requests with a valid filter
+  // Expected status code: 500
+  // Expected behavior: the error is handled and no posts are returned
+  // Expected output: { error: 'Internal Server Error' }
+  test('listOpen Throws: 500', async () => {
+    await makeFeed();
+    const spy = rejecting(mongo.store.requests, 'listOpen');
+
+    const response = await request(app).get('/api/feed/requests?category=chair').set('Authorization', bearer(ME));
 
     expectServerError(response, spy);
   });
