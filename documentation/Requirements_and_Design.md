@@ -44,6 +44,7 @@
 | 2026-11-17 | 4.1, 4.7 | `GET /api/feed`: listed the 404 for a post that does not exist, as tested by its interface tests. NFR 1 is now measured: the NFR test `feedLatency.test.ts` ranks 1,000 candidate posts, and 95% of 100 feed requests return within 45 ms. |
 | 2026-11-18 | 4.6 | Following TA and peer-review feedback, the Send a Message sequence diagram now shows every failure in Use Case 4 (2a, 4a, 5a, 6a, 7a) and loading earlier messages, and each database write has a reply. Removed its invalid-text branch, which the app never reaches because Send is disabled for an empty message. |
 | 2026-11-18 | 4.7 | NFR 2 is now measured for every failure it names: the NFR test times a routing service that never answers (about 2 seconds) and one that is rate-limited, fails or is unreachable (under 10 ms). |
+| 2026-11-18 | 4.1 | `POST /api/auth/google`, `/refresh` and `/logout`: listed what each returns and its 400, 401 and 413 errors, and that reusing a refresh token revokes the whole sign-in, as tested by their interface tests. |
 
 ---
 
@@ -335,11 +336,11 @@ Each use case covers one goal, and the user starts each of them directly, so the
     - **Rationale**: Keeps identity and per-user settings in one place so Posts and Matching only depend on a user id; alternative of storing settings on each post was rejected because settings apply across all of a user's posts.
     - **Interfaces**:
         1. `POST /api/auth/google`
-            - **Purpose**: Exchange a Google ID token for a session token; 401 if the token is invalid.
+            - **Purpose**: Exchange a Google ID token (`{ idToken }`) for the user's names and email, a session token and a refresh token, and save the user. Returns 400 if no token is sent, 401 if Google rejects the token or the account's email is not verified, and 413 for a body over 4 KB.
         2. `POST /api/auth/refresh`
-            - **Purpose**: Rotates the token pair.
+            - **Purpose**: Trade `{ refreshToken }` for a new session token and refresh token without calling Google; the old refresh token stops working. Returns 401 if the token is unknown, expired or already used, and reusing a used token also revokes every token from that sign-in. Returns 400 if no token is sent and 413 for a body over 4 KB.
         3. `POST /api/auth/logout`
-            - **Purpose**: Revokes the refresh-token family. Session tokens last 15 minutes; refresh tokens have a 30-day lifetime. Protected routes use requireAuth and currentUser.
+            - **Purpose**: Revoke `{ refreshToken }` and every token from the same sign-in; 204 even if the token is unknown. Returns 400 if no token is sent and 413 for a body over 4 KB. Session tokens last 15 minutes; refresh tokens have a 30-day lifetime. Protected routes use requireAuth and currentUser.
         4. `GET /api/users/me`
             - **Purpose**: Return the signed-in user's profile: names, email, photo URL, address and location if set, and when it was created and updated. 404 if there is none.
         5. `PATCH /api/users/me`
