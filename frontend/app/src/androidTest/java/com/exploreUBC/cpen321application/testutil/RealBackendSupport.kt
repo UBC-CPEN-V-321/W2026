@@ -9,6 +9,12 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.exploreUBC.cpen321application.BuildConfig
+import com.exploreUBC.cpen321application.data.events.EventsApi
+import com.exploreUBC.cpen321application.data.itineraries.ActivityItem
+import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
+import com.exploreUBC.cpen321application.data.itineraries.CreateItineraryInput
+import com.exploreUBC.cpen321application.data.itineraries.Itinerary
+import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
 import com.exploreUBC.cpen321application.data.users.BudgetPreference
 import com.exploreUBC.cpen321application.data.users.InterestPreference
 import com.exploreUBC.cpen321application.data.users.TransportationMode
@@ -17,6 +23,7 @@ import com.exploreUBC.cpen321application.data.users.UserPreferences
 import com.exploreUBC.cpen321application.data.users.UserUpdate
 import com.exploreUBC.cpen321application.data.users.UsersApi
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 import org.junit.rules.TestRule
 
 /** User the app signs in as (hardcoded in MainActivity2); seeded by backend `npm run e2e:seed`. */
@@ -79,3 +86,50 @@ internal fun resetUserInterest(interest: InterestPreference = InterestPreference
         )
     }
 }
+
+internal const val BASELINE_ITINERARY_NAME = "E2E Baseline Itinerary"
+internal const val OVERLAPPING_ACTIVITY_NAME = "E2E Overlapping Activity"
+private const val UBC_LATITUDE = 49.2606
+private const val UBC_LONGITUDE = -123.246
+
+/**
+ * Deletes all of the seeded user's itineraries through the real backend. With [withOverlap] it then
+ * recreates [BASELINE_ITINERARY_NAME], holding one activity that overlaps "E2E Event 01".
+ */
+internal fun resetItineraries(withOverlap: Boolean = true) {
+    runBlocking {
+        val itineraries = ItinerariesApi(BuildConfig.API_BASE_URL)
+        itineraries.getItineraries(REAL_BACKEND_USER_ID).forEach {
+            itineraries.deleteItinerary(REAL_BACKEND_USER_ID, it.id)
+        }
+        if (withOverlap) {
+            val firstEvent = EventsApi(BuildConfig.API_BASE_URL)
+                .getEvents(REAL_BACKEND_USER_ID, UBC_LATITUDE, UBC_LONGITUDE, 1, 20)
+                .first { it.title == "E2E Event 01" }
+            val start = Instant.parse(firstEvent.startDateTime)
+            val baseline = itineraries.createItinerary(
+                REAL_BACKEND_USER_ID,
+                CreateItineraryInput(name = BASELINE_ITINERARY_NAME),
+            )
+            itineraries.addActivity(
+                REAL_BACKEND_USER_ID,
+                baseline.id,
+                CreateActivityInput(
+                    name = OVERLAPPING_ACTIVITY_NAME,
+                    image = "https://example.com/e2e-activity.jpg",
+                    category = "outdoors",
+                    location = "UBC",
+                    startTime = start.plusSeconds(30 * 60).toString(),
+                    endTime = start.plusSeconds(90 * 60).toString(),
+                ),
+            )
+        }
+    }
+}
+
+/** Reads the seeded user's itineraries from the real backend, to check what the app saved. */
+internal fun loadItineraries(): List<Itinerary> = runBlocking {
+    ItinerariesApi(BuildConfig.API_BASE_URL).getItineraries(REAL_BACKEND_USER_ID)
+}
+
+internal fun Itinerary.activities(): List<ActivityItem> = items.filterIsInstance<ActivityItem>()
