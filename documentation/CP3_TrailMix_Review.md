@@ -1,8 +1,8 @@
 # CP3 TrailMix Review
 
-**Repository revision reviewed:** `6d12cd1496c569073a144350f8fe535b93f53d54`  
-**Requirements reviewed:** `documentation/Requirements_and_Design.md`  
-**Testing specification reviewed:** `documentation/Testing.md`  
+**Repository revision reviewed:** `6d12cd1496c569073a144350f8fe535b93f53d54`
+**Requirements reviewed:** `documentation/Requirements_and_Design.md`
+**Testing specification reviewed:** `documentation/Testing.md`
 **Automated-review justification reviewed:** `documentation/Code_Review.md`
 
 ## Score summary

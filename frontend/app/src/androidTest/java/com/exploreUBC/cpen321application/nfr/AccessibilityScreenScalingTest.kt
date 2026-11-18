@@ -20,7 +20,7 @@ class AccessibilityScreenScalingTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    // This test only tests if the element is still on the screen 
+    // This test only tests if the element is still on the screen
     // Manual testing needed to check for overlap or irregularity
     @Test
     fun navigationLabelsRemainVisibleAndOperableAt200PercentScale() {

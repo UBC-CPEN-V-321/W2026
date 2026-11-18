@@ -68,7 +68,6 @@ fun LiveEventsScreen(
     LiveEventsContent(state, modifier)
     EventItineraryDialog(userId, itinerariesRepository, state)
 }
-
 internal class LiveEventsScreenState(initialEvents: List<Event>) {
     var events by mutableStateOf(initialEvents)
     var isLoading by mutableStateOf(initialEvents.isEmpty())
@@ -102,7 +101,6 @@ internal class LiveEventsScreenState(initialEvents: List<Event>) {
         if (currentPage == 1) requestCount++ else currentPage = 1
     }
 }
-
 internal data class PendingEventReplacement(
     val itinerary: Itinerary,
     val activity: CreateActivityInput,
@@ -217,4 +215,3 @@ private fun LiveEventsContent(state: LiveEventsScreenState, modifier: Modifier) 
         )
     }
 }
-

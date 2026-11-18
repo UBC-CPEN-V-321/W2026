@@ -1,6 +1,9 @@
-import request from 'supertest';
+import type { Express } from 'express';
 
-import { createApp } from '../../../src/index';
+import {
+  createApp as createBackendApp,
+  type AppDependencies,
+} from '../../../src/index';
 import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepository';
 import type { ItineraryMapRepository } from '../../../src/maps/itineraryMapRepository';
 import type { ItineraryMap } from '../../../src/maps/mapTypes';
@@ -10,11 +13,24 @@ import type {
   CreateTransportationInput,
   Itinerary,
 } from '../../../src/itineraries/itineraryTypes';
+import {
+  authenticatedAgent,
+  createPathSessionValidator,
+} from '../../support/authTestUtils';
 
 const USER_ID = '6705f0000000000000000001';
 const ITINERARY_ID = '6705f1000000000000000001';
 const ACTIVITY_ID = 'activity-1';
 const SEGMENT_ID = 'transportation-1';
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({
+    ...dependencies,
+    sessionService: createPathSessionValidator(),
+  });
+}
+
+const request = (app: Express) => authenticatedAgent(app);
 
 const ACTIVITY_INPUT: CreateActivityInput = {
   type: 'activity',

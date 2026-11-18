@@ -1,7 +1,8 @@
 package com.exploreUBC.cpen321application.data.itineraries
 
-import java.net.HttpURLConnection
-import java.net.URL
+import com.exploreUBC.cpen321application.data.network.ApiException
+import com.exploreUBC.cpen321application.data.network.ApiRequest
+import com.exploreUBC.cpen321application.data.network.BackendClient
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
@@ -104,8 +105,8 @@ interface ItinerariesRepository {
     )
 }
 
-class ItinerariesApi(private val apiBaseUrl: String) : ItinerariesRepository {
-    private val apiClient = ItinerariesApiClient(apiBaseUrl)
+class ItinerariesApi(backendClient: BackendClient) : ItinerariesRepository {
+    private val apiClient = ItinerariesApiClient(backendClient)
 
     /** Creates an empty saved itinerary for a user. */
     override suspend fun createItinerary(
@@ -165,7 +166,7 @@ class ItinerariesApi(private val apiBaseUrl: String) : ItinerariesRepository {
         withContext(Dispatchers.IO) {
             val response = apiClient.execute(
                 method = "POST",
-                path = "/api/v1/users/${apiClient.encode(userId)}/recommendations",
+                path = "/users/${apiClient.encode(userId)}/recommendations",
                 requestBody = JSONObject().toString(),
                 timeoutMillis = 60_000,
             )
@@ -384,62 +385,41 @@ class ItinerariesApi(private val apiBaseUrl: String) : ItinerariesRepository {
     }
 }
 
-private class ItinerariesApiClient(private val apiBaseUrl: String) {
+private class ItinerariesApiClient(private val backendClient: BackendClient) {
     fun itineraryCollectionPath(userId: String): String =
-        "/api/v1/users/${encode(userId)}/itineraries"
+        "/users/${encode(userId)}/itineraries"
 
     fun replacementPath(path: String, replaceConflicts: Boolean): String =
         if (replaceConflicts) "$path?replaceConflicts=true" else path
 
-    fun execute(
+    suspend fun execute(
         method: String,
         path: String,
         requestBody: String? = null,
         timeoutMillis: Int = 5_000,
     ): JSONObject {
-        val connection = URL("${apiBaseUrl.trimEnd('/')}$path")
-            .openConnection() as HttpURLConnection
-        return try {
-            configureRequest(connection, method, timeoutMillis, requestBody)
-            val status = connection.responseCode
-            val responseText = readResponseText(connection, status)
-            if (status !in 200..299) throwHttpError(status, responseText)
-            if (responseText.isBlank()) JSONObject() else JSONObject(responseText)
-        } finally {
-            connection.disconnect()
+        val responseText = try {
+            backendClient.execute(
+                ApiRequest(
+                    method = method,
+                    path = path,
+                    body = requestBody,
+                    timeoutMillis = timeoutMillis,
+                ),
+            )
+        } catch (error: ApiException) {
+            if (error.statusCode == 401 || error.statusCode == 403) throw error
+            throwHttpError(error.statusCode, error.responseBody.orEmpty())
         }
+        return if (responseText.isBlank()) JSONObject() else JSONObject(responseText)
     }
-
-    private fun configureRequest(
-        connection: HttpURLConnection,
-        method: String,
-        timeoutMillis: Int,
-        requestBody: String?,
-    ) {
-        connection.requestMethod = method
-        connection.connectTimeout = timeoutMillis
-        connection.readTimeout = timeoutMillis
-        connection.setRequestProperty("Accept", "application/json")
-        if (requestBody != null) {
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.outputStream.bufferedWriter().use { it.write(requestBody) }
-        }
-    }
-
-    private fun readResponseText(connection: HttpURLConnection, status: Int): String =
-        if (status in 200..299) {
-            connection.inputStream.bufferedReader().use { it.readText() }
-        } else {
-            connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        }
 
     private fun throwHttpError(status: Int, responseText: String): Nothing {
         val errorBody = runCatching {
             JSONObject(responseText).getJSONObject("error")
         }.getOrNull()
         if (
-            status == HttpURLConnection.HTTP_CONFLICT &&
+            status == 409 &&
             errorBody?.optString("code") == "ITINERARY_TIME_CONFLICT"
         ) {
             throwTimeConflict(errorBody)

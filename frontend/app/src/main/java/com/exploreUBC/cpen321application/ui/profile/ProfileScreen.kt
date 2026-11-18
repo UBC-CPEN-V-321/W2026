@@ -22,6 +22,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,6 +69,7 @@ fun ProfileRoute(
     usersRepository: UsersRepository,
     modifier: Modifier = Modifier,
     onPreferencesSaved: () -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     val state = remember(userId) { ProfileRouteState(userId) }
     val scope = rememberCoroutineScope()
@@ -89,6 +91,7 @@ fun ProfileRoute(
             scope,
             usersRepository,
             onPreferencesSaved,
+            onLogout,
         ),
         modifier = modifier,
     )
@@ -133,6 +136,7 @@ private fun createProfileActions(
     scope: CoroutineScope,
     usersRepository: UsersRepository,
     onPreferencesSaved: () -> Unit,
+    onLogout: () -> Unit,
 ) = ProfileScreenActions(
     onEditProfile = { state.isEditingProfile = true },
     onCancelProfileEdit = { state.isEditingProfile = false },
@@ -156,6 +160,7 @@ private fun createProfileActions(
             state.saveLocally(update, "Preferences selected.")
         }
     },
+    onLogout = onLogout,
 )
 
 private fun saveRouteUpdate(
@@ -293,6 +298,7 @@ data class ProfileScreenActions(
     val onCancelProfileEdit: () -> Unit = {},
     val onSaveProfile: (UserUpdate) -> Unit = {},
     val onSavePreferences: (UserUpdate) -> Unit = {},
+    val onLogout: () -> Unit = {},
 )
 
 @Composable
@@ -310,6 +316,16 @@ fun ProfilePreferencesForm(
         ProfileDetailsSection(state = state, actions = actions)
         Spacer(modifier = Modifier.height(24.dp))
         PreferencesSection(state = state, onSave = actions.onSavePreferences)
+        Spacer(modifier = Modifier.height(32.dp))
+        OutlinedButton(
+            onClick = actions.onLogout,
+            enabled = !state.isSaving,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("profile_logout"),
+        ) {
+            Text("Log out")
+        }
     }
 }
 

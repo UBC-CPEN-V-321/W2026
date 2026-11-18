@@ -25,6 +25,7 @@ jobs:
       SOCLAAS_API_KEY: ${{ secrets.SOCLAAS_API_KEY }}
       SOCLAAS_MODEL: ${{ secrets.SOCLAAS_MODEL }}
       SOCLAAS_MAX_OUTPUT_TOKENS: 16384
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

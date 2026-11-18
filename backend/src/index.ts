@@ -2,6 +2,13 @@ import { attachDatabasePool } from '@vercel/functions';
 import express, { type Express } from 'express';
 import { MongoClient } from 'mongodb';
 
+import {
+  authenticateSession,
+  requireUserOwnership,
+} from './auth/authMiddleware';
+import { createAuthRouter } from './auth/authRouter';
+import { AuthService } from './auth/authService';
+import { GoogleIdTokenVerifier } from './auth/googleTokenVerifier';
 import { env } from './config/env';
 import { EventDao } from './events/eventDao';
 import type { EventRepository } from './events/eventRepository';
@@ -24,18 +31,22 @@ import type {
   ItineraryRanker,
 } from './recommendation/recommendationTypes';
 import { UniversalSentenceEncoderItineraryRanker } from './recommendation/universalSentenceEncoderRanker';
+import { SessionDao } from './session/sessionDao';
+import { SessionService } from './session/sessionService';
 import { UserDao } from './users/userDao';
 import type { UserRepository } from './users/userRepository';
 import { createUserRouter } from './users/userRouter';
 import { UserService } from './users/userService';
 
 export type AppDependencies = {
+  authService?: AuthService;
   eventRepository?: EventRepository;
   itineraryMapRepository?: ItineraryMapRepository;
   itineraryRepository?: ItineraryRepository;
   recommendationGenerator?: ItineraryGenerator;
   recommendationRanker?: ItineraryRanker;
   recommendationRepository?: RecommendationRepository;
+  sessionService?: Pick<SessionService, 'validateSession'>;
   userRepository?: UserRepository;
 };
 
@@ -48,9 +59,31 @@ export function createApp(dependencies: AppDependencies = {}): Express {
     res.json({ status: 'ok' });
   });
 
+  if (dependencies.authService !== undefined) {
+    app.use('/api/v1/auth', createAuthRouter(dependencies.authService));
+  }
+
+  const hasUserScopedRoutes =
+    dependencies.userRepository !== undefined ||
+    dependencies.itineraryRepository !== undefined;
+
+  if (hasUserScopedRoutes) {
+    if (dependencies.sessionService === undefined) {
+      throw new Error(
+        'A session service is required when user-scoped routes are configured.',
+      );
+    }
+
+    app.use(
+      '/api/v1/users/:userId',
+      authenticateSession(dependencies.sessionService),
+      requireUserOwnership,
+    );
+  }
+
   if (dependencies.userRepository !== undefined) {
     const userService = new UserService(dependencies.userRepository);
-    app.use('/api/v1/users', createUserRouter(userService));
+    app.use('/api/v1/users/:userId', createUserRouter(userService));
   }
 
   if (dependencies.itineraryRepository !== undefined) {
@@ -119,13 +152,23 @@ const eventDao = new EventDao(database);
 const userDao = new UserDao(database);
 const itineraryDao = new ItineraryDao(database);
 const itineraryMapDao = new ItineraryMapDao(database);
+const sessionService = new SessionService(
+  new SessionDao(database),
+  env.sessionTtlDays,
+);
 const app = createApp({
+  authService: new AuthService(
+    new GoogleIdTokenVerifier(env.googleClientId),
+    userDao,
+    sessionService,
+  ),
   eventRepository: eventDao,
   itineraryMapRepository: itineraryMapDao,
   itineraryRepository: itineraryDao,
   recommendationGenerator: new SoclaasClient(env.soclaas),
   recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
   recommendationRepository: new RecommendationDao(database),
+  sessionService,
   userRepository: userDao,
 });
 

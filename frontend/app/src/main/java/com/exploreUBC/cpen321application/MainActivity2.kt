@@ -1,14 +1,19 @@
 package com.exploreUBC.cpen321application
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.credentials.exceptions.ClearCredentialException
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -16,15 +21,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.exploreUBC.cpen321application.data.auth.AuthComponentFactory
+import com.exploreUBC.cpen321application.data.auth.AuthenticatedAuthComponents
 import com.exploreUBC.cpen321application.data.events.EventsApi
 import com.exploreUBC.cpen321application.data.events.EventsRepository
 import com.exploreUBC.cpen321application.data.location.ForegroundLocationTracker
@@ -42,6 +50,12 @@ import com.exploreUBC.cpen321application.ui.map.MapRoute
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
+import java.io.IOException
+import java.security.GeneralSecurityException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class AppRepositories(
     val users: UsersRepository,
@@ -70,9 +84,12 @@ private data class AppDestinationActions(
     val onViewMap: (Itinerary) -> Unit,
     val onVisitItinerary: () -> Unit,
     val onPreferencesSaved: () -> Unit,
+    val onLogout: () -> Unit,
 )
 
 class MainActivity2 : ComponentActivity() {
+    private var returningToLogin = false
+    private var isLoggingOut = false
     private var eventLocation by mutableStateOf(UserLocation.UBC)
     private lateinit var locationTracker: ForegroundLocationTracker
 
@@ -90,22 +107,74 @@ class MainActivity2 : ComponentActivity() {
             eventLocation = location
         }
         enableEdgeToEdge()
+        showLoading()
+        lifecycleScope.launch { initializeAuthenticatedApp() }
+    }
+
+    private suspend fun initializeAuthenticatedApp() {
+        val auth = AuthComponentFactory(
+            context = applicationContext,
+            apiBaseUrl = BuildConfig.API_BASE_URL,
+            googleClientId = BuildConfig.GOOGLE_CLIENT_ID,
+        ).createAuthenticatedComponents(
+            activity = this,
+            onSessionInvalidated = {
+                withContext(Dispatchers.Main.immediate) { returnToLogin() }
+            },
+        )
+        if (auth == null) {
+            returnToLogin()
+            return
+        }
+
+        showAuthenticatedApp(auth)
+    }
+
+    private fun showAuthenticatedApp(auth: AuthenticatedAuthComponents) {
         setContent {
             CPEN321ApplicationTheme {
-                val usersRepository = remember { UsersApi(BuildConfig.API_BASE_URL) }
-                val itinerariesRepository = remember { ItinerariesApi(BuildConfig.API_BASE_URL) }
-                val eventsRepository = remember { EventsApi(BuildConfig.API_BASE_URL) }
                 CPEN321ApplicationApp(
-//                    userId = intent.getStringExtra("userId"),
-                    userId = "6acd519c76376cefc61e97f1",
-                    usersRepository = usersRepository,
-                    itinerariesRepository = itinerariesRepository,
-                    eventsRepository = eventsRepository,
+                    userId = auth.userId,
+                    usersRepository = UsersApi(auth.apiClient),
+                    itinerariesRepository = ItinerariesApi(auth.apiClient),
+                    eventsRepository = EventsApi(auth.apiClient),
                     eventLocation = eventLocation,
+                    onLogout = createLogoutAction(auth),
                 )
             }
         }
         requestLocationPermissionIfNeeded()
+    }
+
+    private fun createLogoutAction(auth: AuthenticatedAuthComponents): () -> Unit = {
+        if (!isLoggingOut) {
+            isLoggingOut = true
+            lifecycleScope.launch {
+                try {
+                    auth.logout()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: IOException) {
+                    Log.w(TAG, "Backend logout failed", error)
+                } catch (error: ClearCredentialException) {
+                    Log.w(TAG, "Credential state cleanup failed", error)
+                } catch (error: GeneralSecurityException) {
+                    Log.w(TAG, "Session key cleanup failed", error)
+                } finally {
+                    returnToLogin()
+                }
+            }
+        }
+    }
+
+    private fun showLoading() {
+        setContent {
+            CPEN321ApplicationTheme {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
     }
 
     override fun onStart() {
@@ -140,6 +209,21 @@ class MainActivity2 : ComponentActivity() {
         ) == PackageManager.PERMISSION_GRANTED
         return fineLocation || coarseLocation
     }
+
+    private fun returnToLogin() {
+        if (returningToLogin) return
+        returningToLogin = true
+        startActivity(
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+        finish()
+    }
+
+    private companion object {
+        const val TAG = "MainActivity2"
+    }
 }
 
 @Composable
@@ -149,6 +233,7 @@ fun CPEN321ApplicationApp(
     itinerariesRepository: ItinerariesRepository,
     eventsRepository: EventsRepository,
     eventLocation: UserLocation = UserLocation.UBC,
+    onLogout: () -> Unit = {},
 ) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.EVENTS) }
     var selectedMapItineraryId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -184,6 +269,7 @@ fun CPEN321ApplicationApp(
                 currentDestination = AppDestinations.TRIPS
             },
             onPreferencesSaved = eventRecommendations::refreshAfterPreferenceChange,
+            onLogout = onLogout,
         ),
         eventRecommendations = eventRecommendations,
     )
@@ -245,6 +331,7 @@ private fun AppDestinationContent(
             userId = userId,
             usersRepository = repositories.users,
             onPreferencesSaved = actions.onPreferencesSaved,
+            onLogout = actions.onLogout,
             modifier = modifier,
         )
         AppDestinations.TRIPS -> TripsRoute(
