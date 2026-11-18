@@ -72,6 +72,11 @@ internal object GroupExpenseApi : GroupExpenseReader {
         AccountApi.request("POST", "/api/groups/$groupId/expenses", body, token)
     }
 
+    fun updateDescription(token: String, groupId: String, billId: String, description: String, revision: Int) {
+        val body = JSONObject().put("description", description).put("revision", revision)
+        AccountApi.request("PUT", "/api/groups/$groupId/expenses/$billId", body, token)
+    }
+
     fun updateBill(token: String, groupId: String, billId: String, input: BillSubmission, revision: Int) {
         val body = billBody(input).put("revision", revision)
         AccountApi.request("PUT", "/api/groups/$groupId/expenses/$billId", body, token)

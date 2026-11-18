@@ -41,6 +41,29 @@ describe('Unmocked: POST /api/groups/:groupId/leave', () => {
     expect((await leave(fixture.memberAuth)).status).toBe(404);
   });
 
+  test.each(['owner', 'departing member'])('renames a bill paid by the %s without reallocating its shares', async payer => {
+    const paidBy = payer === 'owner' ? fixture.ownerId : fixture.memberId;
+    const bills = `/api/groups/${fixture.groupId}/expenses`;
+    const created = await request(fixture.app).post(bills).set('Authorization', fixture.ownerAuth).send({
+      description: 'Dinner', amount: '60.00', paidBy, splitMode: 'equal', requestId: 'historical-dinner-01',
+      shares: [{ userId: fixture.ownerId }, { userId: fixture.memberId }],
+    }).expect(201);
+    const bill = created.body.expense;
+    await leave(fixture.memberAuth).expect(200);
+    const update = (body: object) => request(fixture.app).put(`${bills}/${bill.id}`).set('Authorization', fixture.ownerAuth).send(body);
+    const rename = { description: 'Team dinner', revision: bill.revision };
+    await update(rename).expect(200);
+    await update(rename).expect(200);
+    await update({ ...rename, description: 'Stale edit' }).expect(409);
+    await update({ ...rename, revision: bill.revision + 1, amount: '90.00' }).expect(400);
+    const stored = await ExpenseModel.findById(bill.id).lean();
+    expect(stored).toMatchObject({ description: 'Team dinner', amountCents: 6000, __v: bill.revision + 1 });
+    expect(stored?.paidBy.toString()).toBe(paidBy);
+    expect(stored?.shares.map(share => [share.userId.toString(), share.amountCents]))
+      .toEqual(expect.arrayContaining([[fixture.ownerId, 3000], [fixture.memberId, 3000]]));
+    expect(stored?.shares).toHaveLength(2);
+  });
+
   test('an owner leaving deletes the group for every member and disables all invitation paths', async () => {
     expect((await leave(fixture.ownerAuth)).body).toEqual({ deleted: true });
     expect((await GroupModel.findById(fixture.groupId))?.deletedAt).toBeTruthy();
