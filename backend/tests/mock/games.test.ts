@@ -410,8 +410,54 @@ describe("Mocked: GET /games", () => {
         },
       ],
       rounds: game.rounds,
+      // A completed game is not played anymore, so it has no forecast
+      forecast: null,
     });
     expect(mockedFetchGameDetails).toHaveBeenCalledWith(gameId);
+    expect(mockedGetForecast).not.toHaveBeenCalled();
+  });
+
+  test("Returns an upcoming game with its forecast", async () => {
+    const game = gameDetails({ status: GameStatus.BOOKED });
+    const forecast = {
+      at: game.startsAt,
+      temperature: 18.5,
+      description: "light rain",
+      icon: "10d",
+      precipitationChance: 0.4,
+    };
+    mockedFetchGameDetails.mockResolvedValue(game);
+    mockedGetForecast.mockResolvedValue(forecast);
+
+    const response = await request(createApp())
+      .get("/games")
+      .set("Authorization", authHeader)
+      .query({ gameId });
+
+    expect(response.status).toBe(200);
+    expect(response.body.game).toMatchObject({
+      id: gameId,
+      status: GameStatus.BOOKED,
+      forecast: { ...forecast, at: forecast.at.toISOString() },
+    });
+    expect(mockedGetForecast).toHaveBeenCalledWith(
+      game.court.latitude,
+      game.court.longitude,
+      game.startsAt,
+    );
+  });
+
+  test("Returns the game without a forecast when it cannot be loaded", async () => {
+    mockedFetchGameDetails.mockResolvedValue(gameDetails());
+    mockedGetForecast.mockResolvedValue(null);
+
+    const response = await request(createApp())
+      .get("/games")
+      .set("Authorization", authHeader)
+      .query({ gameId });
+
+    expect(response.status).toBe(200);
+    expect(response.body.game).toMatchObject({ id: gameId, forecast: null });
   });
 
   test("Returns 404 when the game does not exist", async () => {
@@ -549,24 +595,49 @@ describe("Mocked: GET /games/me", () => {
     jest.clearAllMocks();
   });
 
-  test("Returns the authenticated user's games", async () => {
-    const game = gameDetails({ status: GameStatus.BOOKED });
-    mockedFetchUserGames.mockResolvedValue([game]);
+  test("Returns the authenticated user's games with their forecast", async () => {
+    const booked = gameDetails({ status: GameStatus.BOOKED });
+    const open = gameDetails({
+      id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      courtId: 2,
+      court: { id: 2, name: "Queen Elizabeth Park", latitude: 49.24, longitude: -123.11 },
+    });
+    const forecast = {
+      at: booked.startsAt,
+      temperature: 18.5,
+      description: "light rain",
+      icon: "10d",
+      precipitationChance: 0.4,
+    };
+    mockedFetchUserGames.mockResolvedValue([booked, open]);
+    mockedGetForecast.mockResolvedValueOnce(forecast).mockResolvedValueOnce(null);
 
     const response = await request(createApp())
       .get("/games/me")
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(200);
-    expect(response.body.games).toHaveLength(1);
+    expect(response.body.games).toHaveLength(2);
     expect(response.body.games[0]).toMatchObject({
-      id: game.id,
+      id: booked.id,
       status: GameStatus.BOOKED,
-      court: game.court,
+      court: booked.court,
       players: [{ id: userId, team: 1 }],
       rounds: [],
+      forecast: { ...forecast, at: forecast.at.toISOString() },
+    });
+    // A forecast that cannot be loaded leaves the game in the list without one
+    expect(response.body.games[1]).toMatchObject({
+      id: open.id,
+      forecast: null,
     });
     expect(mockedFetchUserGames).toHaveBeenCalledWith(userId, expect.any(Date));
+    expect(mockedGetForecast).toHaveBeenNthCalledWith(
+      2,
+      open.court.latitude,
+      open.court.longitude,
+      open.startsAt,
+    );
   });
 
   test("Returns an empty list when the user has no games", async () => {
@@ -578,6 +649,7 @@ describe("Mocked: GET /games/me", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ games: [] });
+    expect(mockedGetForecast).not.toHaveBeenCalled();
   });
 
   test("Returns 500 when the repository throws unexpectedly", async () => {
@@ -925,13 +997,40 @@ describe("Mocked: getGame", () => {
     jest.clearAllMocks();
   });
 
-  test("Returns the game details from the repository", async () => {
+  test("Returns the game details from the repository with the game's forecast", async () => {
     const game = gameDetails();
+    const forecast = {
+      at: game.startsAt,
+      temperature: 21,
+      description: "clear sky",
+      icon: "01d",
+      precipitationChance: 0,
+    };
     mockedFetchGameDetails.mockResolvedValue(game);
+    mockedGetForecast.mockResolvedValue(forecast);
 
-    await expect(getGame(game.id)).resolves.toBe(game);
+    await expect(getGame(game.id)).resolves.toEqual({ ...game, forecast });
     expect(mockedFetchGameDetails).toHaveBeenCalledWith(game.id);
+    expect(mockedGetForecast).toHaveBeenCalledWith(
+      game.court.latitude,
+      game.court.longitude,
+      game.startsAt,
+    );
   });
+
+  test.each([GameStatus.COMPLETED, GameStatus.CANCELLED])(
+    "Returns a %s game without asking for a forecast",
+    async (status) => {
+      const game = gameDetails({ status });
+      mockedFetchGameDetails.mockResolvedValue(game);
+
+      await expect(getGame(game.id)).resolves.toEqual({
+        ...game,
+        forecast: null,
+      });
+      expect(mockedGetForecast).not.toHaveBeenCalled();
+    },
+  );
 
   test("Returns null when the game does not exist", async () => {
     mockedFetchGameDetails.mockResolvedValue(null);
@@ -939,6 +1038,7 @@ describe("Mocked: getGame", () => {
     await expect(
       getGame("0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"),
     ).resolves.toBeNull();
+    expect(mockedGetForecast).not.toHaveBeenCalled();
   });
 });
 
@@ -981,12 +1081,20 @@ describe("Mocked: getUserGames", () => {
     jest.clearAllMocks();
   });
 
-  test("Fetches the user's games from now", async () => {
-    const games = [gameDetails()];
-    mockedFetchUserGames.mockResolvedValue(games);
+  test("Fetches the user's games from now and adds each game's forecast", async () => {
+    const game = gameDetails({ status: GameStatus.BOOKED });
+    const forecast = {
+      at: game.startsAt,
+      temperature: 21,
+      description: "clear sky",
+      icon: "01d",
+      precipitationChance: 0,
+    };
+    mockedFetchUserGames.mockResolvedValue([game]);
+    mockedGetForecast.mockResolvedValue(forecast);
 
     const before = Date.now();
-    await expect(getUserGames(userId)).resolves.toBe(games);
+    await expect(getUserGames(userId)).resolves.toEqual([{ ...game, forecast }]);
 
     const [calledUserId, now] = mockedFetchUserGames.mock.calls[0] as [
       string,
@@ -995,6 +1103,14 @@ describe("Mocked: getUserGames", () => {
     expect(calledUserId).toBe(userId);
     expect(now.getTime()).toBeGreaterThanOrEqual(before);
     expect(now.getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  test("Propagates repository errors", async () => {
+    const error = new Error("Database unavailable");
+    mockedFetchUserGames.mockRejectedValue(error);
+
+    await expect(getUserGames(userId)).rejects.toBe(error);
+    expect(mockedGetForecast).not.toHaveBeenCalled();
   });
 });
 

@@ -22,6 +22,7 @@ import {
   fetchGameDetails,
   fetchUserGames,
   fetchUserHistory,
+  type GameDetails,
   isUserInGame,
   updateGame,
 } from "./games.repository";
@@ -112,12 +113,36 @@ export async function newGame(game: CreateGameInput, userId: string) {
 }
 
 /**
- * Gets a game with the given game ID
+ * Adds the weather forecast at a game's court and start time. A completed or cancelled game is not
+ * played anymore, so it gets no forecast and OpenWeather is not asked
+ * @param game the game with its court
+ * @returns the game with its forecast, which is null if the game is closed or the forecast cannot be loaded
+ */
+async function withForecast(game: GameDetails) {
+  const isClosed =
+    game.status === GameStatus.COMPLETED ||
+    game.status === GameStatus.CANCELLED;
+
+  return {
+    ...game,
+    forecast: isClosed
+      ? null
+      : await getForecast(
+          game.court.latitude,
+          game.court.longitude,
+          game.startsAt,
+        ),
+  };
+}
+
+/**
+ * Gets a game with the given game ID, with the weather forecast at its court and start time
  * @param gameId the game ID of the requested game
- * @returns the game with its court, players and rounds, or null if the game is not found
+ * @returns the game with its court, players, rounds and forecast, or null if the game is not found
  */
 export async function getGame(gameId: GameIdInput) {
-  return await fetchGameDetails(gameId);
+  const game = await fetchGameDetails(gameId);
+  return game === null ? null : await withForecast(game);
 }
 
 /**
@@ -126,26 +151,18 @@ export async function getGame(gameId: GameIdInput) {
  */
 export async function getFeed() {
   const games = await fetchFeedGames(new Date());
-
-  return await Promise.all(
-    games.map(async (game) => ({
-      ...game,
-      forecast: await getForecast(
-        game.court.latitude,
-        game.court.longitude,
-        game.startsAt,
-      ),
-    })),
-  );
+  return await Promise.all(games.map(withForecast));
 }
 
 /**
- * Gets a user's upcoming and current games
+ * Gets a user's upcoming and current games, with the weather forecast at their court and start time
  * @param userId the user whose games are requested
- * @returns the user's booked games, and open games that have not started, soonest first
+ * @returns the user's booked games, and open games that have not started, soonest first.
+ * A game's forecast is null if it cannot be loaded
  */
 export async function getUserGames(userId: string) {
-  return await fetchUserGames(userId, new Date());
+  const games = await fetchUserGames(userId, new Date());
+  return await Promise.all(games.map(withForecast));
 }
 
 /**
