@@ -4,6 +4,7 @@ import { createApp } from "../../src/app";
 import { signAccessToken } from "../../src/auth/tokens";
 import { prisma } from "../../src/db";
 import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums";
+import { RatingChange } from "../../src/ranking/ranking.types";
 
 // Reports two singles games between the same two new players against a real database, then reads
 // their stats. Checks that games played are counted for the K-factor and that GET /stats summarizes
@@ -14,6 +15,25 @@ jest.setTimeout(60_000);
 interface TestUser {
   id: string;
   auth: string;
+}
+
+// Response bodies, typed so their numbers aren't `any`; each test has exactly two players and two games
+interface ScoreBody {
+  ratingChanges: [RatingChange, RatingChange];
+}
+
+interface RatingPointBody {
+  gameId: string;
+  ratingBefore: number;
+  ratingAfter: number;
+}
+
+interface StatsBody {
+  stats: {
+    user: { rating: number };
+    ratingHistory: [RatingPointBody, RatingPointBody];
+    vsOpponentRating: unknown[];
+  };
 }
 
 // Unique per run, so the test never collides with existing users
@@ -93,7 +113,7 @@ describe("Unmocked: games played and player stats", () => {
     ]);
 
     expect(response.status).toBe(200);
-    const [first, second] = response.body.ratingChanges;
+    const [first, second] = (response.body as ScoreBody).ratingChanges;
     expect(first.ratingAfter).toBeCloseTo(1500 + kNew * 0.5 + 7.5, 5);
     expect(second.ratingAfter).toBeCloseTo(1500 - (kNew * 0.5 + 7.5), 5);
   });
@@ -110,7 +130,7 @@ describe("Unmocked: games played and player stats", () => {
     ]);
 
     expect(response.status).toBe(200);
-    const [first, second] = response.body.ratingChanges;
+    const [first, second] = (response.body as ScoreBody).ratingChanges;
     const gap = first.ratingBefore - second.ratingBefore;
     const expectedOutcome = 1 / (1 + 10 ** (-gap / 400));
     const expectedMargin = 6 * Math.tanh(0.0025 * gap);
@@ -129,7 +149,8 @@ describe("Unmocked: games played and player stats", () => {
     const response = await request(app).get("/stats").set("Authorization", auth(0));
 
     expect(response.status).toBe(200);
-    const { stats } = response.body;
+    const { stats } = response.body as StatsBody;
+    const [firstPoint, secondPoint] = stats.ratingHistory;
     expect(stats).toMatchObject({
       user: { id: users[0]?.id },
       sport: "TENNIS",
@@ -142,10 +163,10 @@ describe("Unmocked: games played and player stats", () => {
       pointsWon: 18,
       pointsLost: 19,
     });
-    expect(stats.ratingHistory.map(({ gameId }: { gameId: string }) => gameId)).toEqual(gameIds);
-    expect(stats.ratingHistory[0].ratingBefore).toBe(1500);
-    expect(stats.ratingHistory[1].ratingBefore).toBeCloseTo(stats.ratingHistory[0].ratingAfter, 8);
-    expect(stats.user.rating).toBeCloseTo(stats.ratingHistory[1].ratingAfter, 8);
+    expect(stats.ratingHistory.map(({ gameId }) => gameId)).toEqual(gameIds);
+    expect(firstPoint.ratingBefore).toBe(1500);
+    expect(secondPoint.ratingBefore).toBeCloseTo(firstPoint.ratingAfter, 8);
+    expect(stats.user.rating).toBeCloseTo(secondPoint.ratingAfter, 8);
     // Player 2 was 1500 before game 1 (band 1500) and about 1426.8 before game 2 (band 1400)
     expect(stats.vsOpponentRating).toEqual([
       { minRating: 1400, maxRating: 1500, games: 1, wins: 0, losses: 1, averageMargin: -6 },
