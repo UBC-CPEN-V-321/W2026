@@ -47,12 +47,14 @@ fun MatchPopups(
             },
             isAnswering = uiState.isAnswering,
             errorMessage = uiState.errorMessage,
-            onAccept = { scope.launch { viewModel.onAccept() } },
-            onCancel = { scope.launch { viewModel.onCancelMatch() } },
-            onGoToGame = {
-                viewModel.onGoToGame()
-                onGoToGame(match.id)
-            }
+            actions = MatchSheetActions(
+                onAccept = { scope.launch { viewModel.onAccept() } },
+                onCancel = { scope.launch { viewModel.onCancelMatch() } },
+                onGoToGame = {
+                    viewModel.onGoToGame()
+                    onGoToGame(match.id)
+                },
+            ),
         )
     }
 

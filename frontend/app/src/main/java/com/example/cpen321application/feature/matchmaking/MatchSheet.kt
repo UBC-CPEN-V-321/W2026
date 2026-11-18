@@ -52,6 +52,16 @@ private val ACCEPT_BEFORE_START: Duration = Duration.ofMinutes(30)
 private const val PRIMARY_WEIGHT = 1.4f
 
 /**
+ * What the match sheet's buttons do
+ * @property onCancel declines the match before answering, or cancels it after accepting
+ */
+data class MatchSheetActions(
+    val onAccept: () -> Unit,
+    val onCancel: () -> Unit,
+    val onGoToGame: () -> Unit,
+)
+
+/**
  * The matched game waiting for the player's answer, as a bottom sheet that can't be swiped away or
  * closed with Back: Accept or Decline before answering, Go to game (or Decline) after.
  * @param distanceKm from where the player searched to the court, null when that place is not known
@@ -64,9 +74,7 @@ fun MatchSheet(
     distanceKm: Double?,
     isAnswering: Boolean,
     errorMessage: String?,
-    onAccept: () -> Unit,
-    onCancel: () -> Unit,
-    onGoToGame: () -> Unit
+    actions: MatchSheetActions,
 ) {
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -95,7 +103,7 @@ fun MatchSheet(
             if (errorMessage != null) {
                 Text(text = errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
-            MatchButtons(prompt, isAnswering, onAccept, onCancel, onGoToGame)
+            MatchButtons(prompt, isAnswering, actions.onAccept, actions.onCancel, actions.onGoToGame)
         }
     }
 }
@@ -225,21 +233,18 @@ private fun Versus(match: Game, prompt: MatchPrompt) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        TeamColumn(players = me + prompt.partners, meCount = me.size, modifier = Modifier.weight(1f))
+        TeamColumn(players = me + prompt.partners, firstIsMe = me.isNotEmpty(), modifier = Modifier.weight(1f))
         Text(
             text = "VS",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        TeamColumn(players = prompt.opponents, meCount = 0, modifier = Modifier.weight(1f))
+        TeamColumn(players = prompt.opponents, firstIsMe = false, modifier = Modifier.weight(1f))
     }
 }
 
-/**
- * @param meCount how many of the first players are the signed-in user (named "You"), 0 or 1
- */
 @Composable
-private fun TeamColumn(players: List<Player>, meCount: Int, modifier: Modifier = Modifier) {
+private fun TeamColumn(players: List<Player>, firstIsMe: Boolean, modifier: Modifier = Modifier) {
     val ring = MaterialTheme.colorScheme.surfaceContainerLow
     Column(
         modifier = modifier,
@@ -256,7 +261,7 @@ private fun TeamColumn(players: List<Player>, meCount: Int, modifier: Modifier =
             }
         }
         Text(
-            text = players.mapIndexed { index, player -> if (index < meCount) "You" else player.name }
+            text = players.mapIndexed { index, player -> if (firstIsMe && index == 0) "You" else player.name }
                 .joinToString(" & "),
             style = MaterialTheme.typography.titleSmall,
             textAlign = TextAlign.Center,

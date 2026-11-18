@@ -186,28 +186,26 @@ private fun PinnedMeRow(entry: LeaderboardEntryDto) {
                 )
             },
         ) {
-            LeaderboardRow(entry = entry, isMe = true, onInverse = true)
+            LeaderboardRow(entry = entry, isMe = true, onDarkPill = true)
         }
     }
 }
 
-/**
- * @param onInverse drawn on the dark pinned pill, so text uses the inverse colours
- */
 @Composable
-private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean, onInverse: Boolean = false) {
+private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean, onDarkPill: Boolean = false) {
+    // The pinned "you" row is a dark pill, so its text uses the inverse colours
     val colors = MaterialTheme.colorScheme
-    val content = if (onInverse) colors.inverseOnSurface else colors.onSurface
-    val muted = if (onInverse) colors.inverseOnSurface.copy(alpha = MUTED_ON_INVERSE) else colors.onSurfaceVariant
+    val content = if (onDarkPill) colors.inverseOnSurface else colors.onSurface
+    val muted = if (onDarkPill) colors.inverseOnSurface.copy(alpha = MUTED_ON_INVERSE) else colors.onSurfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isMe && !onInverse) colors.surfaceContainerLow else Color.Transparent)
-            .padding(horizontal = if (onInverse) 16.dp else 20.dp, vertical = if (onInverse) 10.dp else 9.dp),
+            .background(if (isMe && !onDarkPill) colors.surfaceContainerLow else Color.Transparent)
+            .padding(horizontal = if (onDarkPill) 16.dp else 20.dp, vertical = if (onDarkPill) 10.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Rank(rank = entry.rank, color = if (entry.rank <= PODIUM && !onInverse) content else muted)
+        Rank(rank = entry.rank, color = if (entry.rank <= PODIUM && !onDarkPill) content else muted)
         PlayerAvatar(name = entry.name.ifBlank { entry.username }, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(

@@ -83,20 +83,18 @@ private fun MatchCard(match: BracketMatch, onMatchClick: (gameId: String) -> Uni
         border = BorderStroke(1.dp, colors.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            SlotRow(slot = match.team1, isDecided = decided)
+            SlotRow(slot = match.team1, matchHasWinner = decided)
             HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = colors.outlineVariant)
-            SlotRow(slot = match.team2, isDecided = decided)
+            SlotRow(slot = match.team2, matchHasWinner = decided)
         }
     }
 }
 
-/**
- * @param isDecided the match has a winner: the loser is muted
- */
 @Composable
-private fun SlotRow(slot: BracketSlot, isDecided: Boolean) {
+private fun SlotRow(slot: BracketSlot, matchHasWinner: Boolean) {
+    // Once the match has a winner, the loser is muted
     val colors = MaterialTheme.colorScheme
-    val color = if (isDecided && !slot.isWinner) colors.onSurfaceVariant else colors.onSurface
+    val color = if (matchHasWinner && !slot.isWinner) colors.onSurfaceVariant else colors.onSurface
     val numbers = DonutTextStyles.numericSmall.copy(fontWeight = if (slot.isWinner) FontWeight.SemiBold else FontWeight.Medium)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
