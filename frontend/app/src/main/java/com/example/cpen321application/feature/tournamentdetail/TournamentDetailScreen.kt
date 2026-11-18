@@ -1,27 +1,28 @@
 package com.example.cpen321application.feature.tournamentdetail
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,17 +34,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Tournament
+import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
 import com.example.cpen321application.core.data.model.playersOnTeam
 import com.example.cpen321application.core.ui.components.BackHeader
+import com.example.cpen321application.core.ui.components.ChipStyle
 import com.example.cpen321application.core.ui.components.ConfirmDialog
+import com.example.cpen321application.core.ui.components.DestructiveButton
+import com.example.cpen321application.core.ui.components.DonutCard
+import com.example.cpen321application.core.ui.components.FillBar
+import com.example.cpen321application.core.ui.components.LargeButtonHeight
+import com.example.cpen321application.core.ui.components.PersonRow
+import com.example.cpen321application.core.ui.components.StatusChip
+import com.example.cpen321application.core.ui.components.WeatherPill
 import com.example.cpen321application.core.ui.formatStartsAt
 import com.example.cpen321application.core.ui.label
 import com.example.cpen321application.core.ui.teamName
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
+import com.example.cpen321application.core.ui.theme.DonutTheme
 import com.example.cpen321application.core.ui.tournamentPlayerCountText
 import kotlin.math.roundToInt
 
@@ -151,7 +165,7 @@ private fun TournamentDetails(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         TournamentSummaryCard(tournament = tournament)
@@ -193,28 +207,48 @@ private fun TournamentDetails(
     }
 }
 
+// The frame of a tournament card in the Games tab: a ball-yellow edge fading into the hairline
+private const val BORDER_FADE_STOP = 0.55f
+
 @Composable
 private fun TournamentSummaryCard(tournament: Tournament) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(text = formatStartsAt(tournament.startsAt), style = MaterialTheme.typography.titleLarge)
-            Text(text = tournament.court.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = "${tournament.format.label} · ${tournament.status.label}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+    val colors = MaterialTheme.colorScheme
+    DonutCard(
+        border = BorderStroke(1.dp, Brush.linearGradient(0f to colors.tertiary, BORDER_FADE_STOP to colors.outlineVariant))
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            StatusChip(text = tournament.status.label, style = tournament.status.chipStyle)
+            Spacer(modifier = Modifier.weight(1f))
+            tournament.forecast?.let { WeatherPill(forecast = it) }
+        }
+        Text(
+            text = formatStartsAt(tournament.startsAt),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(text = tournament.court.name, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "${tournament.format.label} · Created by ${tournament.creator.name}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant
+        )
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            FillBar(
+                filled = tournament.players.size.toFloat() / tournament.capacity.coerceAtLeast(1),
+                modifier = Modifier.weight(1f).padding(end = 12.dp)
             )
-            Text(
-                text = "${tournamentPlayerCountText(tournament)} · Created by ${tournament.creator.name}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(text = tournamentPlayerCountText(tournament), style = DonutTextStyles.numericSmall)
         }
     }
 }
+
+private val TournamentStatus.chipStyle: ChipStyle
+    get() = when (this) {
+        TournamentStatus.REGISTRATION -> ChipStyle.OPEN
+        TournamentStatus.IN_PROGRESS -> ChipStyle.BOOKED
+        TournamentStatus.COMPLETED -> ChipStyle.DONE
+        TournamentStatus.CANCELLED -> ChipStyle.CANCELLED
+    }
 
 @Composable
 private fun RegistrationSection(
@@ -227,13 +261,10 @@ private fun RegistrationSection(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(text = "Registered players", style = MaterialTheme.typography.titleMedium)
-        // Not the username: until onboarding lets players pick one, it is their email
-        tournament.players.forEach { player ->
-            Text(text = "${player.name} · ${player.rating.roundToInt()}", style = MaterialTheme.typography.bodyMedium)
-        }
+        RegisteredPlayers(players = tournament.players)
 
         if (actions.registrationClosed) {
             Text(
@@ -249,23 +280,47 @@ private fun RegistrationSection(
         )
 
         if (actions.canJoin) {
-            Button(onClick = onJoin, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onJoin, enabled = !isSaving, modifier = Modifier.fillMaxWidth().height(LargeButtonHeight)) {
                 Text("Join tournament")
             }
         }
         if (actions.canLeave) {
-            OutlinedButton(onClick = onLeave, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = onLeave,
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().height(LargeButtonHeight)
+            ) {
                 Text("Leave tournament")
             }
         }
         if (actions.canCancel) {
-            TextButton(
-                onClick = onCancel,
-                enabled = !isSaving,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cancel tournament")
+            DestructiveButton(text = "Cancel tournament", enabled = !isSaving, onClick = onCancel)
+        }
+    }
+}
+
+// One card, a row per player in the order they joined, with their rating
+@Composable
+private fun RegisteredPlayers(players: List<TournamentPlayer>) {
+    DonutCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+        if (players.isEmpty()) {
+            Text(
+                text = "No one has registered yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+            )
+        }
+        players.forEachIndexed { index, player ->
+            if (index > 0) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(start = 68.dp, end = 20.dp)
+                )
+            }
+            // Not the username: until onboarding lets players pick one, it is their email
+            PersonRow(name = player.name) {
+                Text(text = player.rating.roundToInt().toString(), style = DonutTextStyles.numericSmall)
             }
         }
     }
@@ -279,25 +334,46 @@ private fun registrationNote(tournament: Tournament, actions: TournamentActions)
     else -> "Once all ${tournament.capacity} spots are filled, the bracket is drawn by rating."
 }
 
+// The winner on the inverse surface, next to a ball-yellow trophy tile
 @Composable
 private fun ChampionBanner(teamName: String) {
-    Card(
+    val colors = MaterialTheme.colorScheme
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        shape = MaterialTheme.shapes.large,
+        color = colors.inverseSurface,
+        contentColor = colors.inverseOnSurface
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(DonutTheme.colors.highlight, MaterialTheme.shapes.small),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_emoji_events_filled),
+                    contentDescription = null,
+                    tint = DonutTheme.colors.onHighlight
+                )
+            }
             Column {
-                Text(text = "Champion", style = MaterialTheme.typography.labelLarge)
-                Text(text = teamName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Champion",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.inverseOnSurface.copy(alpha = MUTED_ON_INVERSE)
+                )
+                Text(text = teamName, style = MaterialTheme.typography.titleLarge)
             }
         }
     }
 }
+
+private const val MUTED_ON_INVERSE = 0.7f
 
 @Composable
 private fun TournamentDialogContent(

@@ -1,0 +1,2007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Donut Design Directions</title>
+<meta name="description" content="Three modern visual directions for the Donut tennis matchmaking app: logos, tokens, components, sample screens and a Jetpack Compose implementation brief.">
+<!--
+  ================================================================
+  READ ME FIRST (for humans and for agents)
+  ================================================================
+  This single file holds three design directions for the Donut Android app
+  (frontend/, Kotlin + Jetpack Compose + Material 3).
+
+  Where things are:
+    - <script id="tokens">  : const TOKENS = {...}. The single source of truth for every
+                              colour, type style, shape, spacing, motion and icon setting of
+                              each option. Everything visual on this page is generated from it.
+    - section#option-a / -b / -c : concept, rules, brand, components, screens, Compose code.
+    - section#handoff       : the implementation brief (constraints, phases, file map,
+                              acceptance checklist, and a prompt to hand to an agent).
+    - <script id="render">  : the mockup templates. Reading them shows the exact layout,
+                              spacing and token use of every component and screen.
+
+  The mockup draws 1 CSS px = 1 dp (phones are 360 dp wide).
+  ================================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700;1,800&family=Barlow:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Figtree:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=add,arrow_back,arrow_forward,battery_full,bolt,calendar_month,check,chevron_right,close,cloud,edit,emoji_events,group,history,leaderboard,location_on,logout,map,more_horiz,my_location,notifications,partly_cloudy_day,person,person_add,radar,rainy,refresh,schedule,search,settings,signal_cellular_4_bar,sports_tennis,star,sunny,timer,trending_down,trending_up,tune,wifi&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=add,arrow_back,arrow_forward,battery_full,bolt,calendar_month,check,chevron_right,close,cloud,edit,emoji_events,group,history,leaderboard,location_on,logout,map,more_horiz,my_location,notifications,partly_cloudy_day,person,person_add,radar,rainy,refresh,schedule,search,settings,signal_cellular_4_bar,sports_tennis,star,sunny,timer,trending_down,trending_up,tune,wifi&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=add,arrow_back,arrow_forward,battery_full,bolt,calendar_month,check,chevron_right,close,cloud,edit,emoji_events,group,history,leaderboard,location_on,logout,map,more_horiz,my_location,notifications,partly_cloudy_day,person,person_add,radar,rainy,refresh,schedule,search,settings,signal_cellular_4_bar,sports_tennis,star,sunny,timer,trending_down,trending_up,tune,wifi&display=block">
+<style>
+/* =====================================================================
+   1. DOCUMENT CHROME  (the page around the mockups; not part of any option)
+   ===================================================================== */
+:root{--doc-bg:#F3F3F0;--doc-panel:#FFFFFF;--doc-ink:#151715;--doc-muted:#5F665F;--doc-line:#E1E3DD;--doc-code:#F0F1ED;--doc-accent:#0F7B4F;--doc-chip:#E9EBE6;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--doc-bg:#0E0F0E;--doc-panel:#161816;--doc-ink:#ECEEEA;--doc-muted:#9AA19B;--doc-line:#272A27;--doc-code:#1B1D1B;--doc-accent:#46D69A;--doc-chip:#222522;color-scheme:dark}}
+:root[data-theme="dark"]{--doc-bg:#0E0F0E;--doc-panel:#161816;--doc-ink:#ECEEEA;--doc-muted:#9AA19B;--doc-line:#272A27;--doc-code:#1B1D1B;--doc-accent:#46D69A;--doc-chip:#222522;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--doc-bg);color:var(--doc-ink);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:var(--doc-accent)}
+code,pre{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px}
+p code,li code,td code{background:var(--doc-code);padding:1px 5px;border-radius:5px}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+.topnav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--doc-bg) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--doc-line)}
+.topnav .wrap{display:flex;align-items:center;gap:6px;height:56px;overflow-x:auto;scrollbar-width:none}
+.topnav b{margin-right:12px;white-space:nowrap;font-size:14px}
+.topnav a{color:var(--doc-ink);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:999px;white-space:nowrap}
+.topnav a:hover{background:var(--doc-chip)}
+.topnav .sp{flex:1}
+.topnav button{font:inherit;font-size:13px;background:var(--doc-chip);color:var(--doc-ink);border:0;border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+header.hero{padding-top:56px;padding-bottom:24px}
+.kicker{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--doc-muted)}
+h1.doc{font-size:clamp(32px,5vw,52px);line-height:1.05;letter-spacing:-.03em;margin:10px 0 14px;font-weight:750}
+.lede{font-size:18px;max-width:760px;color:var(--doc-muted);margin:0}
+h2.doc{font-size:30px;letter-spacing:-.02em;line-height:1.15;margin:0 0 8px}
+h3.doc{font-size:18px;margin:36px 0 12px;letter-spacing:-.01em}
+h4.doc{font-size:14px;margin:18px 0 8px}
+.dmuted{color:var(--doc-muted)}
+.panel{background:var(--doc-panel);border:1px solid var(--doc-line);border-radius:18px;padding:22px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+section.doc{padding:56px 0;border-top:1px solid var(--doc-line)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 16px;margin:0;font-size:14px}
+.kv dt{color:var(--doc-muted)}
+.kv dd{margin:0}
+ul.tight{margin:6px 0;padding-left:20px}
+ul.tight li{margin:3px 0}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th,.tbl td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--doc-line)}
+.tbl th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--doc-muted);font-weight:600}
+.tblwrap{overflow-x:auto;border:1px solid var(--doc-line);border-radius:14px;background:var(--doc-panel)}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--doc-chip);margin:2px 4px 2px 0}
+.opt-band{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px}
+.opt-letter{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--doc-muted)}
+.modes{display:inline-flex;background:var(--doc-chip);border-radius:999px;padding:3px}
+.modes button{font:inherit;font-size:13px;border:0;background:transparent;color:var(--doc-ink);padding:6px 14px;border-radius:999px;cursor:pointer}
+.modes button.on{background:var(--doc-panel);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+details.code{border:1px solid var(--doc-line);border-radius:14px;background:var(--doc-panel);margin:10px 0}
+details.code>summary{cursor:pointer;padding:12px 16px;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.code>summary::-webkit-details-marker{display:none}
+details.code>summary .copy{margin-left:auto}
+details.code>summary::after{content:"+";font-size:18px;color:var(--doc-muted)}
+details.code[open]>summary::after{content:"–"}
+details.code pre{margin:0;padding:16px;background:var(--doc-code);border-top:1px solid var(--doc-line);overflow:auto;max-height:520px;border-radius:0 0 14px 14px;line-height:1.5}
+.copy{font:inherit;font-size:12px;border:1px solid var(--doc-line);background:var(--doc-panel);color:var(--doc-ink);border-radius:8px;padding:4px 10px;cursor:pointer}
+.callout{border-left:3px solid var(--doc-accent);background:var(--doc-panel);padding:14px 18px;border-radius:0 12px 12px 0;margin:14px 0;font-size:14px}
+/* overview cards */
+.ov{display:flex;flex-direction:column;gap:14px}
+.ov-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.strip{display:flex;height:28px;border-radius:8px;overflow:hidden;border:1px solid var(--doc-line)}
+.strip i{flex:1}
+.ov-mini{display:flex;justify-content:center;padding-top:6px}
+.ov-mini .ph{zoom:.62}
+.ov-mini figcaption{display:none}
+/* swatches + type specimens */
+.sw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sw{border:1px solid var(--doc-line);border-radius:12px;overflow:hidden;background:var(--doc-panel);font-size:12px}
+.sw i{display:block;height:44px}
+.sw div{padding:7px 9px;line-height:1.35}
+.sw b{display:block;font-weight:600;font-size:12px}
+.sw code{font-size:11.5px;color:var(--doc-muted);background:none;padding:0}
+.sw-h{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--doc-muted);margin:14px 0 6px}
+.specimen{border:1px solid var(--doc-line);border-radius:16px;overflow:hidden}
+.sp-row{display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:baseline;padding:10px 18px;border-bottom:1px solid var(--doc-line);background:var(--background);color:var(--on-background)}
+.sp-row:last-child{border-bottom:0}
+.sp-meta{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--on-surface-variant)}
+.sp-meta b{display:block;font:600 12px/1.4 system-ui,sans-serif;color:var(--on-surface)}
+/* brand panel */
+.brand{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.icons{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end}
+.icons figure{margin:0;text-align:center;font-size:12px;color:var(--doc-muted)}
+.ic{width:88px;height:88px;display:grid;place-items:center;overflow:hidden;margin-bottom:6px;box-shadow:0 1px 2px rgba(0,0,0,.12),0 6px 16px -6px rgba(0,0,0,.25)}
+.ic svg{width:100%;height:100%}
+.ic.sq{border-radius:24px}.ic.ci{border-radius:50%}.ic.tear{border-radius:50% 50% 50% 18%}
+.ic.sm{width:40px;height:40px;border-radius:50%}
+.lockups{display:grid;gap:10px}
+.lockup{border-radius:14px;padding:22px;display:flex;align-items:center;justify-content:center;min-height:110px;border:1px solid var(--doc-line)}
+/* gallery */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.spec{border:1px solid var(--doc-line);border-radius:16px;overflow:hidden;background:var(--doc-panel);display:flex;flex-direction:column}
+.spec.wide{grid-column:1/-1}
+.stage{background:var(--background);color:var(--on-background);padding:20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;min-height:120px;position:relative}
+.stage.col{flex-direction:column;align-items:stretch}
+.spec-m{padding:12px 16px 14px;font-size:13px;line-height:1.5;border-top:1px solid var(--doc-line)}
+.spec-m b{font-size:14px}
+.spec-m p{margin:4px 0 0;color:var(--doc-muted)}
+/* screens */
+.screens{display:flex;flex-wrap:wrap;gap:34px 28px;justify-content:center;padding:28px 0 8px}
+.cmp-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.cmp-tabs button{font:inherit;font-size:13px;border:1px solid var(--doc-line);background:var(--doc-panel);color:var(--doc-ink);padding:6px 14px;border-radius:999px;cursor:pointer}
+.cmp-tabs button.on{background:var(--doc-ink);color:var(--doc-bg);border-color:var(--doc-ink)}
+.cmp-row{display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
+.cmp-row>div{display:flex;flex-direction:column;align-items:center;gap:8px}
+@media (max-width:760px){.sp-row{grid-template-columns:1fr;gap:4px}.kv{grid-template-columns:1fr}.kv dt{margin-top:8px}}
+@media (max-width:420px){.wrap{padding:0 16px}.ph{zoom:.84}.gallery{grid-template-columns:1fr}}
+
+/* =====================================================================
+   2. SHARED MOCKUP STRUCTURE  (phone frame; every option skins on top of this)
+   ===================================================================== */
+.ph{margin:0;display:flex;flex-direction:column;align-items:center;gap:12px}
+.ph figcaption{font-size:13px;color:var(--doc-muted);font-weight:500}
+.phone{width:360px;height:760px;border-radius:48px;padding:9px;background:#0c0d0c;box-shadow:inset 0 0 0 1.5px #2c2f2c,0 32px 64px -24px rgba(0,0,0,.45),0 12px 24px -12px rgba(0,0,0,.25);flex:none}
+.screen{position:relative;width:100%;height:100%;border-radius:40px;overflow:hidden;background:var(--background);color:var(--on-background);display:flex;flex-direction:column;isolation:isolate;-webkit-font-smoothing:antialiased}
+.screen::before{content:"";position:absolute;top:11px;left:50%;width:11px;height:11px;margin-left:-5.5px;border-radius:50%;background:#0c0d0c;z-index:60}
+.sb{height:34px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 24px 0 28px;font-size:13px;font-weight:600;position:relative;z-index:5}
+.sb .ms{font-size:15px}
+.sb-r{display:flex;gap:3px;align-items:center}
+.body{flex:1;min-height:0;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.gest{height:20px;flex:none;display:grid;place-items:center;position:relative;z-index:5}
+.gest::after{content:"";width:108px;height:4px;border-radius:2px;background:var(--on-surface);opacity:.32}
+.ms{font-weight:normal;font-style:normal;font-size:24px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";-webkit-font-smoothing:antialiased;width:1em;overflow:hidden;flex:none;vertical-align:middle}
+.muted{color:var(--on-surface-variant)}
+.center{text-align:center}
+.spacer{flex:1}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.screen h1,.screen h2,.screen h3,.screen p,.stage h1,.stage h2,.stage h3,.stage p{margin:0}
+.screen b,.stage b{font-weight:inherit}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:default;user-select:none}
+.btn .ms{font-size:20px}
+.gg{width:22px;height:22px;border-radius:50%;background:#fff;color:#3c4043;display:grid;place-items:center;font:700 13px/1 Arial,sans-serif}
+.map{display:block;width:100%;height:100%}
+.av{width:var(--s);height:var(--s);display:inline-grid;place-items:center;flex:none;font-size:calc(var(--s)*.36);line-height:1;position:relative}
+.slots,.stack{display:inline-flex;align-items:center}
+.scrim{position:absolute;inset:0;background:rgba(6,8,7,.45);z-index:20}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:21;display:flex;flex-direction:column}
+.handle{width:36px;height:4px;border-radius:2px;background:var(--outline-variant);margin:10px auto 6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}
+@keyframes blink{50%{opacity:.25}}
+@keyframes bounce{0%,100%{transform:translateY(0)}45%{transform:translateY(-16px)}55%{transform:translateY(-16px)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* =====================================================================
+   3. OPTION A · BASELINE   (calm, Swiss-clean, data-forward, light-first)
+   ===================================================================== */
+.oA{--map-land:var(--surface-container);--map-water:#CFE0EA;--map-road:var(--surface-container-lowest);--map-park:#CDE7D6;--map-pin:var(--secondary)}
+.oA[data-mode="dark"]{--map-water:#132630;--map-park:#143021}
+.oA .screen,.oA .stage{font-family:"Geist",system-ui,sans-serif}
+.oA .ms{font-family:"Material Symbols Outlined";font-variation-settings:"FILL" 0,"wght" 300,"GRAD" 0,"opsz" 24}
+.oA .ms.fill{font-variation-settings:"FILL" 1,"wght" 400,"GRAD" 0,"opsz" 24}
+.oA .ab{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 0 20px;min-height:48px}
+.oA .ab-t{padding:6px 20px 0}
+.oA .ab-t p{margin-top:6px}
+.oA .iconbtn{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;color:var(--on-surface);border:1px solid var(--outline-variant);background:var(--surface-container-lowest)}
+.oA .iconbtn .ms{font-size:20px}
+.oA .eyebrow{color:var(--on-surface-variant);padding:22px 20px 8px}
+.oA .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:20px 16px 0}
+.oA .step{border-top:1.5px solid var(--on-surface);padding-top:8px;display:flex;flex-direction:column;gap:4px}
+.oA .step .num{color:var(--on-surface-variant)}
+.oA .group{margin:0 16px;background:var(--surface-container-lowest);border:1px solid var(--outline-variant);border-radius:16px;overflow:hidden}
+.oA .group>*+*{border-top:1px solid var(--outline-variant)}
+.oA .loc{display:flex;align-items:center;gap:14px;padding:12px 16px;width:100%}
+.oA .loc-ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface-container);color:var(--on-surface)}
+.oA .loc-ic .ms{font-size:20px}
+.oA .loc.on .loc-ic{background:var(--primary);color:var(--on-primary)}
+.oA .loc-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.oA .loc-t span{color:var(--on-surface-variant)}
+.oA .radio{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--outline);display:grid;place-items:center;flex:none}
+.oA .radio .ms{font-size:15px}
+.oA .loc.on .radio{background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+.oA .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface-container-high);border-radius:999px;padding:4px;margin:0 16px}
+.oA .stage .seg{margin:0;width:100%}
+.oA .seg-i{height:40px;border-radius:999px;display:grid;place-items:center;color:var(--on-surface-variant)}
+.oA .seg-i.on{background:var(--surface-container-lowest);color:var(--on-surface);box-shadow:0 0 0 1px var(--outline-variant),0 1px 3px rgba(0,0,0,.08)}
+.oA .btn{height:52px;border-radius:999px;padding:0 22px;font:600 15px/1 Geist,sans-serif;letter-spacing:-.005em}
+.oA .btn-sm{height:40px;padding:0 16px 0 12px;font-size:14px}
+.oA .btn-primary{background:var(--primary);color:var(--on-primary)}
+.oA .btn-secondary{background:var(--surface-container-lowest);color:var(--on-surface);box-shadow:inset 0 0 0 1px var(--outline)}
+.oA .btn-tonal{background:var(--surface-container-high);color:var(--on-surface)}
+.oA .btn-text{color:var(--secondary);padding:0 12px}
+.oA .btn-danger{color:var(--error);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--error) 40%,transparent)}
+.oA .btn-dis{background:var(--surface-container-high);color:color-mix(in srgb,var(--on-surface) 38%,transparent)}
+.oA .cta{padding:12px 16px 10px;display:flex;flex-direction:column;gap:10px}
+.oA .cta .btn{width:100%}
+.oA .chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:8px;font:500 12px/1 Geist,sans-serif;background:var(--surface-container-high);color:var(--on-surface-variant);white-space:nowrap}
+.oA .chip .ci{display:inline-flex;align-items:center;gap:4px}
+.oA .chip .ms{font-size:14px}
+.oA .chip-open{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oA .chip-you{background:var(--primary);color:var(--on-primary)}
+.oA .chip-booked{background:var(--surface-container-high);color:var(--on-surface)}
+.oA .chip-done{background:transparent;box-shadow:inset 0 0 0 1px var(--outline-variant)}
+.oA .chip-cancel{background:var(--error-container);color:var(--on-error-container)}
+.oA .chip-tour{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oA .chip-up{background:var(--win-container);color:var(--on-win-container)}
+.oA .chip-live{background:transparent;color:var(--live);padding:0}
+.oA .wx{display:inline-flex;align-items:center;gap:4px;color:var(--on-surface-variant);font-size:13px}
+.oA .wx .ms{font-size:18px}
+.oA .wx-r{color:var(--info)}
+.oA .av{border-radius:50%;font-family:Geist;font-weight:600;background:var(--surface-container-high);color:var(--on-surface)}
+.oA .av[data-tone="1"]{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oA .av[data-tone="2"]{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oA .av[data-tone="3"]{background:var(--info-container);color:var(--on-info-container)}
+.oA .slots .av,.oA .slot{margin-right:-6px;box-shadow:0 0 0 2px var(--surface-container-lowest)}
+.oA .slot{width:28px;height:28px;border-radius:50%;border:1.5px dashed var(--outline);background:var(--surface-container-lowest)}
+.oA .tabs{display:flex;gap:22px;padding:0 20px;border-bottom:1px solid var(--outline-variant)}
+.oA .tab{padding:12px 0 11px;color:var(--on-surface-variant);position:relative;display:inline-flex;gap:6px;align-items:center}
+.oA .tab.on{color:var(--on-surface)}
+.oA .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--on-surface);border-radius:2px}
+.oA .badge{min-width:18px;height:18px;border-radius:9px;background:var(--error);color:var(--on-error);font:600 11px/18px Geist;text-align:center;padding:0 5px}
+.oA .list{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.oA .dh{color:var(--on-surface-variant);padding:14px 4px 0}
+.oA .gc,.oA .tc{background:var(--surface-container-lowest);border:1px solid var(--outline-variant);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:3px;width:100%}
+.oA .gc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.oA .gc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.oA .tc{background:linear-gradient(var(--surface-container-lowest),var(--surface-container-lowest)) padding-box,linear-gradient(135deg,var(--tertiary),var(--outline-variant) 55%) border-box;border:1px solid transparent}
+.oA .prog{height:4px;border-radius:2px;background:var(--surface-container-high);overflow:hidden;flex:1;margin-right:12px}
+.oA .prog i{display:block;height:100%;background:var(--on-surface);border-radius:2px}
+.oA .lb-head{display:grid;grid-template-columns:44px 1fr auto;padding:16px 20px 6px;color:var(--on-surface-variant)}
+.oA .lbr{display:grid;grid-template-columns:34px 36px 1fr auto;gap:12px;align-items:center;padding:9px 20px;position:relative}
+.oA .lbr+.lbr::before{content:"";position:absolute;top:0;left:102px;right:20px;border-top:1px solid var(--outline-variant)}
+.oA .lbr .rk{color:var(--on-surface-variant)}
+.oA .lbr .rk.top{color:var(--on-surface)}
+.oA .lbr .rk.top::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-left:4px;vertical-align:2px;background:var(--m)}
+.oA .lbn{display:flex;flex-direction:column;min-width:0}
+.oA .lbn b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oA .me-pin{position:absolute;left:12px;right:12px;bottom:8px}
+.oA .lbr.me{background:var(--inverse-surface);color:var(--inverse-on-surface);border-radius:18px;padding:10px 16px;box-shadow:0 10px 24px -10px rgba(0,0,0,.45);grid-template-columns:34px 36px 1fr auto}
+.oA .lbr.me::before{display:none}
+.oA .lbr.me .rk,.oA .lbr.me .muted{color:color-mix(in srgb,var(--inverse-on-surface) 70%,transparent)}
+.oA .lbr.me::after{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--highlight)}
+.oA .pf{display:flex;align-items:center;gap:14px;padding:8px 20px 14px}
+.oA .card{margin:0 16px;background:var(--surface-container-lowest);border:1px solid var(--outline-variant);border-radius:20px;padding:14px 16px}
+.oA .spark{display:block;width:100%;height:52px;margin:6px 0 4px}
+.oA .spark polyline{fill:none;stroke:var(--on-surface);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.oA .spark circle{fill:var(--secondary)}
+.oA .spark .area{fill:color-mix(in srgb,var(--secondary) 10%,transparent);stroke:none}
+.oA .stats{display:grid;grid-template-columns:repeat(3,1fr);margin:12px 16px 4px}
+.oA .stats>div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0}
+.oA .stats>div+div{border-left:1px solid var(--outline-variant)}
+.oA .hist{display:flex;flex-direction:column;padding:4px 0}
+.oA .hr{display:grid;grid-template-columns:30px 1fr auto;gap:12px;align-items:center;padding:10px 20px}
+.oA .hr+.hr{border-top:1px solid var(--outline-variant);margin:0 20px;padding:10px 0}
+.oA .hr-t{display:flex;flex-direction:column;min-width:0}
+.oA .hr-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oA .oc{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font:600 13px/1 "Geist Mono"}
+.oA .oc-W{background:var(--win-container);color:var(--win)}
+.oA .oc-L{background:var(--loss-container);color:var(--loss)}
+.oA .dl{font:500 14px/1 "Geist Mono";letter-spacing:-.02em}
+.oA .dl.up{color:var(--win)}.oA .dl.dn{color:var(--loss)}
+.oA .nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--outline-variant);background:color-mix(in srgb,var(--background) 92%,transparent);padding:8px 4px 4px;flex:none;width:100%}
+.oA .nv{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--on-surface-variant);padding:2px 0}
+.oA .nv.on{color:var(--on-surface)}
+.oA .nv.on .ms{font-variation-settings:"FILL" 1,"wght" 500,"GRAD" 0,"opsz" 24}
+.oA .sheet{background:var(--surface-container-lowest);border-radius:28px 28px 0 0;padding:0 20px 24px;gap:12px;box-shadow:0 -10px 40px rgba(0,0,0,.18)}
+.oA .live{display:inline-flex;align-items:center;gap:8px;color:var(--secondary)}
+.oA .live::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 0 4px color-mix(in srgb,var(--live) 20%,transparent)}
+.oA .mapbox{height:112px;border-radius:16px;overflow:hidden;border:1px solid var(--outline-variant)}
+.oA .vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:12px;border-radius:16px;background:var(--surface-container-low)}
+.oA .pl{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.oA .note{display:flex;gap:10px;align-items:center;color:var(--on-surface-variant)}
+.oA .note .ms{font-size:20px;color:var(--on-surface)}
+.oA .btn-row{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:4px}
+.oA .q{background:var(--surface-container-lowest);border:1px solid var(--outline-variant);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;width:100%}
+.oA .spin{width:20px;height:20px;border-radius:50%;border:2px solid var(--outline-variant);border-top-color:var(--secondary);animation:spin 1.1s linear infinite;flex:none}
+.oA .crit{display:flex;flex-wrap:wrap;gap:6px}
+.oA .crit .chip{background:transparent;box-shadow:inset 0 0 0 1px var(--outline-variant);color:var(--on-surface)}
+.oA .sbd{width:100%;border:1px solid var(--outline-variant);border-radius:20px;background:var(--surface-container-lowest);overflow:hidden}
+.oA .sbd-r{display:grid;grid-template-columns:24px 1fr 34px 34px;gap:10px;align-items:center;padding:10px 14px}
+.oA .sbd-r+.sbd-r{border-top:1px solid var(--outline-variant)}
+.oA .sbd-r .num{text-align:center;color:var(--on-surface-variant)}
+.oA .sbd-r .num.w{color:var(--on-surface);font-weight:600}
+.oA .sbd-h{color:var(--on-surface-variant);padding:10px 14px 0}
+.oA .field{width:100%;border:1px solid var(--outline);border-radius:14px;padding:8px 14px 10px;background:var(--surface-container-lowest)}
+.oA .field.focus{box-shadow:0 0 0 1.5px var(--primary);border-color:var(--primary)}
+.oA .field label{display:block;color:var(--on-surface-variant)}
+.oA .banner{display:flex;gap:10px;align-items:center;background:var(--inverse-surface);color:var(--inverse-on-surface);border-radius:14px;padding:12px 14px;width:100%}
+.oA .banner .act{margin-left:auto;color:var(--highlight);font-weight:600}
+.oA .si{flex:1;display:flex;flex-direction:column;padding:0 24px 18px;position:relative}
+.oA .si-court{position:absolute;inset:40px -60px auto -60px;color:var(--on-surface);opacity:.055;transform:rotate(-90deg) scale(1.25);transform-origin:50% 50%;top:180px}
+.oA .si-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;position:relative}
+.oA .si-foot{display:flex;flex-direction:column;gap:12px;position:relative}
+.oA .si-foot .btn{width:100%}
+.wmA{display:inline-flex;align-items:center;gap:.16em;font-family:Geist,sans-serif;font-weight:700;letter-spacing:-.055em;line-height:1;color:var(--on-surface)}
+.wmA svg{width:.86em;height:.86em;--cut:var(--wm-bg,var(--background));flex:none}
+
+/* =====================================================================
+   4. OPTION B · NIGHT SESSION   (bold, broadcast scoreboard, dark-first)
+   ===================================================================== */
+.oB{--map-land:#12171A;--map-water:#0B2533;--map-road:#232B30;--map-park:#1B2A10;--map-pin:var(--highlight)}
+.oB[data-mode="light"]{--map-land:#E4E8E3;--map-water:#C6DCE8;--map-road:#FFFFFF;--map-park:#D9EAB4;--map-pin:#0A0D0B}
+.oB .screen,.oB .stage{font-family:"Barlow",system-ui,sans-serif}
+.oB .ms{font-family:"Material Symbols Sharp";font-variation-settings:"FILL" 0,"wght" 500,"GRAD" 0,"opsz" 24}
+.oB .ms.fill{font-variation-settings:"FILL" 1,"wght" 500,"GRAD" 0,"opsz" 24}
+.oB .ab-row{display:flex;align-items:center;justify-content:space-between;padding:6px 16px 4px;min-height:52px;gap:10px}
+.oB .sq{width:40px;height:40px;border-radius:6px;display:grid;place-items:center;background:var(--surface-container-high);color:var(--on-surface);flex:none}
+.oB .sq.hl{background:var(--highlight);color:var(--on-highlight)}
+.oB .eyebrow{display:flex;align-items:center;gap:8px;color:var(--on-surface-variant);padding:16px 16px 8px}
+.oB .eyebrow::before{content:"";width:8px;height:11px;background:var(--highlight);transform:skewX(-16deg)}
+.oB .locs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;width:100%}
+.oB .stage .locs{padding:0}
+.oB .loc{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:8px;background:var(--surface-container);box-shadow:inset 0 0 0 1px var(--outline-variant);position:relative}
+.oB .loc.on{box-shadow:inset 0 0 0 1.5px var(--highlight);background:color-mix(in srgb,var(--highlight) 7%,var(--surface-container))}
+.oB .loc-ic{color:var(--on-surface-variant)}
+.oB .loc.on .loc-ic{color:var(--primary)}
+.oB .loc-t{display:flex;flex-direction:column}
+.oB .loc-t span{color:var(--on-surface-variant)}
+.oB .radio{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:3px;box-shadow:inset 0 0 0 1.5px var(--outline);display:grid;place-items:center}
+.oB .radio .ms{font-size:14px}
+.oB .loc.on .radio{background:var(--highlight);box-shadow:none;color:var(--on-highlight)}
+.oB .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;padding:0 18px;width:100%}
+.oB .stage .seg{padding:0 4px}
+.oB .seg-i{height:44px;display:grid;place-items:center;background:var(--surface-container-high);color:var(--on-surface-variant);transform:skewX(-10deg);border-radius:4px}
+.oB .seg-i>span{transform:skewX(10deg)}
+.oB .seg-i.on{background:var(--highlight);color:var(--on-highlight)}
+.oB .btn{height:56px;border-radius:6px;padding:0 22px;font:700 17px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.oB .btn-sm{height:40px;font-size:15px;padding:0 14px}
+.oB .btn-primary{background:var(--highlight);color:var(--on-highlight);box-shadow:0 10px 30px -8px color-mix(in srgb,var(--highlight) 60%,transparent)}
+.oB .btn-secondary{box-shadow:inset 0 0 0 1.5px var(--outline);color:var(--on-surface)}
+.oB .btn-tonal{background:var(--surface-container-highest);color:var(--on-surface)}
+.oB .btn-text{color:var(--primary);padding:0 12px}
+.oB .btn-danger{color:var(--loss);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--loss) 55%,transparent)}
+.oB .btn-dis{background:var(--surface-container-high);color:color-mix(in srgb,var(--on-surface) 35%,transparent)}
+.oB .cta{padding:12px 16px 12px;display:flex;flex-direction:column;gap:10px}
+.oB .cta .btn{width:100%}
+.oB .crit{color:var(--on-surface-variant);text-align:center}
+.oB .chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;transform:skewX(-12deg);border-radius:2px;font:700 12px/1 "Barlow Condensed",sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;background:var(--surface-container-highest);color:var(--on-surface)}
+.oB .chip .ci{transform:skewX(12deg);display:inline-flex;gap:4px;align-items:center}
+.oB .chip .ms{font-size:14px}
+.oB .chip-open{background:var(--highlight);color:var(--on-highlight)}
+.oB .chip-you{background:transparent;box-shadow:inset 0 0 0 1.5px var(--highlight);color:var(--primary)}
+.oB .chip-done{background:transparent;box-shadow:inset 0 0 0 1px var(--outline);color:var(--on-surface-variant)}
+.oB .chip-cancel{background:var(--loss-container);color:var(--on-loss-container)}
+.oB .chip-tour{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oB .chip-live{background:var(--live);color:#fff}
+.oB .chip-live .ci::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;animation:blink 1s steps(2) infinite}
+.oB .chip-up{background:var(--win-container);color:var(--on-win-container)}
+.oB .wx{display:inline-flex;align-items:center;gap:4px;color:var(--on-surface-variant);font:600 13px/1 "Barlow Condensed";letter-spacing:.03em}
+.oB .wx .ms{font-size:16px;color:var(--info)}
+.oB .wx-r{color:var(--info)}
+.oB .av{border-radius:6px;font:700 calc(var(--s)*.4)/1 "Barlow Condensed";letter-spacing:.02em;background:var(--surface-container-highest);color:var(--on-surface)}
+.oB .av[data-tone="1"]{background:var(--primary-container);color:var(--on-primary-container)}
+.oB .av[data-tone="2"]{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oB .av[data-tone="3"]{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oB .tabs{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid var(--outline-variant)}
+.oB .tab{padding:12px 12px 10px;color:var(--on-surface-variant);position:relative;display:inline-flex;gap:6px;align-items:center}
+.oB .tab.on{color:var(--on-surface)}
+.oB .tab.on::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:3px;background:var(--highlight);transform:skewX(-20deg)}
+.oB .badge{min-width:16px;height:16px;border-radius:2px;background:var(--live);color:#fff;font:700 11px/16px "Barlow Condensed";text-align:center;padding:0 4px}
+.oB .list{padding:12px 16px 16px;display:flex;flex-direction:column;gap:8px}
+.oB .gc{display:grid;grid-template-columns:70px 1fr;background:var(--surface-container);border-radius:8px;overflow:hidden;position:relative;width:100%}
+.oB .gc-date{background:var(--surface-container-high);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 4px;gap:3px;color:var(--on-surface-variant)}
+.oB .gc-time{font:800 italic 30px/26px "Barlow Condensed";color:var(--on-surface);letter-spacing:-.01em}
+.oB .gc.mine .gc-date{background:var(--highlight);color:var(--on-highlight)}
+.oB .gc.mine .gc-time{color:var(--on-highlight)}
+.oB .gc-main{padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.oB .gc-main .t-tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oB .gc-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.oB .gc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.oB .bars{display:flex;gap:4px;align-items:center}
+.oB .bars i{width:16px;height:6px;background:var(--surface-container-highest);transform:skewX(-20deg)}
+.oB .bars i.f{background:var(--highlight)}
+.oB .tc{position:relative;padding:14px;border-radius:8px;width:100%;overflow:hidden;background:linear-gradient(120deg,color-mix(in srgb,var(--tertiary) 16%,var(--surface-container)) 0%,var(--surface-container) 62%);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tertiary) 35%,transparent);display:flex;flex-direction:column;gap:4px}
+.oB .tc-top{display:flex;gap:10px;align-items:center;margin-bottom:4px}
+.oB .tc-br{position:absolute;right:14px;top:44px;width:52px;color:var(--tertiary);opacity:.55}
+.oB .tc-foot{display:flex;align-items:center;gap:10px;margin-top:8px}
+.oB .leader{margin:4px 16px 8px;border-radius:8px;padding:14px 16px;position:relative;overflow:hidden;background:linear-gradient(120deg,color-mix(in srgb,var(--highlight) 18%,var(--surface-container)),var(--surface-container) 65%);display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
+.oB .leader .rk1{font:800 italic 56px/0.9 "Barlow Condensed";color:var(--primary)}
+.oB .leader .lines{position:absolute;inset:0;opacity:.08;color:var(--on-surface);pointer-events:none}
+.oB .lb-head{display:grid;grid-template-columns:42px 1fr auto;padding:8px 16px 6px;color:var(--on-surface-variant)}
+.oB .lbr{display:grid;grid-template-columns:34px 32px 1fr auto;gap:10px;align-items:center;padding:8px 16px;border-top:1px solid var(--outline-variant)}
+.oB .lbr .rk{font:800 italic 20px/1 "Barlow Condensed";color:var(--on-surface-variant)}
+.oB .lbr .rk.top{color:var(--primary)}
+.oB .lbr .lbr-r{font:700 20px/1 "Barlow Condensed";letter-spacing:.01em}
+.oB .lbn{display:flex;flex-direction:column;min-width:0}
+.oB .lbn b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oB .me-pin{position:absolute;left:0;right:0;bottom:0}
+.oB .lbr.me{background:var(--highlight);color:var(--on-highlight);border-top:0;padding:10px 16px}
+.oB .lbr.me .rk,.oB .lbr.me .muted{color:color-mix(in srgb,var(--on-highlight) 70%,transparent)}
+.oB .lbr.me .av{background:var(--on-highlight);color:var(--highlight)}
+.oB .pc{margin:0 12px;border-radius:10px;padding:16px;position:relative;overflow:hidden;background:radial-gradient(120% 80% at 100% 0%,color-mix(in srgb,var(--highlight) 22%,transparent),transparent 60%),var(--surface-container)}
+.oB .pc .lines{position:absolute;inset:0;opacity:.07;color:var(--on-surface);pointer-events:none}
+.oB .pc-top{display:flex;align-items:center;gap:12px;position:relative}
+.oB .pc-top>div{flex:1;min-width:0}
+.oB .pc-rating{display:flex;align-items:flex-end;gap:12px;margin:12px 0 10px;position:relative}
+.oB .pc-rating .t-numL{color:var(--primary)}
+.oB .pc-lab{display:flex;flex-direction:column;gap:6px;padding-bottom:8px}
+.oB .pc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;position:relative}
+.oB .pc-stats>div{background:color-mix(in srgb,var(--background) 55%,transparent);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.oB .form{display:flex;align-items:center;gap:5px;margin-top:12px;position:relative}
+.oB .form .t-ls{margin-right:6px}
+.oB .form i{width:22px;height:22px;display:grid;place-items:center;font:800 13px/1 "Barlow Condensed";font-style:normal;border-radius:3px;transform:skewX(-10deg)}
+.oB .form i.f-W{background:var(--highlight);color:var(--on-highlight)}
+.oB .form i.f-L{background:var(--loss);color:#fff}
+.oB .hist{display:flex;flex-direction:column;gap:6px;padding:10px 12px}
+.oB .hr{display:grid;grid-template-columns:4px 1fr auto;gap:12px;align-items:center;background:var(--surface-container);border-radius:6px;padding:9px 12px 9px 0;overflow:hidden}
+.oB .hr-bar{align-self:stretch;margin:-9px 0;background:var(--outline-variant)}
+.oB .hr.W .hr-bar{background:var(--highlight)}
+.oB .hr.L .hr-bar{background:var(--loss)}
+.oB .hr-line{display:grid;grid-template-columns:1fr 22px 22px 22px;align-items:center;color:var(--on-surface-variant)}
+.oB .hr-line .num{text-align:center;font:700 17px/22px "Barlow Condensed"}
+.oB .hr-line .num.w{color:var(--on-surface)}
+.oB .hr-line.win{color:var(--on-surface)}
+.oB .hr-line.win .t-lm::after{content:"";display:inline-block;width:5px;height:5px;margin-left:6px;vertical-align:2px;background:var(--highlight);transform:rotate(45deg)}
+.oB .hr-r{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.oB .dl{font:800 italic 20px/1 "Barlow Condensed"}
+.oB .dl.up{color:var(--win)}.oB .dl.dn{color:var(--loss)}
+.oB .oc{width:26px;height:26px;display:grid;place-items:center;font:800 15px/1 "Barlow Condensed";transform:skewX(-10deg);border-radius:3px}
+.oB .oc-W{background:var(--highlight);color:var(--on-highlight)}
+.oB .oc-L{background:var(--loss);color:#fff}
+.oB .nav{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface-container-lowest);border-top:1px solid var(--outline-variant);padding:0 4px 2px;flex:none;width:100%}
+.oB .nv{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--on-surface-variant);padding:10px 0 4px;position:relative}
+.oB .nv b{font:700 11px/1 "Barlow Condensed";letter-spacing:.08em;text-transform:uppercase}
+.oB .nv.on{color:var(--primary)}
+.oB .nv.on::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;background:var(--highlight);transform:skewX(-20deg)}
+.oB .radar-wrap{position:relative;height:236px;margin:0 12px;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 70% 46%,color-mix(in srgb,var(--highlight) 10%,transparent),transparent 55%),var(--surface-container-low)}
+.oB .radar{position:absolute;right:-56px;top:-30px;width:300px;height:300px}
+.oB .radar svg{position:absolute;inset:0;width:100%;height:100%;color:var(--outline-variant)}
+.oB .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,color-mix(in srgb,var(--highlight) 38%,transparent),transparent 22%);animation:spin 3.2s linear infinite;-webkit-mask:radial-gradient(circle,#000 69%,transparent 70%);mask:radial-gradient(circle,#000 69%,transparent 70%)}
+.oB .me-dot{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--highlight)}
+.oB .me-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--highlight);animation:pulse 1.8s ease-out infinite}
+.oB .blip{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--on-surface);opacity:.75}
+.oB .radar-txt{position:absolute;left:16px;bottom:16px;right:16px}
+.oB .radar-txt p{margin-top:6px;max-width:200px}
+.oB .mf{position:absolute;inset:0;z-index:30;background:var(--background);display:flex;flex-direction:column;padding:6px 16px 14px;overflow:hidden}
+.oB .mf-glow{position:absolute;left:-40%;right:-40%;top:-30%;height:70%;background:radial-gradient(closest-side,color-mix(in srgb,var(--highlight) 30%,transparent),transparent);pointer-events:none}
+.oB .mf .lines{position:absolute;left:-40px;right:-40px;top:120px;opacity:.08;color:var(--highlight);transform:rotate(-12deg)}
+.oB .mf>*:not(.mf-glow):not(.lines){position:relative}
+.oB .mf-top{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.oB .mf-title{margin:14px 0 14px;color:var(--primary)}
+.oB .mf-vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+.oB .mf-p{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;background:var(--surface-container);border-radius:8px;padding:14px 8px}
+.oB .mf-p .t-numM{color:var(--primary)}
+.oB .mf-x{font:800 italic 34px/1 "Barlow Condensed";color:var(--on-surface-variant)}
+.oB .mf-info{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:1px;background:var(--outline-variant);border-radius:8px;overflow:hidden;margin-top:10px}
+.oB .mf-info>div{background:var(--surface-container);padding:9px 10px;display:flex;flex-direction:column;gap:3px}
+.oB .mf-map{height:92px;border-radius:8px;overflow:hidden;margin-top:10px}
+.oB .mf-timer{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.oB .bar{height:6px;background:var(--surface-container-highest);border-radius:1px;overflow:hidden;transform:skewX(-20deg)}
+.oB .bar i{display:block;height:100%;background:var(--live)}
+.oB .mf-btns{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.oB .mf-btns .btn{width:100%}
+.oB .q{background:var(--surface-container);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--highlight) 40%,transparent);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;width:100%}
+.oB .q .dotlive{width:8px;height:8px;border-radius:50%;background:var(--highlight);position:relative;flex:none}
+.oB .q .dotlive::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--highlight);animation:pulse 1.6s ease-out infinite}
+.oB .sbd{width:100%;border-radius:8px;overflow:hidden;background:var(--surface-container)}
+.oB .sbd-h{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface-container-high)}
+.oB .sbd-r{display:grid;grid-template-columns:1fr 36px 36px;align-items:stretch;border-top:1px solid var(--outline-variant)}
+.oB .sbd-r .nm{padding:10px 12px;display:flex;align-items:center;gap:8px}
+.oB .sbd-r .num{display:grid;place-items:center;font:800 22px/1 "Barlow Condensed";color:var(--on-surface-variant)}
+.oB .sbd-r .num.w{background:var(--highlight);color:var(--on-highlight)}
+.oB .sbd-r.win .nm{color:var(--primary)}
+.oB .field{width:100%;border-radius:6px;padding:8px 12px 10px;background:var(--surface-container-high);box-shadow:inset 0 -2px 0 var(--outline)}
+.oB .field.focus{box-shadow:inset 0 -2px 0 var(--highlight)}
+.oB .field label{display:block;color:var(--on-surface-variant)}
+.oB .banner{display:flex;gap:10px;align-items:center;background:var(--surface-container-highest);color:var(--on-surface);border-radius:6px;padding:12px 14px;width:100%;border-left:3px solid var(--highlight)}
+.oB .banner .act{margin-left:auto;color:var(--primary);font:700 14px/1 "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase}
+.oB .si{flex:1;display:flex;flex-direction:column;padding:0 20px 18px;position:relative;overflow:hidden}
+.oB .si .lines{position:absolute;left:-120px;right:-120px;top:120px;color:var(--highlight);opacity:.1;transform:rotate(-24deg)}
+.oB .si-glow{position:absolute;left:-30%;right:-30%;top:18%;height:46%;background:radial-gradient(closest-side,color-mix(in srgb,var(--highlight) 22%,transparent),transparent)}
+.oB .si-mid{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;position:relative;padding-left:4px}
+.oB .si-foot{display:flex;flex-direction:column;gap:12px;position:relative}
+.oB .si-foot .btn{width:100%}
+.wmB{display:inline-flex;align-items:baseline;font-family:"Barlow Condensed",sans-serif;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:-.005em;line-height:.9;color:var(--on-surface)}
+.wmB .o{width:.66em;height:.66em;margin:0 .015em 0 .03em;color:var(--highlight);--cut:var(--wm-bg,var(--background));transform:skewX(-9deg);flex:none}
+
+/* =====================================================================
+   5. OPTION C · CLUBHOUSE   (warm, playful, social; "sticker" UI)
+   ===================================================================== */
+.oC{--map-land:#EFE6D6;--map-water:#BFDDF2;--map-road:#FFFFFF;--map-park:#CDE9C9;--map-pin:var(--primary)}
+.oC[data-mode="dark"]{--map-land:#2A221D;--map-water:#173556;--map-road:#3D332C;--map-park:#1D4B30}
+.oC .screen,.oC .stage{font-family:"Figtree",system-ui,sans-serif}
+.oC .ms{font-family:"Material Symbols Rounded";font-variation-settings:"FILL" 0,"wght" 500,"GRAD" 0,"opsz" 24}
+.oC .ms.fill{font-variation-settings:"FILL" 1,"wght" 500,"GRAD" 0,"opsz" 24}
+.oC .stk{border:1.5px solid var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .ab-row{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 6px 20px;min-height:56px;gap:10px}
+.oC .rbtn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface-container-lowest);color:var(--on-surface);flex:none}
+.oC .rbtn.prim{background:var(--primary);color:var(--on-primary)}
+.oC .eyebrow{padding:16px 20px 8px}
+.oC .court-card{margin:4px 16px 0;height:112px;border-radius:24px;overflow:hidden;position:relative;background:var(--secondary)}
+.oC .court-card svg.court{position:absolute;left:-10px;top:-6px;width:calc(100% + 20px);height:calc(100% + 12px);color:#fff;opacity:.85}
+.oC .court-card .ballx{position:absolute;right:42px;top:26px;width:34px;height:34px;animation:bounce 1.6s ease-in-out infinite}
+.oC .court-card .cc-tag{position:absolute;left:14px;bottom:12px}
+.oC .how{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px 0}
+.oC .how>div{border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:6px}
+.oC .how .ms{font-size:20px}
+.oC .c1{background:var(--primary-container);color:var(--on-primary-container)}
+.oC .c2{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oC .c3{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oC .c4{background:var(--info-container);color:var(--on-info-container)}
+.oC .locs{display:flex;flex-direction:column;gap:8px;padding:0 16px;width:100%}
+.oC .stage .locs{padding:0}
+.oC .loc{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:20px;background:var(--surface-container-lowest);border:1.5px solid var(--outline-variant);transition:transform .2s}
+.oC .loc.on{border-color:var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .loc-ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--primary-container);color:var(--primary);flex:none}
+.oC .loc.on .loc-ic{background:var(--primary);color:var(--on-primary)}
+.oC .loc-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.oC .loc-t span{color:var(--on-surface-variant)}
+.oC .radio{width:24px;height:24px;border-radius:50%;border:2px solid var(--outline-variant);display:grid;place-items:center;flex:none}
+.oC .radio .ms{font-size:16px}
+.oC .loc.on .radio{background:var(--secondary);border-color:var(--sticker-border);color:var(--on-secondary)}
+.oC .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface-container-high);border-radius:999px;padding:4px;margin:0 16px;border:1.5px solid var(--outline-variant)}
+.oC .stage .seg{margin:0;width:100%}
+.oC .seg-i{height:40px;border-radius:999px;display:grid;place-items:center;color:var(--on-surface-variant);gap:6px;grid-auto-flow:column}
+.oC .seg-i.on{background:var(--surface-container-lowest);color:var(--on-surface);border:1.5px solid var(--sticker-border);box-shadow:0 2px 0 var(--sticker-shadow)}
+.oC .btn{height:56px;border-radius:999px;padding:0 24px;font:700 16px/1 Figtree,sans-serif;border:1.5px solid var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .btn-sm{height:42px;padding:0 16px;font-size:14px}
+.oC .btn-primary{background:var(--primary);color:var(--on-primary)}
+.oC .btn-secondary{background:var(--surface-container-lowest);color:var(--on-surface)}
+.oC .btn-tonal{background:var(--tertiary);color:var(--on-tertiary)}
+.oC .btn-text{border-color:transparent;box-shadow:none;color:var(--primary);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px;padding:0 10px}
+.oC .btn-danger{background:var(--error-container);color:var(--on-error-container)}
+.oC .btn-dis{background:var(--surface-container-high);color:color-mix(in srgb,var(--on-surface) 38%,transparent);border-color:var(--outline-variant);box-shadow:none}
+.oC .btn.pressed{transform:translateY(2px);box-shadow:0 1px 0 var(--sticker-shadow)}
+.oC .cta{padding:10px 16px 10px;display:flex;flex-direction:column;gap:8px}
+.oC .cta .btn{width:100%}
+.oC .chip{display:inline-flex;align-items:center;height:28px;padding:0 11px;border-radius:999px;font:700 12.5px/1 Figtree,sans-serif;background:var(--surface-container-high);color:var(--on-surface);white-space:nowrap}
+.oC .chip .ci{display:inline-flex;align-items:center;gap:5px}
+.oC .chip .ms{font-size:16px}
+.oC .chip-open{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oC .chip-you{background:var(--primary);color:var(--on-primary)}
+.oC .chip-booked{background:var(--info-container);color:var(--on-info-container)}
+.oC .chip-done{background:var(--surface-container-high);color:var(--on-surface-variant)}
+.oC .chip-cancel{background:var(--error-container);color:var(--on-error-container)}
+.oC .chip-tour{background:var(--tertiary);color:var(--on-tertiary);border:1.5px solid var(--sticker-border)}
+.oC .chip-date{background:var(--primary-container);color:var(--on-primary-container)}
+.oC .chip-up{background:var(--win-container);color:var(--on-win-container)}
+.oC .chip-rank{background:var(--surface-container-lowest);border:1.5px solid var(--sticker-border);color:var(--on-surface)}
+.oC .chip-donut{background:var(--tertiary-container);color:var(--on-tertiary-container);height:24px;padding:0 9px 0 4px;font-size:12px}
+.oC .chip-donut svg{width:18px;height:18px}
+.oC .wx{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;background:var(--info-container);color:var(--on-info-container);font:700 12.5px/1 Figtree}
+.oC .wx .ms{font-size:16px}
+.oC .wx-r{font-weight:600;opacity:.85}
+.oC .av{border-radius:50%;font:800 calc(var(--s)*.36)/1 "Bricolage Grotesque";border:1.5px solid var(--sticker-border);background:var(--primary-container);color:var(--on-primary-container)}
+.oC .av[data-tone="1"]{background:var(--secondary-container);color:var(--on-secondary-container)}
+.oC .av[data-tone="2"]{background:var(--tertiary-container);color:var(--on-tertiary-container)}
+.oC .av[data-tone="3"]{background:var(--info-container);color:var(--on-info-container)}
+.oC .stack .av,.oC .slot{margin-right:-8px}
+.oC .slot{width:32px;height:32px;border-radius:50%;border:1.5px dashed var(--outline);display:grid;place-items:center;color:var(--on-surface-variant);background:var(--surface-container-lowest)}
+.oC .slot .ms{font-size:16px}
+.oC .list{padding:12px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.oC .gc{background:var(--surface-container-lowest);border-radius:24px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;width:100%}
+.oC .gc-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.oC .gc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.oC .go{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--surface-container-high);color:var(--on-surface)}
+.oC .go .ms{font-size:20px}
+.oC .left{font:700 13px/1 Figtree;color:var(--primary);margin-left:16px}
+.oC .tc{background:var(--tertiary);color:var(--on-tertiary);border-radius:24px;padding:14px 16px;position:relative;display:flex;flex-direction:column;gap:4px;width:100%}
+.oC .trophy{position:absolute;right:14px;top:-10px;width:50px;height:50px;border-radius:50%;background:var(--surface-container-lowest);color:var(--primary);display:grid;place-items:center;transform:rotate(10deg)}
+.oC .trophy .ms{font-size:28px}
+.oC .dots{display:flex;gap:5px;margin-top:8px;align-items:center}
+.oC .dots i{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--on-tertiary)}
+.oC .dots i.f{background:var(--on-tertiary)}
+.oC .dots span{margin-left:8px}
+.oC .podium{display:grid;grid-template-columns:1fr 1.1fr 1fr;align-items:end;gap:8px;padding:6px 16px 0}
+.oC .pd{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.oC .pd-av{position:relative;margin-bottom:2px}
+.oC .medal{position:absolute;right:-6px;bottom:-4px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 12px/1 "Bricolage Grotesque";border:1.5px solid var(--sticker-border);background:var(--m);color:#2A1E17}
+.oC .pd-block{width:100%;border-radius:18px 18px 0 0;border-bottom:0;box-shadow:none;background:var(--m);display:grid;place-items:center;color:#2A1E17;margin-top:6px}
+.oC .lb{display:flex;flex-direction:column;gap:6px;padding:0 16px;border-top:1.5px solid var(--sticker-border);margin:0 0;padding-top:12px;background:var(--background);position:relative}
+.oC .lbr{display:grid;grid-template-columns:30px 36px 1fr auto;gap:10px;align-items:center;padding:8px 12px;border-radius:18px;background:var(--surface-container-lowest);border:1.5px solid var(--outline-variant)}
+.oC .lbr .rk{font:800 15px/1 "Bricolage Grotesque";color:var(--on-surface-variant)}
+.oC .lbr .rt{background:var(--surface-container-high);border-radius:999px;padding:5px 10px;font:700 13px/1 Figtree;font-feature-settings:"tnum"}
+.oC .lbn{display:flex;flex-direction:column;min-width:0}
+.oC .lbn b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oC .me-pin{position:absolute;left:12px;right:12px;bottom:6px;z-index:3}
+.oC .lbr.me{background:var(--primary);color:var(--on-primary);border:1.5px solid var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .lbr.me .rk,.oC .lbr.me .muted{color:color-mix(in srgb,var(--on-primary) 80%,transparent)}
+.oC .lbr.me .rt{background:color-mix(in srgb,var(--on-primary) 22%,transparent)}
+.oC .pf{margin:2px 16px 0;border-radius:24px;padding:14px;display:flex;align-items:center;gap:12px;background:var(--primary-container);color:var(--on-primary-container)}
+.oC .pf>div{flex:1;min-width:0}
+.oC .tiles{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;padding:12px 16px}
+.oC .tile{border-radius:20px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.oC .tile .dl{align-self:flex-start;margin-top:2px}
+.oC .hist{display:flex;flex-direction:column;gap:8px;padding:12px 16px}
+.oC .hr{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:20px;background:var(--surface-container-lowest);border:1.5px solid var(--outline-variant)}
+.oC .hr-t{display:flex;flex-direction:column;gap:5px;min-width:0}
+.oC .hr-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oC .sets{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.oC .sets i{font:700 12px/1 Figtree;font-style:normal;background:var(--surface-container-high);border-radius:999px;padding:4px 8px;font-feature-settings:"tnum"}
+.oC .oc{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:800 17px/1 "Bricolage Grotesque";border:1.5px solid var(--sticker-border);box-shadow:0 2px 0 var(--sticker-shadow);transform:rotate(-8deg)}
+.oC .oc-W{background:var(--secondary);color:var(--on-secondary)}
+.oC .oc-L{background:var(--primary-container);color:var(--primary)}
+.oC .dl{font:800 13px/1 Figtree;padding:6px 9px;border-radius:999px;font-feature-settings:"tnum"}
+.oC .dl.up{background:var(--win-container);color:var(--on-win-container)}
+.oC .dl.dn{background:var(--loss-container);color:var(--on-loss-container)}
+.oC .nav{margin:4px 12px 2px;display:grid;grid-template-columns:auto auto auto auto;justify-content:space-between;align-items:center;padding:6px;border-radius:999px;background:var(--surface-container-lowest);border:1.5px solid var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow);flex:none}
+.oC .stage .nav{width:336px}
+.oC .nv{display:flex;align-items:center;gap:6px;height:44px;padding:0 13px;border-radius:999px;color:var(--on-surface-variant)}
+.oC .nv b{display:none;font:700 14px/1 Figtree}
+.oC .nv.on{background:var(--primary);color:var(--on-primary);padding:0 16px 0 13px}
+.oC .nv.on b{display:inline}
+.oC .sheet{background:var(--surface);border-radius:36px 36px 0 0;padding:0 18px 22px;gap:10px;border-top:1.5px solid var(--sticker-border)}
+.oC .mf-avs{display:flex;align-items:center;justify-content:center;margin-top:6px}
+.oC .mf-avs .av{box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .mf-avs .av:last-child{margin-left:-10px}
+.oC .vs{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--tertiary);color:var(--on-tertiary);font:800 15px/1 "Bricolage Grotesque";margin:0 -10px;position:relative;z-index:2;transform:rotate(-10deg)}
+.oC .mf-list{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.oC .mf-row{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:18px;background:var(--surface-container-lowest);border:1.5px solid var(--outline-variant)}
+.oC .bub{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none}
+.oC .bub .ms{font-size:20px}
+.oC .mf-row>div{display:flex;flex-direction:column}
+.oC .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.oC .btn-row .btn{padding:0 10px}
+.oC .sprk{position:absolute;width:14px;height:5px;border-radius:3px}
+.oC .q{background:var(--surface-container-lowest);border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:10px;width:100%}
+.oC .q .ballx{width:30px;height:30px;animation:bounce 1s ease-in-out infinite;flex:none}
+.oC .crit{display:flex;gap:6px;flex-wrap:wrap}
+.oC .sbd{width:100%;border-radius:24px;background:var(--surface-container-lowest);padding:6px 12px}
+.oC .sbd-r{display:grid;grid-template-columns:auto 1fr 34px 34px;gap:10px;align-items:center;padding:8px 0}
+.oC .sbd-r+.sbd-r{border-top:1.5px dashed var(--outline-variant)}
+.oC .sbd-r .num{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--surface-container-high);font:800 15px/1 "Bricolage Grotesque"}
+.oC .sbd-r .num.w{background:var(--secondary);color:var(--on-secondary)}
+.oC .field{width:100%;border:1.5px solid var(--outline-variant);border-radius:18px;padding:8px 14px 10px;background:var(--surface-container-lowest)}
+.oC .field.focus{border-color:var(--sticker-border);box-shadow:0 3px 0 var(--sticker-shadow)}
+.oC .field label{display:block;color:var(--on-surface-variant)}
+.oC .banner{display:flex;gap:10px;align-items:center;background:var(--secondary-container);color:var(--on-secondary-container);border-radius:20px;padding:12px 14px;width:100%}
+.oC .banner .act{margin-left:auto;font-weight:700;text-decoration:underline}
+.oC .si{flex:1;display:flex;flex-direction:column;padding:0 22px 18px;position:relative;overflow:hidden}
+.oC .si-mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;position:relative;text-align:center}
+.oC .si-logo{width:148px;height:148px;border-radius:50%;background:var(--primary);display:grid;place-items:center;transform:rotate(-8deg);border-width:2px;box-shadow:0 5px 0 var(--sticker-shadow)}
+.oC .si-logo svg{width:150px;height:150px}
+.oC .si-foot{display:flex;flex-direction:column;gap:12px;position:relative}
+.oC .si-foot .btn{width:100%}
+.oC .squig{position:absolute;color:var(--secondary);opacity:.5}
+.wmC{display:inline-flex;align-items:baseline;font-family:"Bricolage Grotesque",sans-serif;font-weight:800;letter-spacing:-.04em;line-height:1;color:var(--primary)}
+.wmC .o{width:.6em;height:.6em;margin:0 .01em -.035em;flex:none}
+</style>
+</head>
+<body>
+<!-- Logo geometry. Every mark is drawn on the Android adaptive-icon canvas (108 x 108, safe zone = circle r33 at 54,54)
+     so the path data can be pasted into a VectorDrawable. Colours come from CSS custom properties:
+     A: currentColor = mark, --cut = the colour behind the mark (it paints the seam gaps)
+     B: currentColor = ball + speed lines, --cut = the colour behind the mark
+     C: --dough, --frost, --ink, --sp1, --sp2 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="gA">
+      <path style="fill:currentColor" fill-rule="evenodd" d="M54 24a30 30 0 1 1 0 60a30 30 0 1 1 0-60Zm0 15a15 15 0 1 0 0 30a15 15 0 1 0 0-30Z"/>
+      <path style="fill:none;stroke:var(--cut,#fff)" stroke-width="4.5" stroke-linecap="round" d="M30 30C44 42 44 66 30 78M78 30C64 42 64 66 78 78"/>
+    </g>
+    <g id="gBball">
+      <path style="fill:currentColor" fill-rule="evenodd" d="M62 30a24 24 0 1 1 0 48a24 24 0 1 1 0-48Zm0 16a8 8 0 1 0 0 16a8 8 0 1 0 0-16Z"/>
+      <path style="fill:none;stroke:var(--cut,#07090A)" stroke-width="3.5" stroke-linecap="round" d="M44 36c10 9 10 27 0 36M80 36c-10 9-10 27 0 36"/>
+    </g>
+    <g id="gB">
+      <path style="fill:none;stroke:currentColor" stroke-width="5" stroke-linecap="round" d="M28 44h7M22 54h13M28 64h7"/>
+      <use href="#gBball"/>
+    </g>
+    <g id="gC">
+      <path style="fill:var(--dough,#F2C28B);stroke:var(--ink,#2A1E17)" stroke-width="3" fill-rule="evenodd" d="M54 23a31 31 0 1 1 0 62a31 31 0 1 1 0-62Zm0 20a11 11 0 1 0 0 22a11 11 0 1 0 0-22Z"/>
+      <g style="fill:var(--frost,#D9EE3A)">
+        <path fill-rule="evenodd" d="M54 29a25 25 0 1 1 0 50a25 25 0 1 1 0-50Zm0 11a14 14 0 1 0 0 28a14 14 0 1 0 0-28Z"/>
+        <circle cx="72.8" cy="69.8" r="4.5"/><circle cx="49.7" cy="78.1" r="4.5"/><circle cx="32.8" cy="66.3" r="4.5"/>
+        <circle cx="33.9" cy="39.9" r="4.5"/><circle cx="62.4" cy="31" r="4.5"/><circle cx="77" cy="45.6" r="4.5"/>
+      </g>
+      <path style="fill:none;stroke:#fff" stroke-width="3" stroke-linecap="round" d="M38 42Q46 34 54 37.5T70 40"/>
+      <g style="fill:none" stroke-width="3.2" stroke-linecap="round">
+        <path style="stroke:var(--sp1,#C8481E)" d="M34 60l5 3M64 69l3 4.5M34 50l2 5"/>
+        <path style="stroke:var(--sp2,#2F7D4E)" d="M45 74l4.5-3M70 61l4.5-3"/>
+        <path style="stroke:#fff" d="M67 45l5 1.5"/>
+      </g>
+    </g>
+    <g id="court"><g style="fill:none;stroke:currentColor" stroke-width="1.5">
+      <rect x="1" y="1" width="238" height="108"/><path d="M1 14.5H239M1 95.5H239M56 14.5V95.5M184 14.5V95.5M56 55H184M1 55h6M239 55h-6"/>
+      <path d="M120 -6V116" stroke-width="3"/></g></g>
+  </defs>
+</svg>
+
+<nav class="topnav" aria-label="Sections"><div class="wrap">
+  <b>Donut · Design directions</b>
+  <a href="#overview">Overview</a><a href="#option-a">A · Baseline</a><a href="#option-b">B · Night Session</a><a href="#option-c">C · Clubhouse</a><a href="#compare">Compare</a><a href="#handoff">Implementation brief</a>
+  <span class="sp"></span><button id="docTheme" type="button">Page theme</button>
+</div></nav>
+
+<main>
+<header class="hero wrap">
+  <div class="kicker">Donut · Android · v1 · 16 Nov 2026</div>
+  <h1 class="doc">Three modern directions for Donut</h1>
+  <p class="lede">Each option is a complete visual system: logo and app icon, colour and type tokens, shapes, motion, a component set and six sample screens built from the app's real features (matchmaking, the games feed, the leaderboard, profile and match history). Pick one, or mix parts, then hand the <a href="#handoff">implementation brief</a> to an agent.</p>
+
+  <div class="grid2" style="margin-top:28px">
+    <div class="panel">
+      <h4 class="doc" style="margin-top:0">Where the app is today</h4>
+      <ul class="tight dmuted">
+        <li>Launcher shows <b>"CPEN321 Application"</b> with the stock Android icon (<code>res/values/strings.xml</code>, <code>res/drawable/ic_launcher_*.xml</code>).</li>
+        <li>A good base palette already exists: CourtGreen <code>#1E5B3A</code>, BallYellow <code>#D7E84B</code> and green-tinted "Mist" neutrals (<code>core/ui/theme/Color.kt</code>).</li>
+        <li>Type is system Roboto, with Roboto Condensed Bold headlines (<code>Type.kt</code>).</li>
+        <li>Screens use stock Material 3 parts (Card, TabRow, SegmentedButton, AlertDialog, NavigationBar), so they read as generic. Win/loss colours are hard-coded in <code>MatchOutcomeBadge.kt</code>.</li>
+        <li>Tabs: Profile · Matchmaking · Leaderboard · Games.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h4 class="doc" style="margin-top:0">What every option keeps</h4>
+      <ul class="tight dmuted">
+        <li><b>The name.</b> In tennis a 6–0 set is called a "bagel", a ring-shaped zero. All three logos fuse that ring (the donut) with a tennis-ball seam.</li>
+        <li><b>The data.</b> Screens only show what the backend already returns, or what the app can work out from it (see <a href="#data-notes">data notes</a>).</li>
+        <li><b>Material 3 underneath.</b> Every colour maps to an M3 colour role, so the work is mostly theme and component code, with no rewrite.</li>
+        <li><b>Light and dark.</b> Every option ships both. Use the toggle on each option to switch its previews.</li>
+      </ul>
+    </div>
+  </div>
+</header>
+
+<section class="doc" id="overview"><div class="wrap">
+  <h2 class="doc">Overview</h2>
+  <p class="dmuted" style="margin:0 0 20px">Same app, three personalities. Each card shows the logo, the core palette, the type pairing and the matchmaking screen.</p>
+  <div class="grid3" id="overviewCards"></div>
+</div></section>
+
+<!-- ================================================================ OPTION A -->
+<section class="doc" id="option-a"><div class="wrap">
+  <div class="opt-band">
+    <div><div class="opt-letter">Option A</div><h2 class="doc">Baseline</h2>
+      <p class="dmuted" style="margin:0;max-width:720px">Quiet, Swiss-clean and data-forward. Ratings, scores and start times do the talking. A near-monochrome interface with one court-green signal colour and monospaced numbers.</p></div>
+    <div class="modes" data-for="A"><button type="button" data-m="light" class="on">Light</button><button type="button" data-m="dark">Dark</button></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><dl class="kv">
+      <dt>Mood</dt><dd>Calm · precise · premium · light-first</dd>
+      <dt>Feels like</dt><dd>A well-made fitness or finance app: lots of air, hairlines, no decoration that doesn't carry information.</dd>
+      <dt>Choose it if</dt><dd>You want the most timeless look, the cheapest build and the lowest risk of looking dated in a year.</dd>
+      <dt>Trade-offs</dt><dd>Least "sporty". It relies on exact spacing and type, so sloppy padding shows immediately.</dd>
+    </dl></div>
+    <div class="panel"><dl class="kv">
+      <dt>Signature moves</dt><dd>Geist Mono for every number that matters · 1 dp hairline borders, no shadows · inset grouped lists · ink-black pill buttons · dark "You" pill pinned on the leaderboard · rating sparkline on Profile.</dd>
+      <dt>Copy tone</dt><dd>Plain and short, in sentence case: "Find a match", "Accept by 6:00 PM", "1 spot left".</dd>
+      <dt>Icons</dt><dd>Material Symbols <b>Outlined</b>, weight 300, filled when selected.</dd>
+    </dl></div>
+  </div>
+  <div class="oA" data-mode="light" id="prev-A">
+    <h3 class="doc">Brand</h3><div id="brand-A"></div>
+    <h3 class="doc">Colour tokens</h3><div id="sw-A"></div>
+    <h3 class="doc">Typography</h3><div id="type-A"></div>
+    <h3 class="doc">Shape, space, depth, motion</h3><div id="sys-A"></div>
+    <h3 class="doc">Components</h3><div class="gallery" id="gal-A"></div>
+    <h3 class="doc">Screens</h3><div class="screens" id="scr-A"></div>
+  </div>
+  <h3 class="doc">Compose code for Option A</h3><div id="kt-A"></div>
+</div></section>
+
+<!-- ================================================================ OPTION B -->
+<section class="doc" id="option-b"><div class="wrap">
+  <div class="opt-band">
+    <div><div class="opt-letter">Option B</div><h2 class="doc">Night Session</h2>
+      <p class="dmuted" style="margin:0;max-width:720px">Prime-time energy. Dark, condensed and italic, like a broadcast scoreboard in your pocket. Optic-yellow on near-black, with skewed tags that suggest speed.</p></div>
+    <div class="modes" data-for="B"><button type="button" data-m="light">Light</button><button type="button" data-m="dark" class="on">Dark</button></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><dl class="kv">
+      <dt>Mood</dt><dd>Bold · competitive · fast · dark-first</dd>
+      <dt>Feels like</dt><dd>A sports-broadcast graphics package, or a modern sportswear app.</dd>
+      <dt>Choose it if</dt><dd>You want the app to feel competitive and exciting, leaning into ratings, form and rivalries. This fits the product brief ("competitive tennis") most closely.</dd>
+      <dt>Trade-offs</dt><dd>Dark-first, so the light theme is the weaker one. Uppercase labels need care with tests and screen readers. The neon yellow must stay a highlight and never become a large background, or it tires the eye.</dd>
+    </dl></div>
+    <div class="panel"><dl class="kv">
+      <dt>Signature moves</dt><dd>Optic yellow <code>#DCFF3A</code> on <code>#07090A</code> · parallelogram tags and segmented items · radar on Matchmaking · full-screen "Match found" VS takeover with an accept countdown · scoreboard-style history · form guide (W L W W W) · fixture-list game cards.</dd>
+      <dt>Copy tone</dt><dd>Punchy uppercase for labels and buttons ("FIND A MATCH", "ACCEPT"). Body text stays in sentence case.</dd>
+      <dt>Icons</dt><dd>Material Symbols <b>Sharp</b>, weight 500, filled when selected.</dd>
+    </dl></div>
+  </div>
+  <div class="oB" data-mode="dark" id="prev-B">
+    <h3 class="doc">Brand</h3><div id="brand-B"></div>
+    <h3 class="doc">Colour tokens</h3><div id="sw-B"></div>
+    <h3 class="doc">Typography</h3><div id="type-B"></div>
+    <h3 class="doc">Shape, space, depth, motion</h3><div id="sys-B"></div>
+    <h3 class="doc">Components</h3><div class="gallery" id="gal-B"></div>
+    <h3 class="doc">Screens</h3><div class="screens" id="scr-B"></div>
+  </div>
+  <h3 class="doc">Compose code for Option B</h3><div id="kt-B"></div>
+</div></section>
+
+<!-- ================================================================ OPTION C -->
+<section class="doc" id="option-c"><div class="wrap">
+  <div class="opt-band">
+    <div><div class="opt-letter">Option C</div><h2 class="doc">Clubhouse</h2>
+      <p class="dmuted" style="margin:0;max-width:720px">Warm, social and a little playful: the neighbourhood tennis club, not the pro tour. Cream, clay, grass and ball-yellow, with ink outlines and solid offset "sticker" shadows.</p></div>
+    <div class="modes" data-for="C"><button type="button" data-m="light" class="on">Light</button><button type="button" data-m="dark">Dark</button></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><dl class="kv">
+      <dt>Mood</dt><dd>Friendly · playful · social · warm light</dd>
+      <dt>Feels like</dt><dd>Modern consumer and social apps with soft neo-brutalist "sticker" UI.</dd>
+      <dt>Choose it if</dt><dd>You want "Donut" to be memorable and approachable for casual players who find games through friends.</dd>
+      <dt>Trade-offs</dt><dd>The most custom code (sticker modifier, podium, illustrations). The playful tone may undersell the competitive Elo side.</dd>
+    </dl></div>
+    <div class="panel"><dl class="kv">
+      <dt>Signature moves</dt><dd>Frosted-donut tennis-ball logo · ink borders with 3 dp solid offset shadows · press = sink 2 dp · floating pill bottom bar · podium for the top 3 · "It's a match!" sheet · a "Donut set!" badge for 6–0 sets.</dd>
+      <dt>Copy tone</dt><dd>Warm and conversational: "Ready for a hit?", "Find me a match", "I'm in!".</dd>
+      <dt>Icons</dt><dd>Material Symbols <b>Rounded</b>, weight 500, filled when selected, often inside a coloured circle.</dd>
+    </dl></div>
+  </div>
+  <div class="oC" data-mode="light" id="prev-C">
+    <h3 class="doc">Brand</h3><div id="brand-C"></div>
+    <h3 class="doc">Colour tokens</h3><div id="sw-C"></div>
+    <h3 class="doc">Typography</h3><div id="type-C"></div>
+    <h3 class="doc">Shape, space, depth, motion</h3><div id="sys-C"></div>
+    <h3 class="doc">Components</h3><div class="gallery" id="gal-C"></div>
+    <h3 class="doc">Screens</h3><div class="screens" id="scr-C"></div>
+  </div>
+  <h3 class="doc">Compose code for Option C</h3><div id="kt-C"></div>
+</div></section>
+
+<!-- ================================================================ COMPARE -->
+<section class="doc" id="compare"><div class="wrap">
+  <h2 class="doc">Compare</h2>
+  <p class="dmuted" style="margin:0 0 6px">The same screen in all three options. Each one is shown in its default theme.</p>
+  <div class="cmp-tabs" id="cmpTabs"></div>
+  <div class="cmp-row" id="cmpRow"></div>
+  <h3 class="doc">Side by side</h3>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th></th><th>A · Baseline</th><th>B · Night Session</th><th>C · Clubhouse</th></tr></thead>
+    <tbody>
+      <tr><th>Personality</th><td>Calm, precise, premium</td><td>Bold, competitive, fast</td><td>Warm, playful, social</td></tr>
+      <tr><th>Default theme</th><td>Light (dark included)</td><td>Dark (light included; can ship dark-only)</td><td>Light (dark included)</td></tr>
+      <tr><th>Fonts</th><td>Geist + Geist Mono</td><td>Barlow Condensed + Barlow</td><td>Bricolage Grotesque + Figtree</td></tr>
+      <tr><th>Core colours</th><td>Ink <code>#111714</code>, court green <code>#0F7B4F</code>, ball <code>#C9EE3F</code></td><td>Night <code>#07090A</code>, optic <code>#DCFF3A</code>, clay <code>#FF5A36</code>, cyan <code>#5CC8FF</code></td><td>Cream <code>#FBF5EC</code>, clay <code>#C8481E</code>, grass <code>#2F7D4E</code>, ball <code>#D9EE3A</code></td></tr>
+      <tr><th>Shape</th><td>Pill buttons, 20 dp cards</td><td>6–8 dp corners, skewed tags</td><td>Pill everything, 24–28 dp cards</td></tr>
+      <tr><th>Depth</th><td>Flat, 1 dp hairlines</td><td>Tonal surface steps, yellow glow on the main button</td><td>Ink outline and 3 dp solid offset shadow</td></tr>
+      <tr><th>Signature</th><td>Mono numerals, sparkline, inset lists</td><td>Radar, VS takeover, scoreboards, form guide</td><td>Donut logo, podium, floating pill bar</td></tr>
+      <tr><th>Build effort</th><td><b>Low–medium.</b> Mostly theme plus card rework.</td><td><b>Medium.</b> Custom shapes, radar, scoreboard.</td><td><b>Medium–high.</b> Sticker modifier, podium, illustration.</td></tr>
+      <tr><th>Main risk</th><td>Can look generic if spacing slips</td><td>Uppercase vs. tests, neon fatigue, weaker light mode</td><td>Playfulness vs. competitive users; more custom UI to maintain</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout"><b>Recommendation.</b> <b>B</b> fits Donut's "instant matchmaking for competitive tennis" positioning best. <b>A</b> is the safe fallback and the fastest to build. Tokens are independent, so mixing works, e.g. A's layout and colours with B's scoreboard and form guide, or C's logo on A's system. If you mix, say which parts come from which option in the brief.</div>
+</div></section>
+
+<!-- ================================================================ HANDOFF -->
+<section class="doc" id="handoff"><div class="wrap">
+  <h2 class="doc">Implementation brief</h2>
+  <p class="dmuted" style="margin:0 0 18px;max-width:820px">Written for the agent or developer who builds the chosen option in <code>frontend/</code>. It applies to every option; option-specific code is in each option's "Compose code" block, generated from <code>TOKENS</code>.</p>
+
+  <details class="code" open><summary>Prompt to hand to an agent <button class="copy" type="button" data-copy="prompt">Copy</button></summary><pre id="prompt">Implement design Option &lt;A | B | C&gt; ("&lt;Baseline | Night Session | Clubhouse&gt;") from
+documentation/design/design-directions.html in the Android app under frontend/.
+
+Read, in that file:
+  1. The section with id "option-&lt;a|b|c&gt;" for the concept, rules, components and screens.
+  2. const TOKENS in &lt;script id="tokens"&gt;. It is the source of truth for colours, type, shapes,
+     spacing, motion and icons. The "Compose code" block in the option section is generated from it.
+  3. The templates in &lt;script id="render"&gt; (object R.&lt;A|B|C&gt;) for exact layout and token use.
+  4. The section with id "handoff": constraints, phases, file map, data notes, acceptance checklist.
+
+Work in the phases in the brief, and build and run the tests after each phase.
+Do not change any version in frontend/gradle/libs.versions.toml and do not add libraries
+unless the brief allows it. Keep the strings that androidTest asserts, or update those tests in the
+same change. Open the app in the emulator and compare each screen against the mockup in both themes.</pre></details>
+
+  <h3 class="doc">Hard constraints</h3>
+  <ul class="tight">
+    <li><b>Frozen toolchain.</b> <code>libs.versions.toml</code> pins AGP 8.13, Kotlin 2.1.21, compileSdk 35 and Compose BOM <code>2025.06.01</code>, which gives Material 3 <b>1.3.x</b>. Do not bump anything. M3 Expressive APIs (<code>MaterialExpressiveTheme</code>, <code>ButtonGroup</code>, <code>LoadingIndicator</code>, <code>FloatingToolbar</code>, shape morphing) are <b>not available</b>. Build those looks by hand.</li>
+    <li><b>Fonts are bundled</b>, not downloadable. Put static TTFs (all SIL Open Font License, free to bundle) in <code>app/src/main/res/font/</code> with the exact file names listed in the option's Type.kt, and commit the OFL text (e.g. <code>documentation/licenses/OFL-&lt;family&gt;.txt</code>). Don't add <code>ui-text-google-fonts</code>.</li>
+    <li><b>Icons.</b> Today's <code>Icons.Default.*</code> come from <code>material-icons-core</code>, which Material 3 1.3 pulls in. Don't add <code>material-icons-extended</code> (it's very large). Download each Material Symbol the option uses from fonts.google.com/icons in the option's style, weight and fill, as Android vector drawables named <code>ic_&lt;name&gt;.xml</code> / <code>ic_&lt;name&gt;_filled.xml</code>, and draw them with <code>painterResource</code>.</li>
+    <li><b>minSdk 26.</b> Coloured shadows (<code>Modifier.shadow(spotColor=…)</code>) only show on API 28+. Treat them as decoration that can quietly disappear.</li>
+    <li><b>No dynamic colour.</b> Keep brand colours fixed, as <code>Theme.kt</code> does today.</li>
+    <li><b>Keep the theme function's name</b>, <code>CPEN321ApplicationTheme</code> (used by <code>MainActivity.kt</code>), or rename it everywhere in one change.</li>
+  </ul>
+
+  <h3 class="doc">Phases</h3>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>#</th><th>Phase</th><th>Files</th><th>Done when</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><b>Theme foundation</b>: fonts, colours, type, shapes, extended colours</td><td><code>res/font/*</code>, <code>core/ui/theme/Color.kt</code>, <code>Type.kt</code>, new <code>Shape.kt</code>, <code>Theme.kt</code></td><td>App builds, every screen picks up the new palette and fonts, both themes work. Old names (<code>CourtGreen</code>, <code>Chalk</code>) are removed and their uses in <code>MatchmakingScreen.kt</code> point at theme roles.</td></tr>
+      <tr><td>2</td><td><b>Brand</b>: app name, launcher icon, notification icon</td><td><code>res/values/strings.xml</code> (app_name → "Donut"), <code>res/drawable/ic_launcher_foreground.xml</code>, <code>ic_launcher_background.xml</code>, new <code>ic_launcher_monochrome.xml</code>, <code>mipmap-anydpi/ic_launcher*.xml</code>, regenerated <code>mipmap-*/ic_launcher*.webp</code>, new <code>ic_stat_donut.xml</code></td><td>The home screen shows "Donut" with the new icon; the themed-icon (monochrome) layer works on Android 13+. Pushes use a white 24 dp silhouette (<code>DonutMessagingService.kt</code> <code>setSmallIcon</code> and the manifest's <code>default_notification_icon</code> both point at <code>ic_stat_donut</code>, not the launcher foreground).</td></tr>
+      <tr><td>3</td><td><b>Shared components</b></td><td><code>core/ui/components/</code>: <code>FormButtons.kt</code>, <code>MatchOutcomeBadge.kt</code> (→ OutcomeBadge + RatingDelta, colours from <code>DonutTheme.colors</code>), <code>BackHeader.kt</code>, <code>ConfirmDialog.kt</code>, new <code>StatusChip.kt</code>, <code>PlayerAvatar.kt</code>, <code>WeatherPill.kt</code>, <code>Scoreboard.kt</code>; <code>navigation/AppBottomBar.kt</code></td><td>Each component matches the gallery in both themes and has a <code>@Preview</code> for light and dark. The three private avatar copies (Leaderboard, Profile, Friends) use <code>PlayerAvatar</code>.</td></tr>
+      <tr><td>4</td><td><b>Screens</b>, in this order</td><td>Matchmaking (+ <code>MatchDialog.kt</code> → the option's sheet or takeover), Games feed (<code>GameCard.kt</code>, <code>TournamentCard.kt</code>, day headers), Leaderboard, Profile + tabs, Game detail / Match summary (scoreboard), Tournament detail + bracket, Create game / tournament forms, Login</td><td>Each screen matches its mockup at 360 dp and still works at 412 dp, at font scale 1.3, and in both themes.</td></tr>
+      <tr><td>5</td><td><b>QA</b></td><td><code>./gradlew test</code>, <code>connectedAndroidTest</code></td><td>Every item on the acceptance checklist is ticked.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="doc" id="data-notes">Data notes: everything shown is already available</h3>
+  <div class="tblwrap"><table class="tbl">
+    <thead><tr><th>Shown in mockup</th><th>Where it comes from</th></tr></thead>
+    <tbody>
+      <tr><td>"Today" / "Tomorrow" day headers in the feed</td><td>Group <code>FeedItem</code>s by the local date of <code>startsAt</code>; add a helper next to <code>formatStartsAt</code> in <code>core/ui/GameText.kt</code>.</td></tr>
+      <tr><td>"1 spot left", player slots</td><td><code>format.teamSize * 2 - players.size</code></td></tr>
+      <tr><td>Record (12–7), form guide (W L W W W)</td><td>Count or take the first five of <code>ProfileUiState.matchHistory</code> (most recent first).</td></tr>
+      <tr><td>Rating sparkline (A)</td><td><code>MatchResult</code> rating after each game, reversed. Hide it below 3 games.</td></tr>
+      <tr><td>Rank on Profile</td><td>The leaderboard's <code>me.rank</code>; load it with the profile or hide the stat until it's known.</td></tr>
+      <tr><td>Distance to court ("2.1 km")</td><td>From the queued <code>MatchLocation</code> and the court's lat/lng (haversine). Hide it when the location isn't known (e.g. after an app restart).</td></tr>
+      <tr><td>Queue timer ("0:42"), accept countdown</td><td>Client-side: time since joining the queue; time until <code>startsAt − 30 min</code> (the accept deadline in Product_Design §5.4).</td></tr>
+      <tr><td>Criteria line "10 km · ±200 rating · ~1 h"</td><td>Constants from Product_Design §5.2–5.3. Show ±400 when doubles is picked.</td></tr>
+      <tr><td>"Donut set!" badge (C)</td><td>Any round of a won match that ended 6–0.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="doc">Optional changes the mockups assume (fine to skip)</h3>
+  <ul class="tight">
+    <li><b>Tab order and names:</b> Play · Games · Leaderboard · Profile, renaming "Matchmaking" to "Play". Only titles, icons and list order in <code>BottomNavItem.kt</code> / <code>AppBottomBar.kt</code> change; keep the route strings.</li>
+    <li><b>Sign out</b> moves from a big button on Profile to a settings icon in the Profile top bar (a menu or a small settings screen).</li>
+    <li><b>Match found</b> becomes a <code>ModalBottomSheet</code> (A, C) or a full-screen takeover (B) instead of an <code>AlertDialog</code>. Keep today's rules: it can't be dismissed without answering, and it moves to "Waiting for …" and then "Game on" states.</li>
+  </ul>
+
+  <h3 class="doc">Tests that pin text (keep these strings or update the tests)</h3>
+  <ul class="tight">
+    <li><code>LeaderboardScreenTest</code>: <code>"#1"</code>, <code>"@player1"</code>, <code>"1988"</code>, <code>"Player 3 (You)"</code>, <code>"No players yet"</code>, <code>"Retry"</code>. The mockups keep the <code>#N</code> rank format and the "(You)" suffix for this reason. Moving "You" into a chip means updating lines 66–93.</li>
+    <li><code>TournamentDetailScreenTest</code>: <code>"Join tournament"</code>, <code>"Leave tournament"</code>, <code>"Cancel tournament"</code>, <code>"Registered players"</code>, <code>"Quarterfinals"</code>, <code>"Semifinals"</code>, <code>"Final"</code>, <code>"Champion"</code>, <code>"3/8 players"</code>.</li>
+    <li><b>Option B</b> uses uppercase labels. Compose has no text-transform, so uppercasing means calling <code>.uppercase()</code> on the string, which changes the text the tests see. Either keep test-asserted strings in mixed case or update the assertions. TalkBack reads uppercase strings fine.</li>
+  </ul>
+
+  <h3 class="doc">Acceptance checklist</h3>
+  <ul class="tight">
+    <li>Every colour comes from <code>MaterialTheme.colorScheme</code> or <code>DonutTheme.colors</code>; there are no <code>Color(0x…)</code> literals in feature code.</li>
+    <li>Every text style comes from <code>MaterialTheme.typography</code> or <code>DonutTextStyles</code>; ad-hoc <code>fontWeight</code>/<code>fontSize</code> overrides in screens are removed.</li>
+    <li>Light and dark both checked on every screen; body text contrast ≥ 4.5:1 and large text ≥ 3:1 (the token pairs below were chosen to pass).</li>
+    <li>Touch targets ≥ 48 dp; icon-only buttons have a <code>contentDescription</code>; decorative art (court lines, radar, sprinkles) has none.</li>
+    <li>Layouts hold at font scale 1.3 and at 360 dp width. Long court and player names ellipsize and don't wrap the layout.</li>
+    <li>Animations respect the system "remove animations" setting (check <code>Settings.Global.ANIMATOR_DURATION_SCALE</code>, or use the reduced-motion fallback described in the motion tokens).</li>
+    <li>The launcher icon passes Android Studio's adaptive-icon preview (circle, squircle, teardrop) with the mark inside the 66 dp safe zone.</li>
+    <li><code>./gradlew test</code> and <code>connectedAndroidTest</code> pass.</li>
+  </ul>
+
+  <h3 class="doc">Tokens as JSON</h3>
+  <p class="dmuted">The same object as <code>TOKENS</code>, for tools that want a file.</p>
+  <p><button class="copy" type="button" id="dlTokens">Download donut-design-tokens.json</button></p>
+  <details class="code"><summary>View JSON <button class="copy" type="button" data-copy="tokjson">Copy</button></summary><pre id="tokjson"></pre></details>
+</div></section>
+</main>
+<script id="tokens">
+/* =====================================================================
+   TOKENS: the single source of truth for all three options.
+   - color.light / color.dark : Material 3 ColorScheme roles (names match lightColorScheme() params)
+   - ext.light / ext.dark     : extra roles M3 lacks -> DonutColors (CompositionLocal)
+   - type                     : M3 Typography roles + custom numeric styles. Sizes in sp, letterSpacing in em.
+                                fam = which entry of fonts to use. up = uppercase at the call site.
+                                it = italic. tnum = tabular figures ("tnum" font feature).
+   - shape                    : M3 Shapes (dp) + per-component corner guidance
+   - spacing / elevation / motion / icons : rules for implementation
+   ===================================================================== */
+const TOKENS = {
+  meta: {
+    app: "Donut", version: "1.0", date: "2026-11-16",
+    platform: "Android · Jetpack Compose · Material 3 1.3.x (Compose BOM 2025.06.01) · minSdk 26",
+    units: "1 mockup px = 1 dp/sp. Phones are drawn at 360 dp wide."
+  },
+  options: {
+    /* ------------------------------------------------------------- A */
+    A: {
+      name: "Baseline",
+      tagline: "Tennis, on demand.",
+      defaultMode: "light",
+      fonts: {
+        display: { family: "Geist", kt: "Geist", files: [["geist_semibold", 600], ["geist_bold", 700]] },
+        body:    { family: "Geist", kt: "Geist", files: [["geist_regular", 400], ["geist_medium", 500], ["geist_semibold", 600]] },
+        numeric: { family: "Geist Mono", kt: "GeistMono", files: [["geist_mono_medium", 500], ["geist_mono_semibold", 600]] }
+      },
+      fontLinks: ["https://fonts.google.com/specimen/Geist", "https://fonts.google.com/specimen/Geist+Mono"],
+      color: {
+        light: {
+          primary: "#111714", onPrimary: "#FFFFFF", primaryContainer: "#E7E9E4", onPrimaryContainer: "#111714",
+          secondary: "#0F7B4F", onSecondary: "#FFFFFF", secondaryContainer: "#E1F2E8", onSecondaryContainer: "#0A3D27",
+          tertiary: "#C9EE3F", onTertiary: "#1B2405", tertiaryContainer: "#F0F9C8", onTertiaryContainer: "#2C3A00",
+          error: "#C9372C", onError: "#FFFFFF", errorContainer: "#FCE8E6", onErrorContainer: "#5C130D",
+          background: "#F7F7F4", onBackground: "#111714", surface: "#F7F7F4", onSurface: "#111714",
+          surfaceVariant: "#EDEEE9", onSurfaceVariant: "#5D6862",
+          surfaceContainerLowest: "#FFFFFF", surfaceContainerLow: "#F2F3EF", surfaceContainer: "#EDEEE9",
+          surfaceContainerHigh: "#E7E8E3", surfaceContainerHighest: "#E1E3DD",
+          outline: "#8E9892", outlineVariant: "#E2E4DF",
+          inverseSurface: "#1A201D", inverseOnSurface: "#F1F2EE", inversePrimary: "#F2F4F0"
+        },
+        dark: {
+          primary: "#F2F4F0", onPrimary: "#111714", primaryContainer: "#2A302C", onPrimaryContainer: "#F2F4F0",
+          secondary: "#46D69A", onSecondary: "#00391F", secondaryContainer: "#123D2A", onSecondaryContainer: "#BDF0D6",
+          tertiary: "#D4F55A", onTertiary: "#1B2405", tertiaryContainer: "#34420A", onTertiaryContainer: "#EEFBB9",
+          error: "#FF8A80", onError: "#4A0D08", errorContainer: "#5A1A14", onErrorContainer: "#FFDAD5",
+          background: "#0C0E0D", onBackground: "#F2F4F0", surface: "#0C0E0D", onSurface: "#F2F4F0",
+          surfaceVariant: "#1F2421", onSurfaceVariant: "#A3ADA7",
+          surfaceContainerLowest: "#131614", surfaceContainerLow: "#161A18", surfaceContainer: "#1B1F1D",
+          surfaceContainerHigh: "#222724", surfaceContainerHighest: "#2A302C",
+          outline: "#6F7A74", outlineVariant: "#272C29",
+          inverseSurface: "#F2F4F0", inverseOnSurface: "#111714", inversePrimary: "#111714"
+        }
+      },
+      ext: {
+        light: { win: "#0F7B4F", winContainer: "#E1F2E8", onWinContainer: "#0A3D27", loss: "#C9372C", lossContainer: "#FCE8E6", onLossContainer: "#5C130D",
+                 live: "#0F7B4F", highlight: "#C9EE3F", onHighlight: "#1B2405", info: "#2F6FD6", infoContainer: "#E6EEFB", onInfoContainer: "#0E2D5E",
+                 medal1: "#D9A21B", medal2: "#9AA4A0", medal3: "#B9703F" },
+        dark:  { win: "#46D69A", winContainer: "#123D2A", onWinContainer: "#BDF0D6", loss: "#FF8A80", lossContainer: "#4A1712", onLossContainer: "#FFDAD5",
+                 live: "#46D69A", highlight: "#D4F55A", onHighlight: "#1B2405", info: "#7FB2FF", infoContainer: "#15284A", onInfoContainer: "#D6E4FF",
+                 medal1: "#E8C65A", medal2: "#B9C2BD", medal3: "#D39A6A" }
+      },
+      type: [
+        { role: "displayLarge",   fam: "display", w: 700, s: 57, lh: 64, ls: -0.04 },
+        { role: "displayMedium",  fam: "display", w: 700, s: 45, lh: 52, ls: -0.035 },
+        { role: "displaySmall",   fam: "display", w: 700, s: 36, lh: 44, ls: -0.03 },
+        { role: "headlineLarge",  fam: "display", w: 700, s: 32, lh: 40, ls: -0.03 },
+        { role: "headlineMedium", fam: "display", w: 600, s: 28, lh: 36, ls: -0.025 },
+        { role: "headlineSmall",  fam: "display", w: 600, s: 24, lh: 32, ls: -0.02 },
+        { role: "titleLarge",     fam: "body", w: 600, s: 20, lh: 28, ls: -0.015 },
+        { role: "titleMedium",    fam: "body", w: 600, s: 16, lh: 22, ls: -0.01 },
+        { role: "titleSmall",     fam: "body", w: 600, s: 14, lh: 20, ls: -0.005 },
+        { role: "bodyLarge",      fam: "body", w: 400, s: 16, lh: 24, ls: 0 },
+        { role: "bodyMedium",     fam: "body", w: 400, s: 14, lh: 20, ls: 0 },
+        { role: "bodySmall",      fam: "body", w: 400, s: 12.5, lh: 17, ls: 0.005 },
+        { role: "labelLarge",     fam: "body", w: 600, s: 15, lh: 20, ls: -0.005 },
+        { role: "labelMedium",    fam: "body", w: 500, s: 12, lh: 16, ls: 0.01 },
+        { role: "labelSmall",     fam: "body", w: 600, s: 11, lh: 16, ls: 0.08, up: true },
+        { role: "numericLarge",   fam: "numeric", w: 500, s: 56, lh: 60, ls: -0.05, tnum: true, custom: true },
+        { role: "numericMedium",  fam: "numeric", w: 500, s: 22, lh: 28, ls: -0.03, tnum: true, custom: true }
+      ],
+      shape: {
+        m3: { extraSmall: 6, small: 10, medium: 16, large: 20, extraLarge: 28 },
+        components: { button: "pill (CircleShape), 52 dp tall (40 dp small)", card: "large · 20 dp, 1 dp outlineVariant border",
+          chip: "8 dp", field: "14 dp, 1 dp outline", sheet: "extraLarge top corners · 28 dp", groupedList: "16 dp", avatar: "circle", outcomeBadge: "8 dp square, 28 dp" }
+      },
+      spacing: { grid: 4, scale: [4, 8, 12, 16, 20, 24, 32, 40], screenGutter: 20, cardGutter: 16, cardPadding: "14 × 16", sectionGap: 24, listRowHeight: 56 },
+      elevation: { cards: "none: 1 dp outlineVariant border, tonalElevation 0", sheet: "0 -10 40 @18% black (ModalBottomSheet default is fine)",
+                   pinnedRow: "inverseSurface pill + 10 dp shadow", rule: "Hierarchy comes from surfaceContainer steps and hairlines, not shadows." },
+      motion: { standard: "200 ms, FastOutSlowInEasing", enter: "350 ms, EmphasizedDecelerate (cubic 0.05, 0.7, 0.1, 1)",
+                selection: "150 ms colour fade", searching: "ring spinner 1.1 s linear; criteria fade in 200 ms",
+                reducedMotion: "replace the spinner with a static ring + 'Searching…' text" },
+      icons: { set: "Material Symbols Outlined", weight: 300, fillInactive: 0, fillActive: 1, grade: 0, opticalSize: 24, size: "24 dp (20 dp in buttons/rows)" },
+      launcher: { background: "#111714", foreground: "ring mark #F7F7F4 (seams cut in #111714)", monochrome: "ring without seams (flatten the seam cut with a boolean difference)" }
+    },
+
+    /* ------------------------------------------------------------- B */
+    B: {
+      name: "Night Session",
+      tagline: "Find a match. Now.",
+      defaultMode: "dark",
+      fonts: {
+        display: { family: "Barlow Condensed", kt: "BarlowCondensed", files: [["barlow_condensed_bold", 700], ["barlow_condensed_bold_italic", 700, "italic"], ["barlow_condensed_extrabold", 800], ["barlow_condensed_extrabold_italic", 800, "italic"]] },
+        body:    { family: "Barlow", kt: "Barlow", files: [["barlow_regular", 400], ["barlow_medium", 500], ["barlow_semibold", 600]] },
+        numeric: { family: "Barlow Condensed", kt: "BarlowCondensed", files: [] }
+      },
+      fontLinks: ["https://fonts.google.com/specimen/Barlow+Condensed", "https://fonts.google.com/specimen/Barlow"],
+      color: {
+        light: {
+          primary: "#4A5A00", onPrimary: "#FFFFFF", primaryContainer: "#DCFF3A", onPrimaryContainer: "#0B0D05",
+          secondary: "#C2330F", onSecondary: "#FFFFFF", secondaryContainer: "#FFE1D8", onSecondaryContainer: "#3D0E02",
+          tertiary: "#00658F", onTertiary: "#FFFFFF", tertiaryContainer: "#CDEEFF", onTertiaryContainer: "#001E2E",
+          error: "#C2330F", onError: "#FFFFFF", errorContainer: "#FFE1D8", onErrorContainer: "#3D0E02",
+          background: "#EEF0EC", onBackground: "#0A0D0B", surface: "#EEF0EC", onSurface: "#0A0D0B",
+          surfaceVariant: "#E1E4DF", onSurfaceVariant: "#4F585C",
+          surfaceContainerLowest: "#FFFFFF", surfaceContainerLow: "#F6F7F4", surfaceContainer: "#FFFFFF",
+          surfaceContainerHigh: "#E6E9E4", surfaceContainerHighest: "#DADED8",
+          outline: "#7D868A", outlineVariant: "#D3D8D2",
+          inverseSurface: "#121618", inverseOnSurface: "#F4F6F2", inversePrimary: "#DCFF3A"
+        },
+        dark: {
+          primary: "#DCFF3A", onPrimary: "#0B0D05", primaryContainer: "#2B3307", onPrimaryContainer: "#EFFFA8",
+          secondary: "#FF5A36", onSecondary: "#1E0600", secondaryContainer: "#3D160C", onSecondaryContainer: "#FFD3C6",
+          tertiary: "#5CC8FF", onTertiary: "#001E2E", tertiaryContainer: "#0E3346", onTertiaryContainer: "#CDEEFF",
+          error: "#FF5A36", onError: "#1E0600", errorContainer: "#3D160C", onErrorContainer: "#FFD3C6",
+          background: "#07090A", onBackground: "#F4F6F2", surface: "#07090A", onSurface: "#F4F6F2",
+          surfaceVariant: "#1A1F22", onSurfaceVariant: "#8D979C",
+          surfaceContainerLowest: "#040506", surfaceContainerLow: "#0E1113", surfaceContainer: "#121618",
+          surfaceContainerHigh: "#1A1F22", surfaceContainerHighest: "#252C30",
+          outline: "#4A5357", outlineVariant: "#22292D",
+          inverseSurface: "#F4F6F2", inverseOnSurface: "#0A0D0B", inversePrimary: "#4A5A00"
+        }
+      },
+      ext: {
+        light: { win: "#4A5A00", winContainer: "#DCFF3A", onWinContainer: "#0B0D05", loss: "#C2330F", lossContainer: "#FFE1D8", onLossContainer: "#3D0E02",
+                 live: "#E2401B", highlight: "#DCFF3A", onHighlight: "#0B0D05", info: "#00658F", infoContainer: "#CDEEFF", onInfoContainer: "#001E2E",
+                 medal1: "#7A8F00", medal2: "#7D868A", medal3: "#C2561F" },
+        dark:  { win: "#DCFF3A", winContainer: "#2B3307", onWinContainer: "#EFFFA8", loss: "#FF5A36", lossContainer: "#3D160C", onLossContainer: "#FFD3C6",
+                 live: "#FF5A36", highlight: "#DCFF3A", onHighlight: "#0B0D05", info: "#5CC8FF", infoContainer: "#0E3346", onInfoContainer: "#CDEEFF",
+                 medal1: "#DCFF3A", medal2: "#C9D1D4", medal3: "#FF9A6B" }
+      },
+      type: [
+        { role: "displayLarge",   fam: "display", w: 800, s: 64, lh: 58, ls: -0.01, up: true, it: true },
+        { role: "displayMedium",  fam: "display", w: 800, s: 52, lh: 48, ls: -0.01, up: true, it: true },
+        { role: "displaySmall",   fam: "display", w: 800, s: 40, lh: 40, ls: 0, up: true, it: true },
+        { role: "headlineLarge",  fam: "display", w: 700, s: 34, lh: 36, ls: 0, up: true },
+        { role: "headlineMedium", fam: "display", w: 700, s: 28, lh: 30, ls: 0.005, up: true },
+        { role: "headlineSmall",  fam: "display", w: 700, s: 22, lh: 26, ls: 0.01, up: true },
+        { role: "titleLarge",     fam: "body", w: 600, s: 20, lh: 26, ls: 0 },
+        { role: "titleMedium",    fam: "body", w: 600, s: 16, lh: 22, ls: 0 },
+        { role: "titleSmall",     fam: "body", w: 600, s: 14, lh: 20, ls: 0.005 },
+        { role: "bodyLarge",      fam: "body", w: 400, s: 16, lh: 24, ls: 0 },
+        { role: "bodyMedium",     fam: "body", w: 400, s: 14, lh: 20, ls: 0.005 },
+        { role: "bodySmall",      fam: "body", w: 500, s: 12.5, lh: 17, ls: 0.01 },
+        { role: "labelLarge",     fam: "display", w: 700, s: 16, lh: 20, ls: 0.05, up: true },
+        { role: "labelMedium",    fam: "display", w: 700, s: 13, lh: 16, ls: 0.06, up: true },
+        { role: "labelSmall",     fam: "display", w: 700, s: 11, lh: 14, ls: 0.12, up: true },
+        { role: "numericLarge",   fam: "numeric", w: 800, s: 76, lh: 64, ls: -0.01, it: true, tnum: true, custom: true },
+        { role: "numericMedium",  fam: "numeric", w: 700, s: 26, lh: 28, ls: 0, tnum: true, custom: true }
+      ],
+      shape: {
+        m3: { extraSmall: 2, small: 4, medium: 6, large: 8, extraLarge: 12 },
+        components: { button: "medium · 6 dp, 56 dp tall", card: "large · 8 dp, no border (tonal surface)", chip: "parallelogram, skewX −12°, 2 dp",
+          segmented: "parallelogram items, skewX −10°, 4 dp, 6 dp gaps", field: "6 dp filled, 2 dp bottom indicator", sheet: "full-screen takeover (match found), else 12 dp",
+          avatar: "6 dp rounded square", outcomeBadge: "parallelogram 26 dp" }
+      },
+      spacing: { grid: 4, scale: [4, 6, 8, 12, 16, 20, 24, 32], screenGutter: 16, cardGutter: 16, cardPadding: "12 × 14", sectionGap: 20, listRowHeight: 52 },
+      elevation: { cards: "none: tonal steps surfaceContainer → High → Highest", primaryButton: "glow: Modifier.shadow(16 dp, spotColor = highlight @60%) on API 28+",
+                   rule: "Never put a drop shadow on a dark surface; lift with a lighter container or a 1 dp highlight-tinted inner border." },
+      motion: { standard: "150 ms, FastOutSlowInEasing", matchFound: "takeover: scale 0.94 → 1 + fade, 220 ms, plus HapticFeedbackType.LongPress",
+                radar: "sweep 3.2 s linear, infinite; you-dot pulse 1.8 s", tabs: "indicator slides 180 ms",
+                reducedMotion: "static radar with no sweep; the takeover fades in only" },
+      icons: { set: "Material Symbols Sharp", weight: 500, fillInactive: 0, fillActive: 1, grade: 0, opticalSize: 24, size: "24 dp (20 dp in buttons)" },
+      launcher: { background: "#07090A", foreground: "donut-ball #DCFF3A + speed lines (seams cut in #07090A)", monochrome: "ball ring + speed lines, without the seam cuts" }
+    },
+
+    /* ------------------------------------------------------------- C */
+    C: {
+      name: "Clubhouse",
+      tagline: "Serve up a game near you.",
+      defaultMode: "light",
+      fonts: {
+        display: { family: "Bricolage Grotesque", kt: "BricolageGrotesque", files: [["bricolage_grotesque_bold", 700], ["bricolage_grotesque_extrabold", 800]] },
+        body:    { family: "Figtree", kt: "Figtree", files: [["figtree_regular", 400], ["figtree_medium", 500], ["figtree_semibold", 600], ["figtree_bold", 700], ["figtree_extrabold", 800]] },
+        numeric: { family: "Bricolage Grotesque", kt: "BricolageGrotesque", files: [] }
+      },
+      fontLinks: ["https://fonts.google.com/specimen/Bricolage+Grotesque", "https://fonts.google.com/specimen/Figtree"],
+      color: {
+        light: {
+          primary: "#C8481E", onPrimary: "#FFFFFF", primaryContainer: "#FFDCCB", onPrimaryContainer: "#3E1100",
+          secondary: "#2F7D4E", onSecondary: "#FFFFFF", secondaryContainer: "#D3EEDB", onSecondaryContainer: "#0B2E19",
+          tertiary: "#D9EE3A", onTertiary: "#2A2F05", tertiaryContainer: "#F2F8C4", onTertiaryContainer: "#2A2F05",
+          error: "#B3261E", onError: "#FFFFFF", errorContainer: "#F9DEDC", onErrorContainer: "#410E0B",
+          background: "#FBF5EC", onBackground: "#2A1E17", surface: "#FBF5EC", onSurface: "#2A1E17",
+          surfaceVariant: "#F1E6D6", onSurfaceVariant: "#6E5D50",
+          surfaceContainerLowest: "#FFFFFF", surfaceContainerLow: "#F8F0E4", surfaceContainer: "#F4EADB",
+          surfaceContainerHigh: "#F1E6D6", surfaceContainerHighest: "#E9DCC8",
+          outline: "#8C7A6C", outlineVariant: "#E8DBC8",
+          inverseSurface: "#33281F", inverseOnSurface: "#FBF1E6", inversePrimary: "#FF8A5C"
+        },
+        dark: {
+          primary: "#FF8A5C", onPrimary: "#3E1100", primaryContainer: "#6E2A10", onPrimaryContainer: "#FFDCCB",
+          secondary: "#6FCB92", onSecondary: "#003920", secondaryContainer: "#1D4B30", onSecondaryContainer: "#C9F0D6",
+          tertiary: "#DDF25B", onTertiary: "#2A2F05", tertiaryContainer: "#424B0E", onTertiaryContainer: "#F2F8C4",
+          error: "#FFB4AB", onError: "#690005", errorContainer: "#93000A", onErrorContainer: "#FFDAD6",
+          background: "#1B1512", onBackground: "#FBF1E6", surface: "#1B1512", onSurface: "#FBF1E6",
+          surfaceVariant: "#3A2F28", onSurfaceVariant: "#CDBBAC",
+          surfaceContainerLowest: "#262019", surfaceContainerLow: "#221B17", surfaceContainer: "#2A221D",
+          surfaceContainerHigh: "#352B25", surfaceContainerHighest: "#40352E",
+          outline: "#9C897B", outlineVariant: "#40352E",
+          inverseSurface: "#FBF1E6", inverseOnSurface: "#2A1E17", inversePrimary: "#C8481E"
+        }
+      },
+      ext: {
+        light: { win: "#2F7D4E", winContainer: "#D3EEDB", onWinContainer: "#0B2E19", loss: "#C8481E", lossContainer: "#FFDCCB", onLossContainer: "#3E1100",
+                 live: "#C8481E", highlight: "#D9EE3A", onHighlight: "#2A2F05", info: "#2C6FB7", infoContainer: "#DCEBFA", onInfoContainer: "#0B2A4A",
+                 medal1: "#F2C230", medal2: "#C9D3DC", medal3: "#E9A374", stickerBorder: "#2A1E17", stickerShadow: "#2A1E17" },
+        dark:  { win: "#6FCB92", winContainer: "#1D4B30", onWinContainer: "#C9F0D6", loss: "#FF8A5C", lossContainer: "#6E2A10", onLossContainer: "#FFDCCB",
+                 live: "#FF8A5C", highlight: "#DDF25B", onHighlight: "#2A2F05", info: "#8EC3FF", infoContainer: "#173556", onInfoContainer: "#D6E8FF",
+                 medal1: "#F2C230", medal2: "#C9D3DC", medal3: "#E9A374", stickerBorder: "#5C4C42", stickerShadow: "#000000" }
+      },
+      type: [
+        { role: "displayLarge",   fam: "display", w: 800, s: 56, lh: 60, ls: -0.035 },
+        { role: "displayMedium",  fam: "display", w: 800, s: 44, lh: 48, ls: -0.03 },
+        { role: "displaySmall",   fam: "display", w: 800, s: 34, lh: 38, ls: -0.025 },
+        { role: "headlineLarge",  fam: "display", w: 800, s: 30, lh: 34, ls: -0.025 },
+        { role: "headlineMedium", fam: "display", w: 700, s: 24, lh: 30, ls: -0.02 },
+        { role: "headlineSmall",  fam: "display", w: 700, s: 21, lh: 26, ls: -0.015 },
+        { role: "titleLarge",     fam: "body", w: 700, s: 18, lh: 24, ls: -0.01 },
+        { role: "titleMedium",    fam: "body", w: 700, s: 15.5, lh: 21, ls: -0.005 },
+        { role: "titleSmall",     fam: "body", w: 700, s: 14, lh: 20, ls: 0 },
+        { role: "bodyLarge",      fam: "body", w: 500, s: 16, lh: 24, ls: 0 },
+        { role: "bodyMedium",     fam: "body", w: 500, s: 14, lh: 20, ls: 0 },
+        { role: "bodySmall",      fam: "body", w: 500, s: 12.5, lh: 17, ls: 0.005 },
+        { role: "labelLarge",     fam: "body", w: 700, s: 15, lh: 20, ls: 0 },
+        { role: "labelMedium",    fam: "body", w: 700, s: 12, lh: 16, ls: 0.01 },
+        { role: "labelSmall",     fam: "body", w: 800, s: 11, lh: 14, ls: 0.06, up: true },
+        { role: "numericLarge",   fam: "numeric", w: 800, s: 44, lh: 48, ls: -0.03, tnum: true, custom: true },
+        { role: "numericMedium",  fam: "numeric", w: 800, s: 24, lh: 28, ls: -0.02, tnum: true, custom: true }
+      ],
+      shape: {
+        m3: { extraSmall: 8, small: 12, medium: 18, large: 24, extraLarge: 36 },
+        components: { button: "pill, 56 dp, 1.5 dp stickerBorder + 3 dp offset shadow", card: "large · 24 dp, sticker (border + offset shadow)",
+          chip: "pill, 28 dp tall", field: "18 dp, 1.5 dp border (sticker on focus)", sheet: "36 dp top corners, 1.5 dp top border", navBar: "floating pill, 12 dp side inset",
+          avatar: "circle + 1.5 dp stickerBorder", outcomeBadge: "40 dp circle sticker, rotated −8°" }
+      },
+      spacing: { grid: 4, scale: [4, 8, 12, 14, 16, 20, 24, 32], screenGutter: 16, cardGutter: 16, cardPadding: "14 × 16", sectionGap: 20, listRowHeight: 60 },
+      elevation: { sticker: "border 1.5 dp stickerBorder + solid shadow offset (0, 3 dp), no blur, colour stickerShadow",
+                   pressed: "translate y +2 dp and the shadow offset drops to 1 dp (spring)", rule: "Only interactive or featured things get the sticker; plain rows use a 1.5 dp outlineVariant border." },
+      motion: { press: "spring(dampingRatio = 0.55, stiffness = 400)", select: "spring(0.6, 500) for the segmented thumb and nav pill",
+                searching: "ball bounce 1.0 s ease-in-out, infinite", matchFound: "sheet slides up with spring(0.75, 300); avatars pop in 60 ms apart",
+                reducedMotion: "no bounce; colour changes only" },
+      icons: { set: "Material Symbols Rounded", weight: 500, fillInactive: 0, fillActive: 1, grade: 0, opticalSize: 24, size: "24 dp; 20 dp inside 38–40 dp colour bubbles" },
+      launcher: { background: "#C8481E", foreground: "frosted donut: dough #F2C28B, frosting #D9EE3A, white seam, sprinkles, ink outline #2A1E17", monochrome: "dough ring silhouette (evenOdd) only" }
+    }
+  }
+};
+</script>
+<script id="generators">
+/* =====================================================================
+   GENERATORS: turn TOKENS into CSS variables, swatches, specimens and Kotlin.
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const kebab = s => s.replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const ROLE_ABBR = { displayLarge: "dl", displayMedium: "dm", displaySmall: "ds", headlineLarge: "hl", headlineMedium: "hm", headlineSmall: "hs",
+  titleLarge: "tl", titleMedium: "tm", titleSmall: "ts", bodyLarge: "bl", bodyMedium: "bm", bodySmall: "bs",
+  labelLarge: "ll", labelMedium: "lm", labelSmall: "ls", numericLarge: "numL", numericMedium: "numM" };
+
+/* ---------- 1. CSS custom properties + type classes ---------- */
+(function injectThemeCss() {
+  let css = "";
+  for (const [k, o] of Object.entries(TOKENS.options)) {
+    for (const mode of ["light", "dark"]) {
+      const vars = { ...o.color[mode], ...o.ext[mode] };
+      css += `.o${k}[data-mode="${mode}"]{` + Object.entries(vars).map(([r, v]) => `--${kebab(r)}:${v}`).join(";") + `}\n`;
+    }
+    for (const t of o.type) {
+      const f = o.fonts[t.fam].family;
+      css += `.o${k} .t-${ROLE_ABBR[t.role]}{font-family:"${f}",system-ui,sans-serif;font-weight:${t.w};font-size:${t.s}px;line-height:${t.lh}px;letter-spacing:${t.ls}em;` +
+        `${t.up ? "text-transform:uppercase;" : "text-transform:none;"}${t.it ? "font-style:italic;" : "font-style:normal;"}${t.tnum ? 'font-feature-settings:"tnum";' : ""}}\n`;
+    }
+    css += `.o${k} .num{font-family:"${o.fonts.numeric.family}",system-ui,sans-serif;font-feature-settings:"tnum"}\n`;
+  }
+  // Option B: numbers inherit the role's size but use the condensed face
+  css += `.oA .num{letter-spacing:-.02em}\n`;
+  const el = document.createElement("style");
+  el.id = "generated-theme-css";
+  el.textContent = css;
+  document.head.appendChild(el);
+})();
+
+/* ---------- 2. Swatches ---------- */
+const SW_GROUPS = [
+  ["Brand", ["primary", "onPrimary", "primaryContainer", "onPrimaryContainer", "secondary", "onSecondary", "secondaryContainer", "onSecondaryContainer", "tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer"]],
+  ["Surfaces & lines", ["background", "onBackground", "onSurfaceVariant", "surfaceContainerLowest", "surfaceContainerLow", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest", "outline", "outlineVariant", "inverseSurface", "inverseOnSurface"]],
+  ["Feedback", ["error", "onError", "errorContainer", "onErrorContainer"]]
+];
+function swatches(k) {
+  const o = TOKENS.options[k];
+  const tile = (name, hex) => `<div class="sw"><i style="background:${hex}"></i><div><b>${name}</b><code>${hex}</code></div></div>`;
+  let h = "";
+  for (const mode of [o.defaultMode, o.defaultMode === "light" ? "dark" : "light"]) {
+    h += `<h4 class="doc">${mode === "light" ? "Light" : "Dark"} theme${mode === o.defaultMode ? " (default)" : ""}</h4>`;
+    for (const [g, roles] of SW_GROUPS) h += `<div class="sw-h">${g}</div><div class="sw-grid">${roles.map(r => tile(r, o.color[mode][r])).join("")}</div>`;
+    h += `<div class="sw-h">Extended (DonutColors)</div><div class="sw-grid">${Object.entries(o.ext[mode]).map(([r, v]) => tile(r, v)).join("")}</div>`;
+  }
+  return h;
+}
+
+/* ---------- 3. Type specimens ---------- */
+const SAMPLE = { displayLarge: "1587", displayMedium: "Match found", displaySmall: "Find a match", headlineLarge: "Leaderboard", headlineMedium: "Alex Rivera",
+  headlineSmall: "Kits Fall Classic", titleLarge: "Kitsilano Beach Park", titleMedium: "vs Jonah Brooks", titleSmall: "Registered players",
+  bodyLarge: "Players at your level, courts near you.", bodyMedium: "Everyone has to accept by 6:00 PM.", bodySmall: "6–4 7–5 · Kitsilano · Nov 12",
+  labelLarge: "Find a match", labelMedium: "1 spot left", labelSmall: "Format", numericLarge: "1587", numericMedium: "+14  6–4" };
+function specimen(k) {
+  const o = TOKENS.options[k];
+  const fams = [...new Set(Object.values(o.fonts).map(f => f.family))];
+  let h = `<p class="dmuted" style="margin:0 0 10px">Families: ${fams.map(f => `<span class="pill">${f}</span>`).join("")} · ${o.fontLinks.map(u => `<a href="${u}">${u.replace("https://fonts.google.com/specimen/", "").replace(/\+/g, " ")}</a>`).join(" · ")} · all OFL.</p>`;
+  h += `<div class="specimen">`;
+  for (const t of o.type) {
+    h += `<div class="sp-row"><div class="sp-meta"><b>${t.role}${t.custom ? " *" : ""}</b>${o.fonts[t.fam].family} ${t.w}${t.it ? " italic" : ""}<br>${t.s}/${t.lh} · ${t.ls}em${t.up ? " · UPPER" : ""}${t.tnum ? " · tnum" : ""}</div>` +
+      `<div class="t-${ROLE_ABBR[t.role]}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${SAMPLE[t.role]}</div></div>`;
+  }
+  return h + `</div><p class="dmuted" style="font-size:13px">* Custom styles, not M3 roles. They live in <code>DonutTextStyles</code>.</p>`;
+}
+
+/* ---------- 4. System table (shape, spacing, elevation, motion, icons) ---------- */
+function systemTable(k) {
+  const o = TOKENS.options[k];
+  const rows = obj => Object.entries(obj).map(([a, b]) => `<tr><td><code>${a}</code></td><td>${Array.isArray(b) ? b.join(", ") : b}</td></tr>`).join("");
+  const m3 = Object.entries(o.shape.m3).map(([a, b]) => `${a} <b>${b}</b>`).join(" · ");
+  return `<div class="grid2">
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Shape (M3 Shapes, dp): ${m3}</th></tr></thead><tbody>${rows(o.shape.components)}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Spacing (dp)</th></tr></thead><tbody>${rows(o.spacing)}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Depth</th></tr></thead><tbody>${rows(o.elevation)}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Motion</th></tr></thead><tbody>${rows(o.motion)}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Icons</th></tr></thead><tbody>${rows(o.icons)}</tbody></table></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th colspan="2">Launcher icon</th></tr></thead><tbody>${rows(o.launcher)}</tbody></table></div>
+  </div>`;
+}
+
+/* ---------- 5. Kotlin ---------- */
+const KT_PKG = "package com.example.cpen321application.core.ui.theme";
+const hexKt = v => `Color(0xFF${v.slice(1).toUpperCase()})`;
+const emKt = v => v === 0 ? "0.em" : v < 0 ? `(${v}).em` : `${v}.em`;
+const spKt = v => `${v}.sp`;
+const W_KT = { 400: "Normal", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold" };
+
+function ktColor(k) {
+  const o = TOKENS.options[k];
+  const scheme = (fn, c) => `${fn}(\n${Object.entries(c).map(([r, v]) => `    ${r} = ${hexKt(v)}`).join(",\n")}\n)`;
+  const keys = Object.keys(o.ext.light);
+  const inst = (name, e) => `val ${name} = DonutColors(\n${keys.map(x => `    ${x} = ${hexKt(e[x])}`).join(",\n")}\n)`;
+  return `${KT_PKG}
+
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+
+// Option ${k} · ${o.name}. Generated from TOKENS in documentation/design/design-directions.html
+
+val LightColors = ${scheme("lightColorScheme", o.color.light)}
+
+val DarkColors = ${scheme("darkColorScheme", o.color.dark)}
+
+/** Roles Material 3 has no slot for: match outcomes, live state, the ball highlight, weather, medals${k === "C" ? ", stickers" : ""} */
+@Immutable
+data class DonutColors(
+${keys.map(x => `    val ${x}: Color`).join(",\n")}
+)
+
+${inst("LightDonutColors", o.ext.light)}
+
+${inst("DarkDonutColors", o.ext.dark)}
+
+val LocalDonutColors = staticCompositionLocalOf { LightDonutColors }
+`;
+}
+
+function ktType(k) {
+  const o = TOKENS.options[k];
+  const fams = {};
+  for (const f of Object.values(o.fonts)) {
+    fams[f.kt] = fams[f.kt] || [];
+    for (const file of f.files) if (!fams[f.kt].some(x => x[0] === file[0])) fams[f.kt].push(file);
+  }
+  const famKt = Object.entries(fams).map(([name, files]) => `val ${name} = FontFamily(\n${files.map(([file, w, st]) =>
+    `    Font(R.font.${file}, FontWeight.${W_KT[w]}${st === "italic" ? ", FontStyle.Italic" : ""})`).join(",\n")}\n)`).join("\n\n");
+  const style = (t, ind = "    ") => {
+    const p = ind + "    ";
+    return `TextStyle(\n${p}fontFamily = ${o.fonts[t.fam].kt},\n${p}fontWeight = FontWeight.${W_KT[t.w]},${t.it ? `\n${p}fontStyle = FontStyle.Italic,` : ""}\n${p}fontSize = ${spKt(t.s)},\n${p}lineHeight = ${spKt(t.lh)},\n${p}letterSpacing = ${emKt(t.ls)}${t.tnum ? `,\n${p}fontFeatureSettings = "tnum"` : ""}\n${ind})`;
+  };
+  const m3 = o.type.filter(t => !t.custom), custom = o.type.filter(t => t.custom);
+  const files = [...new Set(Object.values(fams).flat().map(f => f[0]))];
+  return `${KT_PKG}
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.example.cpen321application.R
+
+// Option ${k} · ${o.name}. Fonts are bundled in app/src/main/res/font/ (static TTFs, SIL OFL):
+//   ${files.map(f => f + ".ttf").join(", ")}
+// Download: ${o.fontLinks.join("  ")}
+
+${famKt}
+
+// Roles marked UPPER are drawn uppercase: call .uppercase() on the string at the call site
+// (Compose has no text-transform). See the brief for the effect on tests.
+val DonutTypography = Typography(
+${m3.map(t => `    ${t.role} = ${style(t)}${t.up ? " /* UPPER */" : ""}`).join(",\n")}
+)
+
+/** Styles outside the M3 scale: ratings, scores, rating deltas */
+object DonutTextStyles {
+${custom.map(t => `    val ${t.role} = ${style(t, "    ")}`).join("\n")}
+}
+`;
+}
+
+function ktShape(k) {
+  const o = TOKENS.options[k];
+  let extra = "";
+  if (k === "B") extra = `
+
+/** Parallelogram for tags, segmented items and outcome badges. skew = horizontal offset of the top edge */
+class ParallelogramShape(private val skew: Dp = 6.dp, private val corner: Dp = 2.dp) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val s = with(density) { skew.toPx() }
+        val path = Path().apply {
+            moveTo(s, 0f); lineTo(size.width, 0f); lineTo(size.width - s, size.height); lineTo(0f, size.height); close()
+        }
+        return Outline.Generic(path) // corner is approximated; wrap in a clip if you want rounded tips
+    }
+}`;
+  if (k === "C") extra = `
+
+/**
+ * The Clubhouse "sticker": 1.5 dp ink border + solid shadow offset 3 dp down, no blur.
+ * Apply BEFORE background(). For pressed state animate offset 3.dp -> 1.dp and translationY 0 -> 2.dp with
+ * spring(dampingRatio = 0.55f, stiffness = 400f).
+ */
+fun Modifier.sticker(
+    shape: Shape,
+    border: Color,
+    shadow: Color,
+    offset: Dp = 3.dp,
+    width: Dp = 1.5.dp
+): Modifier = this
+    .drawBehind {
+        val outline = shape.createOutline(size, layoutDirection, this)
+        translate(top = offset.toPx()) { drawOutline(outline, shadow) }
+    }
+    .border(width, border, shape)`;
+  const imports = k === "B" ? `
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection` : k === "C" ? `
+import androidx.compose.foundation.border
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.unit.Dp` : "";
+  return `${KT_PKG}
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp${imports}
+
+// Option ${k} · ${o.name}
+val DonutShapes = Shapes(
+${Object.entries(o.shape.m3).map(([a, b]) => `    ${a} = RoundedCornerShape(${b}.dp)`).join(",\n")}
+)${extra}
+`;
+}
+
+function ktTheme(k) {
+  const o = TOKENS.options[k];
+  return `${KT_PKG}
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+
+// Keep the name: MainActivity.kt calls CPEN321ApplicationTheme { ... }
+@Composable
+fun CPEN321ApplicationTheme(
+    darkTheme: Boolean = ${k === "B" ? "isSystemInDarkTheme(), // Night Session is dark-first: use true to ship dark-only" : "isSystemInDarkTheme(),"}
+    content: @Composable () -> Unit
+) {
+    CompositionLocalProvider(LocalDonutColors provides if (darkTheme) DarkDonutColors else LightDonutColors) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            typography = DonutTypography,
+            shapes = DonutShapes,
+            content = content
+        )
+    }
+}
+
+/** DonutTheme.colors.win, DonutTheme.colors.highlight, ... */
+object DonutTheme {
+    val colors: DonutColors
+        @Composable @ReadOnlyComposable get() = LocalDonutColors.current
+}
+`;
+}
+
+function codeBlocks(k) {
+  const blocks = [["Color.kt", ktColor(k)], ["Type.kt", ktType(k)], ["Shape.kt", ktShape(k)], ["Theme.kt", ktTheme(k)]];
+  return blocks.map(([n, c], i) => `<details class="code"${i === 0 ? "" : ""}><summary>core/ui/theme/${n} <button class="copy" type="button" data-copy="kt-${k}-${i}">Copy</button></summary><pre id="kt-${k}-${i}">${esc(c)}</pre></details>`).join("") +
+    `<div class="callout">Component notes for Option ${k} are under each item in the Components gallery above. The templates in <code>&lt;script id="render"&gt;</code> (object <code>R.${k}</code>) show exact paddings, sizes and token use.</div>`;
+}
+</script>
+<script id="render">
+/* =====================================================================
+   MOCKUP TEMPLATES
+   Shared helpers + sample data first, then one renderer per option: R.A, R.B, R.C.
+   Class names mirror the components to build (gc = GameCard, tc = TournamentCard,
+   lbr = LeaderboardRow, hr = MatchHistoryRow, sbd = Scoreboard, q = QueueStatus ...).
+   ===================================================================== */
+const R = {};
+
+/* ---------- shared helpers ---------- */
+const I = (n, fill) => `<span class="ms${fill ? " fill" : ""}" aria-hidden="true">${n}</span>`;
+const initials = n => n.split(/[\s&]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("");
+const toneOf = n => [...n].reduce((a, c) => a + c.charCodeAt(0), 0) % 4;
+const AV = (n, s = 40) => `<span class="av" data-tone="${toneOf(n)}" style="--s:${s}px">${initials(n)}</span>`;
+const btn = (k, l, o = {}) => `<span class="btn btn-${k}${o.cls ? " " + o.cls : ""}">${o.g ? '<span class="gg">G</span>' : ""}${o.ic ? I(o.ic, 1) : ""}<span>${l}</span></span>`;
+const chip = (k, l, ic) => `<span class="chip chip-${k}"><span class="ci">${ic ? I(ic, 1) : ""}${l}</span></span>`;
+const seg = (opts, on) => `<div class="seg">${opts.map(x => `<span class="seg-i t-ll${x === on ? " on" : ""}"><span>${x}</span></span>`).join("")}</div>`;
+const loc = (on, ic, t, s) => `<div class="loc${on ? " on" : ""}"><span class="loc-ic">${I(ic, on)}</span><span class="loc-t"><b class="t-tm">${t}</b><span class="t-bs">${s}</span></span><span class="radio">${on ? I("check", 1) : ""}</span></div>`;
+const oc = r => `<span class="oc oc-${r}">${r}</span>`;
+const delta = n => `<span class="dl ${n > 0 ? "up" : "dn"}">${n > 0 ? "+" : "−"}${Math.abs(n)}</span>`;
+const wx = f => `<span class="wx">${I(f.icon, 1)}<span class="num">${f.t}°</span><span class="wx-r">${f.rain}%</span></span>`;
+const setsTxt = s => s.map(x => x.join("–")).join("  ");
+const short = n => n.includes("&") ? n.split(" & ").map(x => x.split(" ")[1]).join(" / ") : `${n.split(" ")[0][0]}. ${n.split(" ")[1]}`;
+const sb = () => `<div class="sb"><span>5:31</span><span class="sb-r">${I("signal_cellular_4_bar", 1)}${I("wifi", 1)}${I("battery_full", 1)}</span></div>`;
+const NAV = [["play", "Play", "sports_tennis"], ["games", "Games", "calendar_month"], ["ranks", "Leaderboard", "leaderboard"], ["me", "Profile", "person"]];
+const nav = a => `<nav class="nav">${NAV.map(([k, l, i]) => `<span class="nv${k === a ? " on" : ""}">${I(i, k === a)}<b class="t-lm">${l}</b></span>`).join("")}</nav>`;
+const courtSvg = (cls = "") => `<svg class="${cls}" viewBox="-2 -8 244 126" preserveAspectRatio="xMidYMid meet"><use href="#court"/></svg>`;
+const MAP = () => `<svg class="map" viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <rect width="320" height="120" style="fill:var(--map-land)"/>
+  <path d="M0 90C60 78 110 98 170 86S280 66 320 76V120H0Z" style="fill:var(--map-water)"/>
+  <g style="fill:none;stroke:var(--map-road)" stroke-linecap="round"><path stroke-width="7" d="M-10 38H330M92 -10V96M222 -10L252 92"/><path stroke-width="3" d="M-10 14H330M-10 62H330M40 -10V88M150 -10V88M290 -10V78"/></g>
+  <rect x="158" y="44" width="48" height="28" rx="5" style="fill:var(--map-park)"/>
+  <circle cx="182" cy="58" r="18" style="fill:var(--map-pin)" opacity=".18"/><circle cx="182" cy="58" r="7" style="fill:var(--map-pin);stroke:#fff" stroke-width="3"/></svg>`;
+function phone(o, label, body, opts = {}) {
+  return `<figure class="ph"><div class="phone"><div class="screen">${sb()}<div class="body">${body}</div>${opts.nav ? nav(opts.nav) : ""}<div class="gest"></div>${opts.overlay || ""}</div></div><figcaption>${label}</figcaption></figure>`;
+}
+const spec = (title, stage, notes, o = {}) => `<div class="spec${o.wide ? " wide" : ""}"><div class="stage${o.col ? " col" : ""}">${stage}</div><div class="spec-m"><b>${title}</b><p>${notes}</p></div></div>`;
+function spark(vals, cls = "spark") {
+  const w = 300, h = 52, min = Math.min(...vals) - 6, max = Math.max(...vals) + 6;
+  const pts = vals.map((v, i) => [i * (w / (vals.length - 1)), h - ((v - min) / (max - min)) * h]);
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(",")).join(" ");
+  const last = pts[pts.length - 1];
+  return `<svg class="${cls}" viewBox="0 -4 ${w} ${h + 8}" preserveAspectRatio="none" aria-hidden="true"><polygon class="area" points="0,${h} ${line} ${w},${h}"/><polyline points="${line}" vector-effect="non-scaling-stroke"/><circle cx="${last[0]}" cy="${last[1]}" r="4"/></svg>`;
+}
+
+/* ---------- sample data (fictional people; real Vancouver parks) ---------- */
+const ME = { name: "Alex Rivera", user: "alexr", rating: 1587, rank: 14, w: 12, l: 7, friends: 9, requests: 2, last: 14 };
+const LB = [["Maya Chen", "mayac", 1842], ["Kenji Watanabe", "kenjiw", 1797], ["Amara Okafor", "amarao", 1765], ["Theo Laurent", "theol", 1731], ["Priya Nair", "priyan", 1702],
+  ["Lucas Ferreira", "lucasf", 1688], ["Sofia Alvarez", "sofiaa", 1671], ["Jonah Brooks", "jonahb", 1659], ["Daniel Kim", "danielk", 1644], ["Hana Sato", "hanas", 1630]]
+  .map((p, i) => ({ rank: i + 1, name: p[0], user: p[1], rating: p[2] }));
+const MEROW = { rank: ME.rank, name: ME.name, user: ME.user, rating: ME.rating };
+const FEED = [
+  { day: "Today", date: "Mon, Nov 16", dshort: "TODAY", time: "6:00", ampm: "PM", court: "Kitsilano Beach Park", format: "Singles", players: ["Sofia Alvarez"], cap: 2, wx: { t: 11, icon: "partly_cloudy_day", rain: 10 } },
+  { day: "Tomorrow", date: "Tue, Nov 17", dshort: "TUE", time: "7:30", ampm: "AM", court: "Queen Elizabeth Park", format: "Doubles", players: ["Alex Rivera", "Priya Nair", "Kenji Watanabe"], cap: 4, mine: true, wx: { t: 6, icon: "sunny", rain: 0 } },
+  { tour: true, day: "Sat, Nov 21", date: "Sat, Nov 21", dshort: "SAT", time: "10:00", ampm: "AM", name: "Kits Fall Classic", court: "Stanley Park Courts", format: "Singles", count: 5, cap: 8, wx: { t: 9, icon: "rainy", rain: 60 } },
+  { day: "Sun, Nov 22", date: "Sun, Nov 22", dshort: "SUN", time: "5:30", ampm: "PM", court: "Jericho Beach Park", format: "Doubles", players: ["Lucas Ferreira", "Amara Okafor"], cap: 4, wx: { t: 8, icon: "cloud", rain: 30 } }
+];
+const HIST = [
+  { res: "W", vs: "Jonah Brooks", sets: [[6, 4], [7, 5]], d: 14, court: "Kitsilano", date: "Nov 12", fmt: "Singles" },
+  { res: "L", vs: "Maya Chen", sets: [[3, 6], [4, 6]], d: -6, court: "Stanley Park", date: "Nov 9", fmt: "Singles" },
+  { res: "W", vs: "Lucas Ferreira", sets: [[6, 0], [6, 1]], d: 27, court: "Jericho", date: "Nov 5", fmt: "Singles", donut: true },
+  { res: "W", vs: "Sofia Alvarez & Theo Laurent", with: "Priya Nair", sets: [[6, 3], [6, 4]], d: 9, court: "Queen Elizabeth", date: "Nov 1", fmt: "Doubles" }
+];
+const SPARK = [1500, 1489, 1506, 1518, 1511, 1524, 1543, 1552, 1579, 1573, 1587];
+const FORM = ["W", "L", "W", "W", "W"];
+const MATCH = { fmt: "Singles", when: "Today, 6:30 PM", court: "Kitsilano Beach Park", dist: "2.1 km", opp: { name: "Jonah Brooks", rating: 1659 }, by: "6:00 PM" };
+const spots = g => g.cap - g.players.length;
+
+/* =====================================================================
+   R.A · BASELINE
+   ===================================================================== */
+R.A = {
+  game(g) {
+    const open = spots(g);
+    return `<article class="gc">
+      <div class="gc-top"><span class="t-tl num">${g.time} ${g.ampm}</span>${wx(g.wx)}</div>
+      <div class="t-tm">${g.court}</div>
+      <div class="t-bm muted">${g.format} · ${g.players.length} of ${g.cap} players</div>
+      <div class="gc-foot"><span class="slots">${g.players.map(p => AV(p, 28)).join("")}${'<span class="slot"></span>'.repeat(open)}</span>
+      ${g.mine ? chip("you", "You're playing") : chip("open", `${open} spot${open > 1 ? "s" : ""} left`)}</div>
+    </article>`;
+  },
+  tour(t) {
+    return `<article class="tc">
+      <div class="gc-top">${chip("tour", "Tournament", "star")}${wx(t.wx)}</div>
+      <div class="t-tl" style="margin-top:6px">${t.name}</div>
+      <div class="t-bm muted">${t.time} ${t.ampm} · ${t.court} · ${t.format}</div>
+      <div class="gc-foot"><span class="prog"><i style="width:${(t.count / t.cap) * 100}%"></i></span><span class="t-lm num">${t.count}/${t.cap} players</span></div>
+    </article>`;
+  },
+  lbRow(p, me) {
+    const m = ["", "var(--medal1)", "var(--medal2)", "var(--medal3)"][p.rank] || "";
+    return `<div class="lbr${me ? " me" : ""}"><span class="num t-ts rk${p.rank <= 3 ? " top" : ""}" style="--m:${m}">#${p.rank}</span>${AV(p.name, 36)}
+      <span class="lbn"><b class="t-tm">${p.name}${me ? " (You)" : ""}</b><span class="t-bs muted">@${p.user}</span></span><span class="num t-tm">${p.rating}</span></div>`;
+  },
+  hist(h) {
+    return `<div class="hr">${oc(h.res)}<span class="hr-t"><b class="t-tm">vs ${h.vs}</b><span class="t-bs muted"><span class="num">${setsTxt(h.sets)}</span> · ${h.court} · ${h.date}</span></span>${delta(h.d)}</div>`;
+  },
+  queue() {
+    return `<div class="q"><div class="row-between"><span style="display:flex;gap:12px;align-items:center"><span class="spin"></span><b class="t-tm">Finding a match near you</b></span><span class="num t-bm muted">0:42</span></div>
+      <div class="crit">${chip("done", "Within 10 km")}${chip("done", "±200 rating")}${chip("done", "Starts ~1 h after")}</div>${btn("secondary", "Leave queue")}</div>`;
+  },
+  score() {
+    return `<div class="sbd"><div class="sbd-h t-ls" style="display:grid;grid-template-columns:24px 1fr 34px 34px;gap:10px"><span></span><span>Final · Singles</span><span class="center">Set 1</span><span class="center">Set 2</span></div>
+      <div class="sbd-r">${AV("Alex Rivera", 24)}<b class="t-ts">Alex Rivera</b><span class="num t-tl w">6</span><span class="num t-tl w">7</span></div>
+      <div class="sbd-r">${AV("Jonah Brooks", 24)}<b class="t-ts muted">Jonah Brooks</b><span class="num t-tl">4</span><span class="num t-tl">5</span></div>
+      <div class="sbd-r" style="grid-template-columns:1fr auto"><span class="t-bs muted">Your rating</span><span class="t-ts"><span class="num">1573 → 1587</span> ${delta(14)}</span></div></div>`;
+  },
+  sheetContent() {
+    return `<div class="handle"></div>
+      <span class="live t-ls">Match found</span>
+      <h2 class="t-hs">${MATCH.fmt} · ${MATCH.when}</h2>
+      <div class="mapbox">${MAP()}</div>
+      <div class="row-between"><div><div class="t-tm">${MATCH.court}</div><div class="t-bs muted">${MATCH.dist} away · opens in Maps</div></div>${I("chevron_right")}</div>
+      <div class="vs"><div class="pl">${AV(ME.name, 44)}<b class="t-ts">You</b><span class="num t-bs muted">${ME.rating}</span></div><span class="t-ls muted">vs</span>
+        <div class="pl">${AV(MATCH.opp.name, 44)}<b class="t-ts">${MATCH.opp.name}</b><span class="num t-bs muted">${MATCH.opp.rating}</span></div></div>
+      <div class="note">${I("timer")}<span class="t-bm">Accept by <b class="t-ts">${MATCH.by}</b>. Everyone has to accept.</span></div>
+      <div class="btn-row">${btn("secondary", "Decline")}${btn("primary", "Accept")}</div>`;
+  },
+  playBody() {
+    return `<div class="ab"><span class="t-ts muted">Hi, Alex</span><span class="iconbtn">${I("notifications")}</span></div>
+      <div class="ab-t"><h1 class="t-hl">Find a match</h1><p class="t-bm muted">Players at your level, courts near you.</p></div>
+      <div class="steps">${["Pick where you want to play", "Choose singles, doubles or either", "Play an hour later, nearby"].map((s, i) => `<div class="step"><span class="num t-lm">0${i + 1}</span><span class="t-bs">${s}</span></div>`).join("")}</div>
+      <div class="eyebrow t-ls">Where</div>
+      <div class="group">${loc(true, "my_location", "Current location", "Near you")}${loc(false, "search", "Enter an address", "Search a place or court")}</div>
+      <div class="eyebrow t-ls">Format</div>${seg(["Singles", "Doubles", "Either"], "Singles")}
+      <div class="spacer"></div>
+      <div class="cta">${btn("primary", "Find a match")}<p class="t-bs muted center num" style="font-size:11.5px">10 km · ±200 rating · starts ~1 h after match</p></div>`;
+  },
+  screens() {
+    const signin = phone("A", "Sign in", `<div class="si"><div class="si-court">${courtSvg()}</div>
+      <div class="si-mid"><svg viewBox="22 22 64 64" style="width:84px;height:84px;color:var(--on-surface);--cut:var(--background)"><use href="#gA"/></svg>
+      <div class="wmA" style="font-size:52px">donut</div><p class="t-bl muted">${TOKENS.options.A.tagline}</p></div>
+      <div class="si-foot">${btn("primary", "Continue with Google", { g: 1 })}<p class="t-bs muted center">Singles &amp; doubles · Elo-rated · Vancouver</p></div></div>`);
+    const play = phone("A", "Matchmaking", this.playBody(), { nav: "play" });
+    const found = phone("A", "Match found (bottom sheet)", this.playBody(), { nav: "play", overlay: `<div class="scrim"></div><div class="sheet">${this.sheetContent()}</div>` });
+    const games = phone("A", "Games feed", `<div class="ab" style="padding-top:10px"><h1 class="t-hl">Games</h1>${btn("primary", "Schedule", { ic: "add", cls: "btn-sm" })}</div>
+      <div class="tabs" style="margin-top:6px"><span class="tab on t-ts">Feed</span><span class="tab t-ts">My games</span></div>
+      <div class="list">${FEED.slice(0, 3).map(g => `<div class="dh t-ls">${g.day}${g.day !== g.date ? " · " + g.date : ""}</div>${g.tour ? this.tour(g) : this.game(g)}`).join("")}</div>`, { nav: "games" });
+    const ranks = phone("A", "Leaderboard (you pinned)", `<div class="ab-t" style="padding-top:12px"><h1 class="t-hl">Leaderboard</h1><p class="t-bm muted">Everyone starts at 1500. Beat stronger players to climb faster.</p></div>
+      <div class="lb-head t-ls"><span>Rank</span><span>Player</span><span>Rating</span></div>
+      ${LB.slice(0, 8).map(p => this.lbRow(p)).join("")}<div class="me-pin">${this.lbRow(MEROW, true)}</div>`, { nav: "ranks" });
+    const profile = phone("A", "Profile", `<div class="ab"><span class="t-tm">Profile</span><span class="iconbtn">${I("settings")}</span></div>
+      <div class="pf">${AV(ME.name, 56)}<div><h1 class="t-hs">${ME.name}</h1><p class="t-bm muted">@${ME.user}</p></div></div>
+      <div class="card"><div class="row-between"><span class="t-ls muted">Rating</span>${chip("up", "+14 last match", "trending_up")}</div>
+        <div class="num t-numL" style="margin-top:4px">${ME.rating}</div>${spark(SPARK)}
+        <div class="row-between t-bs muted"><span>Last 10 matches</span><span class="num">1500 → 1587</span></div></div>
+      <div class="stats"><div><b class="num t-numM">#${ME.rank}</b><span class="t-bs muted">Rank</span></div><div><b class="num t-numM">${ME.w}–${ME.l}</b><span class="t-bs muted">Record</span></div><div><b class="num t-numM">${ME.friends}</b><span class="t-bs muted">Friends</span></div></div>
+      <div class="tabs"><span class="tab on t-ts">History</span><span class="tab t-ts">Friends <span class="badge">${ME.requests}</span></span><span class="tab t-ts">Equipment</span></div>
+      <div class="hist">${HIST.slice(0, 3).map(h => this.hist(h)).join("")}</div>`, { nav: "me" });
+    return signin + play + found + games + ranks + profile;
+  },
+  gallery() {
+    return [
+      spec("Buttons", `${btn("primary", "Find a match")}${btn("secondary", "Leave queue")}${btn("tonal", "Invite friends", { ic: "person_add" })}${btn("text", "Change court")}${btn("danger", "Cancel game")}${btn("dis", "Find a match")}`,
+        "Pill, 52 dp tall (40 dp small), labelLarge. Primary = primary/onPrimary (ink). Secondary = 1 dp outline. Tonal = surfaceContainerHigh. Text = secondary green. Destructive = error text + error 40% outline. Disabled = onSurface 38%. Compose: <code>Button(shape = CircleShape, contentPadding = PaddingValues(horizontal = 22.dp))</code>, <code>Modifier.height(52.dp)</code>."),
+      spec("Segmented control · format", seg(["Singles", "Doubles", "Either"], "Doubles"),
+        "Track surfaceContainerHigh, 4 dp inset, pill. Selected thumb = surfaceContainerLowest + 1 dp outlineVariant ring. 40 dp items, labelLarge. Build as a custom Row with a sliding thumb (animate offset 200 ms); replaces <code>SingleChoiceSegmentedButtonRow</code> in MatchmakingScreen and the FilterChips in Create game."),
+      spec("Location option (inset grouped list)", `<div class="group" style="margin:0;width:100%">${loc(true, "my_location", "Current location", "Near you")}${loc(false, "search", "Enter an address", "Search a place or court")}</div>`,
+        "One 16 dp group with 1 dp dividers instead of two separate cards. Selected: icon tile fills with primary, trailing check. Rows keep <code>Modifier.selectable(role = Role.RadioButton)</code> inside <code>selectableGroup()</code>."),
+      spec("Status chips", `${chip("open", "1 spot left")}${chip("you", "You're playing")}${chip("booked", "Booked")}${chip("done", "Completed")}${chip("cancel", "Cancelled")}${chip("tour", "Tournament", "star")}${chip("up", "+14", "trending_up")}`,
+        "24 dp tall, 8 dp corners, labelMedium. Map GameStatus: OPEN → secondaryContainer, BOOKED → surfaceContainerHigh, COMPLETED → outline only, CANCELLED → errorContainer. New <code>StatusChip(kind)</code> in core/ui/components."),
+      spec("Outcome badge + rating delta", `${oc("W")}${oc("L")}${delta(14)}${delta(-6)}`,
+        "28 dp, 8 dp corners, Geist Mono 13. W = win on winContainer, L = loss on lossContainer. Delta in Geist Mono, win/loss colour, real minus sign (−). Replaces MatchOutcomeBadge's WIN/LOSS chip and the hard-coded WinColor/LossColor."),
+      spec("Avatars + open slots", `${["Alex Rivera", "Priya Nair", "Kenji Watanabe", "Maya Chen"].map(n => AV(n, 40)).join("")}<span class="slots" style="margin-left:12px">${AV("Sofia Alvarez", 28)}<span class="slot"></span></span>`,
+        "Initials on a tone picked from the name hash (4 tones: neutral, green, ball, sky). Slots overlap by 6 dp with a 2 dp surface ring; an empty slot is a 1.5 dp dashed outline. One <code>PlayerAvatar(name, size)</code> replaces the three private avatar copies."),
+      spec("Game card", this.game(FEED[0]), "surfaceContainerLowest, 1 dp outlineVariant, 20 dp corners, 14 × 16 padding. Time in titleLarge mono, weather top-right (icon, temp, rain % in info colour), court titleMedium, meta bodyMedium muted, player slots + status chip at the bottom.", { col: 1 }),
+      spec("Tournament card", this.tour(FEED[2]), "Same frame as the game card with a 1 dp gradient border (tertiary → outlineVariant), a Tournament chip and a 4 dp registration progress bar (onSurface fill). Replaces the secondaryContainer TournamentCard and its ★ TOURNAMENT badge.", { col: 1 }),
+      spec("Leaderboard rows", `<div style="width:100%">${LB.slice(0, 3).map(p => this.lbRow(p)).join("")}<div style="position:relative;margin-top:10px">${this.lbRow(MEROW, true)}</div></div>`,
+        "Rank #N in Geist Mono with a medal dot for 1–3, 36 dp avatar, name + @handle, rating right. Dividers inset to the text. Pinned row = inverseSurface pill with a 3 dp ball-yellow edge, floating 8 dp above the nav (keeps the existing pin-when-off-screen logic).", { col: 1 }),
+      spec("Queue status · searching", this.queue(), "Replaces the LinearProgressIndicator bar. 20 dp ring spinner in secondary, elapsed time in mono, the three match criteria as outline chips, Leave queue as a secondary button.", { col: 1 }),
+      spec("Scoreboard · match summary", this.score(), "Used on Match summary and Game detail. Rows per side, set columns in mono, the winning side's numbers in onSurface 600, the loser's muted. Footer row: rating before → after + delta.", { col: 1 }),
+      spec("Match history row", `<div class="hist" style="width:100%">${HIST.slice(0, 2).map(h => this.hist(h)).join("")}</div>`, "Badge, \"vs Name\" titleMedium, sets + court + date bodySmall muted (sets in mono), delta right. 1 dp dividers between rows; the whole row opens Match summary.", { col: 1 }),
+      spec("Text field + banner", `<div class="field focus"><label class="t-bs">Tournament name</label><span class="t-bl">Kits Fall Classic</span></div><div class="t-bs muted" style="text-align:right">17/40</div><div class="banner">${I("check")}<span class="t-bm">Friend request sent</span><span class="act t-ll">Undo</span></div>`,
+        "OutlinedTextField with 14 dp corners, 1 dp outline, 1.5 dp primary when focused. Messages (ProfileScreen's MessageBanner, errors) become an inverseSurface snackbar with a ball-yellow action.", { col: 1 }),
+      spec("Bottom navigation", nav("games"), "Hairline top border on a 92% background. Active = filled icon (weight 500) + onSurface label; inactive = outlined, onSurfaceVariant. No indicator pill. Compose: NavigationBar(containerColor = background, tonalElevation = 0) with <code>NavigationBarItemDefaults.colors(indicatorColor = Transparent)</code> and a top border.", { wide: 1 })
+    ].join("");
+  },
+  brand() {
+    return `<div class="brand">
+      <div class="panel"><h4 class="doc" style="margin-top:0">App icon (adaptive, 108 dp canvas)</h4><div class="icons">
+        <figure><div class="ic sq" style="background:#111714"><svg viewBox="0 0 108 108" style="color:#F7F7F4;--cut:#111714"><use href="#gA"/></svg></div>Squircle</figure>
+        <figure><div class="ic ci" style="background:#111714"><svg viewBox="0 0 108 108" style="color:#F7F7F4;--cut:#111714"><use href="#gA"/></svg></div>Circle</figure>
+        <figure><div class="ic tear" style="background:#0F7B4F"><svg viewBox="0 0 108 108" style="color:#FFFFFF;--cut:#0F7B4F"><use href="#gA"/></svg></div>Alt · green</figure>
+        <figure><div class="ic ci" style="background:#DCE5DD"><svg viewBox="0 0 108 108" style="color:#1F3326;--cut:#DCE5DD"><use href="#gA"/></svg></div>Themed</figure>
+        <figure><div class="ic sm" style="background:#3a3f3c"><svg viewBox="22 22 64 64" style="width:22px;height:22px;color:#fff;--cut:#3a3f3c"><use href="#gA"/></svg></div>Status bar</figure>
+      </div><p class="dmuted" style="font-size:13px">A ring (the donut, and the zero of a 6–0 "bagel") cut by two tennis-ball seams. The ring spans r 15–30 around (54, 54), inside the 33 dp safe zone.</p></div>
+      <div class="lockups">
+        <div class="lockup oA" data-mode="light" style="background:#F7F7F4"><span class="wmA" style="font-size:56px;--wm-bg:#F7F7F4">${'<svg viewBox="22 22 64 64"><use href="#gA"/></svg>'}<span>donut</span></span></div>
+        <div class="lockup oA" data-mode="dark" style="background:#0C0E0D"><span class="wmA" style="font-size:56px;--wm-bg:#0C0E0D">${'<svg viewBox="22 22 64 64"><use href="#gA"/></svg>'}<span>donut</span></span></div>
+        <p class="dmuted" style="font-size:13px;margin:0">Wordmark: Geist Bold, lowercase, tracking −5.5%. The mark sits at 86% of the cap height with a 0.16 em gap.</p>
+      </div></div>`;
+  }
+};
+</script>
+<script>
+/* =====================================================================
+   R.B · NIGHT SESSION
+   ===================================================================== */
+const linesSvg = () => `<svg class="lines" viewBox="-2 -8 244 126" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#court"/></svg>`;
+const bars = (n, cap) => `<span class="bars">${Array.from({ length: cap }, (_, i) => `<i class="${i < n ? "f" : ""}"></i>`).join("")}</span>`;
+const wmB = (size, bg) => `<span class="wmB" style="font-size:${size}px${bg ? ";--wm-bg:" + bg : ""}">D<svg class="o" viewBox="36 28 52 52"><use href="#gBball"/></svg>NUT</span>`;
+R.B = {
+  game(g) {
+    const n = g.players.length;
+    return `<article class="gc${g.mine ? " mine" : ""}">
+      <div class="gc-date"><span class="t-ls">${g.dshort}</span><span class="gc-time">${g.time}</span><span class="t-ls">${g.ampm}</span></div>
+      <div class="gc-main"><span class="t-tm">${g.court}</span>
+        <div class="gc-meta"><span class="t-lm muted">${g.format} · ${n}/${g.cap} players</span>${g.mine ? chip("you", "Playing") : chip("open", `${spots(g)} open`)}</div>
+        <div class="gc-foot">${bars(n, g.cap)}${wx(g.wx)}</div></div>
+    </article>`;
+  },
+  tour(t) {
+    return `<article class="tc">
+      <div class="tc-top">${chip("tour", "Tournament", "emoji_events")}<span class="t-lm muted">${t.dshort} · ${t.time} ${t.ampm}</span></div>
+      <h3 class="t-hs">${t.name}</h3><span class="t-bs muted">${t.court} · ${t.format}</span>
+      <svg class="tc-br" viewBox="0 0 48 56" aria-hidden="true"><path d="M0 6H16V18H0M16 12H28M0 38H16V50H0M16 44H28M28 12V44M28 28H46" style="fill:none;stroke:currentColor" stroke-width="2"/></svg>
+      <div class="tc-foot">${bars(t.count, t.cap)}<span class="num t-ts">${t.count}/${t.cap}</span><span class="spacer"></span>${wx(t.wx)}</div>
+    </article>`;
+  },
+  lbRow(p, me) {
+    return `<div class="lbr${me ? " me" : ""}"><span class="rk${p.rank <= 3 ? " top" : ""}">#${p.rank}</span>${AV(p.name, 32)}
+      <span class="lbn"><b class="t-tm">${p.name}${me ? " (You)" : ""}</b><span class="t-bs muted">@${p.user}</span></span><span class="lbr-r num">${p.rating}</span></div>`;
+  },
+  hist(h) {
+    const you = h.sets.map(s => `<span class="num${s[0] > s[1] ? " w" : ""}">${s[0]}</span>`).join(""), them = h.sets.map(s => `<span class="num${s[1] > s[0] ? " w" : ""}">${s[1]}</span>`).join("");
+    const pad = h.sets.length < 3 ? "<span></span>" : "";
+    return `<div class="hr ${h.res}"><span class="hr-bar"></span><div>
+        <div class="hr-line${h.res === "W" ? " win" : ""}"><span class="t-lm">You${h.with ? " / " + h.with.split(" ")[0] : ""}</span>${you}${pad}</div>
+        <div class="hr-line${h.res === "L" ? " win" : ""}"><span class="t-lm">${short(h.vs)}</span>${them}${pad}</div></div>
+      <div class="hr-r">${delta(h.d)}<span class="t-ls muted">${h.date}</span></div></div>`;
+  },
+  queue() {
+    return `<div class="q"><div class="row-between"><span style="display:flex;gap:10px;align-items:center"><span class="dotlive"></span><span class="t-lm" style="color:var(--primary)">Searching</span></span><span class="num t-numM" style="font-size:22px">00:42</span></div>
+      <span class="t-bm">Near Kitsilano · within 10 km · ±200 Elo</span>${btn("secondary", "Leave queue")}</div>`;
+  },
+  score() {
+    return `<div class="sbd"><div class="sbd-h"><span class="t-lm">${chip("done", "Final")} &nbsp;Singles · Kitsilano</span><span class="t-ls muted">Set 1 · Set 2</span></div>
+      <div class="sbd-r win"><span class="nm">${AV("Alex Rivera", 26)}<b class="t-tm">A. Rivera</b></span><span class="num w">6</span><span class="num w">7</span></div>
+      <div class="sbd-r"><span class="nm">${AV("Jonah Brooks", 26)}<b class="t-tm">J. Brooks</b></span><span class="num">4</span><span class="num">5</span></div>
+      <div class="sbd-r" style="grid-template-columns:1fr auto;padding:10px 12px"><span class="t-ls muted">Your Elo</span><span><span class="num t-tm">1573 → 1587</span> ${delta(14)}</span></div></div>`;
+  },
+  radar(searching) {
+    const blips = searching ? `<span class="blip" style="left:32%;top:30%"></span><span class="blip" style="left:64%;top:62%"></span><span class="blip" style="left:58%;top:24%;opacity:.4"></span>` : "";
+    return `<div class="radar"><svg viewBox="0 0 300 300" aria-hidden="true"><g style="fill:none;stroke:currentColor" stroke-width="1.2"><circle cx="150" cy="150" r="44"/><circle cx="150" cy="150" r="88"/><circle cx="150" cy="150" r="132"/><path d="M150 0V300M0 150H300" stroke-dasharray="3 5"/></g></svg><div class="sweep"></div>${blips}<span class="me-dot"></span></div>`;
+  },
+  playBody() {
+    return `<div class="ab-row">${wmB(30)}<span class="sq">${I("notifications")}</span></div>
+      <div class="radar-wrap">${this.radar(false)}<div class="radar-txt"><h1 class="t-dl">Find a<br>match</h1><p class="t-bm muted">Players at your level. Courts near you. On court in an hour.</p></div></div>
+      <div class="eyebrow t-ls">Where</div>
+      <div class="locs">${loc(true, "my_location", "Near me", "Current location")}${loc(false, "search", "Address", "Search a place")}</div>
+      <div class="eyebrow t-ls">Format</div>${seg(["Singles", "Doubles", "Either"], "Singles")}
+      <div class="spacer"></div>
+      <div class="cta">${btn("primary", "Find a match", { ic: "bolt" })}<div class="crit t-ls">10 km · ±200 Elo · starts +1 hr</div></div>`;
+  },
+  screens() {
+    const signin = phone("B", "Sign in", `<div class="si">${linesSvg()}<div class="si-glow"></div>
+      <div class="si-mid">${wmB(104)}<p class="t-hm">${TOKENS.options.B.tagline}</p><p class="t-bm muted" style="max-width:250px">Instant matchmaking and Elo ranking for competitive tennis.</p></div>
+      <div class="si-foot">${btn("primary", "Continue with Google", { g: 1 })}<p class="t-ls muted center">Singles · Doubles · Tournaments</p></div></div>`);
+    const play = phone("B", "Matchmaking", this.playBody(), { nav: "play" });
+    const found = phone("B", "Match found (full-screen takeover)", `<div class="mf"><div class="mf-glow"></div>${linesSvg()}
+      <div class="mf-top">${chip("live", "Match found")}<span class="t-lm muted">Accept by ${MATCH.by}</span></div>
+      <h1 class="t-dm mf-title">Game<br>on?</h1>
+      <div class="mf-vs"><div class="mf-p">${AV(ME.name, 64)}<b class="t-hs">You</b><span class="num t-numM">${ME.rating}</span></div><span class="mf-x">VS</span>
+        <div class="mf-p">${AV(MATCH.opp.name, 64)}<b class="t-hs">${short(MATCH.opp.name)}</b><span class="num t-numM">${MATCH.opp.rating}</span></div></div>
+      <div class="mf-info"><div><span class="t-ls muted">When</span><b class="t-ts">6:30 PM</b></div><div><span class="t-ls muted">Where · ${MATCH.dist}</span><b class="t-ts">Kitsilano Beach</b></div><div><span class="t-ls muted">Format</span><b class="t-ts">Singles</b></div></div>
+      <div class="mf-map">${MAP()}</div>
+      <div class="mf-timer"><div class="row-between"><span class="t-lm">Time to accept</span><span class="num t-ts">28:46</span></div><div class="bar"><i style="width:62%"></i></div></div>
+      <div class="mf-btns">${btn("primary", "Accept", { ic: "check" })}${btn("text", "Decline")}</div></div>`);
+    const games = phone("B", "Games feed", `<div class="ab-row"><h1 class="t-hl">Games</h1><span class="sq hl">${I("add")}</span></div>
+      <div class="tabs"><span class="tab on t-ll">Feed</span><span class="tab t-ll">My games</span></div>
+      <div class="list">${FEED.map(g => g.tour ? this.tour(g) : this.game(g)).join("")}</div>`, { nav: "games" });
+    const ranks = phone("B", "Leaderboard (you pinned)", `<div class="ab-row"><h1 class="t-hl">Leaderboard</h1><span class="sq">${I("tune")}</span></div>
+      <div class="leader">${linesSvg()}<span class="rk1">#1</span><div><span class="t-ls muted">Top of the table</span><div class="t-hs">${LB[0].name}</div><span class="t-bs muted">@${LB[0].user}</span></div><span class="num t-numM" style="color:var(--primary)">${LB[0].rating}</span></div>
+      <div class="lb-head t-ls"><span>Rank</span><span>Player</span><span>Elo</span></div>
+      ${LB.slice(1, 9).map(p => this.lbRow(p)).join("")}<div class="me-pin">${this.lbRow(MEROW, true)}</div>`, { nav: "ranks" });
+    const profile = phone("B", "Profile (player card)", `<div class="ab-row"><span class="t-hl">Profile</span><span class="sq">${I("settings")}</span></div>
+      <div class="pc">${linesSvg()}<div class="pc-top">${AV(ME.name, 48)}<div><h1 class="t-hm">${ME.name}</h1><span class="t-bs muted">@${ME.user}</span></div></div>
+        <div class="pc-rating"><span class="num t-numL">${ME.rating}</span><span class="pc-lab"><span class="t-ls muted">Elo rating</span>${chip("up", "+14", "trending_up")}</span></div>
+        <div class="pc-stats"><div><span class="t-ls muted">Rank</span><b class="num t-numM">#${ME.rank}</b></div><div><span class="t-ls muted">Record</span><b class="num t-numM">${ME.w}–${ME.l}</b></div><div><span class="t-ls muted">Friends</span><b class="num t-numM">${ME.friends}</b></div></div>
+        <div class="form"><span class="t-ls muted">Form</span>${FORM.map(r => `<i class="f-${r}">${r}</i>`).join("")}</div></div>
+      <div class="tabs" style="margin-top:6px"><span class="tab on t-ll">History</span><span class="tab t-ll">Friends <span class="badge">${ME.requests}</span></span><span class="tab t-ll">Gear</span></div>
+      <div class="hist">${HIST.slice(0, 3).map(h => this.hist(h)).join("")}</div>`, { nav: "me" });
+    return signin + play + found + games + ranks + profile;
+  },
+  gallery() {
+    return [
+      spec("Buttons", `${btn("primary", "Find a match", { ic: "bolt" })}${btn("secondary", "Leave queue")}${btn("tonal", "Invite")}${btn("text", "Change court")}${btn("danger", "Cancel game")}${btn("dis", "Find a match")}`,
+        "56 dp tall, 6 dp corners, labelLarge (Barlow Condensed 700, UPPER, +5% tracking). Primary = highlight/onHighlight in both themes, with a highlight glow (API 28+). Secondary = 1.5 dp outline. Destructive = loss outline. Compose: <code>ButtonDefaults.buttonColors(containerColor = DonutTheme.colors.highlight, contentColor = DonutTheme.colors.onHighlight)</code>, <code>shape = MaterialTheme.shapes.medium</code>."),
+      spec("Segmented control · parallelogram", seg(["Singles", "Doubles", "Either"], "Singles"),
+        "Separate items with 6 dp gaps, skewed −10° (<code>ParallelogramShape</code>); the label is counter-skewed so it stays upright. Selected = highlight fill. 44 dp tall."),
+      spec("Location tiles", `<div class="locs">${loc(true, "my_location", "Near me", "Current location")}${loc(false, "search", "Address", "Search a place")}</div>`,
+        "Two tiles side by side instead of stacked cards. Selected = 1.5 dp highlight inner border, 7% highlight tint, filled check square. Keep Role.RadioButton semantics."),
+      spec("Tags (status chips)", `${chip("open", "1 open")}${chip("you", "Playing")}${chip("booked", "Booked")}${chip("done", "Final")}${chip("cancel", "Cancelled")}${chip("tour", "Tournament", "emoji_events")}${chip("live", "Live")}`,
+        "Parallelogram (skewX −12°), 22 dp tall, labelMedium UPPER. OPEN = highlight, BOOKED = surfaceContainerHighest, COMPLETED = outline, CANCELLED = lossContainer, tournament = tertiaryContainer (cyan), live = live clay with a blinking dot."),
+      spec("Outcome + delta + form guide", `${oc("W")}${oc("L")}${delta(14)}${delta(-6)}<span class="pc" style="margin:0;padding:10px 12px;background:var(--surface-container)"><span class="form" style="margin:0">${FORM.map(r => `<i class="f-${r}">${r}</i>`).join("")}</span></span>`,
+        "W = highlight, L = loss, both 26 dp parallelograms. Delta = Barlow Condensed 800 italic in win/loss colour. Form guide = the last 5 results from matchHistory, newest first."),
+      spec("Avatars", `${["Alex Rivera", "Priya Nair", "Kenji Watanabe", "Maya Chen"].map(n => AV(n, 44)).join("")}`,
+        "Rounded squares (6 dp), Barlow Condensed initials. Tones: neutral, primaryContainer, tertiaryContainer, secondaryContainer. The pinned row inverts to onHighlight/highlight."),
+      spec("Game card · fixture style", this.game(FEED[0]) + this.game(FEED[1]), "70 dp date block (day labelSmall, time in Barlow Condensed 800 italic 30) + details. Player slots as skewed bars (highlight = filled). Your games flip the date block to highlight. Corner tag shows spots or Playing.", { col: 1 }),
+      spec("Tournament card", this.tour(FEED[2]), "Cyan-tinted gradient with a 1 dp tertiary 35% inner border, a bracket glyph (8 → 4 → 2) as decoration, 8 registration bars.", { col: 1 }),
+      spec("Leaderboard rows", `<div style="width:100%;position:relative">${LB.slice(0, 3).map(p => this.lbRow(p)).join("")}<div style="position:relative;margin-top:8px">${this.lbRow(MEROW, true)}</div></div>`,
+        "Rank #N in Barlow Condensed 800 italic (top 3 = primary), 32 dp avatar, rating in condensed 700 20. Pinned = full-width highlight bar with onHighlight text, docked on top of the nav bar.", { col: 1 }),
+      spec("Queue status · searching", this.queue(), "Highlight 40% inner border, pulsing live dot, elapsed time in numericMedium. On the Matchmaking screen the radar starts showing blips and speeds up while searching.", { col: 1 }),
+      spec("Scoreboard · broadcast", this.score(), "Rows per side; winning set cells are filled highlight boxes with onHighlight numbers, losing cells are muted. The winner's name goes primary. Use it on Match summary, Game detail and bracket matches.", { col: 1 }),
+      spec("Match history · mini scoreboard", `<div class="hist" style="padding:0;width:100%">${HIST.slice(0, 2).map(h => this.hist(h)).join("")}</div>`, "4 dp result bar (highlight / loss), two lines You vs opponent with per-set numbers (winning sets bright), delta + date on the right.", { col: 1 }),
+      spec("Text field + banner", `<div class="field focus"><label class="t-ls">Tournament name</label><span class="t-bl">Kits Fall Classic</span></div><div class="banner">${I("check")}<span class="t-bm">Friend request sent</span><span class="act">Undo</span></div>`,
+        "TextField (filled), 6 dp top corners, 2 dp bottom indicator (outline → highlight on focus), label labelSmall UPPER. Banner = surfaceContainerHighest with a 3 dp highlight edge.", { col: 1 }),
+      spec("Bottom navigation", nav("play"), "surfaceContainerLowest bar, 1 dp top line. Active = primary icon + label and a 3 dp skewed highlight bar on top. Labels Barlow Condensed 700 11 UPPER.", { wide: 1 })
+    ].join("");
+  },
+  brand() {
+    return `<div class="brand">
+      <div class="panel"><h4 class="doc" style="margin-top:0">App icon (adaptive, 108 dp canvas)</h4><div class="icons">
+        <figure><div class="ic sq" style="background:#07090A"><svg viewBox="0 0 108 108" style="color:#DCFF3A;--cut:#07090A"><use href="#gB"/></svg></div>Squircle</figure>
+        <figure><div class="ic ci" style="background:#07090A"><svg viewBox="0 0 108 108" style="color:#DCFF3A;--cut:#07090A"><use href="#gB"/></svg></div>Circle</figure>
+        <figure><div class="ic tear" style="background:#DCFF3A"><svg viewBox="0 0 108 108" style="color:#07090A;--cut:#DCFF3A"><use href="#gB"/></svg></div>Alt · optic</figure>
+        <figure><div class="ic ci" style="background:#E3E8D6"><svg viewBox="0 0 108 108" style="color:#2E3520;--cut:#E3E8D6"><use href="#gB"/></svg></div>Themed</figure>
+        <figure><div class="ic sm" style="background:#3a3f3c"><svg viewBox="16 28 76 52" style="width:26px;height:20px;color:#fff;--cut:#3a3f3c"><use href="#gB"/></svg></div>Status bar</figure>
+      </div><p class="dmuted" style="font-size:13px">A donut-ball (ring r 8–24 at 62, 54) with seams, plus three speed lines. The whole mark fits inside the 33 dp safe zone.</p></div>
+      <div class="lockups">
+        <div class="lockup oB" data-mode="dark" style="background:#07090A">${wmB(76, "#07090A")}</div>
+        <div class="lockup oB" data-mode="light" style="background:#EEF0EC"><span style="color:#0A0D0B">${wmB(76, "#EEF0EC").replace('class="o"', 'class="o" style="color:#0A0D0B;--cut:#EEF0EC"')}</span></div>
+        <p class="dmuted" style="font-size:13px;margin:0">Wordmark: Barlow Condensed ExtraBold Italic, UPPER. The "O" is the ball, skewed −9° to match the italic, in highlight on dark and ink on light.</p>
+      </div></div>`;
+  }
+};
+</script>
+<script>
+/* =====================================================================
+   R.C · CLUBHOUSE
+   ===================================================================== */
+const markC = (cls, style = "") => `<svg class="${cls}" viewBox="21 21 66 66" style="${style}"><use href="#gC"/></svg>`;
+const wmC = size => `<span class="wmC" style="font-size:${size}px">d${markC("o")}nut</span>`;
+const ballC = cls => `<svg class="${cls}" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" style="fill:var(--tertiary);stroke:var(--sticker-border)" stroke-width="2"/><path d="M6 8c6 4 6 14 0 18M28 8c-6 4-6 14 0 18" style="fill:none;stroke:#fff" stroke-width="2" stroke-linecap="round"/></svg>`;
+const sprinkles = list => list.map(([x, y, r, c]) => `<i class="sprk" style="left:${x}px;top:${y}px;transform:rotate(${r}deg);background:${c}"></i>`).join("");
+R.C = {
+  game(g) {
+    const open = spots(g);
+    return `<article class="gc stk">
+      <div class="gc-top">${chip("date", `${g.day === g.date ? g.dshort.charAt(0) + g.dshort.slice(1).toLowerCase() : g.day} · ${g.time} ${g.ampm}`, "calendar_month")}${wx(g.wx)}</div>
+      <h3 class="t-tl">${g.court}</h3><span class="t-bm muted">${g.format} · ${g.players.length} of ${g.cap} players</span>
+      <div class="gc-foot"><span style="display:flex;align-items:center"><span class="stack">${g.players.map(p => AV(p, 32)).join("")}${Array.from({ length: open }, () => `<span class="slot">${I("add")}</span>`).join("")}</span>
+        ${g.mine ? `<span style="margin-left:16px">${chip("you", "You're playing", "check")}</span>` : `<span class="left">${open} spot${open > 1 ? "s" : ""} left</span>`}</span><span class="go">${I("arrow_forward")}</span></div>
+    </article>`;
+  },
+  tour(t) {
+    return `<article class="tc stk"><span class="trophy stk">${I("emoji_events", 1)}</span>
+      <span class="t-ls">Tournament · ${t.date}</span><h3 class="t-hs">${t.name}</h3>
+      <span class="t-bm">${t.court} · ${t.format} · ${t.time} ${t.ampm}</span>
+      <div class="dots">${Array.from({ length: t.cap }, (_, i) => `<i class="${i < t.count ? "f" : ""}"></i>`).join("")}<span class="t-lm">${t.count} of ${t.cap} in</span></div></article>`;
+  },
+  lbRow(p, me) {
+    return `<div class="lbr${me ? " me" : ""}"><span class="rk">#${p.rank}</span>${AV(p.name, 36)}
+      <span class="lbn"><b class="t-tm">${p.name}${me ? " (You)" : ""}</b><span class="t-bs muted">@${p.user}</span></span><span class="rt">${p.rating}</span></div>`;
+  },
+  podium() {
+    const col = (p, r) => {
+      const size = r === 1 ? 64 : 52, hgt = { 1: 78, 2: 56, 3: 42 }[r], m = `var(--medal${r})`;
+      return `<div class="pd" style="--m:${m}"><span class="pd-av">${AV(p.name, size)}<span class="medal">${r}</span></span><b class="t-ts">${p.name.split(" ")[0]}</b><span class="t-lm muted">${p.rating}</span>
+        <div class="pd-block stk" style="height:${hgt}px"><span class="t-numM">${r}</span></div></div>`;
+    };
+    return `<div class="podium">${col(LB[1], 2)}${col(LB[0], 1)}${col(LB[2], 3)}</div>`;
+  },
+  hist(h) {
+    return `<div class="hr">${oc(h.res)}<div class="hr-t"><b class="t-tm">vs ${h.vs}</b><span class="sets">${h.sets.map(s => `<i>${s.join("–")}</i>`).join("")}${h.donut ? `<span class="chip chip-donut"><span class="ci">${markC("", "width:18px;height:18px")}Donut set!</span></span>` : `<span class="t-bs muted">${h.court} · ${h.date}</span>`}</span></div>${delta(h.d)}</div>`;
+  },
+  queue() {
+    return `<div class="q stk"><div class="row-between"><span style="display:flex;gap:12px;align-items:center">${ballC("ballx")}<span><b class="t-tm">Looking for players…</b><br><span class="t-bs muted">Near you · usually a few minutes</span></span></span><span class="t-tm" style="font-feature-settings:'tnum'">0:42</span></div>
+      <div class="crit">${chip("date", "10 km", "location_on")}${chip("open", "±200 rating", "leaderboard")}${chip("booked", "~1 hour", "schedule")}</div>${btn("text", "Leave the queue")}</div>`;
+  },
+  score() {
+    return `<div class="sbd stk"><div class="sbd-r">${AV("Alex Rivera", 36)}<b class="t-tm">You ${I("emoji_events", 1)}</b><span class="num w">6</span><span class="num w">7</span></div>
+      <div class="sbd-r">${AV("Jonah Brooks", 36)}<b class="t-tm">Jonah Brooks</b><span class="num">4</span><span class="num">5</span></div>
+      <div class="sbd-r" style="grid-template-columns:1fr auto"><span class="t-bm muted">Your rating: 1573 → 1587</span>${delta(14)}</div></div>`;
+  },
+  playBody() {
+    return `<div class="ab-row"><div><p class="t-bm muted">Hey Alex,</p><h1 class="t-hl">Ready for a hit?</h1></div><span class="rbtn stk">${I("notifications")}</span></div>
+      <div class="court-card stk">${courtSvg("court")}${ballC("ballx")}<span class="cc-tag">${chip("tour", "On court in about an hour", "bolt")}</span></div>
+      <div class="how"><div class="c1">${I("location_on", 1)}<span class="t-bs" style="font-weight:700">Pick a spot</span></div><div class="c2">${I("group", 1)}<span class="t-bs" style="font-weight:700">Singles or doubles</span></div><div class="c3">${I("emoji_events", 1)}<span class="t-bs" style="font-weight:700">Players at your level</span></div></div>
+      <div class="eyebrow t-ts">Where do you want to play?</div>
+      <div class="locs">${loc(true, "my_location", "Near me", "Using your current location")}${loc(false, "edit", "Somewhere else", "Search an address or court")}</div>
+      <div class="eyebrow t-ts">Singles or doubles?</div>${seg(["Singles", "Doubles", "Either"], "Singles")}
+      <div class="spacer"></div><div class="cta">${btn("primary", "Find me a match", { ic: "sports_tennis" })}</div>`;
+  },
+  screens() {
+    const signin = phone("C", "Sign in", `<div class="si">
+      ${sprinkles([[40, 90, 30, "var(--primary)"], [290, 130, -40, "var(--secondary)"], [70, 470, 60, "var(--tertiary)"], [270, 420, 15, "var(--primary)"], [30, 300, -20, "var(--info)"], [300, 300, 70, "var(--tertiary)"], [160, 70, -10, "var(--secondary)"]])}
+      <svg class="squig" viewBox="0 0 120 40" style="left:-10px;top:180px;width:120px"><path d="M2 20c15-18 30 18 45 0s30 18 45 0 20-10 26-6" style="fill:none;stroke:currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+      <div class="si-mid"><div class="si-logo stk">${markC("", "width:132px;height:132px")}</div>${wmC(64)}<p class="t-bl muted">${TOKENS.options.C.tagline}</p></div>
+      <div class="si-foot">${btn("secondary", "Continue with Google", { g: 1 })}<p class="t-bs muted center">Find a game, meet players, climb the ladder.</p></div></div>`);
+    const play = phone("C", "Matchmaking", this.playBody(), { nav: "play" });
+    const found = phone("C", "Match found (bottom sheet)", this.playBody(), { nav: "play", overlay: `<div class="scrim"></div><div class="sheet">
+      ${sprinkles([[40, 26, 30, "var(--primary)"], [300, 40, -40, "var(--secondary)"], [80, 70, 70, "var(--tertiary)"], [270, 92, 15, "var(--info)"]])}
+      <div class="handle"></div>
+      <div class="mf-avs">${AV(ME.name, 64)}<span class="vs stk">vs</span>${AV(MATCH.opp.name, 64)}</div>
+      <h2 class="t-ds center">It's a match!</h2><p class="t-bm muted center" style="margin-top:-4px">Jonah (${MATCH.opp.rating}) wants a singles game too.</p>
+      <div class="mf-list">
+        <div class="mf-row"><span class="bub c1">${I("calendar_month", 1)}</span><div><b class="t-tm">${MATCH.when}</b><span class="t-bs muted">An hour from now</span></div></div>
+        <div class="mf-row"><span class="bub c2">${I("location_on", 1)}</span><div><b class="t-tm">${MATCH.court}</b><span class="t-bs muted">${MATCH.dist} away · tap for map</span></div></div>
+        <div class="mf-row"><span class="bub c3">${I("timer", 1)}</span><div><b class="t-tm">Say yes by ${MATCH.by}</b><span class="t-bs muted">It's booked once everyone's in</span></div></div>
+      </div>
+      <div class="btn-row">${btn("secondary", "Not this time")}${btn("primary", "I'm in!")}</div></div>` });
+    const games = phone("C", "Games feed", `<div class="ab-row"><h1 class="t-hl">Games</h1><span class="rbtn stk prim">${I("add")}</span></div>
+      ${seg(["Open games", "My games"], "Open games")}
+      <div class="list">${[FEED[0], FEED[2], FEED[1]].map(g => g.tour ? this.tour(g) : this.game(g)).join("")}</div>`, { nav: "games" });
+    const ranks = phone("C", "Leaderboard (you pinned)", `<div class="ab-row"><h1 class="t-hl">Leaderboard</h1><span class="rbtn stk">${I("search")}</span></div>
+      ${this.podium()}<div class="lb">${LB.slice(3, 8).map(p => this.lbRow(p)).join("")}</div><div class="me-pin">${this.lbRow(MEROW, true)}</div>`, { nav: "ranks" });
+    const profile = phone("C", "Profile", `<div class="ab-row"><h1 class="t-hl">Profile</h1><span class="rbtn stk">${I("settings")}</span></div>
+      <div class="pf stk">${AV(ME.name, 60)}<div><h2 class="t-hm">${ME.name}</h2><span class="t-bm" style="opacity:.8">@${ME.user}</span></div>${chip("rank", "#" + ME.rank, "leaderboard")}</div>
+      <div class="tiles"><div class="tile c3 stk"><span class="t-ls">Rating</span><b class="t-numM">${ME.rating}</b>${delta(ME.last)}</div><div class="tile c2 stk"><span class="t-ls">Record</span><b class="t-numM">${ME.w}–${ME.l}</b></div><div class="tile c4 stk"><span class="t-ls">Friends</span><b class="t-numM">${ME.friends}</b></div></div>
+      ${seg(["History", "Friends · 2", "Gear"], "History")}
+      <div class="hist">${HIST.slice(0, 3).map(h => this.hist(h)).join("")}</div>`, { nav: "me" });
+    return signin + play + found + games + ranks + profile;
+  },
+  gallery() {
+    return [
+      spec("Buttons (sticker)", `${btn("primary", "Find me a match", { ic: "sports_tennis" })}${btn("secondary", "Not this time")}${btn("tonal", "Invite friends", { ic: "person_add" })}${btn("primary", "Pressed", { cls: "pressed" })}${btn("text", "Change court")}${btn("danger", "Cancel game")}${btn("dis", "Find me a match")}`,
+        "Pill, 56 dp, labelLarge (Figtree 700). 1.5 dp stickerBorder + solid 3 dp shadow (<code>Modifier.sticker()</code> in Shape.kt). Pressed: sinks 2 dp and the shadow drops to 1 dp, on a spring. Primary = clay, secondary = white, tonal = ball yellow. Text buttons are underlined."),
+      spec("Segmented control", seg(["Singles", "Doubles", "Either"], "Doubles"),
+        "Pill track (surfaceContainerHigh + 1.5 dp outlineVariant). The thumb is a mini sticker (white, ink border, 2 dp shadow) that slides on spring(0.6, 500). Also used for the Games and Profile tabs instead of TabRow."),
+      spec("Location option cards", `<div class="locs">${loc(true, "my_location", "Near me", "Using your current location")}${loc(false, "edit", "Somewhere else", "Search an address or court")}</div>`,
+        "20 dp cards, 40 dp icon bubble (primaryContainer → primary when selected), green check circle. Only the selected card gets the sticker shadow."),
+      spec("Chips", `${chip("open", "Open")}${chip("you", "You're playing", "check")}${chip("booked", "Booked")}${chip("done", "Completed")}${chip("cancel", "Cancelled")}${chip("tour", "Tournament", "emoji_events")}${chip("date", "Today · 6:00 PM", "calendar_month")}${wx(FEED[0].wx)}<span class="chip chip-donut"><span class="ci">${markC("", "width:18px;height:18px")}Donut set!</span></span>`,
+        "Pill, 28 dp, labelMedium 700, filled icon 16 dp. Each meaning has its own soft container: date = primaryContainer, weather = infoContainer, open = secondaryContainer. The Donut set! chip uses the logo."),
+      spec("Outcome stickers + delta", `${oc("W")}${oc("L")}${delta(14)}${delta(-6)}`,
+        "40 dp circle sticker rotated −8°, Bricolage 800. W = grass, L = clay on peach. The delta is a pill on win/loss containers."),
+      spec("Avatars", `<span class="stack">${["Alex Rivera", "Priya Nair", "Kenji Watanabe", "Maya Chen"].map(n => AV(n, 44)).join("")}<span class="slot" style="width:44px;height:44px">${I("add")}</span></span>`,
+        "Circle + 1.5 dp stickerBorder, Bricolage initials, 4 soft tones. Stacks overlap by 8 dp; an empty slot is dashed with a + (taps to join or invite)."),
+      spec("Game card", this.game(FEED[0]), "Sticker card, 24 dp corners. Date chip + weather chip on top, court titleLarge, avatar stack with open slots, '1 spot left' in clay, 36 dp arrow button.", { col: 1 }),
+      spec("Tournament card", `<div style="padding-top:12px">${this.tour(FEED[2])}</div>`, "Ball-yellow sticker card with a white trophy badge breaking out of the top edge, rotated 10°. Registration shown as 8 dots.", { col: 1 }),
+      spec("Podium + rows", `<div style="width:100%">${this.podium()}<div class="lb" style="padding:12px 0 0">${LB.slice(3, 5).map(p => this.lbRow(p)).join("")}</div><div style="margin-top:8px">${this.lbRow(MEROW, true)}</div></div>`,
+        "Top 3 on podium blocks in medal1/2/3 (gold, silver, bronze tints), then rounded row cards with a rating pill. Pinned You = clay sticker card floating above the nav bar.", { col: 1 }),
+      spec("Queue status · searching", this.queue(), "Bouncing ball (1 s ease-in-out), friendly copy, criteria as coloured chips, Leave the queue as a text button.", { col: 1 }),
+      spec("Scoreboard", this.score(), "Set scores in 34 dp circles; the winner's are filled grass with white numbers. A trophy marks the winning side. Dashed dividers.", { col: 1 }),
+      spec("Match history cards", `<div class="hist" style="padding:0;width:100%">${HIST.slice(1, 3).map(h => this.hist(h)).join("")}</div>`, "Outcome sticker, opponent, set pills, court/date or the Donut set! chip, delta pill.", { col: 1 }),
+      spec("Text field + banner", `<div class="field focus"><label class="t-bs">Tournament name</label><span class="t-bl">Kits Fall Classic</span></div><div class="banner">${I("check", 1)}<span class="t-bm">Friend request sent!</span><span class="act t-ll">Undo</span></div>`,
+        "18 dp field, 1.5 dp outlineVariant border; focus turns it into a sticker. Banners are soft secondaryContainer pills.", { col: 1 }),
+      spec("Floating pill navigation", nav("games"), "A custom bar, not NavigationBar: a floating pill (12 dp side inset) with the sticker treatment. Only the active tab shows its label, inside a clay pill that animates width on spring(0.6, 500). Inactive tabs are icon-only but keep a contentDescription.", { wide: 1 })
+    ].join("");
+  },
+  brand() {
+    const ic = (cls, bg, extra = "") => `<div class="ic ${cls}" style="background:${bg}">${markC("", `width:100%;height:100%;${extra}`).replace('viewBox="21 21 66 66"', 'viewBox="0 0 108 108"')}</div>`;
+    return `<div class="brand">
+      <div class="panel"><h4 class="doc" style="margin-top:0">App icon (adaptive, 108 dp canvas)</h4><div class="icons">
+        <figure>${ic("sq", "#C8481E")}Squircle</figure><figure>${ic("ci", "#C8481E")}Circle</figure><figure>${ic("tear", "#FBF5EC")}Alt · cream</figure>
+        <figure><div class="ic ci" style="background:#F3E3D6"><svg viewBox="0 0 108 108" style="width:100%;height:100%"><path style="fill:#5A3422" fill-rule="evenodd" d="M54 23a31 31 0 1 1 0 62a31 31 0 1 1 0-62Zm0 20a11 11 0 1 0 0 22a11 11 0 1 0 0-22Z"/></svg></div>Themed</figure>
+        <figure><div class="ic sm" style="background:#3a3f3c"><svg viewBox="21 21 66 66" style="width:22px;height:22px"><path style="fill:#fff" fill-rule="evenodd" d="M54 23a31 31 0 1 1 0 62a31 31 0 1 1 0-62Zm0 20a11 11 0 1 0 0 22a11 11 0 1 0 0-22Z"/></svg></div>Status bar</figure>
+      </div><p class="dmuted" style="font-size:13px">A frosted donut that is also a tennis ball: ball-yellow frosting with a white seam, sprinkles in clay, grass and white, and an ink outline. Dough ring r 11–31 around (54, 54).</p></div>
+      <div class="lockups">
+        <div class="lockup oC" data-mode="light" style="background:#FBF5EC">${wmC(64)}</div>
+        <div class="lockup oC" data-mode="dark" style="background:#1B1512">${wmC(64)}</div>
+        <p class="dmuted" style="font-size:13px;margin:0">Wordmark: Bricolage Grotesque ExtraBold, lowercase, tracking −4%, in primary (clay). The donut replaces the "o".</p>
+      </div></div>`;
+  }
+};
+
+/* =====================================================================
+   PAGE WIRING
+   ===================================================================== */
+(function init() {
+  for (const k of ["A", "B", "C"]) {
+    $(`#brand-${k}`).innerHTML = R[k].brand();
+    $(`#sw-${k}`).innerHTML = swatches(k);
+    $(`#type-${k}`).innerHTML = specimen(k);
+    $(`#sys-${k}`).innerHTML = systemTable(k);
+    $(`#gal-${k}`).innerHTML = R[k].gallery();
+    $(`#scr-${k}`).innerHTML = R[k].screens();
+    $(`#kt-${k}`).innerHTML = codeBlocks(k);
+  }
+  // Overview cards
+  $("#overviewCards").innerHTML = ["A", "B", "C"].map(k => {
+    const o = TOKENS.options[k], m = o.defaultMode, c = o.color[m], e = o.ext[m];
+    const lock = k === "A" ? `<span class="wmA" style="font-size:34px"><svg viewBox="22 22 64 64"><use href="#gA"/></svg><span>donut</span></span>` : k === "B" ? wmB(40) : wmC(38);
+    const strip = [c.background, c.surfaceContainerLowest, c.primary, c.secondary, e.highlight, c.tertiary, c.onBackground].map(x => `<i style="background:${x}"></i>`).join("");
+    return `<a class="panel ov" href="#option-${k.toLowerCase()}" style="text-decoration:none;color:inherit">
+      <div class="ov-top"><div><div class="opt-letter">Option ${k}</div><b style="font-size:20px">${o.name}</b></div>
+        <div class="o${k}" data-mode="${m}" style="background:var(--background);padding:10px 14px;border-radius:12px">${lock}</div></div>
+      <div class="strip">${strip}</div>
+      <div class="dmuted" style="font-size:13px">${[...new Set(Object.values(o.fonts).map(f => f.family))].join(" + ")} · ${m}-first · "${o.tagline}"</div>
+      <div class="ov-mini o${k}" data-mode="${m}">${phone(k, "", R[k].playBody(), { nav: "play" })}</div></a>`;
+  }).join("");
+  // Compare
+  const CMP = [["play", "Matchmaking"], ["found", "Match found"], ["games", "Games feed"], ["ranks", "Leaderboard"], ["me", "Profile"], ["signin", "Sign in"]];
+  const order = { signin: 0, play: 1, found: 2, games: 3, ranks: 4, me: 5 };
+  const cache = {};
+  for (const k of ["A", "B", "C"]) { const tmp = document.createElement("div"); tmp.innerHTML = R[k].screens(); cache[k] = [...tmp.children].map(n => n.outerHTML); }
+  const showCmp = key => {
+    $("#cmpTabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === key));
+    $("#cmpRow").innerHTML = ["A", "B", "C"].map(k => `<div class="o${k}" data-mode="${TOKENS.options[k].defaultMode}">${cache[k][order[key]].replace(/<figcaption>.*?<\/figcaption>/, `<figcaption>${k} · ${TOKENS.options[k].name}</figcaption>`)}</div>`).join("");
+  };
+  $("#cmpTabs").innerHTML = CMP.map(([k, l]) => `<button type="button" data-k="${k}">${l}</button>`).join("");
+  $("#cmpTabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showCmp(b.dataset.k); });
+  showCmp("games");
+  // Light / dark toggles per option
+  document.querySelectorAll(".modes").forEach(g => g.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    g.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    $(`#prev-${g.dataset.for}`).dataset.mode = b.dataset.m;
+  }));
+  // Page theme toggle (document chrome only)
+  $("#docTheme").addEventListener("click", () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    r.dataset.theme = dark ? "light" : "dark";
+  });
+  // Copy buttons
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]"); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    try { await navigator.clipboard.writeText($("#" + b.dataset.copy).textContent); b.textContent = "Copied"; }
+    catch { b.textContent = "Select and copy"; }
+    setTimeout(() => (b.textContent = "Copy"), 1600);
+  });
+  // Tokens JSON
+  const json = JSON.stringify(TOKENS, null, 2);
+  $("#tokjson").textContent = json;
+  $("#dlTokens").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    a.download = "donut-design-tokens.json"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+})();
+</script>
+</body>
+</html>

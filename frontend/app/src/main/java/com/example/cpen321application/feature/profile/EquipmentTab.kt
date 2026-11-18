@@ -1,51 +1,56 @@
 package com.example.cpen321application.feature.profile
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
+import com.example.cpen321application.core.ui.components.ChipStyle
+import com.example.cpen321application.core.ui.components.SectionLabel
+import com.example.cpen321application.core.ui.components.SmallButtonHeight
+import com.example.cpen321application.core.ui.components.StatusChip
+import com.example.cpen321application.core.ui.theme.TextFieldShape
 
 private const val TENNIS_BALLS_NAME = "Tennis Balls"
+
+// Dividers start where the name does: 20 dp gutter + 36 dp tile + 12 dp
+private val DIVIDER_INSET = 68.dp
 
 @Composable
 internal fun EquipmentTabContent(
@@ -58,13 +63,12 @@ internal fun EquipmentTabContent(
     }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
     ) {
-        item {
+        item(key = "toolbar") {
             EquipmentToolbar(
+                count = uiState.equipment.size,
                 isActionInProgress = uiState.isActionInProgress,
                 onAdd = actions.onOpenAddEquipment,
                 onRefresh = actions.onRefresh,
@@ -72,10 +76,16 @@ internal fun EquipmentTabContent(
         }
 
         if (uiState.equipment.isEmpty()) {
-            item { EquipmentEmptyView() }
+            item(key = "empty") { EquipmentEmptyView() }
         } else {
-            items(uiState.equipment, key = { it.id }) { item ->
-                EquipmentItemCard(
+            itemsIndexed(uiState.equipment, key = { _, item -> item.id }) { index, item ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = DIVIDER_INSET, end = 20.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                }
+                EquipmentRow(
                     equipment = item,
                     isActionInProgress = uiState.isActionInProgress,
                     onEdit = { actions.onOpenEditEquipment(item) },
@@ -88,30 +98,30 @@ internal fun EquipmentTabContent(
 
 @Composable
 private fun EquipmentToolbar(
+    count: Int,
     isActionInProgress: Boolean,
     onAdd: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(start = 20.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        SectionLabel(text = if (count == 1) "1 item" else "$count items", modifier = Modifier.weight(1f))
+        IconButton(onClick = onRefresh) {
+            Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Refresh Equipment")
+        }
         Button(
             onClick = onAdd,
             enabled = !isActionInProgress,
+            modifier = Modifier.height(SmallButtonHeight),
+            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Add Equipment",
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Add Equipment")
-        }
-
-        IconButton(onClick = onRefresh) {
-            Icon(Icons.Default.Refresh, contentDescription = "Refresh Equipment")
+            Icon(painterResource(R.drawable.ic_add), contentDescription = null, modifier = Modifier.size(20.dp))
+            Text("Add equipment", modifier = Modifier.padding(start = 6.dp))
         }
     }
 }
@@ -123,22 +133,17 @@ private fun EquipmentEmptyView() {
             .fillMaxWidth()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(
-            imageVector = Icons.Default.Build,
+            painter = painterResource(R.drawable.ic_sports_tennis),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
             tint = MaterialTheme.colorScheme.outline,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = "No equipment yet", style = MaterialTheme.typography.titleMedium)
         Text(
-            text = "No Equipment Added Yet",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Add your tennis rackets, shoes, and gear here.",
+            text = "Add your rackets, balls, shoes and other gear here.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -146,127 +151,88 @@ private fun EquipmentEmptyView() {
     }
 }
 
+// An icon tile for the type, the name (with Default), the type and next service, then edit and delete
 @Composable
-private fun EquipmentItemCard(
+private fun EquipmentRow(
     equipment: EquipmentDto,
     isActionInProgress: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .size(36.dp)
+                .background(colors.surfaceContainer, MaterialTheme.shapes.small),
+            contentAlignment = Alignment.Center,
         ) {
-            EquipmentItemInfo(
-                equipment = equipment,
-                modifier = Modifier.weight(1f),
+            Icon(
+                painter = painterResource(equipment.equipmentType.icon),
+                contentDescription = null,
+                tint = colors.onSurface,
+                modifier = Modifier.size(20.dp),
             )
-            EquipmentItemActions(
-                isActionInProgress = isActionInProgress,
-                onEdit = onEdit,
-                onDelete = onDelete,
+        }
+        EquipmentItemInfo(equipment = equipment, modifier = Modifier.weight(1f))
+        IconButton(onClick = onEdit, enabled = !isActionInProgress) {
+            Icon(
+                painterResource(R.drawable.ic_edit),
+                contentDescription = "Edit Equipment",
+                tint = colors.onSurfaceVariant,
             )
+        }
+        IconButton(onClick = onDelete, enabled = !isActionInProgress) {
+            Icon(painterResource(R.drawable.ic_delete), contentDescription = "Delete Equipment", tint = colors.error)
         }
     }
 }
 
+@get:DrawableRes
+private val EquipmentType.icon: Int
+    get() = when (this) {
+        EquipmentType.RACKET, EquipmentType.BALLS -> R.drawable.ic_sports_tennis
+        EquipmentType.SHOES -> R.drawable.ic_steps
+        EquipmentType.OTHER -> R.drawable.ic_backpack
+    }
+
+// Name on its own line; then the type (left out when it is the name, e.g. Tennis Balls) and Default
 @Composable
 private fun EquipmentItemInfo(
     equipment: EquipmentDto,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = equipment.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (equipment.isDefault) {
-                Spacer(modifier = Modifier.width(8.dp))
-                DefaultBadge()
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val type = equipment.equipmentType.displayName
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = equipment.name,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (type != equipment.name || equipment.isDefault) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (type != equipment.name) {
+                    Text(text = type, style = MaterialTheme.typography.bodySmall, color = muted)
+                }
+                if (equipment.isDefault) {
+                    StatusChip(text = "Default", style = ChipStyle.OPEN)
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Type: ${equipment.equipmentType.displayName}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         if (equipment.nextMaintenanceAt != null) {
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Next Maintenance: ${equipment.nextMaintenanceAt.take(10)}",
+                text = "Service due ${equipment.nextMaintenanceAt.take(10)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DefaultBadge() {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(modifier = Modifier.width(2.dp))
-            Text(
-                text = "Default",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun EquipmentItemActions(
-    isActionInProgress: Boolean,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(
-            onClick = onEdit,
-            enabled = !isActionInProgress,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "Edit Equipment",
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        IconButton(
-            onClick = onDelete,
-            enabled = !isActionInProgress,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete Equipment",
-                tint = MaterialTheme.colorScheme.error,
+                color = MaterialTheme.colorScheme.secondary,
             )
         }
     }
@@ -283,10 +249,7 @@ internal fun EquipmentDialog(
     AlertDialog(
         onDismissRequest = actions.onCloseEquipmentDialog,
         title = {
-            Text(
-                text = if (isEditing) "Edit Equipment" else "Add Equipment",
-                fontWeight = FontWeight.Bold,
-            )
+            Text(text = if (isEditing) "Edit equipment" else "Add equipment")
         },
         text = { EquipmentDialogBody(uiState = uiState, actions = actions) },
         confirmButton = {
@@ -316,11 +279,7 @@ private fun EquipmentDialogBody(
     ) {
         EquipmentNameField(uiState = uiState, actions = actions)
 
-        Text(
-            text = "Equipment Type",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        SectionLabel(text = "Type")
 
         EquipmentTypeSelector(uiState = uiState, actions = actions)
 
@@ -351,11 +310,12 @@ private fun EquipmentNameField(
             }
         },
         enabled = !isBalls,
-        label = { Text("Equipment Name") },
+        label = { Text("Name") },
         supportingText = if (isBalls) {
             { Text("Name is fixed for Tennis Balls") }
         } else null,
         singleLine = true,
+        shape = TextFieldShape,
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -443,17 +403,16 @@ private fun DefaultEquipmentCheckbox(
 
 @Composable
 private fun RacketMaintenanceNote() {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-        ),
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             text = "Tennis rackets are automatically scheduled for next maintenance 1 month from today.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.padding(10.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(12.dp),
         )
     }
 }

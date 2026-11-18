@@ -47,7 +47,7 @@
             android:value="@string/match_channel_id" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_launcher_foreground" />
+            android:resource="@drawable/ic_stat_donut" />
     </application>
 
 </manifest>

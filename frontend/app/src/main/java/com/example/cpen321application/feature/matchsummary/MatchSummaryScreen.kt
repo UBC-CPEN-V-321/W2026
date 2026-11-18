@@ -1,6 +1,5 @@
 package com.example.cpen321application.feature.matchsummary
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,25 +25,30 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.cpen321application.core.data.model.MatchResult
 import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.model.playersOnTeam
 import com.example.cpen321application.core.ui.components.BackHeader
-import com.example.cpen321application.core.ui.components.LossColor
-import com.example.cpen321application.core.ui.components.MatchOutcomeBadge
-import com.example.cpen321application.core.ui.components.WinColor
+import com.example.cpen321application.R
+import com.example.cpen321application.core.ui.components.ChipStyle
+import com.example.cpen321application.core.ui.components.DonutCard
+import com.example.cpen321application.core.ui.components.OutcomeBadge
+import com.example.cpen321application.core.ui.components.PlayerAvatar
+import com.example.cpen321application.core.ui.components.RatingChangeFooter
+import com.example.cpen321application.core.ui.components.RatingDelta
+import com.example.cpen321application.core.ui.components.Scoreboard
+import com.example.cpen321application.core.ui.components.ScoreboardSide
+import com.example.cpen321application.core.ui.components.StatusChip
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
 import com.example.cpen321application.core.ui.formatStartsAt
 import com.example.cpen321application.core.ui.gameTournamentText
 import com.example.cpen321application.core.ui.label
 import com.example.cpen321application.core.ui.playerNames
-import com.example.cpen321application.core.ui.ratingChangeText
 import kotlin.math.roundToInt
 
-private val ScoreColumnWidth = 40.dp
 
 @Composable
 fun MatchSummaryRoute(viewModel: MatchSummaryViewModel, onBack: () -> Unit) {
@@ -137,130 +136,72 @@ private fun MatchSummaryContent(
 @Composable
 private fun ResultCard(match: MatchResult) {
     val game = match.game
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            MatchOutcomeBadge(outcome = match.outcome, textStyle = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.size(4.dp))
-            Text(
-                text = "vs ${playerNames(match.opponents)}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            if (match.partners.isNotEmpty()) {
-                Text(text = "with ${playerNames(match.partners)}", style = MaterialTheme.typography.bodyMedium)
+    DonutCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            OutcomeBadge(outcome = match.outcome, size = 44.dp, textStyle = DonutTextStyles.numericTitle)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "vs ${playerNames(match.opponents)}", style = MaterialTheme.typography.titleLarge)
+                if (match.partners.isNotEmpty()) {
+                    Text(
+                        text = "with ${playerNames(match.partners)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            Text(text = formatStartsAt(game.startsAt), style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = "${game.court.name} · ${game.format.label}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+        }
+        Text(
+            text = formatStartsAt(game.startsAt),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 10.dp)
+        )
+        Text(
+            text = "${game.court.name} · ${game.format.label}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        game.tournament?.let {
+            StatusChip(
+                text = gameTournamentText(it),
+                style = ChipStyle.TOURNAMENT,
+                icon = R.drawable.ic_star_filled,
+                modifier = Modifier.padding(top = 6.dp)
             )
-            game.tournament?.let {
-                Text(
-                    text = gameTournamentText(it),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            match.ratingChange?.let { change -> MyRatingChange(me = match.me, change = change) }
         }
     }
 }
 
+// One row per team, the signed-in user's first, with a column per set; the rating change below
 @Composable
-private fun MyRatingChange(me: Player, change: Int) {
-    val before = me.ratingBefore ?: return
-    val after = me.ratingAfter ?: return
-    Spacer(modifier = Modifier.size(8.dp))
-    Text(text = "Your rating", style = MaterialTheme.typography.labelMedium)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "${before.roundToInt()} → ${after.roundToInt()}",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        RatingChange(change = change)
-    }
-}
-
-@Composable
-private fun RatingChange(change: Int) {
-    Text(
-        text = ratingChangeText(change),
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = when {
-            change > 0 -> WinColor
-            change < 0 -> LossColor
-            else -> MaterialTheme.colorScheme.onSurfaceVariant
+private fun ScoreCard(match: MatchResult) {
+    val before = match.me.ratingBefore
+    val after = match.me.ratingAfter
+    Scoreboard(
+        title = "Final · ${match.game.format.label}",
+        sides = listOf(
+            ScoreboardSide(
+                name = "You" + teammatesSuffix(match.partners),
+                avatarName = match.me.name,
+                setScores = match.myScores.map { it.first },
+                otherSetScores = match.myScores.map { it.second }
+            ),
+            ScoreboardSide(
+                name = playerNames(match.opponents),
+                avatarName = match.opponents.firstOrNull()?.name.orEmpty(),
+                setScores = match.myScores.map { it.second },
+                otherSetScores = match.myScores.map { it.first }
+            )
+        ),
+        footer = if (before != null && after != null) {
+            { RatingChangeFooter(before = before.roundToInt(), after = after.roundToInt()) }
+        } else {
+            null
         }
     )
 }
 
-// One row per team, the signed-in user's first, with a column per set
-@Composable
-private fun ScoreCard(match: MatchResult) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(text = "Score", style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.weight(1f))
-                match.myScores.indices.forEach { index ->
-                    Text(
-                        text = "Set ${index + 1}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.width(ScoreColumnWidth)
-                    )
-                }
-            }
-            TeamSetScoresRow(
-                teamName = "You" + teammatesSuffix(match.partners),
-                ownVsOtherSetScores = match.myScores
-            )
-            TeamSetScoresRow(
-                teamName = playerNames(match.opponents),
-                ownVsOtherSetScores = match.myScores.map { it.second to it.first }
-            )
-        }
-    }
-}
-
 private fun teammatesSuffix(partners: List<Player>): String =
     if (partners.isEmpty()) "" else " & ${playerNames(partners)}"
-
-@Composable
-private fun TeamSetScoresRow(teamName: String, ownVsOtherSetScores: List<Pair<Int, Int>>) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = teamName,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        ownVsOtherSetScores.forEach { (own, other) ->
-            Text(
-                text = own.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (own > other) FontWeight.Bold else FontWeight.Normal,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(ScoreColumnWidth)
-            )
-        }
-    }
-}
 
 @Composable
 private fun PlayersSection(
@@ -324,8 +265,7 @@ private fun PlayerRowWithFriendButton(
             // Not the username: until onboarding lets players pick one, it is their email
             Text(
                 text = if (isMe) "${player.name} (you)" else player.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold
+                style = MaterialTheme.typography.titleMedium
             )
             PlayerRating(player = player)
         }
@@ -354,24 +294,7 @@ private fun PlayerRating(player: Player) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.width(6.dp))
-        RatingChange(change = after.roundToInt() - before.roundToInt())
-    }
-}
-
-@Composable
-private fun PlayerAvatar(name: String) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = name.firstOrNull()?.uppercase() ?: "?",
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            fontWeight = FontWeight.Bold
-        )
+        RatingDelta(change = after.roundToInt() - before.roundToInt())
     }
 }
 
@@ -379,7 +302,7 @@ private fun PlayerAvatar(name: String) {
 private fun FriendButton(status: FriendStatus, isSending: Boolean, onAddFriend: () -> Unit) {
     when (status) {
         FriendStatus.FRIENDS -> OutlinedButton(onClick = {}, enabled = false) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text("Friends")
         }
@@ -387,12 +310,12 @@ private fun FriendButton(status: FriendStatus, isSending: Boolean, onAddFriend: 
             Text("Requested")
         }
         FriendStatus.REQUEST_RECEIVED -> Button(onClick = onAddFriend, enabled = !isSending) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text("Accept")
         }
         FriendStatus.NOT_FRIENDS -> Button(onClick = onAddFriend, enabled = !isSending) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Icon(painterResource(R.drawable.ic_person_add), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text("Add friend")
         }

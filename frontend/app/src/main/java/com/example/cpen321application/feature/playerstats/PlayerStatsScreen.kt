@@ -29,9 +29,8 @@ import androidx.compose.ui.unit.dp
 import com.example.cpen321application.core.network.dto.OpponentRatingBandDto
 import com.example.cpen321application.core.network.dto.PlayerStatsDto
 import com.example.cpen321application.core.ui.components.BackHeader
-import com.example.cpen321application.core.ui.components.LossColor
-import com.example.cpen321application.core.ui.components.WinColor
 import com.example.cpen321application.core.ui.ratingChangeText
+import com.example.cpen321application.core.ui.theme.DonutTheme
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -200,8 +199,8 @@ private fun BandRow(elo: String, played: String, record: String, margin: String,
     val style = if (isHeader) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium
     val marginColor = when {
         isHeader -> MaterialTheme.colorScheme.onSurfaceVariant
-        margin.startsWith("+") -> WinColor
-        margin.startsWith("−") -> LossColor
+        margin.startsWith("+") -> DonutTheme.colors.win
+        margin.startsWith("−") -> DonutTheme.colors.loss
         else -> MaterialTheme.colorScheme.onSurface
     }
     Row(

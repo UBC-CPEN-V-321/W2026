@@ -62,6 +62,7 @@ class ProfileViewModel(
                     state.copy(
                         elo = newElo,
                         username = newUsername,
+                        name = userMe.name.orEmpty().ifBlank { state.name },
                         isLoadingUserMe = false,
                     )
                 }
