@@ -11,7 +11,7 @@
 
 ## 2. Back-end Test Specification: APIs
 
-We test every interface of the **Game** and **Friend** components that is built (see Requirements and Design, section 4.1). The Friend component's tests are in the `social` folders.
+We test every interface of the **Game** and **Friend** components that is built (see Requirements and Design, section 4.1). The test folders are named after the back-end components in `backend/src`, so the Game tests are in `game` and the Friend tests in `friend`.
 
 Each interface has two test files, each with one `describe` group:
 - one **without mocks**, in `backend/tests/no-mock/`, for example `describe('Unmocked: GET /api/games/discover', ...)`
@@ -59,13 +59,13 @@ Each test has comments that say its input, the status code we expect, what shoul
 
 | **Interface** | **Describe Group Location, No Mocks** | **Describe Group Location, With Mocks** | **Mocked Components** |
 | ------------- | ------------------------------------- | --------------------------------------- | --------------------- |
-| **GET /api/users/search** | [`backend/tests/no-mock/social/searchUsers.test.ts#L40`](../backend/tests/no-mock/social/searchUsers.test.ts#L40) | [`backend/tests/mock/social/searchUsers.test.ts#L10`](../backend/tests/mock/social/searchUsers.test.ts#L10) | Friends DB |
-| **GET /api/friends** | [`backend/tests/no-mock/social/getFriends.test.ts#L13`](../backend/tests/no-mock/social/getFriends.test.ts#L13) | [`backend/tests/mock/social/getFriends.test.ts#L10`](../backend/tests/mock/social/getFriends.test.ts#L10) | Friends DB |
-| **GET /api/friends/requests** | [`backend/tests/no-mock/social/listFriendRequests.test.ts#L13`](../backend/tests/no-mock/social/listFriendRequests.test.ts#L13) | [`backend/tests/mock/social/listFriendRequests.test.ts#L10`](../backend/tests/mock/social/listFriendRequests.test.ts#L10) | Friends DB |
-| **POST /api/friends/requests** | [`backend/tests/no-mock/social/sendFriendRequest.test.ts#L15`](../backend/tests/no-mock/social/sendFriendRequest.test.ts#L15) | [`backend/tests/mock/social/sendFriendRequest.test.ts#L22`](../backend/tests/mock/social/sendFriendRequest.test.ts#L22) | Friends DB, Firebase push, Logger |
-| **PATCH /api/friends/requests/{requestId}** | [`backend/tests/no-mock/social/answerFriendRequest.test.ts#L24`](../backend/tests/no-mock/social/answerFriendRequest.test.ts#L24) | [`backend/tests/mock/social/answerFriendRequest.test.ts#L23`](../backend/tests/mock/social/answerFriendRequest.test.ts#L23) | Friends DB, MySQL transaction, Firebase push, Logger |
+| **GET /api/users/search** | [`backend/tests/no-mock/friend/searchUsers.test.ts#L40`](../backend/tests/no-mock/friend/searchUsers.test.ts#L40) | [`backend/tests/mock/friend/searchUsers.test.ts#L10`](../backend/tests/mock/friend/searchUsers.test.ts#L10) | Friends DB |
+| **GET /api/friends** | [`backend/tests/no-mock/friend/getFriends.test.ts#L13`](../backend/tests/no-mock/friend/getFriends.test.ts#L13) | [`backend/tests/mock/friend/getFriends.test.ts#L10`](../backend/tests/mock/friend/getFriends.test.ts#L10) | Friends DB |
+| **GET /api/friends/requests** | [`backend/tests/no-mock/friend/listFriendRequests.test.ts#L13`](../backend/tests/no-mock/friend/listFriendRequests.test.ts#L13) | [`backend/tests/mock/friend/listFriendRequests.test.ts#L10`](../backend/tests/mock/friend/listFriendRequests.test.ts#L10) | Friends DB |
+| **POST /api/friends/requests** | [`backend/tests/no-mock/friend/sendFriendRequest.test.ts#L15`](../backend/tests/no-mock/friend/sendFriendRequest.test.ts#L15) | [`backend/tests/mock/friend/sendFriendRequest.test.ts#L22`](../backend/tests/mock/friend/sendFriendRequest.test.ts#L22) | Friends DB, Firebase push, Logger |
+| **PATCH /api/friends/requests/{requestId}** | [`backend/tests/no-mock/friend/answerFriendRequest.test.ts#L24`](../backend/tests/no-mock/friend/answerFriendRequest.test.ts#L24) | [`backend/tests/mock/friend/answerFriendRequest.test.ts#L23`](../backend/tests/mock/friend/answerFriendRequest.test.ts#L23) | Friends DB, MySQL transaction, Firebase push, Logger |
 
-The unmocked Friend tests share their setup helpers in [`backend/tests/no-mock/social/friendHelpers.ts`](../backend/tests/no-mock/social/friendHelpers.ts).
+The unmocked Friend tests share their setup helpers in [`backend/tests/no-mock/friend/friendHelpers.ts`](../backend/tests/no-mock/friend/friendHelpers.ts).
 
 #### Test cases
 
@@ -332,8 +332,8 @@ In our Docker setup MySQL is only reachable from inside Docker, so `docker-compo
    Or run one set of tests from the `backend` folder:
    - Tests with mocks: `npx jest tests/mock`
    - Tests without mocks: `npx jest tests/no-mock`
-   - One component: `npx jest tests/no-mock/game` or `npx jest tests/mock/social`
-   - One interface: `npx jest tests/no-mock/social/searchUsers.test.ts`
+   - One component: `npx jest tests/no-mock/game` or `npx jest tests/mock/friend`
+   - One interface: `npx jest tests/no-mock/friend/searchUsers.test.ts`
 4. **Stop the database** from the root folder when you're done:
    ```
    docker compose down
@@ -351,7 +351,7 @@ The back-end container reaches MySQL directly, so it doesn't need `docker-compos
    - Tests with mocks: `docker compose exec backend npx jest tests/mock --coverageDirectory=coverage/mock`
    - Tests without mocks: `docker compose exec backend npx jest tests/no-mock --coverageDirectory=coverage/no-mock`
    - Both together: `docker compose exec backend npx jest tests/mock tests/no-mock --coverageDirectory=coverage/interface`
-   - One component or interface: `docker compose exec backend npx jest tests/no-mock/game` or `docker compose exec backend npx jest tests/no-mock/social/searchUsers.test.ts`
+   - One component or interface: `docker compose exec backend npx jest tests/no-mock/game` or `docker compose exec backend npx jest tests/no-mock/friend/searchUsers.test.ts`
 
    The coverage reports are saved inside the container, in `/app/coverage/`.
 3. **Stop the containers** when you're done:
