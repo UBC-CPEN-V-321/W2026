@@ -6,6 +6,7 @@ import { DuplicateAccountError } from '../../src/userStore';
 import { verifyPassword } from '../../src/password';
 import { registerAccount } from '../helpers/registration';
 
+// Mocked components: the MongoDB user/session stores (in-memory, with injected failures) and Google token verification.
 const original = { username: 'profile', password: 'original password', displayName: 'Profile User' };
 async function setup() {
   const stores = memoryStores();
@@ -14,133 +15,177 @@ async function setup() {
   const auth = `Bearer ${created.body.token}`;
   return { stores, app, auth };
 }
+const patch = (app: ReturnType<typeof createApp>, auth: string, body: object) =>
+  request(app).patch('/api/users/me').set('Authorization', auth).send(body);
+const login = (app: ReturnType<typeof createApp>, body: object = original) => request(app).post('/api/auth/login').send(body);
 
-test('saves normalized profile fields, persists a refresh, and never exposes credentials', async () => {
-  const { app, auth } = await setup();
-  const changes = { displayName: '  Updated   Name ', phoneNumber: '+852 6123 4567' };
-  const updated = await request(app).patch('/api/users/me').set('Authorization', auth).send(changes);
-  expect(updated.status).toBe(200);
-  expect(updated.body.user).toMatchObject({ ...changes, displayName: 'Updated Name' });
-  const refreshed = await request(app).get('/api/users/me').set('Authorization', auth);
-  expect(refreshed.body).toEqual(updated.body);
-  expect(JSON.stringify(updated.body)).not.toContain('passwordHash');
-});
+// Interface PATCH /api/users/me
+describe('Mocked: PATCH /api/users/me', () => {
+  // Input: display name with extra spaces and a phone number
+  // Expected status code: 200
+  // Expected behavior: fields are normalized and a refresh returns the same account; credentials are never exposed
+  // Expected output: { user } with displayName "Updated Name"
+  test('Saves normalized profile fields', async () => {
+    const { app, auth } = await setup();
+    const changes = { displayName: '  Updated   Name ', phoneNumber: '+852 6123 4567' };
+    const updated = await patch(app, auth, changes);
+    expect(updated.status).toBe(200);
+    expect(updated.body.user).toMatchObject({ ...changes, displayName: 'Updated Name' });
+    const refreshed = await request(app).get('/api/users/me').set('Authorization', auth);
+    expect(refreshed.body).toEqual(updated.body);
+    expect(JSON.stringify(updated.body)).not.toContain('passwordHash');
+  });
 
-test.each([{}, { id: 'another-user' }, { displayName: '' }, { email: 'bad' }, { phoneNumber: '123' },
-  { phoneNumber: 123456789 },
-  { avatarDataUrl: 'https://external.example/photo.jpg' }, { avatarDataUrl: 'data:image/jpeg;base64,YWJj' },
-  { avatarDataUrl: 'a'.repeat(180001) }, { newPassword: 'short' }])('rejects invalid updates without changing the account %#', async changes => {
-  const { app, auth, stores } = await setup();
-  const before = JSON.stringify(stores.userList);
-  const res = await request(app).patch('/api/users/me').set('Authorization', auth).send(changes);
-  expect(res.status).toBe(400);
-  expect(JSON.stringify(stores.userList)).toBe(before);
-});
+  // Input: empty body, another user's ID, blank name, bad email/phone, external or malformed avatar, short password
+  // Expected status code: 400
+  // Expected behavior: the account is unchanged
+  // Expected output: error message
+  test.each([{}, { id: 'another-user' }, { displayName: '' }, { email: 'bad' }, { phoneNumber: '123' },
+    { phoneNumber: 123456789 },
+    { avatarDataUrl: 'https://external.example/photo.jpg' }, { avatarDataUrl: 'data:image/jpeg;base64,YWJj' },
+    { avatarDataUrl: 'a'.repeat(180001) }, { newPassword: 'short' }])('Rejects invalid updates %#', async changes => {
+    const { app, auth, stores } = await setup();
+    const before = JSON.stringify(stores.userList);
+    const res = await patch(app, auth, changes);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(stores.userList)).toBe(before);
+  });
 
-test('requires a session and does not let a request choose another user', async () => {
-  const { app, auth, stores } = await setup();
-  const other = await stores.users.create({ email: 'other@example.com', displayName: 'Other' });
-  expect((await request(app).patch('/api/users/me').send({ displayName: 'Changed' })).status).toBe(401);
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ displayName: 'Changed' })).status).toBe(200);
-  expect((await stores.users.findById(other.id))?.displayName).toBe('Other');
-});
-
-test('requires the current password before changing email or password', async () => {
-  const { app, auth } = await setup();
-  for (const changes of [{ email: 'changed@example.com' }, { newPassword: 'new password' }, { email: 'changed@example.com', currentPassword: 'wrong' }]) {
-    expect((await request(app).patch('/api/users/me').set('Authorization', auth).send(changes)).status).toBe(403);
-  }
-  expect((await request(app).post('/api/auth/login').send(original)).status).toBe(200);
-});
-
-test('changes credentials together, keeps this session, and revokes other sessions', async () => {
-  const { app, auth, stores } = await setup();
-  const otherToken = (await request(app).post('/api/auth/login').send(original)).body.token as string;
-  const changes = { email: ' NEW@example.com ', newPassword: 'new passphrase', currentPassword: original.password };
-  const updated = await request(app).patch('/api/users/me').set('Authorization', auth).send(changes);
-  expect(updated.status).toBe(200);
-  expect(updated.body.user.email).toBe('new@example.com');
-  expect((await request(app).get('/api/users/me').set('Authorization', auth)).status).toBe(200);
-  expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${otherToken}`)).status).toBe(401);
-  expect((await request(app).post('/api/auth/login').send(original)).status).toBe(401);
-  expect((await request(app).post('/api/auth/login').send({ username: original.username, password: 'new passphrase' })).status).toBe(200);
-  expect(await verifyPassword('new passphrase', stores.userList[0]!.passwordHash!)).toBe(true);
-});
-
-test('duplicate email and concurrent duplicate both return conflict', async () => {
-  const { app, auth, stores } = await setup();
-  await stores.users.create({ email: 'other@example.com', displayName: 'Other' });
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth)
-    .send({ email: 'OTHER@example.com', currentPassword: original.password })).status).toBe(409);
-  stores.users.update = async () => { throw new DuplicateAccountError(); };
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth)
-    .send({ email: 'unique@example.com', currentPassword: original.password })).status).toBe(409);
-});
-
-test('a failed credential write leaves the account and all sessions unchanged', async () => {
-  const { app, auth, stores } = await setup();
-  const otherToken = (await request(app).post('/api/auth/login').send(original)).body.token as string;
-  const before = structuredClone(stores.userList);
-  const log = jest.spyOn(console, 'error').mockImplementation(() => {});
-  stores.users.update = async () => { throw new Error('Database unavailable'); };
-  try {
-    const response = await request(app).patch('/api/users/me').set('Authorization', auth)
-      .send({ email: 'changed@example.com', newPassword: 'new passphrase', currentPassword: original.password });
-    expect(response.status).toBe(500);
+  // Input: retired timeZone or defaultCurrency together with a valid display name
+  // Expected status code: 400
+  // Expected behavior: the whole update is rejected atomically
+  // Expected output: error message
+  test.each([{ timeZone: 'Asia/Hong_Kong' }, { defaultCurrency: 'USD' }])('Rejects retired account settings: %j', async retired => {
+    const { app, auth, stores } = await setup();
+    const before = structuredClone(stores.userList);
+    const res = await patch(app, auth, { displayName: 'Must not be saved', ...retired });
+    expect(res.status).toBe(400);
     expect(stores.userList).toEqual(before);
-    for (const authorization of [auth, `Bearer ${otherToken}`]) {
-      expect((await request(app).get('/api/users/me').set('Authorization', authorization)).status).toBe(200);
+  });
+
+  // Input: update without a session, then with one while another account exists
+  // Expected status code: 401, then 200
+  // Expected behavior: only the session's own account can change
+  // Expected output: the other account keeps its name
+  test('Requires a session and never changes another user', async () => {
+    const { app, auth, stores } = await setup();
+    const other = await stores.users.create({ email: 'other@example.com', displayName: 'Other' });
+    expect((await request(app).patch('/api/users/me').send({ displayName: 'Changed' })).status).toBe(401);
+    expect((await patch(app, auth, { displayName: 'Changed' })).status).toBe(200);
+    expect((await stores.users.findById(other.id))?.displayName).toBe('Other');
+  });
+
+  // Input: email or password change without the current password, or with a wrong one
+  // Expected status code: 403
+  // Expected behavior: credentials are unchanged
+  // Expected output: error message; the original password still logs in
+  test('Requires the current password before changing email or password', async () => {
+    const { app, auth } = await setup();
+    for (const changes of [{ email: 'changed@example.com' }, { newPassword: 'new password' }, { email: 'changed@example.com', currentPassword: 'wrong' }]) {
+      expect((await patch(app, auth, changes)).status).toBe(403);
     }
-    expect((await request(app).post('/api/auth/login').send(original)).status).toBe(200);
-  } finally { log.mockRestore(); }
-});
+    expect((await login(app)).status).toBe(200);
+  });
 
-test('ordinary profile changes preserve other sessions', async () => {
-  const { app, auth } = await setup();
-  const otherToken = (await request(app).post('/api/auth/login').send(original)).body.token as string;
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ displayName: 'New Name' })).status).toBe(200);
-  expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${otherToken}`)).status).toBe(200);
-});
+  // Input: new email and password with the correct current password while another session exists
+  // Expected status code: 200
+  // Expected behavior: both change together; this session stays valid; other sessions are revoked
+  // Expected output: { user } with email "new@example.com"
+  test('Changes credentials together and revokes other sessions', async () => {
+    const { app, auth, stores } = await setup();
+    const otherToken = (await login(app)).body.token as string;
+    const updated = await patch(app, auth, { email: ' NEW@example.com ', newPassword: 'new passphrase', currentPassword: original.password });
+    expect(updated.status).toBe(200);
+    expect(updated.body.user.email).toBe('new@example.com');
+    expect((await request(app).get('/api/users/me').set('Authorization', auth)).status).toBe(200);
+    expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${otherToken}`)).status).toBe(401);
+    expect((await login(app)).status).toBe(401);
+    expect((await login(app, { username: original.username, password: 'new passphrase' })).status).toBe(200);
+    expect(await verifyPassword('new passphrase', stores.userList[0]!.passwordHash!)).toBe(true);
+  });
 
-test('Google-only accounts must reconfirm the same Google identity to change credentials', async () => {
-  const previous = process.env.GOOGLE_CLIENT_ID;
-  process.env.GOOGLE_CLIENT_ID = 'test.apps.googleusercontent.com';
-  try {
-    const stores = memoryStores();
-    const user = await stores.users.create({ email: 'google@example.com', displayName: 'Google', googleId: 'google-user' });
-    const session = await startSession(stores.sessions, user);
-    const verifyToken = jest.fn(async (token: string) => ({ sub: token, email_verified: true, exp: Date.now() / 1000 + 600,
-      iss: 'https://accounts.google.com', aud: 'test.apps.googleusercontent.com', iat: Date.now() / 1000 }));
-    const app = createApp({ ...stores, verifyToken });
-    const auth = `Bearer ${session.token}`;
-    expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ newPassword: 'new password' })).status).toBe(403);
-    expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ newPassword: 'new password', googleIdToken: 'wrong-user' })).status).toBe(403);
-    const response = await request(app).patch('/api/users/me').set('Authorization', auth)
-      .send({ newPassword: 'new password', googleIdToken: 'google-user' });
-    expect(response.status).toBe(200);
-    expect(response.body.user.signInMethods).toEqual(['password', 'google']);
-  } finally {
-    if (previous === undefined) delete process.env.GOOGLE_CLIENT_ID; else process.env.GOOGLE_CLIENT_ID = previous;
-  }
-});
+  // Input: a display-name change while another session exists
+  // Expected status code: 200
+  // Expected behavior: ordinary profile changes keep other sessions
+  // Expected output: the other session still reads the account
+  test('Ordinary profile changes preserve other sessions', async () => {
+    const { app, auth } = await setup();
+    const otherToken = (await login(app)).body.token as string;
+    expect((await patch(app, auth, { displayName: 'New Name' })).status).toBe(200);
+    expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${otherToken}`)).status).toBe(200);
+  });
 
-test('bounds avatar payloads and permits clearing a photo', async () => {
-  const { app, auth, stores } = await setup();
-  // Only the transport envelope and JPEG boundary validation are under test here.
-  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(18000), Buffer.from([0xff, 0xd9])]);
-  const photo = `data:image/jpeg;base64,${jpeg.toString('base64')}`;
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ avatarDataUrl: photo })).status).toBe(200);
-  expect(stores.userList[0]!.avatarDataUrl).toBe(photo);
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ avatarDataUrl: '' })).status).toBe(200);
-  expect(stores.userList[0]!.avatarDataUrl).toBe('');
-  expect((await request(app).patch('/api/users/me').set('Authorization', auth).send({ avatarDataUrl: 'x'.repeat(200000) })).status).toBe(413);
-});
+  // Input: an email used by another account; mock: then the store reports a concurrent duplicate
+  // Expected status code: 409 for both
+  // Expected behavior: no duplicate email is saved
+  // Expected output: error message
+  test('Duplicate email and concurrent duplicate both return conflict', async () => {
+    const { app, auth, stores } = await setup();
+    await stores.users.create({ email: 'other@example.com', displayName: 'Other' });
+    expect((await patch(app, auth, { email: 'OTHER@example.com', currentPassword: original.password })).status).toBe(409);
+    stores.users.update = async () => { throw new DuplicateAccountError(); };
+    expect((await patch(app, auth, { email: 'unique@example.com', currentPassword: original.password })).status).toBe(409);
+  });
 
-test.each([{ timeZone: 'Asia/Hong_Kong' }, { defaultCurrency: 'USD' }])('rejects retired account settings atomically: %j', async retired => {
-  const { app, auth, stores } = await setup();
-  const before = structuredClone(stores.userList);
-  const res = await request(app).patch('/api/users/me').set('Authorization', auth)
-    .send({ displayName: 'Must not be saved', ...retired });
-  expect(res.status).toBe(400);
-  expect(stores.userList).toEqual(before);
+  // Input: credential change; mock: the user store write throws
+  // Expected status code: 500
+  // Expected behavior: the account and every session are unchanged
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('A failed credential write leaves the account and sessions unchanged', async () => {
+    const { app, auth, stores } = await setup();
+    const otherToken = (await login(app)).body.token as string;
+    const before = structuredClone(stores.userList);
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+    stores.users.update = async () => { throw new Error('Database unavailable'); };
+    try {
+      const response = await patch(app, auth, { email: 'changed@example.com', newPassword: 'new passphrase', currentPassword: original.password });
+      expect(response.status).toBe(500);
+      expect(stores.userList).toEqual(before);
+      for (const authorization of [auth, `Bearer ${otherToken}`]) {
+        expect((await request(app).get('/api/users/me').set('Authorization', authorization)).status).toBe(200);
+      }
+      expect((await login(app)).status).toBe(200);
+    } finally { log.mockRestore(); }
+  });
+
+  // Input: Google-only account sets a password without a token, with another user's token, then with its own; mock: Google verifier
+  // Expected status code: 403, 403, then 200
+  // Expected behavior: the same Google identity must be reconfirmed before adding a password
+  // Expected output: { user } with signInMethods ["password", "google"]
+  test('Google-only accounts must reconfirm the same Google identity', async () => {
+    const previous = process.env.GOOGLE_CLIENT_ID;
+    process.env.GOOGLE_CLIENT_ID = 'test.apps.googleusercontent.com';
+    try {
+      const stores = memoryStores();
+      const user = await stores.users.create({ email: 'google@example.com', displayName: 'Google', googleId: 'google-user' });
+      const session = await startSession(stores.sessions, user);
+      const verifyToken = jest.fn(async (token: string) => ({ sub: token, email_verified: true, exp: Date.now() / 1000 + 600,
+        iss: 'https://accounts.google.com', aud: 'test.apps.googleusercontent.com', iat: Date.now() / 1000 }));
+      const app = createApp({ ...stores, verifyToken });
+      const auth = `Bearer ${session.token}`;
+      expect((await patch(app, auth, { newPassword: 'new password' })).status).toBe(403);
+      expect((await patch(app, auth, { newPassword: 'new password', googleIdToken: 'wrong-user' })).status).toBe(403);
+      const response = await patch(app, auth, { newPassword: 'new password', googleIdToken: 'google-user' });
+      expect(response.status).toBe(200);
+      expect(response.body.user.signInMethods).toEqual(['password', 'google']);
+    } finally {
+      if (previous === undefined) delete process.env.GOOGLE_CLIENT_ID; else process.env.GOOGLE_CLIENT_ID = previous;
+    }
+  });
+
+  // Input: an 18 KB JPEG photo, an empty photo, then a 200 KB payload
+  // Expected status code: 200, 200, then 413
+  // Expected behavior: photos are bounded and can be cleared
+  // Expected output: stored avatarDataUrl equals the photo, then ""
+  test('Bounds avatar payloads and permits clearing a photo', async () => {
+    const { app, auth, stores } = await setup();
+    // Only the transport envelope and JPEG boundary validation are under test here.
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(18000), Buffer.from([0xff, 0xd9])]);
+    const photo = `data:image/jpeg;base64,${jpeg.toString('base64')}`;
+    expect((await patch(app, auth, { avatarDataUrl: photo })).status).toBe(200);
+    expect(stores.userList[0]!.avatarDataUrl).toBe(photo);
+    expect((await patch(app, auth, { avatarDataUrl: '' })).status).toBe(200);
+    expect(stores.userList[0]!.avatarDataUrl).toBe('');
+    expect((await patch(app, auth, { avatarDataUrl: 'x'.repeat(200000) })).status).toBe(413);
+  });
 });

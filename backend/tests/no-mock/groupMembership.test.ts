@@ -2,11 +2,14 @@ import request from 'supertest';
 import { ExpenseModel, GroupInvitationModel, GroupModel } from '../../src/groupStore';
 import { hashToken } from '../../src/session';
 import { useGroupApiFixture } from '../helpers/groupApiFixture';
+import { testsRejectInvalidSessions } from '../helpers/sessionRejection';
 
+// Real HTTP routing, session verification and MongoDB. No mocked components.
 const fixture = useGroupApiFixture();
 const leave = (auth: string) => request(fixture.app).post(`/api/groups/${fixture.groupId}/leave`).set('Authorization', auth);
 const remove = (auth: string, memberId = fixture.memberId) => request(fixture.app)
   .delete(`/api/groups/${fixture.groupId}/members/${memberId}`).set('Authorization', auth);
+const groupState = () => Promise.all([GroupModel.find().lean(), GroupInvitationModel.find().lean(), ExpenseModel.find().lean()]);
 
 async function expectNoAccess(auth: string) {
   expect((await request(fixture.app).get('/api/groups').set('Authorization', auth)).body.groups).toEqual([]);
@@ -19,8 +22,15 @@ async function expectNoAccess(auth: string) {
   expect((await remove(auth)).status).toBe(404);
 }
 
+// Interface POST /api/groups/:groupId/leave
 describe('Unmocked: POST /api/groups/:groupId/leave', () => {
-  test('a member leaves without changing ownership, historical expenses or another group', async () => {
+  testsRejectInvalidSessions(() => request(fixture.app).post(`/api/groups/${fixture.groupId}/leave`), () => fixture.ownerAuth, groupState);
+
+  // Input: a regular member leaves; a second group also contains that member
+  // Expected status code: 200, then 404 on a second attempt
+  // Expected behavior: only this membership is removed; owner, history and the other group are unchanged
+  // Expected output: { deleted: false }
+  test('A member leaves without changing ownership, history or another group', async () => {
     const before = await ExpenseModel.findById(fixture.expenseId).lean();
     const other = await GroupModel.create({ name: 'Other group', currency: 'CAD', ownerId: fixture.ownerId,
       memberIds: [fixture.ownerId, fixture.memberId] });
@@ -41,7 +51,11 @@ describe('Unmocked: POST /api/groups/:groupId/leave', () => {
     expect((await leave(fixture.memberAuth)).status).toBe(404);
   });
 
-  test('an owner leaving deletes the group for every member and disables all invitation paths', async () => {
+  // Input: the owner leaves
+  // Expected status code: 200
+  // Expected behavior: the group is deleted for every member; all invitation paths stop working; expenses are kept
+  // Expected output: { deleted: true }
+  test('An owner leaving deletes the group and disables its invitations', async () => {
     expect((await leave(fixture.ownerAuth)).body).toEqual({ deleted: true });
     expect((await GroupModel.findById(fixture.groupId))?.deletedAt).toBeTruthy();
     await expectNoAccess(fixture.ownerAuth);
@@ -53,13 +67,21 @@ describe('Unmocked: POST /api/groups/:groupId/leave', () => {
     expect(await ExpenseModel.countDocuments({ groupId: fixture.groupId })).toBe(1);
   });
 
-  test('a nonmember cannot leave or delete the group', async () => {
+  // Input: a nonmember tries to leave
+  // Expected status code: 404
+  // Expected behavior: membership and the group are unchanged
+  // Expected output: { error: "Group not found." }
+  test('A nonmember cannot leave or delete the group', async () => {
     expect((await leave(fixture.inviteeAuth)).status).toBe(404);
     expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
     expect((await GroupModel.findById(fixture.groupId))?.deletedAt).toBeUndefined();
   });
 
-  test('a former member can join again through an active current-member invitation', async () => {
+  // Input: a former member accepts an invitation that is still active
+  // Expected status code: 200
+  // Expected behavior: the former member joins again
+  // Expected output: { group } with memberCount 2
+  test('A former member can join again through an active invitation', async () => {
     await leave(fixture.memberAuth);
     const joined = await request(fixture.app).post(`/api/groups/invitations/${fixture.invitationToken}/accept`)
       .set('Authorization', fixture.memberAuth);
@@ -68,8 +90,16 @@ describe('Unmocked: POST /api/groups/:groupId/leave', () => {
   });
 });
 
+// Interface DELETE /api/groups/:groupId/members/:memberId
 describe('Unmocked: DELETE /api/groups/:groupId/members/:memberId', () => {
-  test('only the owner removes a member; retries do not affect expenses or the owner', async () => {
+  testsRejectInvalidSessions(() => request(fixture.app).delete(`/api/groups/${fixture.groupId}/members/${fixture.memberId}`),
+    () => fixture.ownerAuth, groupState);
+
+  // Input: the owner removes a member, then retries
+  // Expected status code: 204 for both
+  // Expected behavior: the member loses access; expenses and the owner are unchanged
+  // Expected output: empty body
+  test('Only the owner removes a member and retries are harmless', async () => {
     const before = await ExpenseModel.findById(fixture.expenseId).lean();
     expect((await remove(fixture.ownerAuth)).status).toBe(204);
     expect((await remove(fixture.ownerAuth)).status).toBe(204);
@@ -78,37 +108,61 @@ describe('Unmocked: DELETE /api/groups/:groupId/members/:memberId', () => {
     await expectNoAccess(fixture.memberAuth);
   });
 
-  test('a regular member cannot remove anyone, including themselves or the owner', async () => {
+  // Input: a regular member tries to remove the owner and themselves
+  // Expected status code: 403
+  // Expected behavior: the roster is unchanged
+  // Expected output: error message
+  test('A regular member cannot remove anyone', async () => {
     for (const id of [fixture.ownerId, fixture.memberId]) expect((await remove(fixture.memberAuth, id)).status).toBe(403);
     expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
   });
 
-  test('a nonmember cannot probe or modify the roster', async () => {
+  // Input: a nonmember tries to remove a member
+  // Expected status code: 404
+  // Expected behavior: the roster is not disclosed or changed
+  // Expected output: { error: "Group not found." }
+  test('A nonmember cannot probe or modify the roster', async () => {
     expect((await remove(fixture.inviteeAuth)).status).toBe(404);
     expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
   });
 
-  test.each(['invalid', '00000000000000000000000g'])('rejects malformed member ID %s', async id => {
+  // Input: malformed member ID
+  // Expected status code: 400
+  // Expected behavior: the roster is unchanged
+  // Expected output: error message
+  test.each(['invalid', '00000000000000000000000g'])('Rejects malformed member ID %s', async id => {
     expect((await remove(fixture.ownerAuth, id)).status).toBe(400);
     expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
   });
 
-  test('the owner cannot remove themselves through the member endpoint', async () => {
+  // Input: the owner names their own ID
+  // Expected status code: 400
+  // Expected behavior: the owner cannot leave through this endpoint; the group stays active
+  // Expected output: error message
+  test('The owner cannot remove themselves', async () => {
     expect((await remove(fixture.ownerAuth, fixture.ownerId)).status).toBe(400);
     expect((await GroupModel.findById(fixture.groupId))?.deletedAt).toBeUndefined();
   });
 
-  test('removing an inviter invalidates their invitations without disabling the owner invitation', async () => {
+  // Input: remove a member who created an invitation
+  // Expected status code: 204
+  // Expected behavior: that member's invitations stop working; the owner's invitation still works
+  // Expected output: preview of the member's token returns 404, owner's token returns 200
+  test('Removing an inviter invalidates only their invitations', async () => {
     const token = 'm'.repeat(43);
     await GroupInvitationModel.create({ groupId: fixture.groupId, inviterId: fixture.memberId,
       tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 86400000) });
-    await remove(fixture.ownerAuth);
+    expect((await remove(fixture.ownerAuth)).status).toBe(204);
     expect((await request(fixture.app).get(`/api/groups/invitations/${token}`).set('Authorization', fixture.inviteeAuth)).status).toBe(404);
     expect((await request(fixture.app).post(`/api/groups/invitations/${token}/accept`).set('Authorization', fixture.inviteeAuth)).status).toBe(404);
     expect((await request(fixture.app).get(`/api/groups/invitations/${fixture.invitationToken}`).set('Authorization', fixture.inviteeAuth)).status).toBe(200);
   });
 
-  test('concurrent removal and voluntary departure never remove the owner or restore membership', async () => {
+  // Input: owner removes a member while that member leaves at the same time
+  // Expected status code: 204 for removal; 200 or 404 for the departure
+  // Expected behavior: the owner is never removed and the member is not restored
+  // Expected output: the group keeps only the owner
+  test('Concurrent removal and departure never remove the owner', async () => {
     const responses = await Promise.all([remove(fixture.ownerAuth), leave(fixture.memberAuth)]);
     expect(responses[0]?.status).toBe(204);
     expect([200, 404]).toContain(responses[1]?.status);

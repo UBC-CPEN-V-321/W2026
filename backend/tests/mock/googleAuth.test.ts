@@ -5,7 +5,9 @@ import type { TokenVerifier } from '../../src/googleAuth';
 import { hashPassword, verifyPassword } from '../../src/password';
 import { registerAccount } from '../helpers/registration';
 import { memoryStores } from '../helpers/memoryStores';
+import { passwordConfirmationCases } from '../helpers/passwordConfirmation';
 
+// Mocked components: Google ID-token verification and the MongoDB user/session stores (in-memory).
 const originalClientId = process.env.GOOGLE_CLIENT_ID;
 const audience = 'test-web-client.apps.googleusercontent.com';
 const payload: TokenPayload = {
@@ -16,6 +18,9 @@ const payload: TokenPayload = {
 };
 const verifier = (result: TokenPayload = payload) =>
   jest.fn<ReturnType<TokenVerifier>, Parameters<TokenVerifier>>().mockResolvedValue(result);
+const rejectingVerifier = async () => { throw new Error('forged'); };
+const credentials = { username: 'joy_tao', password: 'long password', confirmPassword: 'long password' };
+const googleBody = { idToken: 'credential', ...credentials };
 
 beforeEach(() => { process.env.GOOGLE_CLIENT_ID = audience; });
 afterAll(() => {
@@ -23,21 +28,12 @@ afterAll(() => {
   else process.env.GOOGLE_CLIENT_ID = originalClientId;
 });
 
-// Interface POST /api/auth/google. Mocks: Google token verification, User DB.
-test('Google endpoints share one cap without consuming the password-login bucket', async () => {
-  const verify = verifier();
-  const app = createApp({ verifyToken: verify, ...memoryStores() });
-  const endpoints = ['/api/auth/google', '/api/auth/google/register', '/api/auth/google/link'];
-  for (let round = 0; round < 20; round++) {
-    for (const endpoint of endpoints) expect((await request(app).post(endpoint).send({})).status).toBe(400);
-  }
-  for (const endpoint of endpoints) expect((await request(app).post(endpoint).send({})).status).toBe(429);
-  expect((await request(app).post('/api/auth/login').send({})).status).toBe(400);
-  expect(verify).not.toHaveBeenCalled();
-});
-
+// Interface POST /api/auth/google
 describe('Mocked: POST /api/auth/google', () => {
-  // Input: verified token for a new Google user. Expected: 200, registration prompt, no account or session yet.
+  // Input: verified token for a new Google user that also sends a displayName
+  // Expected status code: 200
+  // Expected behavior: no account or session is created yet; the client-supplied name is ignored
+  // Expected output: { status: "registration-required", profile: { email, displayName: "Joy Tao" } }
   test('Asks a new Google user to create an account', async () => {
     const stores = memoryStores();
     const verify = verifier();
@@ -50,7 +46,11 @@ describe('Mocked: POST /api/auth/google', () => {
     expect(stores.userList).toHaveLength(0);
     expect(stores.sessionMap.size).toBe(0);
   });
-  // Input: verified token for an existing Google account. Expected: 200, session token and stored account info.
+
+  // Input: verified token for an existing Google account
+  // Expected status code: 200
+  // Expected behavior: a session is stored by token hash
+  // Expected output: { status: "signed-in", token, expiresAt, user }
   test('Signs in an existing Google account', async () => {
     const stores = memoryStores();
     await stores.users.create({ email: 'joy.tao@example.com', displayName: 'Joy', googleId: 'google-user-id' });
@@ -64,8 +64,12 @@ describe('Mocked: POST /api/auth/google', () => {
     expect([...stores.sessionMap.keys()]).not.toContain(res.body.token);
     expect(JSON.stringify(res.body)).not.toContain('credential');
   });
-  // Input: Google email already used by a password account. Expected: registration prompt; accounts are not linked automatically.
-  test('Refuses to take over an email/password account', async () => {
+
+  // Input: verified token whose email belongs to a password account
+  // Expected status code: 200
+  // Expected behavior: accounts are never linked automatically
+  // Expected output: { status: "registration-required" }
+  test('Refuses to take over a password account', async () => {
     const stores = memoryStores();
     await stores.users.create({ email: 'joy.tao@example.com', displayName: 'Joy', passwordHash: 'hash' });
     const res = await request(createApp({ verifyToken: verifier(), ...stores })).post('/api/auth/google').send({ idToken: 'credential' });
@@ -74,46 +78,74 @@ describe('Mocked: POST /api/auth/google', () => {
     expect(stores.userList[0]?.googleId).toBeUndefined();
     expect(stores.sessionMap.size).toBe(0);
   });
-  // Mock: Google account without email ownership claims. Expected: identity uses the verified subject.
+
+  // Input: verified token without email ownership; mock: email_verified false
+  // Expected status code: 200
+  // Expected behavior: identity uses the verified subject, not the email
+  // Expected output: { status: "registration-required" }
   test('Does not require email validation for Google identity', async () => {
     const res = await request(createApp({ verifyToken: verifier({ ...payload, email_verified: false }), ...memoryStores() }))
       .post('/api/auth/google').send({ idToken: 'credential' });
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('registration-required');
   });
-  // Mock: signature/audience/issuer verification rejected. Expected: 401; no leaked token/errors.
+
+  // Input: token; mock: verification throws an error with sensitive details
+  // Expected status code: 401
+  // Expected behavior: verifier details are not leaked
+  // Expected output: error message without "sensitive"
   test('Rejects failed verification', async () => {
     const res = await request(createApp({ verifyToken: async () => { throw new Error('sensitive details'); }, ...memoryStores() }))
       .post('/api/auth/google').send({ idToken: 'bad-token' });
     expect(res.status).toBe(401);
     expect(JSON.stringify(res.body)).not.toContain('sensitive');
   });
-  // Input: missing or invalid ID token. Expected: 400 before calling Google.
-  test.each([{}, { idToken: 123 }, { idToken: '' }, { idToken: 'a'.repeat(8193) }])('Rejects malformed input', async body => {
+
+  // Input: missing, numeric, empty or oversized ID token
+  // Expected status code: 400
+  // Expected behavior: Google is never called
+  // Expected output: error message
+  test.each([{}, { idToken: 123 }, { idToken: '' }, { idToken: 'a'.repeat(8193) }])('Rejects malformed input %#', async body => {
     const verify = verifier();
     expect((await request(createApp({ verifyToken: verify, ...memoryStores() })).post('/api/auth/google').send(body)).status).toBe(400);
     expect(verify).not.toHaveBeenCalled();
   });
-  // Input: missing Web client configuration. Expected: 503, no verification attempt.
+
+  // Input: token while GOOGLE_CLIENT_ID is unset
+  // Expected status code: 503
+  // Expected behavior: verification is not attempted
+  // Expected output: error message
   test('Reports missing OAuth configuration', async () => {
     delete process.env.GOOGLE_CLIENT_ID;
     const verify = verifier();
     expect((await request(createApp({ verifyToken: verify, ...memoryStores() })).post('/api/auth/google').send({ idToken: 'x' })).status).toBe(503);
     expect(verify).not.toHaveBeenCalled();
   });
-  // Mock: expired claims. Expected: 401, no signed-in user.
+
+  // Input: token; mock: the verifier returns expired claims
+  // Expected status code: 401
+  // Expected behavior: no user is signed in
+  // Expected output: error message
   test('Rejects expired credentials', async () => {
     const res = await request(createApp({ verifyToken: verifier({ ...payload, exp: 1 }), ...memoryStores() }))
       .post('/api/auth/google').send({ idToken: 'expired' });
     expect(res.status).toBe(401);
   });
-  // Input: invalid JSON. Expected: 400 with a JSON error response.
+
+  // Input: malformed JSON body
+  // Expected status code: 400
+  // Expected behavior: the parser error is returned as JSON
+  // Expected output: { error: "Invalid JSON body." }
   test('Reports malformed JSON', async () => {
     const res = await request(createApp(memoryStores())).post('/api/auth/google').set('Content-Type', 'application/json').send('{');
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid JSON body.');
   });
-  // Mock: User DB unavailable. Expected: 500 without internal details.
+
+  // Input: verified token; mock: the user store throws with an internal address
+  // Expected status code: 500
+  // Expected behavior: internal details are not leaked
+  // Expected output: error message without "10.0.0.5"
   test('Reports database failures', async () => {
     const stores = memoryStores();
     stores.users.findByGoogleId = async () => { throw new Error('connection refused at 10.0.0.5'); };
@@ -121,47 +153,45 @@ describe('Mocked: POST /api/auth/google', () => {
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain('10.0.0.5');
   });
-});
 
-const credentials = { username: 'joy_tao', password: 'long password', confirmPassword: 'long password' };
-const googleBody = { idToken: 'credential', ...credentials };
-
-describe.each(['/api/auth/register', '/api/auth/google/register'])('%s password confirmation', endpoint => {
-  test.each([
-    ['missing', credentials.password, undefined, 400],
-    ['null', credentials.password, null, 400],
-    ['number', credentials.password, 123, 400],
-    ['array', credentials.password, [credentials.password], 400],
-    ['object', credentials.password, { value: credentials.password }, 400],
-    ['shorter', credentials.password, 'long passwor', 400],
-    ['longer', credentials.password, 'long password!', 400],
-    ['oversized', credentials.password, 'x'.repeat(129), 400],
-    ['same-length mismatch', credentials.password, 'long passworD', 400],
-    ['trailing null', credentials.password, credentials.password + '\u0000', 400],
-    ['different UTF-8 byte lengths', 'passworda', 'passwordé', 400],
-    ['normalization-equivalent', 'passwordＡ', 'passwordA', 400],
-    ['distinct unpaired surrogates', 'password\ud800', 'password\ud801', 400],
-    ['replacement character', 'password\ud800', 'password\ufffd', 400],
-    ['matching Unicode', '密码🔐秘密口令', '密码🔐秘密口令', 201],
-    ['maximum length', 'x'.repeat(128), 'x'.repeat(128), 201],
-  ])('%s', async (_label, password, confirmPassword, status) => {
-    const stores = memoryStores();
-    const app = createApp({ verifyToken: verifier(), ...stores });
-    const res = await request(app).post(endpoint).send({ ...googleBody, password, confirmPassword });
-    expect(res.status).toBe(status);
-    if (status === 400) {
-      expect(res.body.error).toBe('Passwords do not match.');
-      expect(stores.userList).toHaveLength(0);
-      expect(stores.sessionMap.size).toBe(0);
-    } else {
-      expect(stores.userList).toHaveLength(1);
-      expect(stores.sessionMap.size).toBe(1);
+  // Input: 20 rounds of empty requests to each Google endpoint, then one more each, then a password login
+  // Expected status code: 400 during the rounds, then 429; password login still 400
+  // Expected behavior: Google endpoints share one cap that does not consume the password-login bucket
+  // Expected output: rate-limit error
+  test('Google endpoints share one rate limit', async () => {
+    const verify = verifier();
+    const app = createApp({ verifyToken: verify, ...memoryStores() });
+    const endpoints = ['/api/auth/google', '/api/auth/google/register', '/api/auth/google/link'];
+    for (let round = 0; round < 20; round++) {
+      for (const endpoint of endpoints) expect((await request(app).post(endpoint).send({})).status).toBe(400);
     }
+    for (const endpoint of endpoints) expect((await request(app).post(endpoint).send({})).status).toBe(429);
+    expect((await request(app).post('/api/auth/login').send({})).status).toBe(400);
+    expect(verify).not.toHaveBeenCalled();
   });
 });
 
-describe('Google registration and explicit linking', () => {
-  test('requires a username, password and matching confirmation', async () => {
+// Interface POST /api/auth/google/register
+describe('Mocked: POST /api/auth/google/register', () => {
+  // Input: verified token with password/confirmation pairs that differ in type, length, bytes or Unicode form
+  // Expected status code: 400 for every mismatch, 201 for exact matches
+  // Expected behavior: nothing is stored on mismatch
+  // Expected output: { error: "Passwords do not match." } on mismatch
+  test.each(passwordConfirmationCases)('Password confirmation: %s', async (_label, password, confirmPassword, status) => {
+    const stores = memoryStores();
+    const res = await request(createApp({ verifyToken: verifier(), ...stores })).post('/api/auth/google/register')
+      .send({ ...googleBody, password, confirmPassword });
+    expect(res.status).toBe(status);
+    if (status === 400) expect(res.body.error).toBe('Passwords do not match.');
+    expect(stores.userList).toHaveLength(status === 400 ? 0 : 1);
+    expect(stores.sessionMap.size).toBe(status === 400 ? 0 : 1);
+  });
+
+  // Input: verified token without username/password, with a blank username, short password, or bad confirmation
+  // Expected status code: 400
+  // Expected behavior: no account or session is created
+  // Expected output: error message
+  test('Requires a username, password and matching confirmation', async () => {
     for (const body of [{ idToken: 'credential' }, { ...googleBody, username: '' },
       { ...googleBody, password: 'short' }, { ...googleBody, confirmPassword: 'different' },
       { ...googleBody, confirmPassword: undefined }]) {
@@ -173,7 +203,11 @@ describe('Google registration and explicit linking', () => {
     }
   });
 
-  test('creates an account with both sign-in methods, then signs in directly', async () => {
+  // Input: verified token with valid credentials, then a password login, a Google sign-in and a repeated registration
+  // Expected status code: 201, 200, 200, then 200
+  // Expected behavior: one account gets both sign-in methods; repeating does not create another
+  // Expected output: { user } with signInMethods ["password", "google"]
+  test('Creates an account with both sign-in methods', async () => {
     const stores = memoryStores();
     const app = createApp({ verifyToken: verifier(), ...stores });
     const created = await request(app).post('/api/auth/google/register').send(googleBody);
@@ -181,17 +215,19 @@ describe('Google registration and explicit linking', () => {
     expect(created.body.user).toMatchObject({ username: 'joy_tao', email: '', signInMethods: ['password', 'google'] });
     expect(await verifyPassword(credentials.password, stores.userList[0]!.passwordHash!)).toBe(true);
     expect(JSON.stringify(created.body)).not.toContain('passwordHash');
-    const login = await request(app).post('/api/auth/login').send(credentials);
-    expect(login.status).toBe(200);
+    expect((await request(app).post('/api/auth/login').send(credentials)).status).toBe(200);
     const google = await request(app).post('/api/auth/google').send({ idToken: 'credential' });
     expect(google.body.status).toBe('signed-in');
     expect(google.body.user.id).toBe(created.body.user.id);
-    const repeat = await request(app).post('/api/auth/google/register').send(googleBody);
-    expect(repeat.status).toBe(200);
+    expect((await request(app).post('/api/auth/google/register').send(googleBody)).status).toBe(200);
     expect(stores.userList).toHaveLength(1);
   });
 
-  test('does not replace a registered username during Google creation', async () => {
+  // Input: verified token with a username that a password account already uses
+  // Expected status code: 409
+  // Expected behavior: the existing account is not modified
+  // Expected output: error message
+  test('Does not replace a registered username', async () => {
     const stores = memoryStores();
     const app = createApp({ verifyToken: verifier(), ...stores });
     await registerAccount(app, credentials);
@@ -199,7 +235,11 @@ describe('Google registration and explicit linking', () => {
     expect(stores.userList[0]?.googleId).toBeUndefined();
   });
 
-  test('reports a unique-index race without creating a session', async () => {
+  // Input: valid registration; mock: another account with the same identity appears first
+  // Expected status code: 409
+  // Expected behavior: no session is created
+  // Expected output: error message
+  test('Reports a unique-index race without creating a session', async () => {
     const stores = memoryStores();
     const create = stores.users.create;
     stores.users.create = async input => { await create({ ...input, googleId: 'other' }); return create(input); };
@@ -207,7 +247,25 @@ describe('Google registration and explicit linking', () => {
     expect(stores.sessionMap.size).toBe(0);
   });
 
-  test('links only after password verification and preserves the original user and profile', async () => {
+  // Input: valid credentials; mock: token verification fails
+  // Expected status code: 401
+  // Expected behavior: no account is created
+  // Expected output: error message
+  test('Rejects an invalid Google token', async () => {
+    const stores = memoryStores();
+    const res = await request(createApp({ verifyToken: rejectingVerifier, ...stores })).post('/api/auth/google/register').send(googleBody);
+    expect(res.status).toBe(401);
+    expect(stores.userList).toHaveLength(0);
+  });
+});
+
+// Interface POST /api/auth/google/link
+describe('Mocked: POST /api/auth/google/link', () => {
+  // Input: verified token with the correct username (any case) and password of an existing account
+  // Expected status code: 200; a repeat is also 200
+  // Expected behavior: only the Google ID is added; the original user and profile are preserved
+  // Expected output: { user } with the original ID and signInMethods ["password", "google"]
+  test('Links after password verification and preserves the account', async () => {
     const stores = memoryStores();
     const verify = verifier();
     const app = createApp({ verifyToken: verify, ...stores });
@@ -224,7 +282,11 @@ describe('Google registration and explicit linking', () => {
     expect((await request(app).post('/api/auth/google/link').send(googleBody)).status).toBe(200);
   });
 
-  test('rejects unknown users and wrong passwords without linking', async () => {
+  // Input: verified token with a wrong password, and with an unknown username
+  // Expected status code: 401
+  // Expected behavior: nothing is linked and no session is created
+  // Expected output: { error: "Incorrect username or password." }
+  test('Rejects unknown users and wrong passwords', async () => {
     const stores = memoryStores();
     const app = createApp({ verifyToken: verifier(), ...stores });
     await registerAccount(app, credentials);
@@ -237,17 +299,23 @@ describe('Google registration and explicit linking', () => {
     expect(stores.sessionMap.size).toBe(1);
   });
 
-  test('rejects invalid Google tokens on both completion endpoints', async () => {
+  // Input: correct credentials; mock: token verification fails
+  // Expected status code: 401
+  // Expected behavior: nothing is linked
+  // Expected output: error message
+  test('Rejects an invalid Google token', async () => {
     const stores = memoryStores();
-    const app = createApp({ verifyToken: async () => { throw new Error('forged'); }, ...stores });
+    const app = createApp({ verifyToken: rejectingVerifier, ...stores });
     await registerAccount(app, credentials);
-    for (const path of ['/api/auth/google/register', '/api/auth/google/link']) {
-      expect((await request(app).post(path).send(googleBody)).status).toBe(401);
-    }
+    expect((await request(app).post('/api/auth/google/link').send(googleBody)).status).toBe(401);
     expect(stores.userList[0]?.googleId).toBeUndefined();
   });
 
-  test('never replaces an existing link on either side', async () => {
+  // Input: link when the account already has another Google ID, or the Google ID belongs to another account
+  // Expected status code: 409
+  // Expected behavior: an existing link is never replaced on either side
+  // Expected output: error message; stored users unchanged
+  test('Never replaces an existing link', async () => {
     for (const existingGoogle of ['another-google', payload.sub]) {
       const stores = memoryStores();
       const app = createApp({ verifyToken: verifier(), ...stores });
@@ -260,7 +328,11 @@ describe('Google registration and explicit linking', () => {
     }
   });
 
-  test('rejects a password changed while the link request was in progress', async () => {
+  // Input: correct credentials; mock: the password changes while the link is in progress
+  // Expected status code: 409
+  // Expected behavior: the conditional link refuses the stale password; no session is created
+  // Expected output: error message
+  test('Rejects a password changed during the link', async () => {
     const stores = memoryStores();
     const app = createApp({ verifyToken: verifier(), ...stores });
     await registerAccount(app, credentials);

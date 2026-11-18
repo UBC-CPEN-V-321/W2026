@@ -1,4 +1,6 @@
-// Isolated, disposable backend for GroupMembershipIntegrationTest on an emulator.
+// Isolated, disposable backend for emulator tests that need the real Node backend:
+// GroupMembershipIntegrationTest (default port 3101) and the full-stack E2E tests
+// (LEDGER_TEST_PORT=3000, the API_BASE_URL a local debug build uses).
 // Run `npm run build` first. Never connects to a development or cloud database.
 const { createServer } = require('node:http');
 const { randomUUID } = require('node:crypto');
@@ -41,7 +43,9 @@ async function main() {
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
   setTimeout(stop, 15 * 60 * 1000).unref();
-  server.listen(3101, '127.0.0.1', () => console.log('Membership acceptance backend ready on 127.0.0.1:3101 (isolated MongoDB).'));
+  const port = Number(process.env.LEDGER_TEST_PORT || 3101);
+  if (![3000, 3101].includes(port)) throw new Error('LEDGER_TEST_PORT must be 3000 or 3101.');
+  server.listen(port, '127.0.0.1', () => console.log(`Isolated test backend ready on 127.0.0.1:${port} (in-memory MongoDB).`));
 }
 
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

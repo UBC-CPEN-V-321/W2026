@@ -3,7 +3,10 @@ import { createApp } from '../../src/app';
 import { hashToken, SESSION_TTL_MS } from '../../src/session';
 import { memoryStores } from '../helpers/memoryStores';
 import { registerAccount } from '../helpers/registration';
+import { passwordConfirmationCases } from '../helpers/passwordConfirmation';
 
+// Mocked component: the MongoDB user and session stores are replaced by in-memory stores
+// whose methods individual tests override to inject failures and races.
 const account = { username: ' Sam_Lee ', password: 'correct horse', confirmPassword: 'correct horse' };
 
 async function registered() {
@@ -13,10 +16,13 @@ async function registered() {
   return { stores, app, token: res.body.token as string };
 }
 
-// Interface POST /api/auth/register. Mock: User DB.
+// Interface POST /api/auth/register
 describe('Mocked: POST /api/auth/register', () => {
-  // Input: valid username, password and name. Expected: 201, hashed password stored, session started.
-  test('Creates an username account and signs in', async () => {
+  // Input: valid username, password and confirmation
+  // Expected status code: 201
+  // Expected behavior: a scrypt hash is stored; a session starts; no secret is returned
+  // Expected output: { user, token, expiresAt } with the normalized username
+  test('Creates a username account and signs in', async () => {
     const stores = memoryStores();
     const res = await registerAccount(createApp(stores), account);
     expect(res.status).toBe(201);
@@ -31,7 +37,11 @@ describe('Mocked: POST /api/auth/register', () => {
     expect(JSON.stringify(res.body)).not.toContain('scrypt');
     expect(stores.sessionMap.has(hashToken(res.body.token))).toBe(true);
   });
-  // Input: invalid fields. Expected: 400 with a specific message; nothing stored.
+
+  // Input: invalid username, short/long/missing password, or a missing/different confirmation
+  // Expected status code: 400
+  // Expected behavior: nothing is stored
+  // Expected output: error naming the problem
   test.each([
     [{ ...account, username: 'bad name' }, 'username'],
     [{ ...account, password: 'short' }, 'at least 8'],
@@ -48,45 +58,73 @@ describe('Mocked: POST /api/auth/register', () => {
     expect(res.body.error).toContain(message);
     expect(stores.userList).toHaveLength(0);
   });
-  // Input: username that is already registered (different case). Expected: 409.
+
+  // Input: password and confirmation pairs that differ in type, length, bytes or Unicode form
+  // Expected status code: 400 for every mismatch, 201 for exact matches
+  // Expected behavior: confirmation is compared exactly; nothing is stored on mismatch
+  // Expected output: { error: "Passwords do not match." } on mismatch
+  test.each(passwordConfirmationCases)('Password confirmation: %s', async (_label, password, confirmPassword, status) => {
+    const stores = memoryStores();
+    const res = await request(createApp(stores)).post('/api/auth/register').send({ username: 'joy_tao', password, confirmPassword });
+    expect(res.status).toBe(status);
+    if (status === 400) expect(res.body.error).toBe('Passwords do not match.');
+    expect(stores.userList).toHaveLength(status === 400 ? 0 : 1);
+  });
+
+  // Input: a username already registered in a different case
+  // Expected status code: 409
+  // Expected behavior: no second account is created
+  // Expected output: error message
   test('Rejects a duplicate username', async () => {
     const { app } = await registered();
     const res = await request(app).post('/api/auth/register').send({ ...account, username: 'SAM_LEE' });
     expect(res.status).toBe(409);
   });
-  // Mock: duplicate detected by the unique index during a concurrent sign-up. Expected: 409.
+
+  // Input: valid registration; mock: the store creates the same user twice, as a concurrent sign-up would
+  // Expected status code: 409
+  // Expected behavior: the duplicate reported by the unique index is surfaced as a conflict
+  // Expected output: error message
   test('Reports a duplicate created concurrently', async () => {
     const stores = memoryStores();
     const create = stores.users.create;
     stores.users.create = async input => { await create(input); return create(input); };
     expect((await registerAccount(createApp(stores), account)).status).toBe(409);
   });
+
+  // Input: registration that includes an invalid email, and the retired code-request endpoint
+  // Expected status code: 201 for registration, 404 for the retired endpoint
+  // Expected behavior: email input is ignored at registration
+  // Expected output: stored user has no email
+  test('Ignores email input and has no email verification endpoint', async () => {
+    const stores = memoryStores();
+    const app = createApp(stores);
+    expect((await request(app).post('/api/auth/register/code').send({ email: 'unused@example.com' })).status).toBe(404);
+    const res = await request(app).post('/api/auth/register').send({ ...account, email: 'invalid' });
+    expect(res.status).toBe(201);
+    expect(stores.userList[0]?.email).toBeUndefined();
+  });
+
+  // Input: 30 invalid registrations from one client, then a valid one
+  // Expected status code: 400 thirty times, then 429
+  // Expected behavior: registration attempts are rate-limited per client
+  // Expected output: Retry-After header equal to retryAfterSeconds in the body
+  test('Limits registration attempts per client', async () => {
+    const app = createApp(memoryStores());
+    for (let i = 0; i < 30; i++) expect((await request(app).post('/api/auth/register').send({})).status).toBe(400);
+    const limited = await request(app).post('/api/auth/register').send(account);
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    expect(limited.body.retryAfterSeconds).toBe(Number(limited.headers['retry-after']));
+  });
 });
 
-test('retired email verification endpoint is absent and registration ignores email input', async () => {
-  const stores = memoryStores();
-  const app = createApp(stores);
-  expect((await request(app).post('/api/auth/register/code').send({ email: 'unused@example.com' })).status).toBe(404);
-  const res = await request(app).post('/api/auth/register').send({ ...account, email: 'invalid' });
-  expect(res.status).toBe(201);
-  expect(stores.userList[0]?.email).toBeUndefined();
-});
-
-test('registration and password login are bounded by per-client attempt limits', async () => {
-  const app = createApp(memoryStores());
-  for (let i = 0; i < 30; i++) expect((await request(app).post('/api/auth/register').send({})).status).toBe(400);
-  const limited = await request(app).post('/api/auth/register').send(account);
-  expect(limited.status).toBe(429);
-  expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
-  expect(limited.body.retryAfterSeconds).toBe(Number(limited.headers['retry-after']));
-  // Registration and password login have separate buckets and different caps.
-  for (let i = 0; i < 60; i++) expect((await request(app).post('/api/auth/login').send({})).status).toBe(400);
-  expect((await request(app).post('/api/auth/login').send({})).status).toBe(429);
-});
-
-// Interface POST /api/auth/login. Mock: User DB.
+// Interface POST /api/auth/login
 describe('Mocked: POST /api/auth/login', () => {
-  // Input: correct credentials, any username case. Expected: 200, new session for the account.
+  // Input: correct credentials with the username in another case
+  // Expected status code: 200
+  // Expected behavior: a new session is stored for the account
+  // Expected output: { user, token } with username "sam_lee"
   test('Signs in with username and password', async () => {
     const { app, stores } = await registered();
     const res = await request(app).post('/api/auth/login').send({ username: 'SAM_LEE', password: account.password });
@@ -94,32 +132,68 @@ describe('Mocked: POST /api/auth/login', () => {
     expect(res.body.user.username).toBe('sam_lee');
     expect(stores.sessionMap.size).toBe(2);
   });
-  // Input: wrong password, unknown username, Google-only account. Expected: the same 401 message for all.
+
+  // Input: wrong password, unknown username, and a Google-only account
+  // Expected status code: 401
+  // Expected behavior: the same message is returned for every case; no session is stored
+  // Expected output: { error: "Incorrect username or password." }
   test('Rejects bad credentials without revealing which part is wrong', async () => {
     const { app, stores } = await registered();
     await stores.users.create({ username: 'google_user', displayName: 'G', googleId: 'g-1' });
-    const attempts = [
+    for (const body of [
       { username: account.username, password: 'wrong password' },
       { username: 'nobody', password: account.password },
       { username: 'google_user', password: account.password },
-    ];
-    for (const body of attempts) {
+    ]) {
       const res = await request(app).post('/api/auth/login').send(body);
       expect(res.status).toBe(401);
       expect(res.body.error).toBe('Incorrect username or password.');
     }
     expect(stores.sessionMap.size).toBe(1);
   });
-  // Input: missing fields. Expected: 400.
+
+  // Input: missing fields, an invalid username, or a non-string password
+  // Expected status code: 400
+  // Expected behavior: the store is not queried for a session
+  // Expected output: error message
   test.each([{}, { username: account.username }, { username: '!', password: 'password1' }, { username: account.username, password: 5 }])(
-    'Rejects incomplete input', async body => {
+    'Rejects incomplete input %#', async body => {
       expect((await request(createApp(memoryStores())).post('/api/auth/login').send(body)).status).toBe(400);
     });
+
+  // Input: 60 invalid login attempts from one client, then another
+  // Expected status code: 400 sixty times, then 429
+  // Expected behavior: password login has its own rate-limit bucket
+  // Expected output: rate-limit error
+  test('Limits login attempts per client', async () => {
+    const app = createApp(memoryStores());
+    for (let i = 0; i < 60; i++) expect((await request(app).post('/api/auth/login').send({})).status).toBe(400);
+    expect((await request(app).post('/api/auth/login').send({})).status).toBe(429);
+  });
+
+  // Input: valid credentials; mock: the user lookup throws
+  // Expected status code: 500
+  // Expected behavior: no session is created and no internal detail is leaked
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Reports a user store failure', async () => {
+    const { app, stores } = await registered();
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    stores.users.findByUsername = async () => { throw new Error('connection refused at 10.0.0.5'); };
+    try {
+      const res = await request(app).post('/api/auth/login').send(account);
+      expect(res.status).toBe(500);
+      expect(JSON.stringify(res.body)).not.toContain('10.0.0.5');
+      expect(stores.sessionMap.size).toBe(1);
+    } finally { log.mockRestore(); }
+  });
 });
 
-// Interface POST /api/auth/logout. Mock: User DB.
+// Interface POST /api/auth/logout
 describe('Mocked: POST /api/auth/logout', () => {
-  // Input: valid bearer token. Expected: 204; the token no longer works.
+  // Input: a valid bearer token while another session exists
+  // Expected status code: 204
+  // Expected behavior: only the current session ends
+  // Expected output: empty body; the other token still works
   test('Ends the current session only', async () => {
     const { app, token } = await registered();
     const other = (await request(app).post('/api/auth/login').send(account)).body.token as string;
@@ -127,7 +201,11 @@ describe('Mocked: POST /api/auth/logout', () => {
     expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
     expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${other}`)).status).toBe(200);
   });
-  // Input: missing or unknown token. Expected: 401.
+
+  // Input: no header, an empty Bearer, an unknown token, or Basic authentication
+  // Expected status code: 401
+  // Expected behavior: nothing is deleted
+  // Expected output: Bearer challenge
   test.each([undefined, 'Bearer', 'Bearer unknown-token-unknown-token', 'Basic abc'])('Requires a session (%s)', async header => {
     const { app } = await registered();
     const req = request(app).post('/api/auth/logout');
@@ -135,11 +213,28 @@ describe('Mocked: POST /api/auth/logout', () => {
     expect(res.status).toBe(401);
     expect(res.headers['www-authenticate']).toBe('Bearer');
   });
+
+  // Input: valid token; mock: session deletion throws
+  // Expected status code: 500
+  // Expected behavior: logout is not reported as successful
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Reports a session store failure', async () => {
+    const { app, token, stores } = await registered();
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    stores.sessions.delete = async () => { throw new Error('Database unavailable'); };
+    try {
+      expect((await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`)).status).toBe(500);
+      expect(stores.sessionMap.size).toBe(1);
+    } finally { log.mockRestore(); }
+  });
 });
 
-// Interface GET /api/users/me. Mock: User DB.
+// Interface GET /api/users/me
 describe('Mocked: GET /api/users/me', () => {
-  // Input: valid bearer token. Expected: 200 with account info and no password hash.
+  // Input: valid bearer token
+  // Expected status code: 200
+  // Expected behavior: the account is read without its password hash
+  // Expected output: { user } with username "sam_lee"
   test('Returns the signed-in account', async () => {
     const { app, token } = await registered();
     const res = await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`);
@@ -147,17 +242,40 @@ describe('Mocked: GET /api/users/me', () => {
     expect(res.body.user).toMatchObject({ email: '', username: 'sam_lee', displayName: 'sam_lee', signInMethods: ['password'] });
     expect(JSON.stringify(res.body)).not.toContain('scrypt');
   });
-  // Input: expired session. Expected: 401.
+
+  // Input: token whose session expiry has passed
+  // Expected status code: 401
+  // Expected behavior: the expired session is refused
+  // Expected output: Bearer challenge
   test('Rejects an expired session', async () => {
     const { app, token, stores } = await registered();
     stores.sessionMap.get(hashToken(token))!.expiresAt = new Date(Date.now() - 1);
     expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
   });
-  // Input: session whose account was deleted. Expected: 401 and the session is removed.
+
+  // Input: token whose account was deleted
+  // Expected status code: 401
+  // Expected behavior: the orphaned session is removed
+  // Expected output: Bearer challenge
   test('Rejects a session for a missing account', async () => {
     const { app, token, stores } = await registered();
     stores.userList.length = 0;
     expect((await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
     expect(stores.sessionMap.size).toBe(0);
+  });
+
+  // Input: valid token; mock: the session lookup throws
+  // Expected status code: 500
+  // Expected behavior: account data is not returned
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Reports a session store failure', async () => {
+    const { app, token, stores } = await registered();
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    stores.sessions.find = async () => { throw new Error('Database unavailable'); };
+    try {
+      const res = await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(500);
+      expect(res.body).not.toHaveProperty('user');
+    } finally { log.mockRestore(); }
   });
 });
