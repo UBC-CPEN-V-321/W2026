@@ -1,4 +1,4 @@
-import { executeWrite, selectRows } from '../../core/db/mysql';
+import { executeWrite, placeholders, selectRows } from '../../core/db/mysql';
 import { RATING_WINDOW_HOURS } from '../ratingWindow';
 import type { RatingScores } from '../reputation';
 
@@ -25,7 +25,7 @@ interface AttendanceRow {
 async function readAttendance(gameId: number, userIds: number[]): Promise<AttendanceRow[]> {
   return selectRows<AttendanceRow>(
     `SELECT user_id, no_show FROM game_attendance
-     WHERE game_id = ? AND user_id IN (${userIds.map(() => '?').join(', ')})`,
+     WHERE game_id = ? AND user_id IN (${placeholders(userIds.length)})`,
     [gameId, ...userIds],
   );
 }

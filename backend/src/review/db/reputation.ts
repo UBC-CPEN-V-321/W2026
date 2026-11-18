@@ -1,4 +1,4 @@
-import { selectRows } from '../../core/db/mysql';
+import { placeholders, selectRows } from '../../core/db/mysql';
 import { type PlayedGame, type RatingScores, reputationScore } from '../reputation';
 
 /*  a player's record as other players see it. score is null if they aren't rated yet.
@@ -44,7 +44,7 @@ export async function getReputationScore(userId: number): Promise<number | null>
   const ratings = await selectRows<ReceivedRatingRow>(
     `SELECT game_id, punctuality, sportsmanship, skill, reliability, overall
      FROM player_ratings
-     WHERE rated_id = ? AND game_id IN (${games.map(() => '?').join(', ')})`,
+     WHERE rated_id = ? AND game_id IN (${placeholders(games.length)})`,
     [userId, ...games.map((game) => game.game_id)],
   );
   const played: PlayedGame[] = games.map((game) => ({

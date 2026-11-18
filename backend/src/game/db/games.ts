@@ -1,5 +1,5 @@
 import { createGameChat } from '../../chat/db/chats';
-import { executeWrite, inTransaction, type Queryable, selectRows } from '../../core/db/mysql';
+import { executeWrite, inTransaction, placeholders, type Queryable, selectRows } from '../../core/db/mysql';
 import { RATING_WINDOW_HOURS } from '../../review/ratingWindow';
 import type { JoinRequestStatus } from './joinRequests';
 
@@ -429,7 +429,7 @@ export async function completeGame(
 
     // kept apart from game_players so leaving the game doesn't erase it from a player's score
     const noShow = noShowUserIds.length > 0
-      ? `p.user_id <> ? AND p.user_id IN (${noShowUserIds.map(() => '?').join(', ')})`
+      ? `p.user_id <> ? AND p.user_id IN (${placeholders(noShowUserIds.length)})`
       : 'FALSE';
     await executeWrite(
       `INSERT INTO game_attendance (game_id, user_id, no_show, played_at)

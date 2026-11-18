@@ -1,4 +1,4 @@
-import { executeWrite, selectRows } from '../db/mysql';
+import { executeWrite, placeholders, selectRows } from '../db/mysql';
 
 // longest FCM token accepted, matches the device_tokens.token column
 export const MAX_FCM_TOKEN_LENGTH = 512;
@@ -31,9 +31,8 @@ export async function getDeviceTokens(userId: number): Promise<string[]> {
 // removes tokens Firebase reported as no longer valid (app uninstalled, data cleared, ...)
 export async function deleteDeviceTokens(tokens: string[]): Promise<void> {
   if (tokens.length === 0) return;
-  const placeholders = tokens.map(() => '?').join(', ');
   await executeWrite(
-    `DELETE FROM device_tokens WHERE token IN (${placeholders})`,
+    `DELETE FROM device_tokens WHERE token IN (${placeholders(tokens.length)})`,
     tokens,
   );
 }

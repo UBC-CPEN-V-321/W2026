@@ -1,4 +1,4 @@
-import { executeWrite, inTransaction, selectRows } from '../../core/db/mysql';
+import { executeWrite, inTransaction, placeholders, selectRows } from '../../core/db/mysql';
 import { RATING_WINDOW_HOURS, REMINDER_BEFORE_CLOSE_HOURS } from '../ratingWindow';
 
 // a completed game whose rating closes within REMINDER_BEFORE_CLOSE_HOURS
@@ -24,7 +24,7 @@ export async function claimDueRatingReminders(): Promise<ReminderGame[]> {
     );
     if (due.length > 0) {
       await executeWrite(
-        `UPDATE games SET rating_reminder_sent = TRUE WHERE game_id IN (${due.map(() => '?').join(', ')})`,
+        `UPDATE games SET rating_reminder_sent = TRUE WHERE game_id IN (${placeholders(due.length)})`,
         due.map((game) => game.game_id),
         connection,
       );
