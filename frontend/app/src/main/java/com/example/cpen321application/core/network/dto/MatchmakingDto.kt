@@ -19,3 +19,17 @@ data class QueueEntryDto(
 data class QueueEntryResponseDto(
     val request: QueueEntryDto
 )
+
+data class PointDto(
+    val latitude: Double,
+    val longitude: Double
+)
+
+/**
+ * @param center where the player is searching from
+ * @param players the other queued players within 10 km, rounded to ~100 m
+ */
+data class NearbyPlayersDto(
+    val center: PointDto,
+    val players: List<PointDto>
+)

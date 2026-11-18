@@ -98,7 +98,8 @@ class MatchmakingViewModel(
 
         val result = repository.joinQueue(state.format, location)
         if (result.isSuccess) {
-            _uiState.update { it.copy(isUpdatingQueue = false, isSearching = true) }
+            // nearby = null: the dots of an earlier search are not around this one
+            _uiState.update { it.copy(isUpdatingQueue = false, isSearching = true, nearby = null) }
             return
         }
         val message = if (result.exceptionOrNull() is ActiveMatchException) ACTIVE_MATCH_MESSAGE else JOIN_FAILED_MESSAGE
@@ -167,7 +168,23 @@ class MatchmakingViewModel(
      */
     suspend fun restoreQueue() {
         val format = repository.queuedFormat().getOrNull() ?: return
-        _uiState.update { it.copy(isSearching = true, format = format) }
+        _uiState.update { it.copy(isSearching = true, format = format, nearby = null) }
+    }
+
+    /**
+     * Loads the players searching near this one, for the queue card's map.
+     * A failed load keeps the last dots, the next one tries again.
+     */
+    suspend fun refreshNearby() {
+        if (!_uiState.value.isSearching) {
+            return
+        }
+        val nearby = repository.nearbyPlayers().getOrNull()
+        // Failed, or the player was matched or left while this load was on its way
+        if (nearby == null || !_uiState.value.isSearching) {
+            return
+        }
+        _uiState.update { it.copy(nearby = nearby) }
     }
 
     /**

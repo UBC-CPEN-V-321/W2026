@@ -21,6 +21,16 @@ data class MatchLocation(
     val longitude: Double
 )
 
+// A point on the queue card's map
+data class MapPoint(val latitude: Double, val longitude: Double)
+
+/**
+ * The other players searching near the player, for the queue card's map
+ * @param center where the player is searching from
+ * @param players rounded to ~100 m by the backend, without names
+ */
+data class NearbyPlayers(val center: MapPoint, val players: List<MapPoint>)
+
 data class MatchmakingUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -31,6 +41,8 @@ data class MatchmakingUiState(
     val isSearching: Boolean = false,
     // A join or leave request is on its way to the backend
     val isUpdatingQueue: Boolean = false,
+    // The players searching nearby while in the queue, null until the first load
+    val nearby: NearbyPlayers? = null,
     // The player's matched game waiting for answers; shows the match pop-up
     val match: Game? = null,
     // The match was cancelled while the player was waiting on it

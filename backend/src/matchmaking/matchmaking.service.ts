@@ -8,6 +8,7 @@ import {
   getCandidates,
   getCourts,
   getMatchedPlayers,
+  getQueuedLocations,
   hasActiveMatch,
 } from './matchmaking.repository';
 import type { JoinQueueInput } from './matchmaking.schemas';
@@ -16,6 +17,8 @@ import { pushToUsers } from '../users/users.service';
 import { MATCH_ANSWER_DEADLINE_MS } from '../games/games.repository';
 
 const MATCH_START_DELAY_MS = 60 * 60 * 1000;
+// 3 decimal places of a degree is about 100 m
+const LOCATION_ROUNDING = 1000;
 export const MAX_DISTANCE_KM = 10;
 
 interface FormatRule {
@@ -61,6 +64,11 @@ export interface MatchedPlayer {
   id: string;
   rating: number;
   preferredCourts: CourtLocation[];
+}
+
+export interface NearbyPlayers {
+  center: Location;
+  players: Location[];
 }
 
 export class ActiveMatchError extends Error {}
@@ -319,4 +327,41 @@ export async function leaveQueue(userId: string): Promise<void> {
  */
 export async function getQueueEntry(userId: string): Promise<QueueEntry | null> {
   return await findRequest(userId);
+}
+
+/**
+ * Rounds a point to about 100 m, so the map shows roughly where a player is without pinpointing them.
+ *
+ * @param location - The exact point.
+ * @returns The point with 3 decimal places.
+ */
+export function roundLocation(location: Location): Location {
+  const round = (degrees: number) => Math.round(degrees * LOCATION_ROUNDING) / LOCATION_ROUNDING;
+  return { latitude: round(location.latitude), longitude: round(location.longitude) };
+}
+
+/**
+ * Keeps the players close enough to be matched with the center, rounded so they can be shown to others.
+ *
+ * @param center - Where the asking player wants to play.
+ * @param others - Where the other queued players want to play.
+ * @returns The rounded points within MAX_DISTANCE_KM of the center.
+ */
+export function playersNear(center: Location, others: Location[]): Location[] {
+  return others.filter((other) => distanceKm(center, other) <= MAX_DISTANCE_KM).map(roundLocation);
+}
+
+/**
+ * The other players searching near a queued player, for the map on the queue card.
+ * The list has no names or ids, only rounded points.
+ *
+ * @param userId - The player asking.
+ * @returns Where the player is searching and the players near them, or null if they are not in the queue.
+ */
+export async function getNearbyPlayers(userId: string): Promise<NearbyPlayers | null> {
+  const entry = await findRequest(userId);
+  if (entry === null) return null;
+  const center = { latitude: entry.latitude, longitude: entry.longitude };
+  const others = await getQueuedLocations(userId);
+  return { center, players: playersNear(center, others) };
 }

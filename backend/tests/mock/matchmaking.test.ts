@@ -6,6 +6,7 @@ import {
   createRequest,
   deleteRequest,
   findRequest,
+  getQueuedLocations,
   hasActiveMatch,
 } from "../../src/matchmaking/matchmaking.repository";
 
@@ -17,12 +18,14 @@ jest.mock("../../src/matchmaking/matchmaking.repository", () => ({
   createRequest: jest.fn(),
   deleteRequest: jest.fn(),
   findRequest: jest.fn(),
+  getQueuedLocations: jest.fn(),
   hasActiveMatch: jest.fn(),
 }));
 
 const mockedCreateRequest = jest.mocked(createRequest);
 const mockedDeleteRequest = jest.mocked(deleteRequest);
 const mockedFindRequest = jest.mocked(findRequest);
+const mockedGetQueuedLocations = jest.mocked(getQueuedLocations);
 const mockedHasActiveMatch = jest.mocked(hasActiveMatch);
 
 // A player at UBC
@@ -44,7 +47,7 @@ const prismaError = (code: string) =>
 const silenceConsoleError = () =>
   jest.spyOn(console, "error").mockImplementation(() => undefined);
 
-// Interface POST /matchmaking, DELETE /matchmaking, GET /matchmaking
+// Interface POST /matchmaking, DELETE /matchmaking, GET /matchmaking, GET /matchmaking/nearby
 describe("Mocked: /matchmaking requireAuth", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -54,6 +57,7 @@ describe("Mocked: /matchmaking requireAuth", () => {
     ["POST /matchmaking", () => request(createApp()).post("/matchmaking").send(validBody())],
     ["DELETE /matchmaking", () => request(createApp()).delete("/matchmaking")],
     ["GET /matchmaking", () => request(createApp()).get("/matchmaking")],
+    ["GET /matchmaking/nearby", () => request(createApp()).get("/matchmaking/nearby")],
   ] as const;
 
   // Input: a request without an Authorization header
@@ -67,6 +71,7 @@ describe("Mocked: /matchmaking requireAuth", () => {
     expect(mockedCreateRequest).not.toHaveBeenCalled();
     expect(mockedDeleteRequest).not.toHaveBeenCalled();
     expect(mockedFindRequest).not.toHaveBeenCalled();
+    expect(mockedGetQueuedLocations).not.toHaveBeenCalled();
   });
 });
 
@@ -249,6 +254,68 @@ describe("Mocked: GET /matchmaking", () => {
 
     const response = await request(createApp())
       .get("/matchmaking")
+      .set("Authorization", authHeader);
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Internal server error" });
+    consoleError.mockRestore();
+  });
+});
+
+// Interface GET /matchmaking/nearby
+describe("Mocked: GET /matchmaking/nearby", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Input: a queued player at UBC, others at Kitsilano (~5.7 km) and Surrey (~30 km)
+  // Expected status code: 200
+  // Expected output: the caller's own point as the center, and only Kitsilano, rounded to ~100 m
+  test("Returns the players within 10 km, rounded, around the caller", async () => {
+    mockedFindRequest.mockResolvedValue(queuedRequest());
+    mockedGetQueuedLocations.mockResolvedValue([
+      { latitude: 49.268_449, longitude: -123.168_351 },
+      { latitude: 49.1913, longitude: -122.849 },
+    ]);
+
+    const response = await request(createApp())
+      .get("/matchmaking/nearby")
+      .set("Authorization", authHeader);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      center: { latitude: 49.2606, longitude: -123.246 },
+      players: [{ latitude: 49.268, longitude: -123.168 }],
+    });
+    // The caller is left out of their own list
+    expect(mockedGetQueuedLocations).toHaveBeenCalledWith(userId);
+  });
+
+  // Input: a player not in the queue
+  // Expected status code: 404
+  // Expected output: not in queue error, the other players are not loaded
+  test("Returns 404 when the player is not in the queue", async () => {
+    mockedFindRequest.mockResolvedValue(null);
+
+    const response = await request(createApp())
+      .get("/matchmaking/nearby")
+      .set("Authorization", authHeader);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Not in the queue" });
+    expect(mockedGetQueuedLocations).not.toHaveBeenCalled();
+  });
+
+  // Input: the database fails while loading the other players
+  // Expected status code: 500
+  // Expected output: internal server error, logged
+  test("Returns 500 when the database fails", async () => {
+    const consoleError = silenceConsoleError();
+    mockedFindRequest.mockResolvedValue(queuedRequest());
+    mockedGetQueuedLocations.mockRejectedValue(new Error("db down"));
+
+    const response = await request(createApp())
+      .get("/matchmaking/nearby")
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);

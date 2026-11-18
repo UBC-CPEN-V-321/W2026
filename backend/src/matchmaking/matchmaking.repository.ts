@@ -11,6 +11,7 @@ import type {
   QueueEntry,
 } from './matchmaking.service';
 import type { JoinQueueInput } from './matchmaking.schemas';
+import type { Location } from './geo';
 
 /**
  * Get all players searching for a game right now and include their rating.
@@ -122,6 +123,18 @@ export async function findRequest(userId: string): Promise<QueueEntry | null> {
   return await prisma.matchmakingRequest.findUnique({ 
     where: { userId }, 
     select: { format: true, createdAt: true, latitude: true, longitude: true } 
+  });
+}
+
+/**
+ * @param excludedUserId - The player asking, left out of the list.
+ * @returns Where every other player in the queue wants to play.
+ */
+export async function getQueuedLocations(excludedUserId: string): Promise<Location[]> {
+  // ponytail: loads the whole queue and the service filters by distance; add a bounding-box where clause if the queue grows large
+  return await prisma.matchmakingRequest.findMany({
+    where: { userId: { not: excludedUserId } },
+    select: { latitude: true, longitude: true },
   });
 }
 

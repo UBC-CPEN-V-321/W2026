@@ -5,6 +5,7 @@ import com.example.cpen321application.core.network.dto.FcmTokenRequestDto
 import com.example.cpen321application.core.network.dto.CourtsResponseDto
 import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
 import com.example.cpen321application.core.network.dto.JoinQueueRequestDto
+import com.example.cpen321application.core.network.dto.NearbyPlayersDto
 import com.example.cpen321application.core.network.dto.LeaderboardResponseDto
 import com.example.cpen321application.core.network.dto.LoginRequestDto
 import com.example.cpen321application.core.network.dto.QueueEntryResponseDto
@@ -77,6 +78,9 @@ interface ApiService {
 
     @DELETE("matchmaking")
     suspend fun leaveQueue(@Header("Authorization") authorization: String)
+
+    @GET("matchmaking/nearby")
+    suspend fun getNearbyPlayers(@Header("Authorization") authorization: String): NearbyPlayersDto
 
 
     @GET("friends")

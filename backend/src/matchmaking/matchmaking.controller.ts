@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth } from "../auth/requireAuth";
 import { Prisma } from "../generated/prisma/client";
 import { joinQueueSchema } from "./matchmaking.schemas";
-import { ActiveMatchError, getQueueEntry, joinQueue, leaveQueue } from "./matchmaking.service";
+import { ActiveMatchError, getNearbyPlayers, getQueueEntry, joinQueue, leaveQueue } from "./matchmaking.service";
 
 export const matchmakingRouter = Router();
 
@@ -72,6 +72,25 @@ matchmakingRouter.get("/", async (req: Request, res: Response) => {
       return;
     }
     res.status(200).json({ request });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+matchmakingRouter.get("/nearby", async (req: Request, res: Response) => {
+  if (!req.userId) {
+    res.sendStatus(401);
+    return;
+  }
+
+  try {
+    const nearby = await getNearbyPlayers(req.userId);
+    if (nearby === null) {
+      res.status(404).json({ error: "Not in the queue" });
+      return;
+    }
+    res.status(200).json(nearby);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Internal server error" });
