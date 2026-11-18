@@ -17,20 +17,24 @@ export function testsRejectInvalidSessions(send: () => Test, validAuth: () => st
   });
 }
 
+// Sends the request built by `attempt` and checks the 401 contract with stored data unchanged.
+async function expectRejectedWithoutChanges(attempt: () => Test, snapshot: () => Promise<unknown>) {
+  const before = await snapshot();
+  const response = await attempt();
+  expect(response.status).toBe(401);
+  expect(response.headers['www-authenticate']).toBe('Bearer');
+  expect(response.body).toEqual(EXPIRED);
+  expect(await snapshot()).toEqual(before);
+}
+
 function sessionTests(send: () => Test, validAuth: () => string, snapshot: () => Promise<unknown>) {
   // Input: syntactically valid request with a missing or unknown bearer token
   // Expected status code: 401
   // Expected behavior: request is rejected before any data is read or changed
   // Expected output: Bearer challenge and { error: "Your session has expired. Please sign in again." }
   test.each(['missing', 'unknown'])('Rejects a %s session', async kind => {
-    const before = await snapshot();
-    const attempt = send();
-    if (kind === 'unknown') attempt.set('Authorization', 'Bearer unknown-session-token-00000000');
-    const response = await attempt;
-    expect(response.status).toBe(401);
-    expect(response.headers['www-authenticate']).toBe('Bearer');
-    expect(response.body).toEqual(EXPIRED);
-    expect(await snapshot()).toEqual(before);
+    await expectRejectedWithoutChanges(
+      () => (kind === 'unknown' ? send().set('Authorization', 'Bearer unknown-session-token-00000000') : send()), snapshot);
   });
 
   // Input: genuine session whose stored expiry has passed (MongoDB TTL cleanup has not run yet)
@@ -40,11 +44,6 @@ function sessionTests(send: () => Test, validAuth: () => string, snapshot: () =>
   test('Rejects an expired session still present in MongoDB', async () => {
     const auth = validAuth();
     await SessionModel.updateOne({ tokenHash: hashToken(auth.slice('Bearer '.length)) }, { expiresAt: new Date(Date.now() - 1000) });
-    const before = await snapshot();
-    const response = await send().set('Authorization', auth);
-    expect(response.status).toBe(401);
-    expect(response.headers['www-authenticate']).toBe('Bearer');
-    expect(response.body).toEqual(EXPIRED);
-    expect(await snapshot()).toEqual(before);
+    await expectRejectedWithoutChanges(() => send().set('Authorization', auth), snapshot);
   });
 }

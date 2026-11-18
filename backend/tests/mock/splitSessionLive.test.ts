@@ -3,19 +3,14 @@ import type { GroupChange, GroupMembershipChange } from '../../src/groupMembersh
 import type { SplitSessionUpdate } from '../../src/splitSessions';
 import { hashToken } from '../../src/session';
 import { mongoSessionStore } from '../../src/userStore';
-import { databaseFailure } from '../helpers/groupApiFixture';
-import { api, claim, clientFor, connect, createSplit, harness, nextEvent, subscribe, useLiveHarness, type TestAccount } from '../helpers/liveHarness';
+import { databaseFailure, failNextFindOne } from '../helpers/groupApiFixture';
+import { api, claim, clientFor, collect, connect, createSplit, harness, nextEvent, subscribe, useLiveHarness, type TestAccount } from '../helpers/liveHarness';
 
 // Mocked components: the MongoDB session store and group model lookups used by the live namespace reject.
 // The HTTP app, Socket.IO transport and the rest of MongoDB are real.
 useLiveHarness('split-session-live-mock-test');
 beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefined); });
 
-function failNextGroupLookup() {
-  const query = GroupModel.findOne();
-  jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-  return jest.spyOn(GroupModel, 'findOne').mockReturnValueOnce(query);
-}
 // Fails only the live publisher's roster read, recognised by the fields it selects; HTTP lookups stay real.
 function failPublisherGroupLookup() {
   const realFindOne = GroupModel.findOne.bind(GroupModel);
@@ -39,12 +34,6 @@ function failSessionChecksFor(account: TestAccount) {
   });
 }
 const publishSettled = () => new Promise(resolve => setTimeout(resolve, 150));
-// Collects every event of this name the socket receives.
-function collect<T>(client: ReturnType<typeof clientFor>, event: string) {
-  const received: T[] = [];
-  client.on(event, (value: T) => received.push(value));
-  return received;
-}
 
 // Interface Socket.IO /dutch connection
 describe('Mocked: Socket.IO /dutch connection', () => {
@@ -70,7 +59,7 @@ describe('Mocked: Socket.IO /dutch subscribe', () => {
   // Expected output: { ok: false, error: "Unable to subscribe. Reconnect and retry." }, then { ok: true }
   test('Reports a failed membership lookup and allows a retry', async () => {
     const client = await connect(harness.member.token);
-    failNextGroupLookup();
+    failNextFindOne(GroupModel);
     expect(await subscribe(client)).toEqual({ ok: false, error: 'Unable to subscribe. Reconnect and retry.' });
     expect(harness.socketServer.of('/dutch').adapter.rooms.get(harness.groupId)).toBeUndefined();
     expect(await subscribe(client)).toEqual({ ok: true, groupId: harness.groupId });

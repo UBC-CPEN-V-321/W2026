@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { ExpenseModel, GroupModel } from '../../src/groupStore';
-import { databaseFailure, expectDatabaseError, useGroupApiFixture } from '../helpers/groupApiFixture';
+import { databaseFailure, expectDatabaseError, failNextFindOne, useGroupApiFixture } from '../helpers/groupApiFixture';
 
 // Mocked component: MongoDB group and expense model calls are replaced with jest spies that reject.
 const f = useGroupApiFixture();
@@ -14,16 +14,6 @@ const sharedCopies = () => ExpenseModel.countDocuments({ 'personalEntry.id': sou
 
 beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefined); });
 
-function failNextExpenseLookup() {
-  const query = ExpenseModel.findOne();
-  jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-  return jest.spyOn(ExpenseModel, 'findOne').mockReturnValueOnce(query);
-}
-function failNextGroupLookup() {
-  const query = GroupModel.findOne();
-  jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-  return jest.spyOn(GroupModel, 'findOne').mockReturnValueOnce(query);
-}
 
 // Interface POST /api/groups/:groupId/shared-entries
 describe('Mocked: POST /api/groups/:groupId/shared-entries', () => {
@@ -62,7 +52,7 @@ describe('Mocked: POST /api/groups/:groupId/shared-entries', () => {
   // Expected behavior: nothing is shared
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Shares nothing when membership cannot be read', async () => {
-    failNextGroupLookup();
+    failNextFindOne(GroupModel);
     expectDatabaseError(await share());
     expect(await sharedCopies()).toBe(0);
   });
@@ -75,7 +65,7 @@ describe('Mocked: GET /api/groups/:groupId/expenses/:expenseId/personal-entry', 
   // Expected behavior: a failure is not reported as a missing expense
   // Expected output: { error: "Something went wrong. Please try again." } without an input field
   test('Reports a failed expense lookup', async () => {
-    failNextExpenseLookup();
+    failNextFindOne(ExpenseModel);
     const response = await mine();
     expectDatabaseError(response);
     expect(response.body).not.toHaveProperty('input');
@@ -86,7 +76,7 @@ describe('Mocked: GET /api/groups/:groupId/expenses/:expenseId/personal-entry', 
   // Expected behavior: no expense data is read
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Reads no expense when membership cannot be read', async () => {
-    failNextGroupLookup();
+    failNextFindOne(GroupModel);
     const lookup = jest.spyOn(ExpenseModel, 'findOne');
     expectDatabaseError(await mine());
     expect(lookup).not.toHaveBeenCalled();
@@ -112,7 +102,7 @@ describe('Mocked: POST /api/groups/:groupId/expenses/:expenseId/personal-entry/i
   // Expected behavior: no write is attempted
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Writes nothing when the expense cannot be read', async () => {
-    failNextExpenseLookup();
+    failNextFindOne(ExpenseModel);
     const write = jest.spyOn(ExpenseModel, 'updateOne');
     expectDatabaseError(await markImported());
     expect(write).not.toHaveBeenCalled();

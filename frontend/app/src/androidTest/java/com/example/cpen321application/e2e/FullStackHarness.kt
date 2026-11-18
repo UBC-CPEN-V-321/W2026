@@ -20,7 +20,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.example.cpen321application.BuildConfig
+import com.example.cpen321application.MainActivity
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType
@@ -57,7 +62,7 @@ internal class FullStackBackend {
     // Registration is rate-limited per client, so only the account that signs in to the app uses it.
     fun register(): BackendAccount {
         val username = "fs" + UUID.randomUUID().toString().filter(Char::isDigit).take(10).padEnd(10, '7')
-        val password = "pw-" + UUID.randomUUID()
+        val password = UUID.randomUUID().toString()
         val body = JSONObject().put("username", username).put("password", password).put("confirmPassword", password)
         val json = call("POST", "/api/auth/register", body = body)
         return BackendAccount(json.getJSONObject("user").getString("id"), username, password, json.getString("token"))
@@ -113,6 +118,28 @@ internal class FullStackBackend {
 }
 
 internal fun objects(array: JSONArray): List<JSONObject> = List(array.length()) { array.getJSONObject(it) }
+
+/** Base for the full-stack tests: the real app, a backend client and the shared UI steps. */
+internal abstract class FullStackE2eTest {
+    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    protected lateinit var backend: FullStackBackend
+    protected val ui = FullStackUi(compose)
+
+    @Before fun requireBackend() {
+        FullStackBackend.assumeEnabled()
+        backend = FullStackBackend()
+    }
+
+    @After fun closeSessions() {
+        if (::backend.isInitialized) backend.close()
+    }
+
+    // The member's view of the group's only bill, with each member's share in cents.
+    protected fun onlyBill(member: BackendAccount, groupId: String): Pair<JSONObject, Map<String, Long>> {
+        val bill = objects(backend.summary(member, groupId).getJSONArray("expenses")).single()
+        return bill to objects(bill.getJSONArray("shares")).associate { it.getString("userId") to it.getLong("amountCents") }
+    }
+}
 
 /** UI steps shared by the full-stack tests. All text is the English UI. */
 internal class FullStackUi(private val compose: ComposeTestRule) {

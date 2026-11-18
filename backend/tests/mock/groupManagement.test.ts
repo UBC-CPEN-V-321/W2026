@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { GroupInvitationModel, GroupModel } from '../../src/groupStore';
-import { databaseFailure, expectDatabaseError, useGroupApiFixture } from '../helpers/groupApiFixture';
+import { databaseFailure, expectDatabaseError, failNextFindOne, useGroupApiFixture } from '../helpers/groupApiFixture';
 import { groupMembershipEvents } from '../../src/groupMembershipEvents';
 
 // Mocked component: MongoDB group and invitation model calls are replaced with jest spies that reject or return null.
@@ -10,11 +10,6 @@ beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
-function failNextFindOne(model: typeof GroupModel | typeof GroupInvitationModel) {
-  const query = (model as typeof GroupInvitationModel).findOne();
-  jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-  return jest.spyOn(model as typeof GroupInvitationModel, 'findOne').mockReturnValueOnce(query);
-}
 
 // Interface POST /api/groups
 describe('Mocked: POST /api/groups', () => {

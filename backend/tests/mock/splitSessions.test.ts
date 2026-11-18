@@ -3,7 +3,7 @@ import { ExpenseModel, GroupModel } from '../../src/groupStore';
 import { initSplitSessionStore, SplitSessionModel } from '../../src/splitSessionStore';
 import { splitSessionEvents } from '../../src/splitSessions';
 import { mongoSessionStore, mongoUserStore } from '../../src/userStore';
-import { databaseFailure, expectDatabaseError, useGroupApiFixture } from '../helpers/groupApiFixture';
+import { databaseFailure, expectDatabaseError, failNextFindOne, useGroupApiFixture } from '../helpers/groupApiFixture';
 
 // Mocked components: MongoDB split-session, expense and group model calls, and the session/user stores
 // (spied to count lookups or to reject).
@@ -33,6 +33,15 @@ async function startedSession() {
   const created = await start();
   expect(created.status).toBe(201);
   return created.body.session.id as string;
+}
+// Claims an item, applies `fail`, then looks the claim up; the lookup must fail closed.
+async function lookUpClaimWhen(fail: () => void) {
+  const sessionId = await startedSession();
+  expect((await claim(sessionId)).status).toBe(200);
+  fail();
+  const response = await request(fixture.app).get('/api/operations/mock-claim-000000001').set('Authorization', fixture.memberAuth);
+  expectDatabaseError(response);
+  expect(response.body).not.toHaveProperty('operation');
 }
 // Counts the session, user and group reads behind one request.
 function countLookups() {
@@ -168,14 +177,7 @@ describe('Mocked: GET /api/operations/:operationKey', () => {
   // Expected behavior: a failure is not reported as an unknown operation
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Reports a failed lookup instead of a missing operation', async () => {
-    const sessionId = await startedSession();
-    expect((await claim(sessionId)).status).toBe(200);
-    const query = SplitSessionModel.findOne();
-    jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-    jest.spyOn(SplitSessionModel, 'findOne').mockReturnValueOnce(query);
-    const response = await request(fixture.app).get('/api/operations/mock-claim-000000001').set('Authorization', fixture.memberAuth);
-    expectDatabaseError(response);
-    expect(response.body).not.toHaveProperty('operation');
+    await lookUpClaimWhen(() => failNextFindOne(SplitSessionModel));
   });
 
   // Input: the actor looks up a completed claim; mock: the group membership lookup rejects
@@ -183,14 +185,6 @@ describe('Mocked: GET /api/operations/:operationKey', () => {
   // Expected behavior: the operation is not disclosed without a membership check
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Discloses nothing when membership cannot be checked', async () => {
-    const sessionId = await startedSession();
-    expect((await claim(sessionId)).status).toBe(200);
-    // The first group read authenticates the request scope; fail the membership check that follows the operation lookup.
-    const query = GroupModel.findOne();
-    jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-    jest.spyOn(GroupModel, 'findOne').mockReturnValueOnce(query);
-    const response = await request(fixture.app).get('/api/operations/mock-claim-000000001').set('Authorization', fixture.memberAuth);
-    expectDatabaseError(response);
-    expect(response.body).not.toHaveProperty('operation');
+    await lookUpClaimWhen(() => failNextFindOne(GroupModel));
   });
 });

@@ -122,6 +122,20 @@ export function subscribe(client: Socket, requestedGroup: unknown = harness.grou
   });
 }
 
+/** Connects a socket for the account and subscribes it to the group; the subscription must succeed. */
+export async function subscribed(account: TestAccount, group: string = harness.groupId): Promise<Socket> {
+  const client = await connect(account.token);
+  expect(await subscribe(client, group)).toEqual({ ok: true, groupId: group });
+  return client;
+}
+
+/** Collects every event of this name the socket receives. */
+export function collect<T>(client: Socket, event: string): T[] {
+  const received: T[] = [];
+  client.on(event, (value: T) => received.push(value));
+  return received;
+}
+
 export function createSplit(requestId = 'live-start-00000001') {
   return request(harness.server).post(`/api/groups/${harness.groupId}/split-sessions`).set('Authorization', `Bearer ${harness.owner.token}`).send({
     reviewed: true, requestId, description: 'Dinner', amountCents: 1800, paidBy: harness.owner.id,
@@ -142,6 +156,10 @@ export function logout(account: TestAccount) {
 }
 
 export function api(method: 'get' | 'post' | 'put' | 'delete', path: string, account?: TestAccount) {
-  const call = request(harness.server)[method](path);
+  const agent = request(harness.server);
+  const call = method === 'get' ? agent.get(path)
+    : method === 'post' ? agent.post(path)
+    : method === 'put' ? agent.put(path)
+    : agent.delete(path);
   return account ? call.set('Authorization', `Bearer ${account.token}`) : call;
 }

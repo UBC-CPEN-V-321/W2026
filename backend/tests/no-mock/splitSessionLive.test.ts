@@ -4,7 +4,7 @@ import { type GroupMembershipChange, type GroupChange } from '../../src/groupMem
 import { SplitSessionModel } from '../../src/splitSessionStore';
 import { splitSessionEvents, type SplitSessionUpdate } from '../../src/splitSessions';
 import {
-  claim, clientFor, connect, createSplit, harness, logout, nextEvent, subscribe, trackClient, useLiveHarness, type TestAccount,
+  claim, clientFor, collect, connect, createSplit, harness, logout, nextEvent, subscribe, subscribed, trackClient, useLiveHarness, type TestAccount,
 } from '../helpers/liveHarness';
 
 // The HTTP app, Socket.IO transports, Ledger sessions and MongoDB persistence are all real. No mocked components.
@@ -159,8 +159,7 @@ describe('Unmocked: Socket.IO /dutch onGroupUpdated', () => {
     expect(await subscribe(ownerClient)).toEqual({ ok: true, groupId });
     expect(await subscribe(memberClient)).toEqual({ ok: true, groupId });
     expect((await subscribe(outsiderClient)).ok).toBe(false);
-    const outsiderUpdates: SplitSessionUpdate[] = [];
-    outsiderClient.on('onGroupUpdated', (update: SplitSessionUpdate) => outsiderUpdates.push(update));
+    const outsiderUpdates = collect<SplitSessionUpdate>(outsiderClient, 'onGroupUpdated');
     const ownerUpdate = nextEvent<SplitSessionUpdate>(ownerClient, 'onGroupUpdated');
     const memberUpdate = nextEvent<SplitSessionUpdate>(memberClient, 'onGroupUpdated');
     const accepted = await claim(created.body.session.id as string, member);
@@ -185,12 +184,9 @@ describe('Unmocked: Socket.IO /dutch onGroupUpdated', () => {
   // Expected output: owner gets version 1; the revoked socket gets nothing
   test('A revoked session cannot receive a later committed update', async () => {
     const created = await createSplit();
-    const ownerClient = await connect(owner.token);
-    const memberClient = await connect(member.token);
-    expect((await subscribe(ownerClient)).ok).toBe(true);
-    expect((await subscribe(memberClient)).ok).toBe(true);
-    const leaked: SplitSessionUpdate[] = [];
-    memberClient.on('onGroupUpdated', (update: SplitSessionUpdate) => leaked.push(update));
+    const ownerClient = await subscribed(owner);
+    const memberClient = await subscribed(member);
+    const leaked = collect<SplitSessionUpdate>(memberClient, 'onGroupUpdated');
     expect((await logout(member)).status).toBe(204);
     const disconnected = nextEvent<string>(memberClient, 'disconnect');
     const delivered = nextEvent<SplitSessionUpdate>(ownerClient, 'onGroupUpdated');
@@ -207,12 +203,9 @@ describe('Unmocked: Socket.IO /dutch onGroupUpdated', () => {
   // Expected output: both get onGroupMembershipChanged; only the owner gets onGroupUpdated
   test.each(['leave', 'remove'])('A member who exits through %s cannot receive later updates', async action => {
     const created = await createSplit();
-    const ownerClient = await connect(owner.token);
-    const memberClient = await connect(member.token);
-    expect((await subscribe(ownerClient)).ok).toBe(true);
-    expect((await subscribe(memberClient)).ok).toBe(true);
-    const leaked: SplitSessionUpdate[] = [];
-    memberClient.on('onGroupUpdated', (update: SplitSessionUpdate) => leaked.push(update));
+    const ownerClient = await subscribed(owner);
+    const memberClient = await subscribed(member);
+    const leaked = collect<SplitSessionUpdate>(memberClient, 'onGroupUpdated');
     const changes = [ownerClient, memberClient].map(client => nextEvent<GroupMembershipChange>(client, 'onGroupMembershipChanged'));
     const exited = action === 'leave'
       ? await request(server).post(`/api/groups/${groupId}/leave`).set('Authorization', `Bearer ${member.token}`)
@@ -273,14 +266,11 @@ describe('Unmocked: Socket.IO /dutch onGroupChanged', () => {
   // Expected behavior: minimal invalidations go only to authorized members after persistence
   // Expected output: { groupId, type: "expense-added" } to both members, then { groupId, type: "renamed" } to the owner only
   test('Delivers minimal invalidations only to authorized members', async () => {
-    const ownerClient = await connect(owner.token);
-    const memberClient = await connect(member.token);
+    const ownerClient = await subscribed(owner);
+    const memberClient = await subscribed(member);
     const outsiderClient = await connect(outsider.token);
-    expect((await subscribe(ownerClient)).ok).toBe(true);
-    expect((await subscribe(memberClient)).ok).toBe(true);
     expect((await subscribe(outsiderClient)).ok).toBe(false);
-    const outsiderUpdates: GroupChange[] = [];
-    outsiderClient.on('onGroupChanged', (change: GroupChange) => outsiderUpdates.push(change));
+    const outsiderUpdates = collect<GroupChange>(outsiderClient, 'onGroupChanged');
     const ownerUpdate = nextEvent<GroupChange>(ownerClient, 'onGroupChanged');
     const memberUpdate = nextEvent<GroupChange>(memberClient, 'onGroupChanged');
     const saved = await request(server).post(`/api/groups/${groupId}/expenses`)
@@ -294,8 +284,7 @@ describe('Unmocked: Socket.IO /dutch onGroupChanged', () => {
     expect(outsiderUpdates).toEqual([]);
     // A session revoked after subscription must lose access to ordinary group events too.
     expect((await logout(member)).status).toBe(204);
-    const deniedUpdates: GroupChange[] = [];
-    memberClient.on('onGroupChanged', (change: GroupChange) => deniedUpdates.push(change));
+    const deniedUpdates = collect<GroupChange>(memberClient, 'onGroupChanged');
     const disconnected = nextEvent<string>(memberClient, 'disconnect');
     const ownerRename = nextEvent<GroupChange>(ownerClient, 'onGroupChanged');
     expect((await request(server).put(`/api/groups/${groupId}/name`)
@@ -358,15 +347,12 @@ describe('Unmocked: Socket.IO /dutch onGroupMembershipChanged', () => {
   // Expected behavior: existing members are notified after the join is stored; nobody else is
   // Expected output: { groupId, type: "joined" } to owner and member; summary lists 3 members
   test('A stored join notifies existing members only', async () => {
-    const ownerClient = await connect(owner.token);
-    const memberClient = await connect(member.token);
+    const ownerClient = await subscribed(owner);
+    const memberClient = await subscribed(member);
     const outsiderClient = await connect(outsider.token);
-    expect((await subscribe(ownerClient)).ok).toBe(true);
-    expect((await subscribe(memberClient)).ok).toBe(true);
     const other = await GroupModel.create({ name: 'Other', ownerId: outsider.id, memberIds: [outsider.id] });
     expect((await subscribe(outsiderClient, other.id)).ok).toBe(true);
-    const leaked: unknown[] = [];
-    outsiderClient.on('onGroupMembershipChanged', event => leaked.push(event));
+    const leaked = collect<unknown>(outsiderClient, 'onGroupMembershipChanged');
     const token = await joinInvitation();
     const deliveries = [ownerClient, memberClient].map(client => nextEvent<GroupMembershipChange>(client, 'onGroupMembershipChanged'));
     expect((await acceptInvitation(token)).status).toBe(200);
@@ -414,8 +400,7 @@ describe('Unmocked: Socket.IO /dutch onGroupMembershipChanged', () => {
     const ownerClient = await connect(owner.token);
     const memberClient = await connect(member.token);
     await subscribe(ownerClient); await subscribe(memberClient);
-    const leaked: unknown[] = [];
-    memberClient.on('onGroupMembershipChanged', event => leaked.push(event));
+    const leaked = collect<unknown>(memberClient, 'onGroupMembershipChanged');
     await logout(member);
     const token = await joinInvitation();
     const disconnected = nextEvent<string>(memberClient, 'disconnect');

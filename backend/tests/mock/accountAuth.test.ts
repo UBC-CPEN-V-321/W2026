@@ -9,6 +9,11 @@ import { passwordConfirmationCases } from '../helpers/passwordConfirmation';
 // whose methods individual tests override to inject failures and races.
 const account = { username: ' Sam_Lee ', password: 'correct horse', confirmPassword: 'correct horse' };
 
+// Silences the expected 500 logs; individual tests replace store methods to inject failures.
+beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefined); });
+afterEach(() => jest.restoreAllMocks());
+const unavailable = async (): Promise<never> => { throw new Error('Database unavailable'); };
+
 async function registered() {
   const stores = memoryStores();
   const app = createApp(stores);
@@ -177,14 +182,11 @@ describe('Mocked: POST /api/auth/login', () => {
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Reports a user store failure', async () => {
     const { app, stores } = await registered();
-    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     stores.users.findByUsername = async () => { throw new Error('connection refused at 10.0.0.5'); };
-    try {
-      const res = await request(app).post('/api/auth/login').send(account);
-      expect(res.status).toBe(500);
-      expect(JSON.stringify(res.body)).not.toContain('10.0.0.5');
-      expect(stores.sessionMap.size).toBe(1);
-    } finally { log.mockRestore(); }
+    const res = await request(app).post('/api/auth/login').send(account);
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('10.0.0.5');
+    expect(stores.sessionMap.size).toBe(1);
   });
 });
 
@@ -220,12 +222,9 @@ describe('Mocked: POST /api/auth/logout', () => {
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Reports a session store failure', async () => {
     const { app, token, stores } = await registered();
-    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    stores.sessions.delete = async () => { throw new Error('Database unavailable'); };
-    try {
-      expect((await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`)).status).toBe(500);
-      expect(stores.sessionMap.size).toBe(1);
-    } finally { log.mockRestore(); }
+    stores.sessions.delete = unavailable;
+    expect((await request(app).post('/api/auth/logout').auth(token, { type: 'bearer' })).status).toBe(500);
+    expect(stores.sessionMap.size).toBe(1);
   });
 });
 
@@ -270,12 +269,9 @@ describe('Mocked: GET /api/users/me', () => {
   // Expected output: { error: "Something went wrong. Please try again." }
   test('Reports a session store failure', async () => {
     const { app, token, stores } = await registered();
-    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    stores.sessions.find = async () => { throw new Error('Database unavailable'); };
-    try {
-      const res = await request(app).get('/api/users/me').set('Authorization', `Bearer ${token}`);
-      expect(res.status).toBe(500);
-      expect(res.body).not.toHaveProperty('user');
-    } finally { log.mockRestore(); }
+    stores.sessions.find = unavailable;
+    const res = await request(app).get('/api/users/me').auth(token, { type: 'bearer' });
+    expect(res.status).toBe(500);
+    expect(res.body).not.toHaveProperty('user');
   });
 });

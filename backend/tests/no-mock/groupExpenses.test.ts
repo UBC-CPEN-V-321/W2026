@@ -7,6 +7,7 @@ import { startSession } from '../../src/session';
 import { groupMembershipEvents } from '../../src/groupMembershipEvents';
 import { MAX_AMOUNT_MINOR } from '../../src/money';
 import { testsRejectInvalidSessions } from '../helpers/sessionRejection';
+import { expectEachRejected, operatorShapedIds } from '../helpers/operatorInput';
 
 // Real HTTP routing, session verification and MongoDB. No mocked components.
 let mongo: MongoMemoryServer;
@@ -62,6 +63,15 @@ function adjustedBill(overrides: Record<string, unknown> = {}) {
   return bill({ amount: '40.00', splitMode: 'adjusted', shares: [
     { userId: ids[0] }, { userId: ids[1], adjustment: '8.00' }, { userId: ids[2], adjustment: '-2.00' },
   ], ...overrides });
+}
+// A custom meal bill: CAD 20 and 30 before tax, 10% extra tax for the second member, 15% tip.
+function mealBill() {
+  const calculation = { tipRate: '15', members: [
+    { userId: ids[0], subtotal: '20.00', extraTaxRate: '0' }, { userId: ids[1], subtotal: '30.00', extraTaxRate: '10' },
+  ] };
+  const payload = bill({ splitMode: 'custom', amount: '63.00', subtotal: '50.00', tax: '5.50', tip: '7.50', customCalculation: calculation,
+    shares: [{ userId: ids[0], amount: '24.00' }, { userId: ids[1], amount: '39.00' }] });
+  return { calculation, payload };
 }
 const groupState = () => Promise.all([GroupModel.find().lean(), ExpenseModel.find().lean()]);
 async function prepareSharedExpense() { sharedExpenseId = (await post(bill({ requestId: 'session-check-bill-01' }))).body.expense.id; }
@@ -210,12 +220,7 @@ describe('Unmocked: POST /api/groups/:groupId/expenses', () => {
   // Expected behavior: the calculation is stored for editing and must match the submitted shares
   // Expected output: summary shows tipRate "15.00" and two calculation members
   test('Persists a meal calculation and rejects tampering', async () => {
-    const calculation = { tipRate: '15', members: [
-      { userId: ids[0], subtotal: '20.00', extraTaxRate: '0' },
-      { userId: ids[1], subtotal: '30.00', extraTaxRate: '10' },
-    ] };
-    const payload = bill({ splitMode: 'custom', amount: '63.00', subtotal: '50.00', tax: '5.50', tip: '7.50', customCalculation: calculation,
-      shares: [{ userId: ids[0], amount: '24.00' }, { userId: ids[1], amount: '39.00' }] });
+    const { calculation, payload } = mealBill();
     expect((await post(payload)).status).toBe(201);
     const res = await summary(memberAuth);
     expect(res.body.expenses[0].customCalculation.tipRate).toBe('15.00');
@@ -245,9 +250,7 @@ describe('Unmocked: POST /api/groups/:groupId/expenses', () => {
   // Expected behavior: operators are never used in a MongoDB filter; nothing is saved
   // Expected output: error message
   test('Rejects query operators as submission IDs', async () => {
-    for (const requestId of [{ $ne: null }, { $gt: '' }, ['submission-00000001']]) {
-      expect((await post(bill({ requestId }))).status).toBe(400);
-    }
+    await expectEachRejected(operatorShapedIds('submission-00000001'), requestId => post(bill({ requestId })));
     expect(await ExpenseModel.countDocuments()).toBe(0);
   });
 
@@ -479,11 +482,7 @@ describe('Unmocked: PUT /api/groups/:groupId/expenses/:expenseId', () => {
   // Expected behavior: stale edits cannot overwrite the newer version
   // Expected output: conflict error for the stale edit
   test('Rejects a stale edit of a meal calculation', async () => {
-    const calculation = { tipRate: '15', members: [
-      { userId: ids[0], subtotal: '20.00', extraTaxRate: '0' }, { userId: ids[1], subtotal: '30.00', extraTaxRate: '10' },
-    ] };
-    const payload = bill({ splitMode: 'custom', amount: '63.00', subtotal: '50.00', tax: '5.50', tip: '7.50', customCalculation: calculation,
-      shares: [{ userId: ids[0], amount: '24.00' }, { userId: ids[1], amount: '39.00' }] });
+    const { payload } = mealBill();
     const saved = await post(payload);
     expect((await put(saved.body.expense.id, { ...payload, description: 'Changed', revision: 0 })).status).toBe(200);
     expect((await put(saved.body.expense.id, { ...payload, description: 'Stale edit', revision: 0 })).status).toBe(409);

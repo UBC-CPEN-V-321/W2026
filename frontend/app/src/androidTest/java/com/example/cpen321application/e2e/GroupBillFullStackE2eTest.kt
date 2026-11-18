@@ -1,35 +1,17 @@
 package com.example.cpen321application.e2e
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
-import com.example.cpen321application.MainActivity
 import java.util.UUID
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 
 /**
  * Full-stack E2E for the Group feature: the real app UI on the emulator, the real Node backend and its
  * MongoDB. A second member acts from "another device" through the same backend API.
  */
-class GroupBillFullStackE2eTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
-    private lateinit var backend: FullStackBackend
-    private val ui = FullStackUi(compose)
-
-    @Before fun requireBackend() {
-        FullStackBackend.assumeEnabled()
-        backend = FullStackBackend()
-    }
-
-    @After fun closeSessions() {
-        if (::backend.isInitialized) backend.close()
-    }
-
+internal class GroupBillFullStackE2eTest : FullStackE2eTest() {
     // UC: Create Group, Invite Member, Record Shared Expense.
     // Steps: sign in through the app -> create a group in the app -> a second member joins through the backend ->
     // the app shows the new member live -> add an equal bill in the app -> the member reads it from the backend.
@@ -57,12 +39,10 @@ class GroupBillFullStackE2eTest {
         ui.button("Save expense").performClick()
         ui.waitFor("Full-stack groceries")
 
-        val summary = backend.summary(member, groupId)
-        assertEquals(3000L, summary.getLong("totalCents"))
-        val bill = objects(summary.getJSONArray("expenses")).single()
+        assertEquals(3000L, backend.summary(member, groupId).getLong("totalCents"))
+        val (bill, shares) = onlyBill(member, groupId)
         assertEquals("Full-stack groceries", bill.getString("description"))
         assertEquals(owner.id, bill.getString("paidBy"))
-        val shares = objects(bill.getJSONArray("shares")).associate { it.getString("userId") to it.getLong("amountCents") }
         assertEquals(mapOf(owner.id to 1500L, member.id to 1500L), shares)
     }
 }

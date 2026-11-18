@@ -3,6 +3,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { Response } from 'supertest';
 import { createApp } from '../../src/app';
 import { ExpenseModel, GroupInvitationModel, GroupModel } from '../../src/groupStore';
+import { SplitSessionModel } from '../../src/splitSessionStore';
 import { hashToken, startSession } from '../../src/session';
 import {
   connectDatabase, disconnectDatabase, mongoSessionStore, mongoUserStore, SessionModel, UserModel,
@@ -93,4 +94,14 @@ export function expectDatabaseError(response: Response) {
 
 export function databaseFailure() {
   return new Error('Injected database failure: private connection details');
+}
+
+type FindOneModel = typeof GroupModel;
+
+/** Makes the next `findOne` query on `model` reject when it runs; later queries are real. */
+export function failNextFindOne(model: typeof GroupModel | typeof GroupInvitationModel | typeof ExpenseModel | typeof SplitSessionModel) {
+  const target = model as unknown as FindOneModel;
+  const query = target.findOne();
+  jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
+  return jest.spyOn(target, 'findOne').mockReturnValueOnce(query);
 }

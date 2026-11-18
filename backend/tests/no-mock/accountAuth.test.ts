@@ -1,25 +1,13 @@
 import request from 'supertest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import { createApp } from '../../src/app';
-import { connectDatabase, disconnectDatabase, migrateLegacyUsernames, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
+import { connectDatabase, migrateLegacyUsernames, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
 import { hashPassword } from '../../src/password';
 import { registerAccount } from '../helpers/registration';
+import { patAccount as account, useAccountDatabase } from '../helpers/accountDatabase';
 
 // Uses the real MongoDB stores against a local mongod. No mocked components.
-let mongo: MongoMemoryServer;
-let app: ReturnType<typeof createApp>;
-const account = { username: 'pat_kim', password: 'a long passphrase', confirmPassword: 'a long passphrase' };
-
-beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await connectDatabase(mongo.getUri('ledger-test'));
-}, 120000);
-beforeEach(() => { app = createApp(); });
-afterEach(async () => { await Promise.all([UserModel.deleteMany({}), SessionModel.deleteMany({})]); });
-afterAll(async () => {
-  await disconnectDatabase();
-  await mongo.stop();
-}, 30000);
+const db = useAccountDatabase('ledger-test');
+let app = db.app;
+beforeEach(() => { app = db.app; });
 
 // Interface POST /api/auth/register
 describe('Unmocked: POST /api/auth/register', () => {
@@ -78,7 +66,7 @@ describe('Unmocked: POST /api/auth/register', () => {
   test('Upgrades the legacy required email index and permits multiple email-free accounts', async () => {
     await UserModel.collection.dropIndex('email_1');
     await UserModel.collection.createIndex({ email: 1 }, { unique: true });
-    await connectDatabase(mongo.getUri('ledger-test'));
+    await connectDatabase(db.uri());
     const emailIndex = (await UserModel.collection.indexes()).find(index => index.name === 'email_1');
     expect(emailIndex?.sparse).toBe(true);
     expect((await registerAccount(app, account)).status).toBe(201);

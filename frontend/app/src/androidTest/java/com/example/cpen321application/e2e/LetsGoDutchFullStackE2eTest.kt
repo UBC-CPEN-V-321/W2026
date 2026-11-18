@@ -1,38 +1,20 @@
 package com.example.cpen321application.e2e
 
 import androidx.compose.ui.test.isToggleable
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import com.example.cpen321application.MainActivity
 import java.util.UUID
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 
 /**
  * Full-stack E2E for Let's Go Dutch: the owner runs the split in the real app while a member claims an
  * item from "another device" through the real Node backend; the claim reaches the app over Socket.IO.
  */
-class LetsGoDutchFullStackE2eTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
-    private lateinit var backend: FullStackBackend
-    private val ui = FullStackUi(compose)
-
-    @Before fun requireBackend() {
-        FullStackBackend.assumeEnabled()
-        backend = FullStackBackend()
-    }
-
-    @After fun closeSessions() {
-        if (::backend.isInitialized) backend.close()
-    }
-
+internal class LetsGoDutchFullStackE2eTest : FullStackE2eTest() {
     // UC: Start Let's Go Dutch, Claim Items, View Live Allocations, Finalize Split.
     // Steps: owner starts an itemized split in the app -> member claims Burger through the backend ->
     // the app shows the claim live -> owner claims Fries and finalizes in the app -> the posted bill is read back.
@@ -63,10 +45,9 @@ class LetsGoDutchFullStackE2eTest {
         ui.button("Finalize split").performClick()
         ui.waitFor("Finalized · saved to group expenses")
 
-        val bill = objects(backend.summary(member, groupId).getJSONArray("expenses")).single()
+        val (bill, shares) = onlyBill(member, groupId)
         assertEquals("Dutch dinner", bill.getString("description"))
         assertEquals(1800L, bill.getLong("amountCents"))
-        val shares = objects(bill.getJSONArray("shares")).associate { it.getString("userId") to it.getLong("amountCents") }
         assertEquals(mapOf(member.id to 1200L, owner.id to 600L), shares)
     }
 

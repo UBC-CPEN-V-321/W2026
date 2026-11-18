@@ -6,6 +6,7 @@ import { GroupModel, GroupInvitationModel, ExpenseModel } from '../../src/groupS
 import { hashToken, startSession } from '../../src/session';
 import { connectDatabase, disconnectDatabase, mongoUserStore, mongoSessionStore, UserModel, SessionModel } from '../../src/userStore';
 import { testsRejectInvalidSessions } from '../helpers/sessionRejection';
+import { expectEachRejected, operatorShapedIds } from '../helpers/operatorInput';
 
 // Real HTTP routing, session verification and MongoDB. No mocked components.
 const app = createApp();
@@ -119,9 +120,7 @@ describe('Unmocked: POST /api/groups', () => {
   // Expected behavior: operators are never used in a MongoDB filter; no group is written
   // Expected output: error message
   test('Rejects query operators as submission IDs', async () => {
-    for (const requestId of [{ $ne: null }, { $gt: '' }, ['group-submission-0001']]) {
-      expect((await create({ requestId })).status).toBe(400);
-    }
+    await expectEachRejected(operatorShapedIds('group-submission-0001'), requestId => create({ requestId }));
     expect(await GroupModel.countDocuments()).toBe(0);
   });
 
