@@ -129,6 +129,19 @@ describe("errors", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  // Input: an error thrown after the response's headers were sent
+  // Expected behavior: the error goes to Express's default handler, which ends the response
+  test("errorHandler hands an error to Express once the response started", () => {
+    const error = new AppError(teamFull);
+    const res = { headersSent: true, status: jest.fn() };
+    const next = jest.fn();
+
+    errorHandler(error, {} as express.Request, res as unknown as express.Response, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
   // Input: routes throwing an unexpected error and an unmapped Prisma error
   // Expected status code: 500
   // Expected behavior: the raw error is logged, never sent

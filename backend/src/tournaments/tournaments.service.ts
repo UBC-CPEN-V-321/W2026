@@ -150,9 +150,8 @@ export async function joinTournament(tournamentId: string, userId: string): Prom
   const result = await mapPrismaErrors(registerPlayer(tournamentId, userId, new Date()), {
     P2003: commonErrors.UserNotFound,
   });
-  if (result !== "registered" && result !== "drawn") {
-    throw new AppError(toJoinError(result));
-  }
+  if (result === "registered" || result === "drawn") return;
+  throw new AppError(toJoinError(result));
 }
 
 /**
@@ -163,9 +162,8 @@ export async function joinTournament(tournamentId: string, userId: string): Prom
  */
 export async function leaveTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await unregisterPlayer(tournamentId, userId);
-  if (result !== "left") {
-    throw new AppError(toLeaveError(result));
-  }
+  if (result === "left") return;
+  throw new AppError(toLeaveError(result));
 }
 
 /**
@@ -176,7 +174,6 @@ export async function leaveTournament(tournamentId: string, userId: string): Pro
  */
 export async function cancelTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await markTournamentCancelled(tournamentId, userId);
-  if (result !== "cancelled") {
-    throw new AppError(toCancelError(result));
-  }
+  if (result === "cancelled") return;
+  throw new AppError(toCancelError(result));
 }

@@ -224,12 +224,8 @@ export async function joinGame(gameId: string, userId: string, team: number): Pr
     addPlayerToTeam(gameId, userId, team, teamSize[game.format], now),
     { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
-  if (result === "notJoinable") {
-    throw new AppError(gameErrors.NotJoinable);
-  }
-  if (result === "teamFull") {
-    throw new AppError(gameErrors.TeamFull);
-  }
+  if (result === "added") return;
+  throw new AppError(result === "teamFull" ? gameErrors.TeamFull : gameErrors.NotJoinable);
 }
 
 /**
@@ -450,9 +446,7 @@ async function checkCanEditGame(
     throw new AppError(gameErrors.NotFound);
   }
 
-  if (!(await isUserInGame(userId, gameId))) {
-    throw new AppError(gameErrors.NotInGame);
-  }
+  if (!(await isUserInGame(userId, gameId))) throw new AppError(gameErrors.NotInGame);
 
   if (
     game.status === GameStatus.COMPLETED ||

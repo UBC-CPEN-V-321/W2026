@@ -135,9 +135,16 @@ function toAppError(e: unknown): AppError {
 
 /**
  * The last middleware: sends every error thrown in a route as an ErrorResponse.
- * Unexpected errors are logged and sent as a 500 without their details
+ * Unexpected errors are logged and sent as a 500 without their details.
+ * Express only treats a middleware with 4 parameters as an error handler, so next stays
  */
-export const errorHandler: ErrorRequestHandler = (e, _req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (e, _req, res, next) => {
+  // The response already started, so only Express's default handler can end it
+  if (res.headersSent) {
+    next(e);
+    return;
+  }
+
   const error = toAppError(e);
   if (error.status >= 500) {
     console.error(e);

@@ -183,7 +183,5 @@ export async function editEquipment(
  */
 export async function removeEquipment(userId: string, equipmentId: number): Promise<void> {
   const retired = await retireEquipmentRecord(userId, equipmentId);
-  if (!retired) {
-    throw new AppError(userErrors.EquipmentNotFound);
-  }
+  if (!retired) throw new AppError(userErrors.EquipmentNotFound);
 }

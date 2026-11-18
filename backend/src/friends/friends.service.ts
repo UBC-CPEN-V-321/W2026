@@ -62,9 +62,7 @@ export async function sendFriendRequest(userId: string, otherUserId: string) {
  */
 export async function acceptRequest(userId: string, requesterId: string): Promise<void> {
   const accepted = await acceptFriendRequest(requesterId, userId);
-  if (!accepted) {
-    throw new AppError(friendErrors.RequestNotFound);
-  }
+  if (!accepted) throw new AppError(friendErrors.RequestNotFound);
 }
 
 /**
@@ -75,9 +73,7 @@ export async function acceptRequest(userId: string, requesterId: string): Promis
  */
 export async function removeFriend(userId: string, otherUserId: string): Promise<void> {
   const removed = await deleteFriendship(userId, otherUserId);
-  if (!removed) {
-    throw new AppError(friendErrors.FriendshipNotFound);
-  }
+  if (!removed) throw new AppError(friendErrors.FriendshipNotFound);
 }
 
 /**
