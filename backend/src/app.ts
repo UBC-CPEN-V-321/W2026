@@ -4,7 +4,7 @@ import { gamesRouter } from "./games/games.controller";
 import { friendsRouter } from "./friends/friends.controller";
 import { courtsRouter } from "./courts/courts.controller";
 import { matchmakingRouter } from "./matchmaking/matchmaking.controller";
-import { leaderboardRouter } from "./ranking/ranking.controller";
+import { leaderboardRouter, statsRouter } from "./ranking/ranking.controller";
 import { tournamentsRouter } from "./tournaments/tournaments.controller";
 
 export function createApp(): Express {
@@ -23,6 +23,8 @@ export function createApp(): Express {
   app.use("/matchmaking", matchmakingRouter);
 
   app.use("/leaderboard", leaderboardRouter);
+
+  app.use("/stats", statsRouter);
 
   app.use("/tournaments", tournamentsRouter);
 

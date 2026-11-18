@@ -2,6 +2,7 @@
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
 import { RatingChange } from "./ranking.types";
+import { RatedGame } from "./stats";
 
 // The user fields shown on the leaderboard
 const leaderboardUserSelect = {
@@ -152,4 +153,54 @@ export async function fetchLeaderboardUser(
   });
 
   return { user, rank: ahead + 1 };
+}
+
+/**
+ * Fetches every game a user has been rated in, from their side
+ * @param userId the user whose games are fetched
+ * @returns the user's rated games, oldest first, with their team, rating before and after,
+ *          the rounds and each opponent's rating before the game
+ */
+export async function fetchRatedGames(userId: string): Promise<RatedGame[]> {
+  const rows = await prisma.gameUser.findMany({
+    where: { userId, ratingBefore: { not: null }, ratingAfter: { not: null } },
+    select: {
+      team: true,
+      ratingBefore: true,
+      ratingAfter: true,
+      game: {
+        select: {
+          id: true,
+          startsAt: true,
+          rounds: {
+            select: { team1Score: true, team2Score: true },
+            orderBy: { number: "asc" },
+          },
+          players: { select: { team: true, ratingBefore: true } },
+        },
+      },
+    },
+    orderBy: [{ game: { startsAt: "asc" } }, { gameId: "asc" }],
+  });
+
+  // The query already skips unrated rows; checking again narrows the ratings' type
+  return rows.flatMap(({ team, ratingBefore, ratingAfter, game }) =>
+    ratingBefore === null || ratingAfter === null
+      ? []
+      : [
+          {
+            gameId: game.id,
+            playedAt: game.startsAt,
+            team,
+            ratingBefore,
+            ratingAfter,
+            rounds: game.rounds.map(
+              ({ team1Score, team2Score }): [number, number] => [team1Score, team2Score],
+            ),
+            opponentRatings: game.players
+              .filter((player) => player.team !== team)
+              .flatMap((player) => (player.ratingBefore === null ? [] : [player.ratingBefore])),
+          },
+        ],
+  );
 }
