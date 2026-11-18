@@ -3,6 +3,7 @@ package com.example.cpen321application.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -83,12 +84,7 @@ fun AppNavGraph(
                 onOpenStats = { navController.navigate(Screen.PlayerStats.route) },
             )
         }
-        composable(Screen.PlayerStats.route) {
-            PlayerStatsRoute(
-                viewModel = viewModel { PlayerStatsViewModel(StatsRepositoryImpl(session)) },
-                onBack = { navController.popBackStack() },
-            )
-        }
+        playerStatsDestination(navController, session)
         composable(
             route = Screen.MatchSummary.route,
             arguments = listOf(navArgument("gameId") { type = NavType.StringType }),
@@ -114,5 +110,14 @@ fun AppNavGraph(
             LeaderboardRoute(authViewModel = args.authViewModel)
         }
         gamesDestinations(navController, session, currentUsername)
+    }
+}
+
+private fun NavGraphBuilder.playerStatsDestination(navController: NavHostController, session: AuthSession) {
+    composable(Screen.PlayerStats.route) {
+        PlayerStatsRoute(
+            viewModel = viewModel { PlayerStatsViewModel(StatsRepositoryImpl(session)) },
+            onBack = { navController.popBackStack() },
+        )
     }
 }
