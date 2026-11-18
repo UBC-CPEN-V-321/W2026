@@ -25,6 +25,7 @@ data class GameActions(
     val leaveTooLate: Boolean,  // a player who can't leave because the game starts too soon
     val canChangeTimeOrCourt: Boolean,
     val canReportScore: Boolean,
+    val canStartNow: Boolean,  // a player of a booked game that hasn't started, who can start it early
     val canCancel: Boolean,
     val canInvite: Boolean = false  // a player of a game that friends can still join
 )
@@ -75,6 +76,8 @@ fun gameActions(game: Game, username: String?, now: Instant): GameActions {
         canChangeTimeOrCourt = canLeaveOrMove && !hasStarted,
         // The score is reported once the game is played
         canReportScore = canEdit && hasStarted,
+        // Players can start early once the game is booked: every spot is filled and every player accepted
+        canStartNow = canEdit && game.status == GameStatus.BOOKED && !hasStarted,
         canCancel = canLeaveOrCancel,
         // An invited friend joins like anyone else, so only games they could join
         canInvite = isPlayer && isOpenToJoin

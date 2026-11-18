@@ -11,6 +11,7 @@ import {
   joinGameSchema,
   leaveGameSchema,
   reportScoreSchema,
+  startGameSchema,
 } from "./games.schemas";
 import { Prisma } from "../generated/prisma/client";
 import {
@@ -39,6 +40,9 @@ import {
   leaveGameErrors,
   newGame,
   reportScore,
+  startGame,
+  type StartGameError,
+  startGameErrors,
 } from "./games.service";
 
 export const gamesRouter = Router();
@@ -77,6 +81,14 @@ const acceptMatchErrorStatus: Record<AcceptMatchError, number> = {
   [acceptMatchErrors.NotInGame]: 403,
   [acceptMatchErrors.NotPending]: 409,
   [acceptMatchErrors.AlreadyAccepted]: 409,
+};
+
+const startGameErrorStatus: Record<StartGameError, number> = {
+  [startGameErrors.NotFound]: 404,
+  [startGameErrors.NotInGame]: 403,
+  [startGameErrors.Closed]: 409,
+  [startGameErrors.NotBooked]: 409,
+  [startGameErrors.AlreadyStarted]: 409,
 };
 
 const inviteFriendErrorStatus: Record<InviteFriendError, number> = {
@@ -393,6 +405,39 @@ gamesRouter.patch("/time", async (req: Request, res: Response) => {
       res.status(404).json({ error: "Game not found" });
       return;
     }
+    console.error(e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Starts a booked game now, before its start time, so its players can report the score
+gamesRouter.post("/start", async (req: Request, res: Response) => {
+  const parsed = startGameSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "Invalid request body",
+      details: z.flattenError(parsed.error),
+    });
+    return;
+  }
+
+  if (!req.userId) {
+    res.sendStatus(401);
+    return;
+  }
+
+  try {
+    const result = await startGame(parsed.data.gameId, req.userId);
+
+    if (!result.success) {
+      res
+        .status(startGameErrorStatus[result.error])
+        .json({ error: result.error });
+      return;
+    }
+    res.status(200).json({ game: result.game });
+  } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Internal server error" });
   }

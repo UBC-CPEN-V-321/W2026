@@ -173,6 +173,14 @@ internal fun GamePlayerActions(
     onOpenDialog: (GameDialog) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Shown until the game starts; once it has, Report final score takes its place
+        if (actions.canStartNow) {
+            Button(
+                onClick = { onOpenDialog(GameDialog.START) },
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth().height(LargeButtonHeight)
+            ) { Text("Start now") }
+        }
         if (actions.canReportScore) {
             Button(
                 onClick = { onOpenDialog(GameDialog.SCORE) },
@@ -206,7 +214,7 @@ internal fun GamePlayerActions(
     }
 }
 
-// Tonal: a neutral fill, so Report final score stays the one ink button
+// Tonal: a neutral fill, so Start now or Report final score stays the one ink button
 @Composable
 private fun InviteButton(enabled: Boolean, onClick: () -> Unit) {
     FilledTonalButton(

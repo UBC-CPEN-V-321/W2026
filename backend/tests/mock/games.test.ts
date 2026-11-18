@@ -22,6 +22,7 @@ import {
   fetchUserHistory,
   type GameDetails,
   isUserInGame,
+  startBookedGame,
   updateGame,
 } from "../../src/games/games.repository";
 import {
@@ -40,6 +41,8 @@ import {
   leaveGameErrors,
   newGame,
   reportScore,
+  startGame,
+  startGameErrors,
 } from "../../src/games/games.service";
 import { getForecast } from "../../src/external/weather";
 import { isPushEnabled } from "../../src/external/fcm";
@@ -60,6 +63,7 @@ jest.mock("../../src/games/games.repository", () => ({
   isUserInGame: jest.fn(),
   deleteGameUser: jest.fn(),
   updateGame: jest.fn(),
+  startBookedGame: jest.fn(),
   completeGame: jest.fn(),
   fetchGameDetails: jest.fn(),
   fetchFeedGames: jest.fn(),
@@ -107,6 +111,7 @@ const mockedDeleteGame = jest.mocked(deleteGame);
 const mockedIsUserInGame = jest.mocked(isUserInGame);
 const mockedDeleteGameUser = jest.mocked(deleteGameUser);
 const mockedUpdateGame = jest.mocked(updateGame);
+const mockedStartBookedGame = jest.mocked(startBookedGame);
 const mockedCompleteGame = jest.mocked(completeGame);
 
 const futureStartsAt = () =>
@@ -197,6 +202,10 @@ describe("Mocked: /games requireAuth", () => {
             .send({ gameId, startsAt: futureStartsAt() }),
       ],
       [
+        "POST /games/start",
+        () => request(createApp()).post("/games/start").send({ gameId }),
+      ],
+      [
         "PATCH /games/location",
         () =>
           request(createApp())
@@ -219,6 +228,7 @@ describe("Mocked: /games requireAuth", () => {
     expect(mockedIsUserInGame).not.toHaveBeenCalled();
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
     expect(mockedUpdateGame).not.toHaveBeenCalled();
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
     expect(mockedCompleteGame).not.toHaveBeenCalled();
     expect(mockedFetchGameDetails).not.toHaveBeenCalled();
     expect(mockedFetchFeedGames).not.toHaveBeenCalled();
@@ -1857,6 +1867,202 @@ describe("Mocked: PATCH /games/time", () => {
     expect(response.status).toBe(500);
     expect(response.body).toEqual({ error: "Internal server error" });
     consoleError.mockRestore();
+  });
+});
+
+describe("Mocked: POST /games/start", () => {
+  const bookedGame = (overrides: Partial<Game> = {}) =>
+    existingGame({ status: GameStatus.BOOKED, ...overrides });
+
+  const start = (body: object = { gameId: editGameId }) =>
+    request(createApp())
+      .post("/games/start")
+      .set("Authorization", authHeader)
+      .send(body);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedFetchGame.mockResolvedValue(bookedGame());
+    mockedIsUserInGame.mockResolvedValue(true);
+  });
+
+  // Input: a player starts a booked scheduled, matched or tournament game that starts tomorrow
+  // Expected status code: 200
+  // Expected behavior: the game's start time moves to now, checked against the time the game was checked at
+  // Expected output: the started game
+  test.each([GameSource.SCHEDULED, GameSource.MATCHED, GameSource.TOURNAMENT])(
+    "Starts a booked %s game now",
+    async (gameSource) => {
+      mockedFetchGame.mockResolvedValue(bookedGame({ gameSource }));
+      const before = Date.now();
+      mockedStartBookedGame.mockImplementation((_gameId, now) =>
+        Promise.resolve(bookedGame({ gameSource, startsAt: now })),
+      );
+
+      const response = await start();
+
+      expect(response.status).toBe(200);
+      expect(response.body.game).toMatchObject({
+        id: editGameId,
+        status: GameStatus.BOOKED,
+        gameSource,
+      });
+      expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, editGameId);
+      expect(mockedStartBookedGame).toHaveBeenCalledTimes(1);
+      const [startedId, now] = mockedStartBookedGame.mock.calls[0] ?? [];
+      expect(startedId).toBe(editGameId);
+      expect(now?.getTime()).toBeGreaterThanOrEqual(before);
+      expect(now?.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(response.body.game.startsAt).toBe(now?.toISOString());
+    },
+  );
+
+  test.each([
+    ["missing gameId", {}],
+    ["non-UUID gameId", { gameId: "not-a-uuid" }],
+    ["unknown field", { gameId: editGameId, startsAt: futureStartsAt() }],
+  ])("Rejects a body with %s", async (_description, body) => {
+    const response = await start(body);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.details).toBeDefined();
+    expect(mockedFetchGame).not.toHaveBeenCalled();
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
+  });
+
+  test("Returns 404 when the game does not exist", async () => {
+    mockedFetchGame.mockResolvedValue(null);
+
+    const response = await start();
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Game not found" });
+    expect(mockedIsUserInGame).not.toHaveBeenCalled();
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
+  });
+
+  test("Returns 403 when the user is not in the game", async () => {
+    mockedIsUserInGame.mockResolvedValue(false);
+
+    const response = await start();
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "User not in game" });
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
+  });
+
+  // Input: games that can't start: closed, still open (free spots or unanswered match), or already started
+  // Expected status code: 409
+  // Expected behavior: the start time is not changed
+  // Expected output: the reason
+  test.each([
+    ["completed", { status: GameStatus.COMPLETED }, startGameErrors.Closed],
+    ["cancelled", { status: GameStatus.CANCELLED }, startGameErrors.Closed],
+    ["open scheduled", { status: GameStatus.OPEN }, startGameErrors.NotBooked],
+    [
+      "unanswered matched",
+      { status: GameStatus.OPEN, gameSource: GameSource.MATCHED },
+      startGameErrors.NotBooked,
+    ],
+    [
+      "already started",
+      { startsAt: new Date(Date.now() - 60 * 1000) },
+      startGameErrors.AlreadyStarted,
+    ],
+  ] as const)("Returns 409 for a %s game", async (_description, overrides, error) => {
+    mockedFetchGame.mockResolvedValue(bookedGame(overrides));
+
+    const response = await start();
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error });
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
+  });
+
+  // Input: two players tap Start now at once, and the other one's update lands first
+  // Expected status code: 409
+  // Expected output: { error: "Game has already started" }
+  test("Returns 409 when another player starts the game first", async () => {
+    mockedStartBookedGame.mockResolvedValue(null);
+    mockedFetchGame
+      .mockResolvedValueOnce(bookedGame())
+      .mockResolvedValueOnce(bookedGame({ startsAt: new Date() }));
+
+    const response = await start();
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "Game has already started" });
+  });
+
+  test("Returns 409 when the game is completed before the update", async () => {
+    mockedStartBookedGame.mockResolvedValue(null);
+    mockedFetchGame
+      .mockResolvedValueOnce(bookedGame())
+      .mockResolvedValueOnce(bookedGame({ status: GameStatus.COMPLETED }));
+
+    const response = await start();
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "Game is already completed or cancelled" });
+  });
+
+  test("Returns 404 when the game is deleted before the update", async () => {
+    mockedStartBookedGame.mockResolvedValue(null);
+    mockedFetchGame.mockResolvedValueOnce(bookedGame()).mockResolvedValueOnce(null);
+
+    const response = await start();
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Game not found" });
+  });
+
+  test("Returns 500 when the update throws unexpectedly", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mockedStartBookedGame.mockRejectedValue(new Error("Database unavailable"));
+
+    const response = await start();
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: "Internal server error" });
+    consoleError.mockRestore();
+  });
+});
+
+describe("Mocked: startGame", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.BOOKED }));
+    mockedIsUserInGame.mockResolvedValue(true);
+  });
+
+  test("Returns the started game", async () => {
+    const started = existingGame({ status: GameStatus.BOOKED, startsAt: new Date() });
+    mockedStartBookedGame.mockResolvedValue(started);
+
+    await expect(startGame(editGameId, userId)).resolves.toEqual({
+      success: true,
+      game: started,
+    });
+  });
+
+  test("Does not start a game that is not booked", async () => {
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.OPEN }));
+
+    await expect(startGame(editGameId, userId)).resolves.toEqual({
+      success: false,
+      error: startGameErrors.NotBooked,
+    });
+    expect(mockedStartBookedGame).not.toHaveBeenCalled();
+  });
+
+  test("Propagates repository errors", async () => {
+    const error = new Error("Database unavailable");
+    mockedStartBookedGame.mockRejectedValue(error);
+
+    await expect(startGame(editGameId, userId)).rejects.toBe(error);
   });
 });
 

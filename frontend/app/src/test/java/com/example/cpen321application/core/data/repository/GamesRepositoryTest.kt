@@ -344,6 +344,36 @@ class GamesRepositoryTest {
         assertTrue(result.isSuccess)
     }
 
+    // Input: POST /games/start answers 200 with the started game
+    // Expected behavior: POST with only the game ID in the body and the access token
+    // Expected output: success (the screen reloads the game itself)
+    @Test
+    fun startGameSendsTheGameId() = runBlocking {
+        respond(200, """{ "game": { "id": "$gameId" } }""")
+
+        val result = repository().startGame(gameId)
+
+        val request = takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/games/start", request.path)
+        assertEquals("Bearer access", request.getHeader("Authorization"))
+        val body = request.jsonBody()
+        assertEquals(gameId, body.getString("gameId"))
+        assertEquals(1, body.length())
+        assertTrue(result.isSuccess)
+    }
+
+    // Input: POST /games/start answers 409 because another player already started the game
+    // Expected output: a failure whose message is the backend's error
+    @Test
+    fun startGameFailsWithTheBackendError() = runBlocking {
+        respond(409, """{ "error": "Game has already started" }""")
+
+        val result = repository().startGame(gameId)
+
+        assertEquals("Game has already started", result.exceptionOrNull()?.toUserMessage())
+    }
+
     // Input: PATCH /games/time answers 200 with the updated game
     // Expected behavior: PATCH with the new start time as ISO with a time zone
     // Expected output: success (the screen reloads the game itself)

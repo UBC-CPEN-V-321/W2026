@@ -253,6 +253,25 @@ export async function updateGame(
 }
 
 /**
+ * Starts a booked game early by moving its start time to now, so it counts as started.
+ * The status and start time are checked in the update itself, so two players starting the game at once
+ * can't both move it, and a game completed or cancelled since the caller checked it is left alone
+ * @param gameId the game ID of the game to start
+ * @param now the current time, the game's new start time
+ * @returns the started game, or null if the game is gone, not booked or already started
+ */
+export async function startBookedGame(
+  gameId: string,
+  now: Date,
+): Promise<Game | null> {
+  const [game] = await prisma.game.updateManyAndReturn({
+    where: { id: gameId, status: GameStatus.BOOKED, startsAt: { gt: now } },
+    data: { startsAt: now },
+  });
+  return game ?? null;
+}
+
+/**
  * Saves the final rounds of a game, marks it as completed, updates every player's rating and, for a tournament game,
  * moves the winner on through the bracket, in one transaction, replacing any rounds saved during the game
  * @param gameId the game ID of the game to complete
