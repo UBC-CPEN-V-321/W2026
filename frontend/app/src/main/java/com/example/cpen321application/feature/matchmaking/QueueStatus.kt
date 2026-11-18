@@ -33,14 +33,21 @@ import kotlinx.coroutines.delay
 private const val TICK_MS = 1000L
 
 /**
- * Shown instead of Find a match while waiting in the queue: a spinner, the time waited, the rules
- * of a match and Leave queue
+ * Shown instead of Find a match while waiting in the queue: a spinner, the time waited, a map of the
+ * players searching nearby, the rules of a match and Leave queue
  * @param title e.g. "Finding a match near you"
+ * @param nearby the players searching nearby, null until the first load
  * @param leaveEnabled false while a join or leave is on its way to the backend
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun QueueStatus(title: String, format: MatchFormat, leaveEnabled: Boolean, onLeaveQueue: () -> Unit) {
+internal fun QueueStatus(
+    title: String,
+    format: MatchFormat,
+    nearby: NearbyPlayers?,
+    leaveEnabled: Boolean,
+    onLeaveQueue: () -> Unit
+) {
     DonutCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             RingSpinner()
@@ -57,6 +64,13 @@ internal fun QueueStatus(title: String, format: MatchFormat, leaveEnabled: Boole
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        QueueMap(nearby = nearby, modifier = Modifier.padding(top = 12.dp))
+        Text(
+            text = nearbyText(nearby),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp)
+        )
         FlowRow(
             modifier = Modifier.padding(top = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),

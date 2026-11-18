@@ -160,4 +160,40 @@ class MatchmakingRepositoryTest {
 
         assertTrue(repository().queuedFormat().isFailure)
     }
+
+    // Input: load the players nearby while queued; backend answers 200
+    // Expected behavior: GET /matchmaking/nearby with the token
+    // Expected output: the center and the other players' points
+    @Test
+    fun nearbyPlayersReturnsTheCenterAndPlayers() = runBlocking {
+        respond(
+            200,
+            """{"center":{"latitude":49.2596,"longitude":-123.2432},"players":[{"latitude":49.268,"longitude":-123.168}]}"""
+        )
+
+        val nearby = repository().nearbyPlayers().getOrThrow()
+
+        val request = server.takeRequest()
+        assertEquals("/matchmaking/nearby", request.path)
+        assertEquals("Bearer access", request.getHeader("Authorization"))
+        assertEquals(NearbyPlayers(MapPoint(49.2596, -123.2432), listOf(MapPoint(49.268, -123.168))), nearby)
+    }
+
+    // Input: load the players nearby after being matched; backend answers 404
+    // Expected output: success with null, the player is no longer searching
+    @Test
+    fun nearbyPlayersNotInQueueIsNull() = runBlocking {
+        respond(404, """{"error":"Not in the queue"}""")
+
+        assertNull(repository().nearbyPlayers().getOrThrow())
+    }
+
+    // Input: load the players nearby; backend answers 500
+    // Expected output: failure
+    @Test
+    fun nearbyPlayersServerErrorFails() = runBlocking {
+        respond(500)
+
+        assertTrue(repository().nearbyPlayers().isFailure)
+    }
 }

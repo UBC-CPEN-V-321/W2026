@@ -307,7 +307,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Purpose**: The matchmaking queue, the matching algorithm, and the jobs that run it every 10 seconds and cancel unanswered matches every minute.
     - **Rationale**: Matching creates games without a request, so it runs on a timer outside the request path, where join requests can't race each other.
     - **Interfaces**:
-        1. `POST /matchmaking` with `{ format, latitude, longitude }` → `201 { request }`, `GET /matchmaking` → `{ request }`, `DELETE /matchmaking` → `204` - E
+        1. `POST /matchmaking` with `{ format, latitude, longitude }` → `201 { request }`, `GET /matchmaking` → `{ request }`, `DELETE /matchmaking` → `204`, `GET /matchmaking/nearby` → `{ center, players }` (other queued players within 10 km, rounded to ~100 m, no ids) - E
             - **Purpose**: Join, check or leave the queue. Joining is `409` if already queued and `403` if the caller has a matched game waiting or booked. `GET` is `404` once the caller is matched or left.
         2. `Match[] runMatchmaking()` - In
             - **Purpose**: Called by the matchmaking job: finds matches (`findMatches`), picks a court (`chooseCourt`, else `nearestCourt`) and teams (`assignTeams`), creates each game in its own transaction and notifies its players.

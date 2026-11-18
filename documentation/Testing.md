@@ -30,7 +30,7 @@
 | **GET /user/me**              | ...                                                  | [`tests/mock/userMe.test.ts`](#)                   | User DB                            |
 | **PUT /user/me/fcm-token**    | ...                                                  | [`tests/mock/userFcmToken.test.ts`](#)             | User DB                            |
 | **GET, POST /user/equipment**, **PATCH, DELETE /user/equipment/:equipmentId** | ... | [`tests/mock/userEquipment.test.ts`](#)  | Equipment DB                       |
-| **POST, GET, DELETE /matchmaking** | ...                                             | [`tests/mock/matchmaking.test.ts`](#)              | Matchmaking DB                     |
+| **POST, GET, DELETE /matchmaking**, **GET /matchmaking/nearby** | ... | [`tests/mock/matchmaking.test.ts`](#)              | Matchmaking DB                     |
 | **Matchmaking**               | ...                                                  | [`tests/mock/matchmaking.job.test.ts`](#)          | Task Scheduler                     |
 | **Match deadline job**        | ...                                                  | [`tests/mock/matchDeadline.job.test.ts`](#)        | Task Scheduler                     |
 | **GET /leaderboard**          | ...                                                  | [`tests/mock/leaderboard.test.ts`](#)              | User DB                            |

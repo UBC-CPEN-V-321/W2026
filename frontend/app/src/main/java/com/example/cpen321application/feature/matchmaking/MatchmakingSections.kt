@@ -233,6 +233,7 @@ internal fun FindMatchBar(uiState: MatchmakingUiState, onFindMatch: () -> Unit, 
             QueueStatus(
                 title = searchingText(uiState.location),
                 format = uiState.format,
+                nearby = uiState.nearby,
                 leaveEnabled = !uiState.isUpdatingQueue,
                 onLeaveQueue = onLeaveQueue
             )

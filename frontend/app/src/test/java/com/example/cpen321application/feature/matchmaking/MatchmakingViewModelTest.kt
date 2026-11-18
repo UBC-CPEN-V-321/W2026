@@ -26,6 +26,7 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
     var joinResult: Result<Unit> = Result.success(Unit)
     var leaveResult: Result<Unit> = Result.success(Unit)
     var queuedResult: Result<MatchFormat?> = Result.success(null)
+    var nearbyResult: Result<NearbyPlayers?> = Result.success(null)
     val joined = mutableListOf<Pair<MatchFormat, MatchLocation>>()
     var leaveCalls = 0
 
@@ -40,6 +41,8 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
     }
 
     override suspend fun queuedFormat(): Result<MatchFormat?> = queuedResult
+
+    override suspend fun nearbyPlayers(): Result<NearbyPlayers?> = nearbyResult
 }
 
 /**
@@ -840,4 +843,60 @@ class MatchmakingViewModelTest {
 
         assertEquals(before, viewModel.uiState.value)
     }
+
+    private val nearbyUbc = NearbyPlayers(MapPoint(49.2606, -123.246), listOf(MapPoint(49.268, -123.168)))
+
+    // Input: waiting in the queue; backend lists one player nearby
+    // Expected output: the map gets that player
+    @Test
+    fun refreshNearbyShowsThePlayersNearby() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.nearbyResult = Result.success(nearbyUbc)
+
+        viewModel.refreshNearby()
+
+        assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+    }
+
+    // Input: not in the queue
+    // Expected output: nothing is loaded, the map stays empty
+    @Test
+    fun refreshNearbyDoesNothingWhenNotSearching() = runBlocking {
+        val viewModel = newViewModel()
+        repository.nearbyResult = Result.success(nearbyUbc)
+
+        viewModel.refreshNearby()
+
+        assertNull(viewModel.uiState.value.nearby)
+    }
+
+    // Input: dots already loaded, then a load fails
+    // Expected output: the last dots stay, the next load tries again
+    @Test
+    fun refreshNearbyKeepsTheLastDotsWhenALoadFails() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.nearbyResult = Result.success(nearbyUbc)
+        viewModel.refreshNearby()
+        repository.nearbyResult = Result.failure(IOException("offline"))
+
+        viewModel.refreshNearby()
+
+        assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+    }
+
+    // Input: dots loaded during a search, then the player leaves and searches again
+    // Expected output: the new search starts with no dots instead of the old search's
+    @Test
+    fun searchingAgainClearsTheOldDots() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.nearbyResult = Result.success(nearbyUbc)
+        viewModel.refreshNearby()
+        viewModel.onLeaveQueue()
+
+        viewModel.onFindMatch()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.nearby)
+    }
 }
+

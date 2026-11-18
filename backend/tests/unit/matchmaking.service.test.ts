@@ -12,6 +12,8 @@ import {
   findMatches,
   Match,
   nearestCourt,
+  playersNear,
+  roundLocation,
   runMatchmaking,
   type CancelledMatch,
   type Candidate,
@@ -543,5 +545,35 @@ describe('Mocked: cancelUnansweredMatches', () => {
     expect(pushToUsers).toHaveBeenCalledTimes(2);
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+// Interface roundLocation(location)
+describe('roundLocation', () => {
+  // Input: a point with full GPS precision, east and west of Greenwich
+  // Expected output: the point with 3 decimal places (~100 m)
+  test('Rounds to 3 decimal places', () => {
+    expect(roundLocation({ latitude: 49.260_649, longitude: -123.245_612 })).toEqual({
+      latitude: 49.261,
+      longitude: -123.246,
+    });
+  });
+});
+
+// Interface playersNear(center, others)
+describe('playersNear', () => {
+  // Input: players 0 km, ~5.7 km, ~12.8 km and ~30 km from UBC
+  // Expected output: only the two within 10 km, rounded
+  test('Keeps only the players within 10 km, rounded', () => {
+    expect(playersNear(UBC, [UBC, KITSILANO, COMMERCIAL_DRIVE, SURREY])).toEqual([
+      roundLocation(UBC),
+      roundLocation(KITSILANO),
+    ]);
+  });
+
+  // Input: nobody else in the queue
+  // Expected output: an empty list
+  test('Returns no one when the queue is empty', () => {
+    expect(playersNear(UBC, [])).toEqual([]);
   });
 });

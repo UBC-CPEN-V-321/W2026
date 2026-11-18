@@ -4,6 +4,7 @@ import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.network.ApiService
 import com.example.cpen321application.core.network.RetrofitClient
 import com.example.cpen321application.core.network.dto.JoinQueueRequestDto
+import com.example.cpen321application.core.network.dto.PointDto
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -27,6 +28,11 @@ interface MatchmakingRepository {
      * @return the format the player is waiting for, null if they are not waiting (never joined, left, or matched)
      */
     suspend fun queuedFormat(): Result<MatchFormat?>
+
+    /**
+     * @return the other players searching near the player, null if they are not waiting
+     */
+    suspend fun nearbyPlayers(): Result<NearbyPlayers?>
 }
 
 class MatchmakingRepositoryImpl(
@@ -59,6 +65,14 @@ class MatchmakingRepositoryImpl(
         return result.map { MatchFormat.valueOf(it.request.format) }
     }
 
+    override suspend fun nearbyPlayers(): Result<NearbyPlayers?> {
+        val result = callWithToken { authorization -> api.getNearbyPlayers(authorization) }
+        if (result.httpCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+            return Result.success(null)
+        }
+        return result.map { NearbyPlayers(center = it.center.toMapPoint(), players = it.players.map { point -> point.toMapPoint() }) }
+    }
+
     // Fails if nobody is signed in, the backend rejected the call, or it is unreachable
     private suspend fun <T> callWithToken(route: suspend (authorization: String) -> T): Result<T> {
         return try {
@@ -76,4 +90,8 @@ class MatchmakingRepositoryImpl(
     }
 
     private fun Result<*>.httpCode(): Int? = (exceptionOrNull() as? HttpException)?.code()
+
+    private fun PointDto.toMapPoint(): MapPoint {
+        return MapPoint(latitude, longitude)
+    }
 }

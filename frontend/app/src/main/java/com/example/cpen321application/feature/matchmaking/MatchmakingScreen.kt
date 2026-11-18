@@ -11,21 +11,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.cpen321application.BuildConfig
 import com.example.cpen321application.core.notifications.rememberAskNotificationPermission
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.widget.PlaceAutocomplete
 import com.google.android.libraries.places.widget.PlaceAutocompleteActivity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val LOCATION_UNAVAILABLE_MESSAGE = "Could not get your location. Is location turned on?"
 private const val PLACE_UNAVAILABLE_MESSAGE = "Could not get that address. Try another one."
+
+// How often the queue card's map reloads the players searching nearby
+private const val NEARBY_REFRESH_MS = 10_000L
 
 private val LOCATION_PERMISSIONS = arrayOf(
     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -44,6 +52,19 @@ fun MatchmakingRoute(viewModel: MatchmakingViewModel) {
     val loadLocation = rememberLocationLoader(viewModel)
     val askNotificationPermission = rememberAskNotificationPermission()
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // While searching and the Play tab is on screen, the map's dots follow who joins and leaves the queue
+    if (uiState.isSearching) {
+        LaunchedEffect(lifecycleOwner) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    viewModel.refreshNearby()
+                    delay(NEARBY_REFRESH_MS)
+                }
+            }
+        }
+    }
 
     MatchmakingScreen(
         uiState = uiState,
