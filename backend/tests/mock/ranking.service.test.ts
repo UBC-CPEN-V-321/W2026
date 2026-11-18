@@ -31,8 +31,8 @@ describe("Mocked: applyGameResult", () => {
   // Expected output: team 1 listed first, the changes are saved in the given transaction and returned
   test("Rates a singles game with teams 1 and 2 and saves the changes", async () => {
     mockedFetchPlayers.mockResolvedValue([
-      { userId: "winner", team: 1, rating: 1500 },
-      { userId: "loser", team: 2, rating: 1500 },
+      { userId: "winner", team: 1, rating: 1500, gamesPlayed: 0 },
+      { userId: "loser", team: 2, rating: 1500, gamesPlayed: 0 },
     ]);
 
     const changes = await applyGameResult(tx, gameId, Format.SINGLES, [
@@ -59,10 +59,10 @@ describe("Mocked: applyGameResult", () => {
   // Expected output: four changes saved
   test("Rates a doubles game", async () => {
     mockedFetchPlayers.mockResolvedValue([
-      { userId: "a1", team: 1, rating: 1600 },
-      { userId: "a2", team: 1, rating: 1400 },
-      { userId: "b1", team: 2, rating: 1500 },
-      { userId: "b2", team: 2, rating: 1500 },
+      { userId: "a1", team: 1, rating: 1600, gamesPlayed: 0 },
+      { userId: "a2", team: 1, rating: 1400, gamesPlayed: 0 },
+      { userId: "b1", team: 2, rating: 1500, gamesPlayed: 0 },
+      { userId: "b2", team: 2, rating: 1500, gamesPlayed: 0 },
     ]);
 
     const changes = await applyGameResult(tx, gameId, Format.DOUBLES, [
@@ -78,35 +78,53 @@ describe("Mocked: applyGameResult", () => {
     expect(mockedSaveRatingChanges).toHaveBeenCalledTimes(1);
   });
 
+  // Input: two 1500-rated singles players, the winner is new (K = 131.33) and the loser has 100 games (K = 38.86), 6-4 6-4
+  // Expected behavior: each player's games played from the repository decides their own K
+  // Expected output: winner gains 131.33 * 0.5 + 1.5 * 4 = 71.66, loser loses 38.86 * 0.5 + 6 = 25.43
+  test("Uses each player's games played for their K", async () => {
+    mockedFetchPlayers.mockResolvedValue([
+      { userId: "new", team: 1, rating: 1500, gamesPlayed: 0 },
+      { userId: "veteran", team: 2, rating: 1500, gamesPlayed: 100 },
+    ]);
+
+    const [newPlayer, veteran] = await applyGameResult(tx, gameId, Format.SINGLES, [
+      [6, 4],
+      [6, 4],
+    ]);
+
+    expect(newPlayer?.ratingAfter).toBeCloseTo(1500 + 71.6631951101, 5);
+    expect(veteran?.ratingAfter).toBeCloseTo(1500 - 25.4282772931, 5);
+  });
+
   // Input: games whose teams are missing players or have a player on an unknown team
   // Expected behavior: the game can't be rated
   // Expected output: IncompleteTeamsError, nothing saved
   test.each([
-    ["singles with only one player", Format.SINGLES, [{ userId: "a", team: 1, rating: 1500 }]],
+    ["singles with only one player", Format.SINGLES, [{ userId: "a", team: 1, rating: 1500, gamesPlayed: 0 }]],
     [
       "singles with both players on team 1",
       Format.SINGLES,
       [
-        { userId: "a", team: 1, rating: 1500 },
-        { userId: "b", team: 1, rating: 1500 },
+        { userId: "a", team: 1, rating: 1500, gamesPlayed: 0 },
+        { userId: "b", team: 1, rating: 1500, gamesPlayed: 0 },
       ],
     ],
     [
       "doubles with three players",
       Format.DOUBLES,
       [
-        { userId: "a", team: 1, rating: 1500 },
-        { userId: "b", team: 1, rating: 1500 },
-        { userId: "c", team: 2, rating: 1500 },
+        { userId: "a", team: 1, rating: 1500, gamesPlayed: 0 },
+        { userId: "b", team: 1, rating: 1500, gamesPlayed: 0 },
+        { userId: "c", team: 2, rating: 1500, gamesPlayed: 0 },
       ],
     ],
     [
       "a player on team 0",
       Format.SINGLES,
       [
-        { userId: "a", team: 0, rating: 1500 },
-        { userId: "b", team: 1, rating: 1500 },
-        { userId: "c", team: 2, rating: 1500 },
+        { userId: "a", team: 0, rating: 1500, gamesPlayed: 0 },
+        { userId: "b", team: 1, rating: 1500, gamesPlayed: 0 },
+        { userId: "c", team: 2, rating: 1500, gamesPlayed: 0 },
       ],
     ],
   ])("Throws IncompleteTeamsError for %s", async (_description, format, players) => {

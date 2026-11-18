@@ -1,7 +1,7 @@
 // New ratings after a game: reads the players' ratings, applies elo.ts, saves via ratings.repository.
 import { Format, Prisma } from "../generated/prisma/client";
 import { calculateELOChange } from "./elo";
-import { PlayerInfo, RatingChange, RoundScore } from "./ranking.types";
+import { PlayerInfo, RatingChange, RoundScore, Sport } from "./ranking.types";
 import {
   fetchGamePlayerRatingsForUpdate,
   fetchLeaderboard,
@@ -9,6 +9,9 @@ import {
   type LeaderboardUser,
   saveRatingChanges,
 } from "./ratings.repository";
+
+// Every game is tennis for now; games have no sport column
+export const GAME_SPORT: Sport = "TENNIS";
 
 export type LeaderboardEntry = LeaderboardUser & { rank: number };
 
@@ -69,7 +72,11 @@ export async function applyGameResult(
     throw new IncompleteTeamsError(format, team1Size, team2Size);
   }
 
-  const changes = calculateELOChange(eloPlayers, { format, scores: rounds });
+  const changes = calculateELOChange(eloPlayers, {
+    sport: GAME_SPORT,
+    format,
+    scores: rounds,
+  });
   await saveRatingChanges(tx, gameId, changes);
 
   return changes;

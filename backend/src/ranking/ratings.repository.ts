@@ -26,21 +26,23 @@ export interface GamePlayerRating {
   userId: string;
   team: number;
   rating: number;
+  gamesPlayed: number;
 }
 
 /**
- * Fetches every player in a game with their current rating, locking their user rows
- * until the transaction ends so two games finishing at once can't overwrite each other's rating
+ * Fetches every player in a game with their current rating and how many rated games they
+ * have played, locking their user rows until the transaction ends so two games finishing at
+ * once can't overwrite each other's rating
  * @param tx the transaction the final score is being saved in
  * @param gameId the game ID of the finished game
- * @returns each player's user ID, team and rating, ordered by user ID
+ * @returns each player's user ID, team, rating and rated games played before this one, ordered by user ID
  */
 export async function fetchGamePlayerRatingsForUpdate(
   tx: Prisma.TransactionClient,
   gameId: string,
 ): Promise<GamePlayerRating[]> {
   // Prisma has no SELECT ... FOR UPDATE; ordering by id keeps the lock order consistent to avoid deadlocks
-  return await tx.$queryRaw<GamePlayerRating[]>`
+  const players = await tx.$queryRaw<Omit<GamePlayerRating, "gamesPlayed">[]>`
     SELECT u."id" AS "userId", gu."team", u."rating"
     FROM "game_users" gu
     JOIN "users" u ON u."id" = gu."userId"
@@ -48,6 +50,26 @@ export async function fetchGamePlayerRatingsForUpdate(
     ORDER BY u."id"
     FOR UPDATE OF u
   `;
+
+  // Counted after the lock, in a new statement, so a game another transaction rated while we
+  // waited for the lock is included. A game is rated once its players' ratingAfter is set.
+  const counts = await tx.gameUser.groupBy({
+    by: ["userId"],
+    where: {
+      userId: { in: players.map((player) => player.userId) },
+      gameId: { not: gameId },
+      ratingAfter: { not: null },
+    },
+    _count: { _all: true },
+  });
+  const gamesPlayed = new Map(
+    counts.map((count) => [count.userId, count._count._all]),
+  );
+
+  return players.map((player) => ({
+    ...player,
+    gamesPlayed: gamesPlayed.get(player.userId) ?? 0,
+  }));
 }
 
 /**
