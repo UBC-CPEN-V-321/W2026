@@ -99,7 +99,10 @@ Statements: 98.05%, Branches: 96.91%, Functions: 99.01%, Lines: 98.04%
 The no-mock run is intentionally below 100% because database/network failure branches require controlled mocks, empty Express path parameters cannot be produced through normal HTTP routing, and race conditions in which a document is removed between a service read and write cannot be triggered deterministically without mocking.
 The main remaining branches are unreachable empty Express route parameters and `findPreferences`, which belongs to the currently excluded recommendation flow. `*Types.ts` and `*Repository.ts` files contain only TypeScript types and interfaces that are erased at runtime, so both focused coverage configurations exclude them. The mock suites cover the controllable database-failure and concurrency-related branches.
 
-**Live Events:** `[Placeholder: if combined coverage of src/events is below 100%, list each uncovered area with the specific reason it cannot reasonably be reached and why the code should remain. Added after the combined coverage run.]`
+**Live Events:** `src/events/eventDao.ts`, `eventRouter.ts`, and `eventService.ts` reach 100% in the combined run. The uncovered areas are:
+
+- `src/events/eventSync.ts` (manual runner): the code that connects to the database and starts a sync when the file is run as a script is not tested. Event synchronization is not exposed through the API, and it will be run automatically by a scheduled job (GitHub Actions or an AWS cron job) rather than by users. The `syncEvents` function it calls is tested in `backend/tests/mock/events/eventSync.test.ts`. The runner is kept because it is the entry point the scheduled job will use.
+- `src/events/ticketmaster/ticketmaster.client.ts`: `[Placeholder: to be filled in once the Ticketmaster client coverage is reviewed.]`
 
 ---
 
@@ -195,7 +198,17 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
-- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data.
+- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Setup check: [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
+
+#### Running the real-backend E2E tests
+
+The Live Events E2E tests launch the real app on its main screen and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. Use an emulator on API 36 or lower.
+
+1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
+2. Start the backend on that database (from `backend/`): `npm run e2e:backend`.
+3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`.
+4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest` from `frontend/`).
+5. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
 
 ### 4.2. Tests
 
