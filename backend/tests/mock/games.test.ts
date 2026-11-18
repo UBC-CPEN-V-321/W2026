@@ -27,28 +27,26 @@ import {
 } from "../../src/games/games.repository";
 import {
   cancelGame,
-  cancelGameErrors,
   changeGameLocation,
   changeGameTime,
-  gameEditErrors,
+  gameErrors,
   getFeed,
   getGame,
   getUserGames,
   getUserHistory,
   joinGame,
-  joinGameErrors,
   leaveGame,
-  leaveGameErrors,
   newGame,
   reportScore,
   startGame,
-  startGameErrors,
 } from "../../src/games/games.service";
 import { getForecast } from "../../src/external/weather";
 import { isPushEnabled } from "../../src/external/fcm";
 import { fetchFriendship } from "../../src/friends/friends.repository";
 import { pushToUsers } from "../../src/users/users.service";
 import { signAccessToken } from "../../src/auth/tokens";
+import { authErrors } from "../../src/auth/requireAuth";
+import { commonErrors, errorBody } from "../../src/errors";
 import { IncompleteTeamsError } from "../../src/ranking/ranking.service";
 
 // Every /games route is behind requireAuth, so requests need a valid token
@@ -243,7 +241,7 @@ describe("Mocked: /games requireAuth", () => {
       const response = await send();
 
       expect(response.status).toBe(401);
-      expect(response.body).toEqual({ error: "Missing auth token" });
+      expect(response.body).toEqual(errorBody(authErrors.MissingToken));
       expectNoRepositoryCalls();
     },
   );
@@ -254,7 +252,7 @@ describe("Mocked: /games requireAuth", () => {
       const response = await send().set("Authorization", "Bearer not-a-jwt");
 
       expect(response.status).toBe(401);
-      expect(response.body).toEqual({ error: "Invalid or expired auth token" });
+      expect(response.body).toEqual(errorBody(authErrors.InvalidToken));
       expectNoRepositoryCalls();
     },
   );
@@ -318,7 +316,7 @@ describe("Mocked: POST /games", () => {
       .send({ ...validBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedCreateGame).not.toHaveBeenCalled();
   });
@@ -339,10 +337,7 @@ describe("Mocked: POST /games", () => {
     expect(mockedCreateGame).not.toHaveBeenCalled();
   });
 
-  test("Returns 500 when the court does not exist", async () => {
-    const consoleError = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+  test("Returns 404 when the court does not exist", async () => {
     mockedCreateGame.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError(
         "Foreign key constraint violated",
@@ -358,8 +353,8 @@ describe("Mocked: POST /games", () => {
       .set("Authorization", authHeader)
       .send(validBody());
 
-    expect(response.status).toBe(500);
-    consoleError.mockRestore();
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual(errorBody(commonErrors.CourtNotFound));
   });
 
   test("Returns 500 when the repository throws unexpectedly", async () => {
@@ -374,7 +369,7 @@ describe("Mocked: POST /games", () => {
       .send(validBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -479,7 +474,7 @@ describe("Mocked: GET /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedFetchGameDetails).toHaveBeenCalledWith(gameId);
   });
 
@@ -496,7 +491,7 @@ describe("Mocked: GET /games", () => {
       .query(query);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGameDetails).not.toHaveBeenCalled();
   });
@@ -513,7 +508,7 @@ describe("Mocked: GET /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -595,7 +590,7 @@ describe("Mocked: GET /games/feed", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -673,7 +668,7 @@ describe("Mocked: GET /games/me", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -739,7 +734,7 @@ describe("Mocked: GET /games/history", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -785,7 +780,7 @@ describe("Mocked: DELETE /games", () => {
   // Input: a scheduled game that is already completed (or cancelled)
   // Expected status code: 409
   // Expected behavior: the game, its score and its rating changes are kept
-  // Expected output: { error: "Game is already completed or cancelled" }
+  // Expected output: { error: "Game is already completed or cancelled", code: "GAME_CLOSED" }
   test("Returns 409 and keeps a completed scheduled game", async () => {
     mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.COMPLETED }));
     mockedDeleteGame.mockResolvedValue(false);
@@ -796,7 +791,7 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: cancelGameErrors.Closed });
+    expect(response.body).toEqual(errorBody(gameErrors.Closed));
   });
 
   test("Returns 403 and keeps the game when the user is not in it", async () => {
@@ -808,7 +803,7 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: cancelGameErrors.NotInGame });
+    expect(response.body).toEqual(errorBody(gameErrors.NotInGame));
     expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, gameId);
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
@@ -816,7 +811,7 @@ describe("Mocked: DELETE /games", () => {
   // Input: the ID of a game that does not exist
   // Expected status code: 404
   // Expected behavior: nothing is deleted
-  // Expected output: { error: "Game not found" }
+  // Expected output: { error: "Game not found", code: "GAME_NOT_FOUND" }
   test("Returns 404 when the game does not exist", async () => {
     mockedFetchGame.mockResolvedValue(null);
 
@@ -826,14 +821,14 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: cancelGameErrors.NotFound });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
   // Input: the ID of a booked tournament game the caller plays in
   // Expected status code: 409
   // Expected behavior: the game is kept, since the bracket depends on it
-  // Expected output: { error: "Tournament games cannot be cancelled" }
+  // Expected output: { error: "Tournament games cannot be cancelled", code: "TOURNAMENT_NOT_CANCELLABLE" }
   test("Returns 409 and keeps a tournament game", async () => {
     mockedFetchGame.mockResolvedValue(
       joinableGame({
@@ -848,7 +843,7 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: cancelGameErrors.TournamentGame });
+    expect(response.body).toEqual(errorBody(gameErrors.TournamentNotCancellable));
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
@@ -865,17 +860,14 @@ describe("Mocked: DELETE /games", () => {
       .query(query);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedIsUserInGame).not.toHaveBeenCalled();
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
-  test("Returns 500 when the game does not exist", async () => {
-    const consoleError = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+  test("Returns 404 when the game is deleted before the delete", async () => {
     mockedDeleteGame.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Record to delete not found", {
         code: "P2025",
@@ -888,9 +880,9 @@ describe("Mocked: DELETE /games", () => {
       .set("Authorization", authHeader)
       .query({ gameId });
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
-    consoleError.mockRestore();
+    expect(response.status).toBe(404);
+    // The service maps no Prisma error here, so errorHandler's generic fallback answers
+    expect(response.body).toEqual({ error: "Not found", code: "NOT_FOUND" });
   });
 
   test("Returns 500 when the repository throws unexpectedly", async () => {
@@ -905,7 +897,7 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 
@@ -921,7 +913,7 @@ describe("Mocked: DELETE /games", () => {
       .query({ gameId });
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedDeleteGame).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
@@ -935,27 +927,21 @@ describe("Mocked: cancelGame", () => {
 
   const gameId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 
-  test("Returns NotFound without deleting when the game does not exist", async () => {
+  test("Throws NotFound without deleting when the game does not exist", async () => {
     mockedFetchGame.mockResolvedValue(null);
 
-    await expect(cancelGame(gameId, userId)).resolves.toEqual({
-      success: false,
-      error: cancelGameErrors.NotFound,
-    });
+    await expect(cancelGame(gameId, userId)).rejects.toMatchObject(gameErrors.NotFound);
     expect(mockedIsUserInGame).not.toHaveBeenCalled();
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
-  test("Returns TournamentGame without deleting a tournament game", async () => {
+  test("Throws TournamentNotCancellable without deleting a tournament game", async () => {
     mockedFetchGame.mockResolvedValue(
       joinableGame({ gameSource: GameSource.TOURNAMENT }),
     );
     mockedIsUserInGame.mockResolvedValue(true);
 
-    await expect(cancelGame(gameId, userId)).resolves.toEqual({
-      success: false,
-      error: cancelGameErrors.TournamentGame,
-    });
+    await expect(cancelGame(gameId, userId)).rejects.toMatchObject(gameErrors.TournamentNotCancellable);
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
@@ -964,31 +950,23 @@ describe("Mocked: cancelGame", () => {
     mockedFetchGame.mockResolvedValue(existingGame({ id: gameId }));
     mockedDeleteGame.mockResolvedValue(true);
 
-    await expect(cancelGame(gameId, userId)).resolves.toEqual({
-      success: true,
-    });
+    await expect(cancelGame(gameId, userId)).resolves.toBeUndefined();
     expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, gameId);
     expect(mockedDeleteGame).toHaveBeenCalledWith(gameId);
   });
 
-  test("Returns Closed when the scheduled game is already completed or cancelled", async () => {
+  test("Throws Closed when the scheduled game is already completed or cancelled", async () => {
     mockedIsUserInGame.mockResolvedValue(true);
     mockedFetchGame.mockResolvedValue(existingGame({ id: gameId, status: GameStatus.COMPLETED }));
     mockedDeleteGame.mockResolvedValue(false);
 
-    await expect(cancelGame(gameId, userId)).resolves.toEqual({
-      success: false,
-      error: cancelGameErrors.Closed,
-    });
+    await expect(cancelGame(gameId, userId)).rejects.toMatchObject(gameErrors.Closed);
   });
 
   test("Does not delete the game when the user is not in it", async () => {
     mockedIsUserInGame.mockResolvedValue(false);
 
-    await expect(cancelGame(gameId, userId)).resolves.toEqual({
-      success: false,
-      error: "User not in game",
-    });
+    await expect(cancelGame(gameId, userId)).rejects.toMatchObject(gameErrors.NotInGame);
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
@@ -1042,12 +1020,12 @@ describe("Mocked: getGame", () => {
     },
   );
 
-  test("Returns null when the game does not exist", async () => {
+  test("Throws NotFound when the game does not exist", async () => {
     mockedFetchGameDetails.mockResolvedValue(null);
 
     await expect(
       getGame("0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"),
-    ).resolves.toBeNull();
+    ).rejects.toMatchObject(gameErrors.NotFound);
     expect(mockedGetForecast).not.toHaveBeenCalled();
   });
 });
@@ -1249,7 +1227,7 @@ describe("Mocked: POST /games/join", () => {
       .send({ ...validJoinBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedAddPlayerToTeam).not.toHaveBeenCalled();
@@ -1264,7 +1242,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedAddPlayerToTeam).not.toHaveBeenCalled();
   });
 
@@ -1283,7 +1261,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game is not open to join" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotJoinable));
     expect(mockedAddPlayerToTeam).not.toHaveBeenCalled();
   });
 
@@ -1296,7 +1274,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Team is full" });
+    expect(response.body).toEqual(errorBody(gameErrors.TeamFull));
   });
 
   test("Returns 409 when the game stops being joinable before the player is added", async () => {
@@ -1308,7 +1286,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game is not open to join" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotJoinable));
   });
 
   test("Returns 409 when the user is already in the game", async () => {
@@ -1320,7 +1298,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "User already in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyInGame));
   });
 
   test("Returns 404 when the user does not exist", async () => {
@@ -1332,14 +1310,15 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game or user not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.GameOrUserNotFound));
   });
 
   test("Returns 500 for other Prisma errors", async () => {
     const consoleError = jest
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    mockedAddPlayerToTeam.mockRejectedValue(prismaError("P2025"));
+    // A code neither the service nor errorHandler's fallbacks map, e.g. a failed raw query
+    mockedAddPlayerToTeam.mockRejectedValue(prismaError("P2010"));
 
     const response = await request(createApp())
       .post("/games/join")
@@ -1347,7 +1326,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 
@@ -1363,7 +1342,7 @@ describe("Mocked: POST /games/join", () => {
       .send(validJoinBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedAddPlayerToTeam).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
@@ -1395,7 +1374,7 @@ describe("Mocked: POST /games/leave", () => {
   // Input: the ID of a tournament game the caller plays in
   // Expected status code: 409
   // Expected behavior: the caller stays in the game, so the bracket keeps full teams
-  // Expected output: { error: "Players cannot leave a tournament game" }
+  // Expected output: { error: "Players cannot leave a tournament game", code: "TOURNAMENT_NOT_LEAVABLE" }
   test("Returns 409 and keeps the user in a tournament game", async () => {
     mockedFetchGame.mockResolvedValue(
       joinableGame({
@@ -1410,7 +1389,7 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: leaveGameErrors.TournamentGame });
+    expect(response.body).toEqual(errorBody(gameErrors.TournamentNotLeavable));
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
@@ -1443,7 +1422,7 @@ describe("Mocked: POST /games/leave", () => {
       .send({ ...validLeaveBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
@@ -1457,7 +1436,7 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
@@ -1472,9 +1451,7 @@ describe("Mocked: POST /games/leave", () => {
         .send(validLeaveBody());
 
       expect(response.status).toBe(409);
-      expect(response.body).toEqual({
-        error: "Game is already completed or cancelled",
-      });
+      expect(response.body).toEqual(errorBody(gameErrors.Closed));
       expect(mockedDeleteGameUser).not.toHaveBeenCalled();
     },
   );
@@ -1493,9 +1470,7 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({
-      error: "Game starts in less than 30 minutes",
-    });
+    expect(response.body).toEqual(errorBody(gameErrors.TooLate));
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
@@ -1508,14 +1483,15 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "User not in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.PlayerNotFound));
   });
 
   test("Returns 500 for other Prisma errors", async () => {
     const consoleError = jest
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    mockedDeleteGameUser.mockRejectedValue(prismaError("P2003"));
+    // A code neither the service nor errorHandler's fallbacks map, e.g. a failed raw query
+    mockedDeleteGameUser.mockRejectedValue(prismaError("P2010"));
 
     const response = await request(createApp())
       .post("/games/leave")
@@ -1523,7 +1499,7 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 
@@ -1539,7 +1515,7 @@ describe("Mocked: POST /games/leave", () => {
       .send(validLeaveBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -1553,9 +1529,7 @@ describe("Mocked: joinGame", () => {
     mockedFetchGame.mockResolvedValue(joinableGame());
     mockedAddPlayerToTeam.mockResolvedValue("added");
 
-    await expect(joinGame(joinGameId, userId, 2)).resolves.toEqual({
-      success: true,
-    });
+    await expect(joinGame(joinGameId, userId, 2)).resolves.toBeUndefined();
     expect(mockedFetchGame).toHaveBeenCalledWith(joinGameId);
     expect(mockedAddPlayerToTeam).toHaveBeenCalledWith(
       joinGameId,
@@ -1566,24 +1540,18 @@ describe("Mocked: joinGame", () => {
     );
   });
 
-  test("Returns TeamFull when the repository finds no free spot", async () => {
+  test("Throws TeamFull when the repository finds no free spot", async () => {
     mockedFetchGame.mockResolvedValue(joinableGame({ format: Format.DOUBLES }));
     mockedAddPlayerToTeam.mockResolvedValue("teamFull");
 
-    await expect(joinGame(joinGameId, userId, 1)).resolves.toEqual({
-      success: false,
-      error: joinGameErrors.TeamFull,
-    });
+    await expect(joinGame(joinGameId, userId, 1)).rejects.toMatchObject(gameErrors.TeamFull);
   });
 
-  test("Returns NotJoinable when the repository finds the game changed after it was checked", async () => {
+  test("Throws NotJoinable when the repository finds the game changed after it was checked", async () => {
     mockedFetchGame.mockResolvedValue(joinableGame());
     mockedAddPlayerToTeam.mockResolvedValue("notJoinable");
 
-    await expect(joinGame(joinGameId, userId, 1)).resolves.toEqual({
-      success: false,
-      error: joinGameErrors.NotJoinable,
-    });
+    await expect(joinGame(joinGameId, userId, 1)).rejects.toMatchObject(gameErrors.NotJoinable);
   });
 
   test("Passes the repository the same time it checked the start time against", async () => {
@@ -1606,13 +1574,10 @@ describe("Mocked: joinGame", () => {
     expect(now.getTime()).toBeLessThan(game.startsAt.getTime());
   });
 
-  test("Returns NotFound without adding the user when the game does not exist", async () => {
+  test("Throws NotFound without adding the user when the game does not exist", async () => {
     mockedFetchGame.mockResolvedValue(null);
 
-    await expect(joinGame(joinGameId, userId, 1)).resolves.toEqual({
-      success: false,
-      error: joinGameErrors.NotFound,
-    });
+    await expect(joinGame(joinGameId, userId, 1)).rejects.toMatchObject(gameErrors.NotFound);
     expect(mockedAddPlayerToTeam).not.toHaveBeenCalled();
   });
 
@@ -1634,33 +1599,25 @@ describe("Mocked: leaveGame", () => {
     mockedFetchGame.mockResolvedValue(joinableGame());
     mockedDeleteGameUser.mockResolvedValue();
 
-    await expect(leaveGame(joinGameId, userId)).resolves.toEqual({
-      success: true,
-    });
+    await expect(leaveGame(joinGameId, userId)).resolves.toBeUndefined();
     expect(mockedDeleteGameUser).toHaveBeenCalledWith(joinGameId, userId);
   });
 
-  test("Returns TournamentGame without deleting when the game is in a tournament", async () => {
+  test("Throws TournamentNotLeavable without deleting when the game is in a tournament", async () => {
     mockedFetchGame.mockResolvedValue(
       joinableGame({ gameSource: GameSource.TOURNAMENT }),
     );
 
-    await expect(leaveGame(joinGameId, userId)).resolves.toEqual({
-      success: false,
-      error: leaveGameErrors.TournamentGame,
-    });
+    await expect(leaveGame(joinGameId, userId)).rejects.toMatchObject(gameErrors.TournamentNotLeavable);
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
-  test("Returns TooLate without deleting when the game starts in less than 30 minutes", async () => {
+  test("Throws TooLate without deleting when the game starts in less than 30 minutes", async () => {
     mockedFetchGame.mockResolvedValue(
       joinableGame({ startsAt: new Date(Date.now() + 10 * 60 * 1000) }),
     );
 
-    await expect(leaveGame(joinGameId, userId)).resolves.toEqual({
-      success: false,
-      error: leaveGameErrors.TooLate,
-    });
+    await expect(leaveGame(joinGameId, userId)).rejects.toMatchObject(gameErrors.TooLate);
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
@@ -1730,7 +1687,7 @@ describe.each([
     const response = await send();
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedIsUserInGame).not.toHaveBeenCalled();
     expectNoChanges();
   });
@@ -1741,7 +1698,7 @@ describe.each([
     const response = await send();
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "User not in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotInGame));
     expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, editGameId);
     expectNoChanges();
   });
@@ -1754,9 +1711,7 @@ describe.each([
       const response = await send();
 
       expect(response.status).toBe(409);
-      expect(response.body).toEqual({
-        error: "Game is already completed or cancelled",
-      });
+      expect(response.body).toEqual(errorBody(gameErrors.Closed));
       expectNoChanges();
     },
   );
@@ -1770,7 +1725,7 @@ describe.each([
     const response = await send();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expectNoChanges();
     consoleError.mockRestore();
   });
@@ -1835,7 +1790,7 @@ describe("Mocked: PATCH /games/time", () => {
       .send({ ...validTimeBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedUpdateGame).not.toHaveBeenCalled();
@@ -1850,7 +1805,7 @@ describe("Mocked: PATCH /games/time", () => {
       .send(validTimeBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
   });
 
   test("Returns 500 when the update throws unexpectedly", async () => {
@@ -1865,7 +1820,7 @@ describe("Mocked: PATCH /games/time", () => {
       .send(validTimeBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -1925,7 +1880,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
@@ -1937,7 +1892,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedIsUserInGame).not.toHaveBeenCalled();
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
@@ -1948,27 +1903,27 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "User not in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotInGame));
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
 
   // Input: games that can't start: closed, still open (free spots or unanswered match), or already started
   // Expected status code: 409
   // Expected behavior: the start time is not changed
-  // Expected output: the reason
+  // Expected output: the reason, e.g. { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
   test.each([
-    ["completed", { status: GameStatus.COMPLETED }, startGameErrors.Closed],
-    ["cancelled", { status: GameStatus.CANCELLED }, startGameErrors.Closed],
-    ["open scheduled", { status: GameStatus.OPEN }, startGameErrors.NotBooked],
+    ["completed", { status: GameStatus.COMPLETED }, gameErrors.Closed],
+    ["cancelled", { status: GameStatus.CANCELLED }, gameErrors.Closed],
+    ["open scheduled", { status: GameStatus.OPEN }, gameErrors.NotBooked],
     [
       "unanswered matched",
       { status: GameStatus.OPEN, gameSource: GameSource.MATCHED },
-      startGameErrors.NotBooked,
+      gameErrors.NotBooked,
     ],
     [
       "already started",
       { startsAt: new Date(Date.now() - 60 * 1000) },
-      startGameErrors.AlreadyStarted,
+      gameErrors.AlreadyStarted,
     ],
   ] as const)("Returns 409 for a %s game", async (_description, overrides, error) => {
     mockedFetchGame.mockResolvedValue(bookedGame(overrides));
@@ -1976,13 +1931,13 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error });
+    expect(response.body).toEqual(errorBody(error));
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
 
   // Input: two players tap Start now at once, and the other one's update lands first
   // Expected status code: 409
-  // Expected output: { error: "Game has already started" }
+  // Expected output: { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
   test("Returns 409 when another player starts the game first", async () => {
     mockedStartBookedGame.mockResolvedValue(null);
     mockedFetchGame
@@ -1992,7 +1947,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game has already started" });
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyStarted));
   });
 
   test("Returns 409 when the game is completed before the update", async () => {
@@ -2004,7 +1959,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game is already completed or cancelled" });
+    expect(response.body).toEqual(errorBody(gameErrors.Closed));
   });
 
   test("Returns 404 when the game is deleted before the update", async () => {
@@ -2014,7 +1969,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
   });
 
   test("Returns 500 when the update throws unexpectedly", async () => {
@@ -2026,7 +1981,7 @@ describe("Mocked: POST /games/start", () => {
     const response = await start();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -2042,19 +1997,13 @@ describe("Mocked: startGame", () => {
     const started = existingGame({ status: GameStatus.BOOKED, startsAt: new Date() });
     mockedStartBookedGame.mockResolvedValue(started);
 
-    await expect(startGame(editGameId, userId)).resolves.toEqual({
-      success: true,
-      game: started,
-    });
+    await expect(startGame(editGameId, userId)).resolves.toEqual(started);
   });
 
-  test("Does not start a game that is not booked", async () => {
+  test("Throws when the game is not booked", async () => {
     mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.OPEN }));
 
-    await expect(startGame(editGameId, userId)).resolves.toEqual({
-      success: false,
-      error: startGameErrors.NotBooked,
-    });
+    await expect(startGame(editGameId, userId)).rejects.toMatchObject(gameErrors.NotBooked);
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
 
@@ -2106,7 +2055,7 @@ describe("Mocked: PATCH /games/location", () => {
       .send({ ...validLocationBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedUpdateGame).not.toHaveBeenCalled();
@@ -2121,7 +2070,7 @@ describe("Mocked: PATCH /games/location", () => {
       .send(validLocationBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Court not found" });
+    expect(response.body).toEqual(errorBody(commonErrors.CourtNotFound));
   });
 
   test("Returns 404 when the game is deleted before the update", async () => {
@@ -2133,14 +2082,15 @@ describe("Mocked: PATCH /games/location", () => {
       .send(validLocationBody());
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
   });
 
   test("Returns 500 for other Prisma errors", async () => {
     const consoleError = jest
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    mockedUpdateGame.mockRejectedValue(prismaError("P2002"));
+    // A code neither the service nor errorHandler's fallbacks map, e.g. a failed raw query
+    mockedUpdateGame.mockRejectedValue(prismaError("P2010"));
 
     const response = await request(createApp())
       .patch("/games/location")
@@ -2148,7 +2098,7 @@ describe("Mocked: PATCH /games/location", () => {
       .send(validLocationBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -2229,7 +2179,7 @@ describe("Mocked: POST /games/score", () => {
       .send(validScoreBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game does not have full teams" });
+    expect(response.body).toEqual(errorBody(gameErrors.IncompleteTeams));
   });
 
   test("Returns 409 when another report completes the game first", async () => {
@@ -2241,9 +2191,7 @@ describe("Mocked: POST /games/score", () => {
       .send(validScoreBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({
-      error: "Game is already completed or cancelled",
-    });
+    expect(response.body).toEqual(errorBody(gameErrors.Closed));
   });
 
   test.each([
@@ -2277,7 +2225,7 @@ describe("Mocked: POST /games/score", () => {
       .send({ ...validScoreBody(), ...overrides });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
     expect(mockedCompleteGame).not.toHaveBeenCalled();
@@ -2316,7 +2264,7 @@ describe("Mocked: POST /games/score", () => {
   // Input: a valid score, while Postgres aborts the transaction as a deadlock
   // Expected status code: 409
   // Expected behavior: nothing is saved, so the player can report again
-  // Expected output: { error: "The score could not be saved, please try again" }
+  // Expected output: { error: "The score could not be saved, please try again", code: "SCORE_CONFLICT" }
   test("Returns 409 when the transaction is aborted as a deadlock", async () => {
     mockedCompleteGame.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Transaction failed due to a write conflict or a deadlock", {
@@ -2331,9 +2279,7 @@ describe("Mocked: POST /games/score", () => {
       .send(validScoreBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({
-      error: "The score could not be saved, please try again",
-    });
+    expect(response.body).toEqual(errorBody(gameErrors.ScoreConflict));
   });
 
   test("Returns 500 when saving the score throws unexpectedly", async () => {
@@ -2348,7 +2294,7 @@ describe("Mocked: POST /games/score", () => {
       .send(validScoreBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -2366,24 +2312,14 @@ describe("Mocked: changeGameTime", () => {
     const updatedGame = existingGame({ startsAt });
     mockedUpdateGame.mockResolvedValue(updatedGame);
 
-    await expect(changeGameTime(editGameId, userId, startsAt)).resolves.toEqual(
-      {
-        success: true,
-        game: updatedGame,
-      },
-    );
+    await expect(changeGameTime(editGameId, userId, startsAt)).resolves.toEqual(updatedGame);
     expect(mockedUpdateGame).toHaveBeenCalledWith(editGameId, { startsAt });
   });
 
-  test("Returns the reason and does not update when the user cannot edit the game", async () => {
+  test("Throws the reason and does not update when the user cannot edit the game", async () => {
     mockedIsUserInGame.mockResolvedValue(false);
 
-    await expect(changeGameTime(editGameId, userId, startsAt)).resolves.toEqual(
-      {
-        success: false,
-        error: gameEditErrors.NotInGame,
-      },
-    );
+    await expect(changeGameTime(editGameId, userId, startsAt)).rejects.toMatchObject(gameErrors.NotInGame);
     expect(mockedUpdateGame).not.toHaveBeenCalled();
   });
 
@@ -2408,20 +2344,14 @@ describe("Mocked: changeGameLocation", () => {
     const updatedGame = existingGame({ courtId: 2 });
     mockedUpdateGame.mockResolvedValue(updatedGame);
 
-    await expect(changeGameLocation(editGameId, userId, 2)).resolves.toEqual({
-      success: true,
-      game: updatedGame,
-    });
+    await expect(changeGameLocation(editGameId, userId, 2)).resolves.toEqual(updatedGame);
     expect(mockedUpdateGame).toHaveBeenCalledWith(editGameId, { courtId: 2 });
   });
 
-  test("Returns the reason and does not update when the game does not exist", async () => {
+  test("Throws the reason and does not update when the game does not exist", async () => {
     mockedFetchGame.mockResolvedValue(null);
 
-    await expect(changeGameLocation(editGameId, userId, 2)).resolves.toEqual({
-      success: false,
-      error: gameEditErrors.NotFound,
-    });
+    await expect(changeGameLocation(editGameId, userId, 2)).rejects.toMatchObject(gameErrors.NotFound);
     expect(mockedUpdateGame).not.toHaveBeenCalled();
   });
 
@@ -2459,34 +2389,25 @@ describe("Mocked: reportScore", () => {
     };
     mockedCompleteGame.mockResolvedValue(completed);
 
-    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({
-      success: true,
-      ...completed,
-    });
+    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual(completed);
     expect(mockedCompleteGame).toHaveBeenCalledWith(editGameId, rounds);
   });
 
-  test("Returns the reason and does not save when the game is already completed", async () => {
+  test("Throws the reason and does not save when the game is already completed", async () => {
     mockedFetchGame.mockResolvedValue(
       existingGame({ status: GameStatus.COMPLETED }),
     );
 
-    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({
-      success: false,
-      error: gameEditErrors.Closed,
-    });
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.Closed);
     expect(mockedCompleteGame).not.toHaveBeenCalled();
   });
 
-  test("Returns IncompleteTeams when the teams are not full", async () => {
+  test("Throws IncompleteTeams when the teams are not full", async () => {
     mockedCompleteGame.mockRejectedValue(
       new IncompleteTeamsError(Format.DOUBLES, 2, 1),
     );
 
-    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({
-      success: false,
-      error: gameEditErrors.IncompleteTeams,
-    });
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.IncompleteTeams);
   });
 
   test("Rethrows other errors from saving the score", async () => {
@@ -2497,13 +2418,10 @@ describe("Mocked: reportScore", () => {
     );
   });
 
-  test("Returns Closed when the game is completed between the check and the save", async () => {
+  test("Throws Closed when the game is completed between the check and the save", async () => {
     mockedCompleteGame.mockResolvedValue(null);
 
-    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({
-      success: false,
-      error: gameEditErrors.Closed,
-    });
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.Closed);
   });
 
   test("Propagates repository errors", async () => {
@@ -2582,14 +2500,14 @@ describe("Mocked: POST /games/accept", () => {
   // Input: a player accepts a match they already accepted, e.g. a retried request
   // Expected status code: 409
   // Expected behavior: the request is rejected and no second push is sent
-  // Expected output: { error: "Match already accepted" }
+  // Expected output: { error: "Match already accepted", code: "MATCH_ALREADY_ACCEPTED" }
   test("Returns 409 when the player already accepted the match", async () => {
     mockedAcceptMatch.mockResolvedValue("alreadyAccepted");
 
     const response = await accept();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Match already accepted" });
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyAccepted));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
@@ -2635,14 +2553,14 @@ describe("Mocked: POST /games/accept", () => {
       .send({ gameId: "nope" });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(mockedAcceptMatch).not.toHaveBeenCalled();
   });
 
   // Input: the game does not exist
   // Expected status code: 404
   // Expected behavior: nothing is recorded
-  // Expected output: { error: "Game not found" }
+  // Expected output: { error: "Game not found", code: "GAME_NOT_FOUND" }
   test("Returns 404 when the game does not exist", async () => {
     mockedFetchGame.mockResolvedValue(null);
 
@@ -2652,14 +2570,14 @@ describe("Mocked: POST /games/accept", () => {
       .send({ gameId: joinGameId });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedAcceptMatch).not.toHaveBeenCalled();
   });
 
   // Input: the user is not a player of the game
   // Expected status code: 403
   // Expected behavior: nothing is recorded
-  // Expected output: { error: "User not in game" }
+  // Expected output: { error: "User not in game", code: "NOT_IN_GAME" }
   test("Returns 403 when the user is not in the game", async () => {
     mockedIsUserInGame.mockResolvedValue(false);
 
@@ -2669,14 +2587,14 @@ describe("Mocked: POST /games/accept", () => {
       .send({ gameId: joinGameId });
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "User not in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotInGame));
     expect(mockedAcceptMatch).not.toHaveBeenCalled();
   });
 
   // Input: the match was cancelled, booked or passed its answer cutoff
   // Expected status code: 409
   // Expected behavior: nothing is recorded
-  // Expected output: { error: "Match is no longer waiting for answers" }
+  // Expected output: { error: "Match is no longer waiting for answers", code: "MATCH_NOT_PENDING" }
   test("Returns 409 when the match is no longer waiting for answers", async () => {
     mockedAcceptMatch.mockResolvedValue("notPending");
 
@@ -2686,7 +2604,7 @@ describe("Mocked: POST /games/accept", () => {
       .send({ gameId: joinGameId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Match is no longer waiting for answers" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotPending));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 });
@@ -2793,7 +2711,7 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
   // Input: a player cancels a matched game that is already closed
   // Expected status code: 409
   // Expected behavior: nobody is notified
-  // Expected output: { error: "Game is already completed or cancelled" }
+  // Expected output: { error: "Game is already completed or cancelled", code: "GAME_CLOSED" }
   test("Sends nothing when the matched game was already closed", async () => {
     mockedCancelMatchedGame.mockResolvedValue(false);
 
@@ -2821,7 +2739,7 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
   // Input: a player cancels a matched game that is already completed or cancelled
   // Expected status code: 409
   // Expected behavior: nothing changes
-  // Expected output: { error: "Game is already completed or cancelled" }
+  // Expected output: { error: "Game is already completed or cancelled", code: "GAME_CLOSED" }
   test("DELETE /games returns 409 when the matched game is already closed", async () => {
     mockedCancelMatchedGame.mockResolvedValue(false);
 
@@ -2831,14 +2749,14 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
       .query({ gameId: editGameId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game is already completed or cancelled" });
+    expect(response.body).toEqual(errorBody(gameErrors.Closed));
     expect(mockedDeleteGame).not.toHaveBeenCalled();
   });
 
   // Input: a player tries to leave a matched game
   // Expected status code: 409
   // Expected behavior: the player stays in the game
-  // Expected output: { error: "Matched games can't be left" }
+  // Expected output: { error: "Matched games can't be left", code: "MATCHED_NOT_LEAVABLE" }
   test("POST /games/leave rejects a matched game", async () => {
     const response = await request(createApp())
       .post("/games/leave")
@@ -2846,14 +2764,14 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
       .send({ gameId: editGameId });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Matched games can't be left" });
+    expect(response.body).toEqual(errorBody(gameErrors.MatchedNotLeavable));
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
   });
 
   // Input: a player tries to move a matched game to another time
   // Expected status code: 409
   // Expected behavior: the game keeps its time
-  // Expected output: { error: "Matched games can't be moved" }
+  // Expected output: { error: "Matched games can't be moved", code: "MATCHED_NOT_MOVABLE" }
   test("PATCH /games/time rejects a matched game", async () => {
     const response = await request(createApp())
       .patch("/games/time")
@@ -2861,14 +2779,14 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
       .send({ gameId: editGameId, startsAt: futureStartsAt() });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Matched games can't be moved" });
+    expect(response.body).toEqual(errorBody(gameErrors.MatchedNotMovable));
     expect(mockedUpdateGame).not.toHaveBeenCalled();
   });
 
   // Input: a player tries to move a matched game to another court
   // Expected status code: 409
   // Expected behavior: the game keeps its court
-  // Expected output: { error: "Matched games can't be moved" }
+  // Expected output: { error: "Matched games can't be moved", code: "MATCHED_NOT_MOVABLE" }
   test("PATCH /games/location rejects a matched game", async () => {
     const response = await request(createApp())
       .patch("/games/location")
@@ -2876,7 +2794,7 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
       .send({ gameId: editGameId, courtId: 2 });
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Matched games can't be moved" });
+    expect(response.body).toEqual(errorBody(gameErrors.MatchedNotMovable));
     expect(mockedUpdateGame).not.toHaveBeenCalled();
   });
 });
@@ -2962,42 +2880,42 @@ describe("Mocked: POST /games/invite", () => {
     const response = await invite({ gameId: inviteGameId, userId: "nope" });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(mockedFetchGameDetails).not.toHaveBeenCalled();
   });
 
   // Input: the game does not exist
   // Expected status code: 404
   // Expected behavior: nothing is sent
-  // Expected output: { error: "Game not found" }
+  // Expected output: { error: "Game not found", code: "GAME_NOT_FOUND" }
   test("Returns 404 when the game does not exist", async () => {
     mockedFetchGameDetails.mockResolvedValue(null);
 
     const response = await invite();
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Game not found" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFound));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: the inviter is not a player of the game
   // Expected status code: 403
   // Expected behavior: nothing is sent
-  // Expected output: { error: "User not in game" }
+  // Expected output: { error: "User not in game", code: "NOT_IN_GAME" }
   test("Returns 403 when the inviter is not in the game", async () => {
     mockedFetchGameDetails.mockResolvedValue(gameDetails({ players: [] }));
 
     const response = await invite();
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "User not in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotInGame));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: the game is matched, booked or already started
   // Expected status code: 409
   // Expected behavior: nothing is sent
-  // Expected output: { error: "Game is not open to join" }
+  // Expected output: { error: "Game is not open to join", code: "NOT_JOINABLE" }
   test.each([
     ["a matched game", { gameSource: GameSource.MATCHED }],
     ["a booked game", { status: GameStatus.BOOKED }],
@@ -3008,14 +2926,14 @@ describe("Mocked: POST /games/invite", () => {
     const response = await invite();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Game is not open to join" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotJoinable));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: the invited user is already a player of the game
   // Expected status code: 409
   // Expected behavior: nothing is sent
-  // Expected output: { error: "User already in game" }
+  // Expected output: { error: "User already in game", code: "ALREADY_IN_GAME" }
   test("Returns 409 when the friend is already in the game", async () => {
     const { players } = gameDetails();
     mockedFetchGameDetails.mockResolvedValue(
@@ -3030,14 +2948,14 @@ describe("Mocked: POST /games/invite", () => {
     const response = await invite();
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "User already in game" });
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyInGame));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: the users are not friends, or the request is still pending
   // Expected status code: 403
   // Expected behavior: nothing is sent
-  // Expected output: { error: "Users are not friends" }
+  // Expected output: { error: "Users are not friends", code: "NOT_FRIENDS" }
   test.each([
     ["no friendship", null],
     ["a pending request", friendship(FriendshipStatus.PENDING)],
@@ -3047,14 +2965,14 @@ describe("Mocked: POST /games/invite", () => {
     const response = await invite();
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "Users are not friends" });
+    expect(response.body).toEqual(errorBody(gameErrors.NotFriends));
     expect(mockedPushToUsers).not.toHaveBeenCalled();
   });
 
   // Input: sending the push fails
   // Expected status code: 500
   // Expected behavior: the error is logged
-  // Expected output: { error: "Internal server error" }
+  // Expected output: { error: "Internal server error", code: "INTERNAL_ERROR" }
   test("Returns 500 when the push cannot be sent", async () => {
     mockedPushToUsers.mockRejectedValue(new Error("FCM down"));
     const consoleError = jest
@@ -3064,7 +2982,7 @@ describe("Mocked: POST /games/invite", () => {
     const response = await invite();
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

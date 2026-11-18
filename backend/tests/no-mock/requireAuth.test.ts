@@ -1,6 +1,7 @@
 import express from 'express';
 import request from 'supertest';
-import { requireAuth } from '../../src/auth/requireAuth';
+import { authErrors, authedUserId, requireAuth } from '../../src/auth/requireAuth';
+import { errorBody, errorHandler } from '../../src/errors';
 import { signAccessToken } from '../../src/auth/tokens';
 
 const SECRET = 'test-jwt-secret';
@@ -11,6 +12,7 @@ function createProtectedApp() {
   app.get('/protected', requireAuth, (req, res) => {
     res.json({ userId: req.userId });
   });
+  app.use(errorHandler);
   return app;
 }
 
@@ -35,48 +37,63 @@ describe('Unmocked: requireAuth', () => {
 
   // Input: no Authorization header
   // Expected status code: 401
-  // Expected output: { error: "Missing auth token" }
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test('Rejects a request with no Authorization header', async () => {
     const app = createProtectedApp();
     const response = await request(app).get('/protected');
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Missing auth token' });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
   });
 
   // Input: an Authorization header using the Basic scheme
   // Expected status code: 401
-  // Expected output: { error: "Missing auth token" }
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test('Rejects a Basic auth header', async () => {
     const app = createProtectedApp();
     const token = 'Basic dXNlcjpwYXNz';
     const response = await request(app).get('/protected').set('Authorization', token);
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Missing auth token' });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
   });
 
   // Input: a Bearer header with nothing after the scheme
   // Expected status code: 401
-  // Expected output: { error: "Missing auth token" }
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
   test('Rejects a Bearer header with no token', async () => {
     const app = createProtectedApp();
     const token = 'Bearer ';
     const response = await request(app).get('/protected').set('Authorization', token);
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Missing auth token' });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
   }); 
 
   // Input: Authorization: Bearer not-a-jwt
   // Expected status code: 401
-  // Expected output: { error: "Invalid or expired auth token" }
+  // Expected output: { error: "Invalid or expired auth token", code: "INVALID_AUTH_TOKEN" }
   test('Rejects a garbage token', async () => {
     const app = createProtectedApp();
     const token = 'Bearer not-a-jwt';
     const response = await request(app).get('/protected').set('Authorization', token);
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Invalid or expired auth token' });
+    expect(response.body).toEqual(errorBody(authErrors.InvalidToken));
+  });
+
+  // Input: a route that calls authedUserId without requireAuth in front of it
+  // Expected status code: 401
+  // Expected output: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" }
+  test('authedUserId rejects a request requireAuth did not let through', async () => {
+    const app = express();
+    app.get('/unprotected', (req, res) => {
+      res.json({ userId: authedUserId(req) });
+    });
+    app.use(errorHandler);
+    const response = await request(app).get('/unprotected');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
   });
 });

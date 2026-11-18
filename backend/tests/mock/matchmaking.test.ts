@@ -1,6 +1,8 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { authErrors } from "../../src/auth/requireAuth";
 import { signAccessToken } from "../../src/auth/tokens";
+import { commonErrors, errorBody } from "../../src/errors";
 import { Prisma } from "../../src/generated/prisma/client";
 import {
   createRequest,
@@ -9,6 +11,7 @@ import {
   getQueuedLocations,
   hasActiveMatch,
 } from "../../src/matchmaking/matchmaking.repository";
+import { matchmakingErrors } from "../../src/matchmaking/matchmaking.service";
 
 process.env.JWT_SECRET = "test-jwt-secret";
 const userId = "user-123";
@@ -67,7 +70,7 @@ describe("Mocked: /matchmaking requireAuth", () => {
     const response = await send();
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: "Missing auth token" });
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedCreateRequest).not.toHaveBeenCalled();
     expect(mockedDeleteRequest).not.toHaveBeenCalled();
     expect(mockedFindRequest).not.toHaveBeenCalled();
@@ -84,7 +87,7 @@ describe("Mocked: POST /matchmaking", () => {
 
   // Input: a player who already has a matched game coming up
   // Expected status code: 403
-  // Expected output: { error: "Already has a match" }, the player is not queued
+  // Expected output: already has a match error, the player is not queued
   test("Rejects a player who already has a match", async () => {
     mockedHasActiveMatch.mockResolvedValue(true);
 
@@ -94,7 +97,7 @@ describe("Mocked: POST /matchmaking", () => {
       .send(validBody());
 
     expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "Already has a match" });
+    expect(response.body).toEqual(errorBody(matchmakingErrors.ActiveMatch));
     expect(mockedHasActiveMatch).toHaveBeenCalledWith(userId, expect.any(Date));
     expect(mockedCreateRequest).not.toHaveBeenCalled();
   });
@@ -119,7 +122,7 @@ describe("Mocked: POST /matchmaking", () => {
 
   // Input: bodies with a bad format, an impossible location, a missing field or an extra field
   // Expected status code: 400
-  // Expected output: invalid body error, the queue is not touched
+  // Expected output: invalid request error with the failed checks, the queue is not touched
   test.each([
     ["an unknown format", { ...validBody(), format: "TRIPLES" }],
     ["a latitude above 90", { ...validBody(), latitude: 91 }],
@@ -133,7 +136,7 @@ describe("Mocked: POST /matchmaking", () => {
       .send(body);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request body");
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedCreateRequest).not.toHaveBeenCalled();
   });
 
@@ -149,7 +152,7 @@ describe("Mocked: POST /matchmaking", () => {
       .send(validBody());
 
     expect(response.status).toBe(409);
-    expect(response.body).toEqual({ error: "Already in the queue" });
+    expect(response.body).toEqual(errorBody(matchmakingErrors.AlreadyQueued));
   });
 
   // Input: the database fails
@@ -165,7 +168,7 @@ describe("Mocked: POST /matchmaking", () => {
       .send(validBody());
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });
@@ -203,7 +206,7 @@ describe("Mocked: DELETE /matchmaking", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -242,7 +245,7 @@ describe("Mocked: GET /matchmaking", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Not in the queue" });
+    expect(response.body).toEqual(errorBody(matchmakingErrors.NotQueued));
   });
 
   // Input: the database fails
@@ -257,7 +260,7 @@ describe("Mocked: GET /matchmaking", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });
@@ -302,7 +305,7 @@ describe("Mocked: GET /matchmaking/nearby", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Not in the queue" });
+    expect(response.body).toEqual(errorBody(matchmakingErrors.NotQueued));
     expect(mockedGetQueuedLocations).not.toHaveBeenCalled();
   });
 
@@ -319,7 +322,7 @@ describe("Mocked: GET /matchmaking/nearby", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

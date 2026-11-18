@@ -1,4 +1,5 @@
 import { issueTokens } from '../auth/auth.service';
+import { AppError, commonErrors, type ErrorDefinition } from '../errors';
 import { sendPush, type PushMessage } from '../external/fcm';
 import { validateToken } from './helpers/validateToken';
 import {
@@ -15,40 +16,40 @@ import {
 } from './users.repository';
 import type { CreateEquipmentInput, UpdateEquipmentInput } from './users.schemas';
 
-export const loginErrors = {
-  InvalidToken: 'Invalid Google ID token',
-  InvalidProfile: 'Google profile must include name and email',
-} as const;
+export const userErrors = {
+  InvalidGoogleToken: { status: 401, code: 'INVALID_GOOGLE_TOKEN', message: 'Invalid Google ID token' },
+  InvalidGoogleProfile: {
+    status: 400,
+    code: 'INVALID_GOOGLE_PROFILE',
+    message: 'Google profile must include name and email',
+  },
+  EquipmentNotFound: { status: 404, code: 'EQUIPMENT_NOT_FOUND', message: 'Equipment not found' },
+} satisfies Record<string, ErrorDefinition>;
 
-export type LoginError = (typeof loginErrors)[keyof typeof loginErrors];
-
-export type LoginResult =
-  | { success: false; error: LoginError }
-  | {
-      success: true;
-      isNewUser: boolean;
-      username: string;
-      accessToken: string;
-      refreshToken: string;
-    };
+export interface LoginResult {
+  isNewUser: boolean;
+  username: string;
+  accessToken: string;
+  refreshToken: string;
+}
 
 /**
  * Validates a Google ID token, finds or creates the user, and issues tokens.
  * @param idToken The user's Google ID token
- * @returns The login result, or a typed error when the token or profile is invalid
+ * @returns Whether the user is new, their username and their tokens
+ * @throws AppError 401 if the Google ID token is invalid, 400 if the Google profile has no name or email
  */
 export async function login(idToken: string): Promise<LoginResult> {
   const payload = await validateToken(idToken);
  
   if (!payload?.sub) {
-    return { success: false, error: loginErrors.InvalidToken };
+    throw new AppError(userErrors.InvalidGoogleToken);
   } 
 
   const existingUser = await getUserByGoogleSub(payload.sub);
   if (existingUser) {
     const tokens = await issueTokens(existingUser.id);
     return {
-      success: true,
       isNewUser: false,
       username: existingUser.username,
       ...tokens,
@@ -67,7 +68,7 @@ export async function login(idToken: string): Promise<LoginResult> {
   const email = payload.email?.trim() ?? '';
   const name = payload.name?.trim() ?? '';
   if (!email || !name) {
-    return { success: false, error: loginErrors.InvalidProfile };
+    throw new AppError(userErrors.InvalidGoogleProfile);
   }
 
   // ai thinks that email may not be a unique indentifier, but google literally guarantees that all emails are unique...
@@ -81,7 +82,6 @@ export async function login(idToken: string): Promise<LoginResult> {
 
   const tokens = await issueTokens(newUser.id);
   return {
-    success: true,
     isNewUser: true,
     username: newUser.username,
     ...tokens,
@@ -91,10 +91,15 @@ export async function login(idToken: string): Promise<LoginResult> {
 /**
  * Gets a user's profile, including their rating.
  * @param userId The signed-in user's ID
- * @returns The profile, or null if the user does not exist
+ * @returns The profile
+ * @throws AppError 404 if the user does not exist
  */
 export async function getProfile(userId: string) {
-  return await getUserById(userId);
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new AppError(commonErrors.UserNotFound);
+  }
+  return user;
 }
 
 /**
@@ -150,27 +155,33 @@ export async function addEquipment(userId: string, equipment: CreateEquipmentInp
  * @param userId The equipment owner
  * @param equipmentId The equipment record to update
  * @param equipment The validated fields to change
- * @returns The updated equipment, or null if no matching active record exists
+ * @returns The updated equipment
+ * @throws AppError 404 if no matching active record exists
  */
 export async function editEquipment(
   userId: string,
   equipmentId: number,
   equipment: UpdateEquipmentInput,
 ) {
-  return await updateEquipmentRecord(userId, equipmentId, {
+  const updated = await updateEquipmentRecord(userId, equipmentId, {
     ...(equipment.type === undefined ? {} : { type: equipment.type }),
     ...(equipment.name === undefined ? {} : { name: equipment.name }),
     ...(equipment.isDefault === undefined ? {} : { isDefault: equipment.isDefault }),
     ...(equipment.nextMaintenanceAt === undefined ? {} : { nextMaintenanceAt: equipment.nextMaintenanceAt }),
   });
+  if (!updated) {
+    throw new AppError(userErrors.EquipmentNotFound);
+  }
+  return updated;
 }
 
 /**
  * Retires one of the user's active equipment records.
  * @param userId The equipment owner
  * @param equipmentId The equipment record to retire
- * @returns Whether an active equipment record was retired
+ * @throws AppError 404 if no matching active record exists
  */
-export async function removeEquipment(userId: string, equipmentId: number) {
-  return await retireEquipmentRecord(userId, equipmentId);
+export async function removeEquipment(userId: string, equipmentId: number): Promise<void> {
+  const retired = await retireEquipmentRecord(userId, equipmentId);
+  if (!retired) throw new AppError(userErrors.EquipmentNotFound);
 }

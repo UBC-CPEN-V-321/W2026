@@ -1,4 +1,5 @@
 // New ratings after a game: reads the players' ratings, applies elo.ts, saves via ratings.repository.
+import { AppError, commonErrors } from "../errors";
 import { Format, Prisma } from "../generated/prisma/client";
 import { calculateELOChange } from "./elo";
 import { PlayerInfo, RatingChange, RoundScore, Sport } from "./ranking.types";
@@ -114,17 +115,18 @@ export async function getLeaderboard(
  * Gets a player's statistics: their rating and rank, game, set and point totals,
  * rating history and results against opponents of different ratings
  * @param userId the player whose statistics are requested
- * @returns the player's statistics, or null if the user does not exist
+ * @returns the player's statistics
+ * @throws AppError if the user does not exist
  */
 export async function getPlayerStats(
   userId: string,
-): Promise<PlayerStatsResponse | null> {
+): Promise<PlayerStatsResponse> {
   const [me, games] = await Promise.all([
     fetchLeaderboardUser(userId),
     fetchRatedGames(userId),
   ]);
   if (me === null) {
-    return null;
+    throw new AppError(commonErrors.UserNotFound);
   }
 
   return {

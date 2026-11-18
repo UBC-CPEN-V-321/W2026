@@ -7,9 +7,9 @@ import java.io.IOException
 
 /**
  * Turns a failed backend request into a message to show the user.
- * The backend sends `{ "error": "..." }`, and a 400 also has the failed checks in `details.fieldErrors`.
+ * The backend sends `{ "error": "...", "code": "..." }`, and a 400 also has the failed checks in `details.fieldErrors`.
  * Reads the error body, so call it once per error.
- * @return e.g. "Team is full" or "Invalid request body: round 2 is tied"
+ * @return e.g. "Team is full" or "Invalid request: round 2 is tied"
  */
 fun Throwable.toUserMessage(): String {
     return when (this) {

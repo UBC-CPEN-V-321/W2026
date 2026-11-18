@@ -6,6 +6,7 @@ import { courtsRouter } from "./courts/courts.controller";
 import { matchmakingRouter } from "./matchmaking/matchmaking.controller";
 import { leaderboardRouter, statsRouter } from "./ranking/ranking.controller";
 import { tournamentsRouter } from "./tournaments/tournaments.controller";
+import { AppError, commonErrors, errorHandler } from "./errors";
 
 export function createApp(): Express {
   const app = express();
@@ -32,9 +33,11 @@ export function createApp(): Express {
     res.json({ status: "ok" });
   });
 
-  app.use((_req, res) => {
-    res.status(404).json({ error: "Not Found" });
+  app.use(() => {
+    throw new AppError(commonErrors.RouteNotFound);
   });
+
+  app.use(errorHandler);
 
   return app;
 }

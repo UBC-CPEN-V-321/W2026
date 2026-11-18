@@ -1,5 +1,10 @@
+import { AppError, type ErrorDefinition } from '../errors';
 import { createRefreshToken, deleteRefreshTokenByHash, rotateRefreshToken } from './auth.repository';
 import { generateNewRefreshToken, hashRefreshToken, signAccessToken } from './tokens';
+
+export const refreshTokenErrors = {
+  Invalid: { status: 401, code: 'INVALID_REFRESH_TOKEN', message: 'Invalid or expired refresh token' },
+} satisfies Record<string, ErrorDefinition>;
 
 /**
  * Issues a new access token and refresh token for a user and stores the refresh token's hash
@@ -18,7 +23,8 @@ export async function issueTokens(userId: string): Promise<{ accessToken: string
  * Trades a refresh token for a new access token and refresh token.
  * The old refresh token is deleted, so each one only works once.
  * @param refreshToken the token given at login or by the last refresh
- * @returns the replacement tokens, or null if the supplied token is invalid
+ * @returns the replacement tokens
+ * @throws AppError 401 if the token was never issued, already used, logged out or expired
  */
 export async function refreshTokens(refreshToken: string) {
   const oldRefreshTokenHash = hashRefreshToken(refreshToken);
@@ -28,7 +34,7 @@ export async function refreshTokens(refreshToken: string) {
     expiresAt: newRefreshToken.expiresAt,
   });
   if (!userId) {
-    return null;
+    throw new AppError(refreshTokenErrors.Invalid);
   }
 
   const accessToken = signAccessToken(userId);

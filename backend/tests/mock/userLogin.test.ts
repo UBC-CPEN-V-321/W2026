@@ -3,8 +3,10 @@ import type { GoogleProfile } from '../../src/users/helpers/validateToken';
 import { createApp } from '../../src/app';
 import { createRefreshToken } from '../../src/auth/auth.repository';
 import { hashRefreshToken, verifyAccessToken } from '../../src/auth/tokens';
+import { commonErrors, errorBody } from '../../src/errors';
 import { validateToken } from '../../src/users/helpers/validateToken';
 import { createUser, getUserByGoogleSub } from '../../src/users/users.repository';
+import { userErrors } from '../../src/users/users.service';
 
 jest.mock('../../src/users/helpers/validateToken', () => ({
   validateToken: jest.fn(),
@@ -49,7 +51,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: '' });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.fieldErrors.idToken).toBeDefined();
     expect(mockedValidateToken).not.toHaveBeenCalled();
   });
@@ -58,7 +60,7 @@ describe('Mocked: POST /user/login', () => {
     const response = await request(createApp()).post('/user/login');
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.formErrors.length).toBeGreaterThan(0);
     expect(mockedValidateToken).not.toHaveBeenCalled();
   });
@@ -70,7 +72,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 123 });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(response.body.details.fieldErrors.idToken).toBeDefined();
     expect(mockedValidateToken).not.toHaveBeenCalled();
   });
@@ -84,7 +86,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'invalid-token' });
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Invalid Google ID token' });
+    expect(response.body).toEqual(errorBody(userErrors.InvalidGoogleToken));
     expect(mockedValidateToken).toHaveBeenCalledWith('invalid-token');
     expect(mockedGetUserByGoogleSub).not.toHaveBeenCalled();
   });
@@ -106,7 +108,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'mock-google-token' });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ error: 'Google profile must include name and email' });
+    expect(response.body).toEqual(errorBody(userErrors.InvalidGoogleProfile));
     expect(mockedCreateUser).not.toHaveBeenCalled();
   });
 
@@ -118,6 +120,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'mock-google-token' });
 
     expect(response.status).toBe(500);
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedGetUserByGoogleSub).not.toHaveBeenCalled();
   });
 
@@ -134,6 +137,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'mock-google-token' });
 
     expect(response.status).toBe(500);
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedCreateUser).not.toHaveBeenCalled();
   });
 
@@ -151,6 +155,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'mock-google-token' });
 
     expect(response.status).toBe(500);
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedCreateUser).toHaveBeenCalledTimes(1);
   });
 
@@ -168,6 +173,7 @@ describe('Mocked: POST /user/login', () => {
       .send({ idToken: 'mock-google-token' });
 
     expect(response.status).toBe(500);
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     expect(mockedCreateUser).toHaveBeenCalledTimes(1);
   });
 

@@ -1,6 +1,8 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
+import { authErrors } from "../../src/auth/requireAuth";
 import { signAccessToken } from "../../src/auth/tokens";
+import { commonErrors, errorBody } from "../../src/errors";
 import {
   fetchLeaderboard,
   fetchLeaderboardUser,
@@ -81,7 +83,7 @@ describe("Mocked: GET /leaderboard", () => {
 
   // Input: invalid limit values or unknown query parameters
   // Expected behavior: rejected before reaching the repository
-  // Expected output: 400
+  // Expected output: 400 invalid request error with the failed checks
   test.each([
     ["limit=0", { limit: 0 }],
     ["limit above the maximum", { limit: 101 }],
@@ -95,17 +97,18 @@ describe("Mocked: GET /leaderboard", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe("Invalid request query");
+    expect(response.body).toEqual(errorBody(commonErrors.InvalidRequest, expect.anything()));
     expect(mockedFetchLeaderboard).not.toHaveBeenCalled();
   });
 
   // Input: no Authorization header
   // Expected behavior: requireAuth rejects the request
-  // Expected output: 401
+  // Expected output: 401 missing token error
   test("Rejects a request without a token", async () => {
     const response = await request(createApp()).get("/leaderboard");
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedFetchLeaderboard).not.toHaveBeenCalled();
   });
 
@@ -122,7 +125,7 @@ describe("Mocked: GET /leaderboard", () => {
       .set("Authorization", authHeader);
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: "Internal server error" });
+    expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
   });
 });

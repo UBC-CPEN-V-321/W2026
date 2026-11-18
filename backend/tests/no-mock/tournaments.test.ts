@@ -3,6 +3,8 @@ import request from "supertest";
 import { createApp } from "../../src/app";
 import { signAccessToken } from "../../src/auth/tokens";
 import { prisma } from "../../src/db";
+import { errorBody } from "../../src/errors";
+import { gameErrors } from "../../src/games/games.service";
 import {
   Format,
   GameSource,
@@ -10,6 +12,7 @@ import {
   TournamentStatus,
 } from "../../src/generated/prisma/enums";
 import { ROUND_INTERVAL_MS } from "../../src/tournaments/bracket";
+import { tournamentErrors } from "../../src/tournaments/tournaments.service";
 
 // Runs the whole tournament flow against a real database: registration, the bracket draw, the games it books,
 // and the score reports that move winners on. The tests in this file run in order and share one tournament.
@@ -181,9 +184,7 @@ describe("Unmocked: tournament flow", () => {
       .set("Authorization", users[0]?.auth ?? "")
       .send({ tournamentId });
     expect(creatorLeaves.status).toBe(409);
-    expect(creatorLeaves.body).toEqual({
-      error: "The creator cannot leave the tournament, cancel it instead",
-    });
+    expect(creatorLeaves.body).toEqual(errorBody(tournamentErrors.CreatorCannotLeave));
 
     const playerLeaves = await request(app)
       .post("/tournaments/leave")
@@ -194,7 +195,7 @@ describe("Unmocked: tournament flow", () => {
 
     const again = await join(users[1]);
     expect(again.status).toBe(409);
-    expect(again.body).toEqual({ error: "User already registered" });
+    expect(again.body).toEqual(errorBody(tournamentErrors.AlreadyRegistered));
 
     expect(await prisma.tournamentPlayer.count({ where: { tournamentId } })).toBe(6);
   });
@@ -203,14 +204,14 @@ describe("Unmocked: tournament flow", () => {
   // Input: player 7 joins, then players 8 and 9 race for the last spot
   // Expected status code: exactly one 204 and one 409
   // Expected behavior: the tournament never has more than 8 players, and the winner's registration draws the bracket
-  // Expected output: { error: "Tournament is full" } for the player who lost the race
+  // Expected output: { error: "Tournament is full", code: "TOURNAMENT_FULL" } for the player who lost the race
   test("Gives the last spot to exactly one of two players joining at once", async () => {
     expect((await join(users[6])).status).toBe(204);
 
     const race = await Promise.all([join(users[7]), join(users[8])]);
 
     expect(race.map(({ status }) => status).sort()).toEqual([204, 409]);
-    expect(race.find(({ status }) => status === 409)?.body).toEqual({ error: "Tournament is full" });
+    expect(race.find(({ status }) => status === 409)?.body).toEqual(errorBody(tournamentErrors.Full));
     expect(await prisma.tournamentPlayer.count({ where: { tournamentId } })).toBe(8);
   });
 
@@ -293,11 +294,11 @@ describe("Unmocked: tournament flow", () => {
 
     const leaveGame = await request(app).post("/games/leave").set("Authorization", playerAuth).send({ gameId });
     expect(leaveGame.status).toBe(409);
-    expect(leaveGame.body).toEqual({ error: "Players cannot leave a tournament game" });
+    expect(leaveGame.body).toEqual(errorBody(gameErrors.TournamentNotLeavable));
 
     const deleteGame = await request(app).delete("/games").set("Authorization", playerAuth).query({ gameId });
     expect(deleteGame.status).toBe(409);
-    expect(deleteGame.body).toEqual({ error: "Tournament games cannot be cancelled" });
+    expect(deleteGame.body).toEqual(errorBody(gameErrors.TournamentNotCancellable));
 
     const leaveTournament = await request(app)
       .post("/tournaments/leave")
@@ -313,7 +314,7 @@ describe("Unmocked: tournament flow", () => {
   // Expected status code: 403, then 200, then 409
   // Expected behavior: only the quarterfinal's start time moves to now; the other quarterfinals keep the
   // tournament's start, and the next test checks the semifinals are still timed from it
-  // Expected output: the started game, then { error: "Game has already started" }
+  // Expected output: the started game, then { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
   test("Lets a quarterfinal's players start it early without moving the rest of the bracket", async () => {
     const details = await fetchDetails();
     const quarterfinal = matchAt(details.matches, 1, 0);
@@ -337,7 +338,7 @@ describe("Unmocked: tournament flow", () => {
 
     const again = await startGame(playerAuth);
     expect(again.status).toBe(409);
-    expect(again.body).toEqual({ error: "Game has already started" });
+    expect(again.body).toEqual(errorBody(gameErrors.AlreadyStarted));
 
     const others = await prisma.game.findMany({
       where: { tournamentMatch: { tournamentId, round: 1 }, id: { not: gameId } },
@@ -449,6 +450,6 @@ describe("Unmocked: tournament flow", () => {
     expect(feed.body.tournaments.map(({ id }: { id: string }) => id)).not.toContain(doublesId);
     const lateJoin = await join(users[3], doublesId);
     expect(lateJoin.status).toBe(409);
-    expect(lateJoin.body).toEqual({ error: "Tournament is not open for registration" });
+    expect(lateJoin.body).toEqual(errorBody(tournamentErrors.NotOpen));
   });
 });

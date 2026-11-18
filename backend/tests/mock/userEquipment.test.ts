@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
+import { authErrors } from '../../src/auth/requireAuth';
 import { signAccessToken } from '../../src/auth/tokens';
+import { commonErrors, errorBody } from '../../src/errors';
 import type { Equipment } from '../../src/generated/prisma/client';
 import {
   createEquipment,
@@ -8,6 +10,7 @@ import {
   retireEquipment,
   updateEquipment,
 } from '../../src/users/users.repository';
+import { userErrors } from '../../src/users/users.service';
 
 jest.mock('../../src/users/users.repository', () => ({
   createEquipment: jest.fn(),
@@ -62,6 +65,7 @@ describe('Mocked: /user/equipment', () => {
     const response = await request(createApp()).get('/user/equipment');
 
     expect(response.status).toBe(401);
+    expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedListEquipment).not.toHaveBeenCalled();
   });
 
@@ -104,7 +108,7 @@ describe('Mocked: /user/equipment', () => {
       .send({ type: 'UNKNOWN', name: '' });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('Invalid request body');
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
     expect(mockedCreateEquipment).not.toHaveBeenCalled();
   });
 
@@ -147,7 +151,7 @@ describe('Mocked: /user/equipment', () => {
       .send({ name: 'Other racket' });
 
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'Equipment not found' });
+    expect(response.body).toEqual(errorBody(userErrors.EquipmentNotFound));
   });
 
   test('Retires owned equipment', async () => {
@@ -159,5 +163,26 @@ describe('Mocked: /user/equipment', () => {
 
     expect(response.status).toBe(204);
     expect(mockedRetireEquipment).toHaveBeenCalledWith(userId, 1);
+  });
+
+  test('Returns not found when retiring equipment the user does not own', async () => {
+    mockedRetireEquipment.mockResolvedValue(false);
+
+    const response = await request(createApp())
+      .delete('/user/equipment/1')
+      .set('Authorization', authorizationHeader());
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual(errorBody(userErrors.EquipmentNotFound));
+  });
+
+  test('Rejects an invalid equipment ID', async () => {
+    const response = await request(createApp())
+      .delete('/user/equipment/abc')
+      .set('Authorization', authorizationHeader());
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject(errorBody(commonErrors.InvalidRequest));
+    expect(mockedRetireEquipment).not.toHaveBeenCalled();
   });
 });

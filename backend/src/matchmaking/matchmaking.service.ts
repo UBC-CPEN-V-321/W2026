@@ -1,3 +1,4 @@
+import { AppError, type ErrorDefinition, mapPrismaErrors } from '../errors';
 import { GameSource, GameStatus, type Format, type FormatPreference } from '../generated/prisma/enums';
 import {
   cancelMatchesStartingBefore,
@@ -71,7 +72,13 @@ export interface NearbyPlayers {
   players: Location[];
 }
 
-export class ActiveMatchError extends Error {}
+export const matchmakingErrors = {
+  // 403, not 409: the app treats 409 as already being in the queue
+  ActiveMatch: { status: 403, code: 'ALREADY_HAS_MATCH', message: 'Already has a match' },
+  // userId is the queue's primary key, so a second entry for the same player fails
+  AlreadyQueued: { status: 409, code: 'ALREADY_IN_QUEUE', message: 'Already in the queue' },
+  NotQueued: { status: 404, code: 'NOT_IN_QUEUE', message: 'Not in the queue' },
+} satisfies Record<string, ErrorDefinition>;
 
 const FORMAT_RULES: FormatRule[] = [
   { format: 'SINGLES', size: 2, maxRatingSpread: 200 },
@@ -304,12 +311,12 @@ async function notifyMatchExpired(match: CancelledMatch): Promise<void> {
  * @param userId - The player joining.
  * @param input - The format and where they want to play.
  * @returns The new queue entry.
- * @throws Prisma P2002 if the player is already in the queue; they have to leave first.
- * @throws ActiveMatchError if the player has a matched game waiting for answers, or booked and not started.
+ * @throws AppError if the player is already in the queue; they have to leave first.
+ * @throws AppError if the player has a matched game waiting for answers, or booked and not started.
  */
 export async function joinQueue(userId: string, input: JoinQueueInput): Promise<QueueEntry> {
-  if (await hasActiveMatch(userId, new Date())) throw new ActiveMatchError();
-  return await createRequest(userId, input);
+  if (await hasActiveMatch(userId, new Date())) throw new AppError(matchmakingErrors.ActiveMatch);
+  return await mapPrismaErrors(createRequest(userId, input), { P2002: matchmakingErrors.AlreadyQueued });
 }
 
 /**
@@ -323,10 +330,13 @@ export async function leaveQueue(userId: string): Promise<void> {
 
 /**
  * @param userId - The player to look up.
- * @returns Their queue entry, or null once they left or were matched.
+ * @returns Their queue entry.
+ * @throws AppError if they are not in the queue, e.g. once they left or were matched.
  */
-export async function getQueueEntry(userId: string): Promise<QueueEntry | null> {
-  return await findRequest(userId);
+export async function getQueueEntry(userId: string): Promise<QueueEntry> {
+  const entry = await findRequest(userId);
+  if (entry === null) throw new AppError(matchmakingErrors.NotQueued);
+  return entry;
 }
 
 /**
@@ -356,11 +366,11 @@ export function playersNear(center: Location, others: Location[]): Location[] {
  * The list has no names or ids, only rounded points.
  *
  * @param userId - The player asking.
- * @returns Where the player is searching and the players near them, or null if they are not in the queue.
+ * @returns Where the player is searching and the players near them.
+ * @throws AppError if the player is not in the queue.
  */
-export async function getNearbyPlayers(userId: string): Promise<NearbyPlayers | null> {
-  const entry = await findRequest(userId);
-  if (entry === null) return null;
+export async function getNearbyPlayers(userId: string): Promise<NearbyPlayers> {
+  const entry = await getQueueEntry(userId);
   const center = { latitude: entry.latitude, longitude: entry.longitude };
   const others = await getQueuedLocations(userId);
   return { center, players: playersNear(center, others) };
