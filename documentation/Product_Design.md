@@ -95,7 +95,7 @@ In tennis, a round is a **set** and its score counts **games** (e.g. 6–4).
 
 - Every player has one rating, starting at **1500**.
 - Ratings use **Elo with margin of victory**: the rating change depends on both the win/loss result and on whether the side won by more or less than expected.
-- **Doubles:** a team's rating is the average of its two players' ratings. Each player on a team receives **half of the team's rating change**, so both teammates move by the same amount.
+- **Doubles:** a team's rating is the average of its two players' ratings. Each player on a team receives **half of the team's rating change**, calculated with their own `K`, so teammates with the same number of games move by the same amount.
 
 ### 7.2. Formula
 
@@ -118,11 +118,15 @@ R_B'  = R_B - Δ
 - `400` is the standard Elo scale: a 400-point gap gives the stronger side 10-to-1 odds of winning. Changing it would only rescale stored ratings.
 - Because of the margin term, a heavy favorite who wins by less than expected can lose a small amount of rating.
 
+`K` depends on how many rated (completed) games the player has played before this one, `N`, so new players reach their real rating faster and established ratings stay stable. Each player uses their own `K` (in doubles, each player gets half of `K_player * (S_A - E_A) + λ * ΔMOV`), so a game is only zero-sum when every player has the same `K`.
+
 The tennis parameters are:
 
 | `K` (kFactor) | `α` (maxExpectedMargin) | `β` (marginGrowthRate) | `λ` (marginWeight) |
 | --- | --- | --- | --- |
-| 50 | 6 | 0.0025 | 1.5 |
+| `250 / (N + 5)^0.4` (≈131 new, ≈85 after 10 games, ≈39 after 100) | 6 | 0.0025 | 1.5 |
+
+The code also holds the parameters for when other sports are added: badminton `K = 32`, `α = 15`, `β = 0.005`, `λ = 0.5`; pickleball `K = 120` for a player's first 8 games and `60` after, `α = 8`, `β = 0.0025`, `λ = 1`.
 
 Players can be listed in any order; each player's `team` decides which side they are on.
 
@@ -131,7 +135,7 @@ A game is rejected, and no rating changes, if:
 - the player count doesn't match the format (2 for singles, 4 for doubles),
 - the players aren't split evenly between the two teams,
 - the same player appears more than once,
-- any player's rating is not a finite number,
+- any player's rating is not a finite number, or games-played count is not a non-negative whole number,
 - it has no rounds,
 - any round score is not a non-negative whole number,
 - any round is tied, or

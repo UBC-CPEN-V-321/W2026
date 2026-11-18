@@ -15,6 +15,7 @@
 | Nov 3, 2026 | 4.1 | Added `POST /games/invite`, and updated `DELETE /games` for matched games. |
 | Nov 3, 2026 | All | Shortened the document and matched it to the code: token auth (`/user/refresh`, `/user/logout`), equipment, location-based matchmaking (`/matchmaking`, `POST /games/accept`, the deadline job), no game owner, and the libraries in use. Unbuilt parts are marked *(planned)*. |
 | Nov 3, 2026 | 3.1, 3.3, 3.5 (Use Case 4), 4.3 | A scheduled game's court is picked from a list; the map shows a matched game's court. |
+| Nov 18, 2026 | 4.1 | The ELO K-factor depends on each player's number of rated games (`calculateKFactor`), counted by `applyGameResult`. |
 
 ---
 
@@ -316,9 +317,9 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Rationale**: Our own computation, kept as a pure, unit-tested function, and the only code that writes ratings.
     - **Interfaces**:
         1. `RatingChange[] applyGameResult(tx, gameId, format, rounds)` - In
-            - **Purpose**: Called by Games in the final-score transaction: locks the players' ratings, calculates and saves the changes, and records each rating before and after. Throws if a team isn't full, which rolls everything back.
-        2. `RatingChange[] calculateELOChange(players, game)` - In
-            - **Purpose**: The pure ELO calculation.
+            - **Purpose**: Called by Games in the final-score transaction: locks the players' ratings, counts each player's rated games (`game_users` rows with `ratingAfter` set), calculates and saves the changes, and records each rating before and after. Throws if a team isn't full, which rolls everything back.
+        2. `RatingChange[] calculateELOChange(players, game)`, `number calculateKFactor(sport, gamesPlayed)` - In
+            - **Purpose**: The pure ELO calculation. Each player's K comes from their own number of rated games, so new players move faster (tennis `K = 250 / (gamesPlayed + 5)^0.4`; see Product_Design.md §7.2).
         3. `GET /leaderboard` with optional `limit` (1–100, default 50) → `{ leaderboard, me }` - E
             - **Purpose**: The top players and the caller's entry, each `{ rank, id, username, name, rating }`. Ranked by full rating, ties by username.
 5. **Tournaments**

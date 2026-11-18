@@ -11,6 +11,7 @@
 | 11-03-2026        | 2.1.1                 | Added tests for `POST /games/invite`, and for `deleteGame` removing a game's players, rounds and equipment |
 | 11-03-2026        | 2.1, 3, 4             | Listed the existing tests of the user, matchmaking, accept and leaderboard routes, the deadline job and `requireAuth`; set the commit and clone URL; replaced the template examples in 3 and 4 with what exists |
 | 11-03-2026        | 4.2                   | Added the end-to-end test of Use Case 4 (create a scheduled match), with its steps and log |
+| 11-18-2026        | 2.1.1                 | Updated the ELO unit tests (`elo.test.ts`) and `ranking.service.test.ts` for the K-factor that depends on games played, and added tests of `calculateKFactor` |
 
 ---
 
@@ -59,7 +60,7 @@
 | **POST /friends/requests/accept** | ...                                              | [`tests/mock/friends.test.ts`](#)                  | Friendship DB                      |
 | **DELETE /friends**           | ...                                                  | [`tests/mock/friends.test.ts`](#)                  | Friendship DB                      |
 
-The rows that cite `tests/no-mock/tournaments.test.ts` run in its `Unmocked: tournament flow` describe group, against a real, migrated Postgres database (see 2.1.3). `tests/no-mock/requireAuth.test.ts` checks the `Authorization` header that every route except login, refresh and logout requires, and `tests/no-mock/health.test.ts` checks `GET /health` and unknown routes. Pure logic is unit tested in `tests/unit/`: the bracket rules (`bracket.test.ts`), ELO (`elo.test.ts`), distances (`geo.test.ts`), matching (`matchmaking.service.test.ts`) and tokens (`tokens.test.ts`).
+The rows that cite `tests/no-mock/tournaments.test.ts` run in its `Unmocked: tournament flow` describe group, against a real, migrated Postgres database (see 2.1.3). `tests/no-mock/requireAuth.test.ts` checks the `Authorization` header that every route except login, refresh and logout requires, and `tests/no-mock/health.test.ts` checks `GET /health` and unknown routes. Pure logic is unit tested in `tests/unit/`: the bracket rules (`bracket.test.ts`), ELO and its K-factor (`elo.test.ts`), distances (`geo.test.ts`), matching (`matchmaking.service.test.ts`) and tokens (`tokens.test.ts`).
 
 #### 2.1.2. Commit Hash Where Tests Run
 
