@@ -29,13 +29,14 @@ function assertLocalTarget() {
   }
 }
 
-function startOfNextHour(base) {
-  return new Date(Math.ceil(base.getTime() / HOUR_MS) * HOUR_MS);
-}
-
-/** Event n starts n + 1 days from now and is n * 0.1 km north of UBC, so lower n scores higher. */
+/**
+ * Event n starts at 03:00 UTC (7 or 8 PM in Vancouver) n + 2 days from today, and is n * 0.1 km
+ * north of UBC, so lower n scores higher. The fixed evening time keeps the end time (start + 2 hours)
+ * in the evening, which the invalid-end-time E2E test relies on.
+ */
 function buildEvent(category, label, n, base) {
-  const start = new Date(startOfNextHour(base).getTime() + (n + 1) * DAY_MS);
+  const todayUtc = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
+  const start = new Date(todayUtc + (n + 2) * DAY_MS + 3 * HOUR_MS);
   const padded = String(n).padStart(2, '0');
   return {
     externalId: `${EVENT_ID_PREFIX}${label}-${padded}`,
