@@ -81,19 +81,29 @@ private fun buildAvatarNode(
     modelFile: File,
     garments: Map<ClothingCategory, File>,
     state: AvatarSceneState,
-): ModelNode = ModelNode(modelInstance = modelLoader.createModelInstance(modelFile)).apply {
-    position = Position(0f, 0f, 0f)
-    cacheInitialPartTransforms(this, state)
-    garments.entries
-      .sortedBy { (category, _) -> if (category == ClothingCategory.Bottom) 0 else 1 }
-      .forEach { (category, file) ->
-        val priority = if (category == ClothingCategory.Bottom) BOTTOM_RENDER_PRIORITY else TOP_RENDER_PRIORITY
-        val gNode = ModelNode(modelInstance = modelLoader.createModelInstance(file)).apply {
-            renderableNodes.forEach { it.setPriority(priority) }
-        }
+): ModelNode {
+    val avatarNode = ModelNode(modelInstance = modelLoader.createModelInstance(modelFile))
+    avatarNode.position = Position(0f, 0f, 0f)
+    cacheInitialPartTransforms(avatarNode, state)
+
+    val sortedGarments = garments.entries.sortedBy { if (it.key == ClothingCategory.Bottom) 0 else 1 }
+    for ((category, file) in sortedGarments) {
+        val gNode = buildGarmentNode(modelLoader, category, file)
         state.garmentNodes[category] = gNode
-        addChildNode(gNode)
-      }
+        avatarNode.addChildNode(gNode)
+    }
+    return avatarNode
+}
+
+private fun buildGarmentNode(
+    modelLoader: ModelLoader,
+    category: ClothingCategory,
+    file: File,
+): ModelNode {
+    val priority = if (category == ClothingCategory.Bottom) BOTTOM_RENDER_PRIORITY else TOP_RENDER_PRIORITY
+    val node = ModelNode(modelInstance = modelLoader.createModelInstance(file))
+    node.renderableNodes.forEach { it.setPriority(priority) }
+    return node
 }
 
 private fun cacheInitialPartTransforms(avatarNode: ModelNode, state: AvatarSceneState) {
