@@ -330,7 +330,8 @@ describe("Unmocked: tournament flow", () => {
     const started = await startGame(playerAuth);
     expect(started.status).toBe(200);
     expect(started.body.game).toMatchObject({ id: gameId, status: GameStatus.BOOKED });
-    const startedAt = new Date(started.body.game.startsAt).getTime();
+    const { startsAt: startedAtIso } = started.body.game as { startsAt: string };
+    const startedAt = new Date(startedAtIso).getTime();
     expect(startedAt).toBeGreaterThanOrEqual(before);
     expect(startedAt).toBeLessThanOrEqual(Date.now());
 
