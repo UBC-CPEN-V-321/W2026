@@ -20,12 +20,13 @@
 | 2026-11-15 | 2 | Re-ran the back-end interface tests at commit `6533060` and replaced the coverage screenshots, commit hash and test counts (629 tests: 95 with mocks, 534 without). Added that `routes/users.ts` has full coverage. |
 | 2026-11-15 | 2 | Added the interface tests of the profile routes, `GET /api/users/me` and `PATCH /api/users/me`, and listed the existing `GET /api/users/:id/reputation` tests. A body over 4 KB to `/api/users` now returns 413 instead of 500. |
 | 2026-11-14 | 2 | Added the Messaging coverage: which files are at 100%, a test for a conversation about a post saved before posts had names, and why the one remaining branch in `routes/conversations.ts` and `routes/paging.ts` cannot be reached. |
+| 2026-11-17 | 2, 3 | Added the interface tests of the Matching component, `GET /api/feed`, `GET /api/feed/listings` and `GET /api/feed/requests`, and why the two remaining branches in `matching/rank.ts` and `matching/satisfies.ts` cannot be reached. Added the NFR 1 test, feed ranking latency, with its verification and logs. |
 
 ---
 
 ## 2. Back-end Test Specification: APIs
 
-This section covers the Deals and Messaging components and the profile routes of the Users component ([Section 4.1](Requirements_and_Design.md#41-main-components)). Tests for the other components will be added here as they are written.
+This section covers the Deals, Messaging and Matching components and the profile routes of the Users component ([Section 4.1](Requirements_and_Design.md#41-main-components)). Tests for the other components will be added here as they are written.
 
 ### 2.1. Locations of Back-end Tests and Instructions to Run Them
 
@@ -49,6 +50,9 @@ This section covers the Deals and Messaging components and the profile routes of
 | **GET /api/users/me** | [`tests/no-mock/users.test.ts#L77`](../backend/tests/no-mock/users.test.ts#L77) | [`tests/mock/users.test.ts#L41`](../backend/tests/mock/users.test.ts#L41) | Users DB |
 | **PATCH /api/users/me** | [`tests/no-mock/users.test.ts#L127`](../backend/tests/no-mock/users.test.ts#L127) | [`tests/mock/users.test.ts#L57`](../backend/tests/mock/users.test.ts#L57) | Users DB |
 | **GET /api/users/:id/reputation** | [`tests/no-mock/reputation.test.ts#L34`](../backend/tests/no-mock/reputation.test.ts#L34) | [`tests/mock/reputation.test.ts#L32`](../backend/tests/mock/reputation.test.ts#L32) | Reputations DB |
+| **GET /api/feed** | [`tests/no-mock/feed.test.ts#L95`](../backend/tests/no-mock/feed.test.ts#L95), ranking in [`tests/no-mock/feedRanking.test.ts#L80`](../backend/tests/no-mock/feedRanking.test.ts#L80) | [`tests/mock/feed.test.ts#L57`](../backend/tests/mock/feed.test.ts#L57) | OpenRouteService, Listings DB, Requests DB |
+| **GET /api/feed/listings** | [`tests/no-mock/feed.test.ts#L514`](../backend/tests/no-mock/feed.test.ts#L514) | [`tests/mock/feed.test.ts#L231`](../backend/tests/mock/feed.test.ts#L231) | Listings DB |
+| **GET /api/feed/requests** | [`tests/no-mock/feed.test.ts#L537`](../backend/tests/no-mock/feed.test.ts#L537) | [`tests/mock/feed.test.ts#L248`](../backend/tests/mock/feed.test.ts#L248) | Requests DB |
 
 The mocked tests use `jest.spyOn` on one store method at a time, so each database failure is forced on its own. Both groups otherwise run against a real MongoDB.
 
@@ -59,6 +63,7 @@ How the Messaging conversation tests are organized:
 - **Accepting a proposal** writes in steps: it records the deal, closes the posts, then marks the proposal accepted. In the mocked group, each of its eight store calls fails once, and the test then accepts again without the mock and checks that the retry finishes the deal: exactly one deal, both posts closed and the proposal accepted. The unmocked group sets up an accept that stopped partway directly in the database and checks that accepting again finishes it, and that a deal on the same posts with someone else, or at another price, still returns 409. MongoDB rejecting a deal because another accept saved one first is mocked, since the API cannot time two accepts that precisely.
 - **Live updates.** `GET /api/events` keeps its response open, so `tests/helpers/eventStream.ts` opens it as a real HTTP client and records what the server writes. The unmocked group checks that each new message and each proposal change reaches every open stream of the other user, and never the sender or users outside the conversation. The mocked group fakes `setInterval` with Jest, so 25 seconds pass at once, to check the heartbeat and that closing a stream clears its timer: time is the one dependency these tests cannot control.
 - **Profile routes.** `GET /api/users/me` and `PATCH /api/users/me` are tested in `tests/no-mock/users.test.ts` and `tests/mock/users.test.ts`. Every rejected address change, including a body over the 4 KB limit, also checks that the saved address is unchanged. The `Body Over 4 KB: 413` test was written first, failed with a 500, and passes since `/api/users` uses the same body-size handler as the ratings and conversation routes.
+- **Matching feed.** The unmocked `GET /api/feed` group runs without an OpenRouteService key, so it never calls the routing service. It checks every hard requirement (category, radius, price, condition, dimensions in any orientation, text ignoring case, yes/no fields), that a listing's feed holds exactly the requests it meets, paging in rank order, the feed filters (a filter looser than the post's own requirement is ignored), and every 400, 403, 404 and 409. `feedRanking.test.ts` checks the scores. The mocked group fakes OpenRouteService with `jest.spyOn(global, 'fetch')` to check travel times, each travel mode, and that the feed still returns its ranked matches when the service fails, is rate-limited or answers with something unusable; it also makes each store method the feed calls reject in turn. `GET /api/feed/listings` and `GET /api/feed/requests` share their code, so `browseTests` in `tests/no-mock/feed.test.ts` runs the same cases for both, and each has its own price test.
 - **Known limitation.** If saving a message works but updating the conversation's last message fails, the conversations list shows the previous message until the next one is sent. Fixing it needs a MongoDB transaction, which needs a replica set. The mocked test `recordMessage Throws, Next Message Repairs The Last Message` checks that the next message corrects it.
 
 **Test-only routes for the end-to-end tests.** The front-end tests in Section 4 create their data through these routes. They exist only when the backend runs with `ENABLE_E2E_ROUTES=true`, and only touch made-up users tied to the caller: an "E2E Buyer" for deals and an "E2E Seller" for conversations. The `/api/e2e/partner/conversations` routes are the real conversation and proposal routes run as the E2E Seller, so the tests can play the second user through the same code; their full behaviour is tested with the Messaging routes.
@@ -148,13 +153,16 @@ For Messaging, combined coverage is 100% for statements, lines, functions and br
 
 For the profile routes, combined coverage is 100% for statements, lines, functions and branches in `routes/users.ts`.
 
+For Matching, combined coverage is 100% for statements, lines, functions and branches in `routes/feed.ts`, `routes/feedFilter.ts`, `matching/distance.ts` and `matching/travelTime.ts`.
+
 | **File** | **Statements** | **Branches** | **Reason** |
 | -------- | -------------- | ------------ | ---------- |
 | `routes/deals.ts` | 100% | 93.61% | Three defensive branches cannot be reached through the API. Line 41: a stored post always has an `id`. Line 71: Express always gives `req.query` as an object. Line 97: every listing has at least one photo, because the validator requires it. Each one keeps the code safe with the optional types, so removing it would not simplify the logic. |
 | `routes/conversations.ts` | 100% | 98.83% | One defensive branch cannot be reached through the API. Line 94: `byId` skips a post without an `id`, but the store's `findByIds` always returns each post's `id`; the check is there because the store's return type makes every field optional. |
 | `routes/paging.ts` | 100% | 95.83% | One defensive branch cannot be reached through the API. Line 41: `parsePageQuery` falls back to no parameters if the query is not an object, but Express always gives `req.query` as an object. The same check in `routes/deals.ts` is justified above. |
 | `store/mongoStore.ts` | 74.39% | 60.71% | The three Deals store classes (`MongoDealCollection`, `MongoRatingCollection` and `MongoReputationCollection`) reach every line and branch. The uncovered code belongs to other components: options, custom fields, users, sessions, and parts of the post collection. |
-| `routes/feed.ts` | 73.73% | 44.64% | The two Deals routes, `GET /api/feed/listings/:id` and `GET /api/feed/requests/:id`, are fully covered, including the `one()` helper. The uncovered code is the Matching feed's filtering and paging. |
+| `matching/rank.ts` | 98.18% | 96.29% | One defensive branch cannot be reached through the API. Lines 59–60 (line 39 in the coverage report, which numbers the compiled JavaScript): `normaliseWeights` counts the four parts equally when every weight is 0, but the feed always ranks with `DEFAULT_WEIGHTS` (3, 3, 3, 3) until users can save ranking preferences. |
+| `matching/satisfies.ts` | 97.91% | 97.14% | One defensive branch cannot be reached through the API. Lines 87–88 (line 83 in the coverage report): `satisfies` rejects a listing in another category, but the feed only fetches candidates in the post's category (`listOpenInCategory`). The check keeps the rule complete on its own, so a listing is in a request's feed exactly when the request is in the listing's. |
 | `errors.ts` | 75.86% | 58.33% | The handler is shared by the whole back-end. Every path the Deals routes use is covered. The uncovered paths are the `errorMessage` log helper, a response that has already started, a duplicate field in a post, and a document the database validator rejects. Deals input is checked before it reaches the database, so the Deals routes do not reach them. |
 | `app.ts`, `sessions.ts` | about 60% | below 64% | Shared start-up and auth code. The Deals tests cover the routes they use and `requireAuth`; the rest is sign-in and session refresh, which belong to Users and Auth. |
 
@@ -166,11 +174,19 @@ For the profile routes, combined coverage is 100% for statements, lines, functio
 
 | **Non-Functional Requirement** | **Location in Git** |
 | ------------------------------ | ------------------- |
+| **NFR 1: Feed ranking latency** | [`backend/tests/nfr/feedLatency.test.ts`](../backend/tests/nfr/feedLatency.test.ts) |
 | **NFR 2: Graceful degradation without the routing service** | [`backend/tests/nfr/routingFallback.test.ts`](../backend/tests/nfr/routingFallback.test.ts) |
 
-The test for NFR 1, feed ranking latency, has not been added yet. Run the NFR tests with `./scripts/run-backend-nfr-tests.sh`.
+Run the NFR tests with `./scripts/run-backend-nfr-tests.sh`.
 
 ### 3.2. Test Verification and Logs
+
+**NFR 1:** the test saves 1,000 of another user's open chair listings, all meeting the hard requirements of my chair request, with varied prices, conditions, places, brands and colours, so every one is scored on each request. The request has a hard maximum price and soft preferences for condition, brand and colour. Without an OpenRouteService key, as NFR 1 excludes the travel-time lookup, it sends one warm-up request and then 100 `GET /api/feed?postId=<id>` requests one after another through Supertest. It checks that each returns 20 matches and the next cursor, takes the 95th percentile of the 100 response times, and checks that it is under 1 second. It logs the measured times:
+
+```
+NFR 1: 100 requests, 1000 candidates: p50 43.0 ms, p95 45.0 ms, max 65.4 ms, mean 41.5 ms (limit 1000 ms at p95)
+Tests:       1 passed, 1 total
+```
 
 **NFR 2:** the test mocks a routing service that never answers. It checks that `GET /api/feed` abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds) and returns the ranked match with `travelMinutes` null and `travelTimesAvailable` false in under 3 seconds.
 

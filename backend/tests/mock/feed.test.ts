@@ -7,6 +7,7 @@ import * as travelTime from '../../src/matching/travelTime';
 import { ORS_MATRIX_URL, orsProfile, type TravelMode } from '../../src/matching/travelTime';
 import type { GeoPoint } from '../../src/models/common';
 import { ME, OTHER, bearer, clearDealData, makeListing, makeRequest } from '../helpers/dealFixtures';
+import { expectServerError, rejecting } from '../helpers/storeFailures';
 import { startTestApp, stopTestApp } from '../helpers/testApp';
 import { createTestStore, type TestStore } from '../helpers/testStore';
 
@@ -199,5 +200,63 @@ describe('Mocked: GET /api/feed', () => {
     });
     expect(noMatches.body).toMatchObject({ matches: [], travelTimesAvailable: false });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // Mocked behavior: requests.findById, listings.findById, listings.listOpenInCategory or
+  // requests.listOpenInCategory rejects, as when MongoDB is unreachable
+  // Input: the id of my open request (or, for requests.listOpenInCategory, my open listing), which a listing matches
+  // Expected status code: 500
+  // Expected behavior: the error is handled, nothing is ranked and the routing service is not called
+  // Expected output: { error: 'Internal Server Error' }
+  test.each([
+    { label: 'requests.findById', source: 'request', fail: () => rejecting(mongo.store.requests, 'findById') },
+    { label: 'listings.findById', source: 'listing', fail: () => rejecting(mongo.store.listings, 'findById') },
+    { label: 'listings.listOpenInCategory', source: 'request', fail: () => rejecting(mongo.store.listings, 'listOpenInCategory') },
+    { label: 'requests.listOpenInCategory', source: 'listing', fail: () => rejecting(mongo.store.requests, 'listOpenInCategory') },
+  ])('$label Throws: 500', async ({ source, fail }: { label: string; source: string; fail: () => jest.SpyInstance }) => {
+    const { requestId } = await makeFeed();
+    const myListing = await makeListing(mongo.store, ME);
+    await makeRequest(mongo.store, OTHER);
+    const spy = fail();
+    const fetchSpy = jest.spyOn(global, 'fetch');
+
+    const response = await getFeed(`postId=${source === 'request' ? requestId : myListing.id}`);
+
+    expectServerError(response, spy);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// Interface GET /api/feed/listings
+describe('Mocked: GET /api/feed/listings', () => {
+  // Mocked behavior: listings.listOpen rejects, as when MongoDB is unreachable
+  // Input: GET /api/feed/listings with a valid filter
+  // Expected status code: 500
+  // Expected behavior: the error is handled and no posts are returned
+  // Expected output: { error: 'Internal Server Error' }
+  test('listOpen Throws: 500', async () => {
+    await makeFeed();
+    const spy = rejecting(mongo.store.listings, 'listOpen');
+
+    const response = await request(app).get('/api/feed/listings?category=chair').set('Authorization', bearer(ME));
+
+    expectServerError(response, spy);
+  });
+});
+
+// Interface GET /api/feed/requests
+describe('Mocked: GET /api/feed/requests', () => {
+  // Mocked behavior: requests.listOpen rejects, as when MongoDB is unreachable
+  // Input: GET /api/feed/requests with a valid filter
+  // Expected status code: 500
+  // Expected behavior: the error is handled and no posts are returned
+  // Expected output: { error: 'Internal Server Error' }
+  test('listOpen Throws: 500', async () => {
+    await makeFeed();
+    const spy = rejecting(mongo.store.requests, 'listOpen');
+
+    const response = await request(app).get('/api/feed/requests?category=chair').set('Authorization', bearer(ME));
+
+    expectServerError(response, spy);
   });
 });
