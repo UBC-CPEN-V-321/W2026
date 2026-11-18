@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from '../../../src/app';
 import * as gamesDb from '../../../src/game/db/games';
 import * as ratingsDb from '../../../src/review/db/ratings';
+import * as reputationDb from '../../../src/review/db/reputation';
 import type * as MockEnv from '../mockEnv';
 import {
   api,
@@ -98,7 +99,7 @@ describe('Mocked: GET /api/users/me/stats', () => {
   test('Returns the signed in user\'s score', async () => {
     const player = testPlayer();
     const token = signIn(player);
-    const getReputationScore = jest.spyOn(ratingsDb, 'getReputationScore').mockResolvedValue(4.2);
+    const getReputationScore = jest.spyOn(reputationDb, 'getReputationScore').mockResolvedValue(4.2);
 
     const response = await api.get('/api/users/me/stats').set(withToken(token));
 
@@ -113,7 +114,7 @@ describe('Mocked: GET /api/users/me/stats', () => {
   // Expected behavior: no score is read
   // Expected output: an error
   test('Needs a signed in user', async () => {
-    const getReputationScore = jest.spyOn(ratingsDb, 'getReputationScore').mockResolvedValue(4.2);
+    const getReputationScore = jest.spyOn(reputationDb, 'getReputationScore').mockResolvedValue(4.2);
 
     const response = await request(createApp()).get('/api/users/me/stats');
 

@@ -110,30 +110,16 @@ fun ProfileScreen(state: ProfileUiState, actions: ProfileActions, modifier: Modi
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)
         ) {
             ProfileHeader(canEdit = profile != null, onEdit = actions.onEdit)
-
-            if (state.isLoading) {
-                LinearProgressIndicator(
-                    color = SportsPrimary,
-                    trackColor = SportsPrimaryContainer,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
+            if (state.isLoading) LoadingBar()
             if (profile == null) {
-                // nothing to show yet: wait for the first load, or offer to try again
-                if (state.errorMessage != null) ProfileLoadError(message = state.errorMessage, onRetry = actions.onRetry)
+                ProfileNotLoaded(errorMessage = state.errorMessage, onRetry = actions.onRetry)
             } else {
-                if (state.errorMessage != null) ErrorText(state.errorMessage)
-                ProfileIdentity(profile)
-                if (state.isScoreLoaded) ReputationCard(state.reputationScore)
-                ProfileDetailsCard(profile)
-                AccountButtons(busyAction = state.busyAction, onProfileAction = { action -> confirmAction = action })
+                ProfileContent(profile, state, onProfileAction = { action -> confirmAction = action })
             }
         }
     }
 
-    val pendingAction = confirmAction
-    if (pendingAction != null) {
+    confirmAction?.let { pendingAction ->
         ConfirmDialog(
             text = confirmText(pendingAction),
             onConfirm = {
@@ -143,6 +129,31 @@ fun ProfileScreen(state: ProfileUiState, actions: ProfileActions, modifier: Modi
             onDismiss = { confirmAction = null }
         )
     }
+}
+
+@Composable
+private fun LoadingBar() {
+    LinearProgressIndicator(
+        color = SportsPrimary,
+        trackColor = SportsPrimaryContainer,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+// nothing to show yet: wait for the first load, or offer to try again
+@Composable
+private fun ProfileNotLoaded(errorMessage: String?, onRetry: () -> Unit) {
+    errorMessage?.let { ProfileLoadError(message = it, onRetry = onRetry) }
+}
+
+// the loaded profile, with the score once it loads and any problem refreshing it above
+@Composable
+private fun ProfileContent(profile: UserProfile, state: ProfileUiState, onProfileAction: (ProfileAction) -> Unit) {
+    state.errorMessage?.let { ErrorText(it) }
+    ProfileIdentity(profile)
+    if (state.isScoreLoaded) ReputationCard(state.reputationScore)
+    ProfileDetailsCard(profile)
+    AccountButtons(busyAction = state.busyAction, onProfileAction = onProfileAction)
 }
 
 private fun confirmText(action: ProfileAction): ConfirmText = when (action) {
@@ -247,15 +258,17 @@ private fun ReputationCard(score: Double?) {
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
             )
-            Text(
-                text = formatReputationScore(score),
-                color = if (score == null) SportsOnSurfaceVariant else SportsPrimary,
-                fontSize = if (score == null) 16.sp else 22.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            ScoreText(score)
         }
-        if (score != null) ScoreStars(score)
+        score?.let { ScoreStars(it) }
     }
+}
+
+// the score as "4.7/6", or "Not rated yet" in smaller, quieter text
+@Composable
+private fun ScoreText(score: Double?) {
+    val (color, fontSize) = if (score == null) SportsOnSurfaceVariant to 16.sp else SportsPrimary to 22.sp
+    Text(text = formatReputationScore(score), color = color, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
 }
 
 /*  the score as MAX_STARS stars lit from left to right, e.g. 3.2 lights three stars fully

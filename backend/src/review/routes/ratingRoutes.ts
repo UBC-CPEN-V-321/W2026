@@ -15,9 +15,9 @@ import {
   createRating,
   type CreateRatingProblem,
   getPlayersToRate,
-  getReputationScore,
   type PlayerToRate,
 } from '../db/ratings';
+import { getReputationScore } from '../db/reputation';
 import { parseRating, type RatingBody } from '../validation/rating';
 
 const NOT_ALLOWED: ErrorResponse = {

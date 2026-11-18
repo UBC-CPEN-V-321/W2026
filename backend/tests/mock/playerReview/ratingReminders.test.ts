@@ -1,5 +1,5 @@
 import * as push from '../../../src/core/notifications/push';
-import * as ratingsDb from '../../../src/review/db/ratings';
+import * as ratingRemindersDb from '../../../src/review/db/ratingReminders';
 import { sendDueRatingReminders } from '../../../src/review/ratingReminders';
 import type * as MockEnv from '../mockEnv';
 import { cleanUpAfterTests } from '../helpers';
@@ -17,11 +17,11 @@ describe('Mocked: rating reminders', () => {
   //   that opens the game
   // Expected output: 2, the number of games reminded
   test('Players with someone left to rate are reminded', async () => {
-    jest.spyOn(ratingsDb, 'claimDueRatingReminders').mockResolvedValue([
+    jest.spyOn(ratingRemindersDb, 'claimDueRatingReminders').mockResolvedValue([
       { gameId: 42, title: 'Sunday Soccer' },
       { gameId: 43, title: 'Monday Hoops' },
     ]);
-    jest.spyOn(ratingsDb, 'getPlayersWithRatingsLeft')
+    jest.spyOn(ratingRemindersDb, 'getPlayersWithRatingsLeft')
       .mockImplementation((gameId) => Promise.resolve(gameId === 42 ? [2, 3] : [5]));
     const sendPushToUsers = jest.spyOn(push, 'sendPushToUsers').mockResolvedValue(1);
 
@@ -45,7 +45,7 @@ describe('Mocked: rating reminders', () => {
   // Expected behavior: nobody is notified
   // Expected output: 0
   test('Nothing is sent when no reminder is due', async () => {
-    jest.spyOn(ratingsDb, 'claimDueRatingReminders').mockResolvedValue([]);
+    jest.spyOn(ratingRemindersDb, 'claimDueRatingReminders').mockResolvedValue([]);
     const sendPushToUsers = jest.spyOn(push, 'sendPushToUsers').mockResolvedValue(0);
 
     const reminded = await sendDueRatingReminders();

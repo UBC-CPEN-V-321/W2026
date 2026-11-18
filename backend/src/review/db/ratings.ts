@@ -1,6 +1,6 @@
 import { executeWrite, selectRows } from '../../core/db/mysql';
-import { RATING_WINDOW_HOURS, REMINDER_BEFORE_CLOSE_HOURS } from '../ratingWindow';
-import { type PlayedGame, type RatingScores, reputationScore } from '../reputation';
+import { RATING_WINDOW_HOURS } from '../ratingWindow';
+import type { RatingScores } from '../reputation';
 
 // a player the user can rate, and whether they already did
 export interface PlayerToRate {
@@ -45,19 +45,27 @@ async function isRatingOpen(gameId: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-/*  why the user can't see who to rate: they can't rate in this game (it isn't completed,
+/*  why the user can't rate anyone in this game: they can't rate in it (it isn't completed,
     they weren't in it, or they were a no-show), or rating it has closed
  */
+export type CannotRateProblem = 'not_allowed' | 'rating_closed';
+
+// why the user can't rate anyone in this game, or null if they can
+async function cannotRate(gameId: number, userId: number, attendance: AttendanceRow[]): Promise<CannotRateProblem | null> {
+  if (!showedUp(attendance, userId)) return 'not_allowed';
+  return (await isRatingOpen(gameId)) ? null : 'rating_closed';
+}
+
 export type PlayersToRateResult =
   | { ok: true; players: PlayerToRate[] }
-  | { ok: false; problem: 'not_allowed' | 'rating_closed' };
+  | { ok: false; problem: CannotRateProblem };
 
 /*  the other players who showed up to the completed game. Says who the user already rated,
     but never what anyone was rated
  */
 export async function getPlayersToRate(gameId: number, userId: number): Promise<PlayersToRateResult> {
-  if (!showedUp(await readAttendance(gameId, [userId]), userId)) return { ok: false, problem: 'not_allowed' };
-  if (!(await isRatingOpen(gameId))) return { ok: false, problem: 'rating_closed' };
+  const problem = await cannotRate(gameId, userId, await readAttendance(gameId, [userId]));
+  if (problem) return { ok: false, problem };
 
   const rows = await selectRows<PlayerToRateRow>(
     `SELECT u.user_id, u.first_name, u.last_name, r.rater_id IS NOT NULL AS rated
@@ -84,9 +92,15 @@ export async function getPlayersToRate(gameId: number, userId: number): Promise<
     it's their own rating, the other player was a no-show or wasn't in the game, or they
     already rated them
  */
-export type CreateRatingProblem = 'not_allowed' | 'rating_closed' | 'self' | 'player_not_found' | 'already_rated';
+export type CreateRatingProblem = CannotRateProblem | 'self' | 'player_not_found' | 'already_rated';
 
 export type CreateRatingResult = { ok: true } | { ok: false; problem: CreateRatingProblem };
+
+// why this player can't be rated by the rater, or null if they can
+function cannotBeRated(attendance: AttendanceRow[], raterId: number, ratedId: number): CreateRatingProblem | null {
+  if (raterId === ratedId) return 'self';
+  return showedUp(attendance, ratedId) ? null : 'player_not_found';
+}
 
 // records the user's rating of a player, a rating can't be changed once it's given
 export async function createRating(
@@ -96,10 +110,8 @@ export async function createRating(
   scores: RatingScores,
 ): Promise<CreateRatingResult> {
   const attendance = await readAttendance(gameId, [raterId, ratedId]);
-  if (!showedUp(attendance, raterId)) return { ok: false, problem: 'not_allowed' };
-  if (!(await isRatingOpen(gameId))) return { ok: false, problem: 'rating_closed' };
-  if (raterId === ratedId) return { ok: false, problem: 'self' };
-  if (!showedUp(attendance, ratedId)) return { ok: false, problem: 'player_not_found' };
+  const problem = (await cannotRate(gameId, raterId, attendance)) ?? cannotBeRated(attendance, raterId, ratedId);
+  if (problem) return { ok: false, problem };
 
   // the primary key ignores a second rating of the same player, even two sent at once
   const result = await executeWrite(
@@ -111,94 +123,5 @@ export async function createRating(
       scores.punctuality, scores.sportsmanship, scores.skill, scores.reliability, scores.overall,
     ],
   );
-  if (result.affectedRows === 0) return { ok: false, problem: 'already_rated' };
-  return { ok: true };
-}
-
-// the most recent games read for a score. Older ones count too little to change it
-const GAMES_IN_SCORE = 50;
-
-interface RecentGameRow {
-  game_id: number;
-  no_show: number;
-  rater_count: number;
-}
-
-interface ReceivedRatingRow extends RatingScores {
-  game_id: number;
-}
-
-/*  a player's reputation score, or null if they aren't rated yet. Read from their most
-    recent games, newest first by when the game was, with how many others showed up to each.
-    Worked out when it's read, since players can still rate a game after it's completed
- */
-export async function getReputationScore(userId: number): Promise<number | null> {
-  const games = await selectRows<RecentGameRow>(
-    `SELECT a.game_id, a.no_show,
-            (SELECT COUNT(*) FROM game_attendance other
-             WHERE other.game_id = a.game_id AND other.no_show = FALSE AND other.user_id <> a.user_id) AS rater_count
-     FROM game_attendance a
-     WHERE a.user_id = ?
-     ORDER BY a.played_at DESC, a.game_id DESC
-     LIMIT ${GAMES_IN_SCORE}`,
-    [userId],
-  );
-  if (games.length === 0) return null;
-
-  const ratings = await selectRows<ReceivedRatingRow>(
-    `SELECT game_id, punctuality, sportsmanship, skill, reliability, overall
-     FROM player_ratings
-     WHERE rated_id = ? AND game_id IN (${games.map(() => '?').join(', ')})`,
-    [userId, ...games.map((game) => game.game_id)],
-  );
-  const played: PlayedGame[] = games.map((game) => ({
-    noShow: Number(game.no_show) === 1,
-    raterCount: Number(game.rater_count),
-    ratings: ratings.filter((rating) => rating.game_id === game.game_id),
-  }));
-  return reputationScore(played);
-}
-
-// a completed game whose rating closes within REMINDER_BEFORE_CLOSE_HOURS
-export interface ReminderGame {
-  gameId: number;
-  title: string;
-}
-
-/*  completed games whose rating closes within REMINDER_BEFORE_CLOSE_HOURS and haven't had
-    their reminder yet. Each is marked reminded as it's returned, and a game another server
-    marked first is left out, so every game's players are reminded once
- */
-export async function claimDueRatingReminders(): Promise<ReminderGame[]> {
-  const due = await selectRows<{ game_id: number; title: string }>(
-    `SELECT game_id, title FROM games
-     WHERE status = 'completed' AND rating_reminder_sent = FALSE
-       AND completed_at <= UTC_TIMESTAMP() - INTERVAL ${RATING_WINDOW_HOURS - REMINDER_BEFORE_CLOSE_HOURS} HOUR
-       AND completed_at > UTC_TIMESTAMP() - INTERVAL ${RATING_WINDOW_HOURS} HOUR`,
-    [],
-  );
-  const claimed: ReminderGame[] = [];
-  for (const game of due) {
-    const result = await executeWrite(
-      'UPDATE games SET rating_reminder_sent = TRUE WHERE game_id = ? AND rating_reminder_sent = FALSE',
-      [game.game_id],
-    );
-    if (result.affectedRows === 1) claimed.push({ gameId: game.game_id, title: game.title });
-  }
-  return claimed;
-}
-
-// the players who showed up to the game and still haven't rated someone else who did
-export async function getPlayersWithRatingsLeft(gameId: number): Promise<number[]> {
-  const rows = await selectRows<{ user_id: number }>(
-    `SELECT a.user_id FROM game_attendance a
-     WHERE a.game_id = ? AND a.no_show = FALSE
-       AND EXISTS (
-         SELECT 1 FROM game_attendance other
-         WHERE other.game_id = a.game_id AND other.no_show = FALSE AND other.user_id <> a.user_id
-           AND NOT EXISTS (SELECT 1 FROM player_ratings r
-                           WHERE r.game_id = a.game_id AND r.rater_id = a.user_id AND r.rated_id = other.user_id))`,
-    [gameId],
-  );
-  return rows.map((row) => row.user_id);
+  return result.affectedRows === 0 ? { ok: false, problem: 'already_rated' } : { ok: true };
 }
