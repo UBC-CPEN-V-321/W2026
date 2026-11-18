@@ -13,8 +13,10 @@ export interface StartingGame {
 
 /*  scheduled games starting within START_REMINDER_BEFORE_MINUTES that haven't had their
     reminder yet, marked reminded as they're returned. The rows stay locked until they're
-    marked, so a second check running at the same time can't return them too. A game made
-    less than an hour before it starts is returned on the next check
+    marked, so a second check running at the same time can't return them too. Rows someone
+    else has locked (e.g. a game being edited) are skipped instead of waited for, so the check
+    can't deadlock with them, and are returned by the next check. A game made less than an
+    hour before it starts is returned on the next check
  */
 export async function claimDueStartReminders(): Promise<StartingGame[]> {
   return inTransaction(async (connection) => {
@@ -24,7 +26,7 @@ export async function claimDueStartReminders(): Promise<StartingGame[]> {
        WHERE status = 'scheduled' AND start_reminder_sent = FALSE
          AND starts_at > UTC_TIMESTAMP()
          AND starts_at <= UTC_TIMESTAMP() + INTERVAL ${START_REMINDER_BEFORE_MINUTES} MINUTE
-       FOR UPDATE`,
+       FOR UPDATE SKIP LOCKED`,
       [],
       connection,
     );
