@@ -134,7 +134,9 @@ describe('Mocked: PATCH /api/friends/requests/{requestId}', () => {
       ], []])
       .mockResolvedValueOnce([[{ user_id: receiver.userId }, { user_id: sender.userId }], []])
       .mockResolvedValueOnce([[], []]);
-    jest.spyOn(mysql, 'inTransaction').mockImplementation((work) => work({ execute }));
+    const connection: mysql.Queryable = { execute };
+    jest.spyOn(mysql, 'inTransaction')
+      .mockImplementation(<T>(work: (transaction: mysql.Queryable) => Promise<T>): Promise<T> => work(connection));
     const sendPushToUser = jest.spyOn(push, 'sendPushToUser').mockResolvedValue(1);
 
     // 3. answer through the interface
