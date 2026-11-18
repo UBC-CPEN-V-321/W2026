@@ -45,8 +45,8 @@ import java.net.URLEncoder
 // Close enough to see the streets around the court
 private const val STREET_ZOOM = 16f
 
-// Hides Google's own place pins so the court's pin is the only one on the map
-private const val HIDE_PLACES_STYLE = """[{"featureType": "poi", "elementType": "labels", "stylers": [{"visibility": "off"}]}]"""
+// Hides Google's own place pins so the courts' pins are the only ones on the map
+internal const val HIDE_PLACES_STYLE = """[{"featureType": "poi", "elementType": "labels", "stylers": [{"visibility": "off"}]}]"""
 
 /**
  * A map centered on a court, with a pin and the court's name on it. The player can
@@ -114,7 +114,7 @@ fun CourtMap(
 }
 
 @Composable
-private fun NameTagAbovePin(name: String) {
+internal fun NameTagAbovePin(name: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             shape = RoundedCornerShape(8.dp),
