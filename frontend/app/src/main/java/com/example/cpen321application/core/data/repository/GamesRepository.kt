@@ -24,9 +24,10 @@ interface GamesRepository {
     // Scheduled games with free spots that have not started, with their forecast
     suspend fun getFeed(): Result<List<Game>>
 
-    // The signed-in user's booked games, and open games that have not started
+    // The signed-in user's booked games, and open games that have not started, with their forecast
     suspend fun getMyGames(): Result<List<Game>>
 
+    // One game with its players and rounds, and its forecast if it is still to be played
     suspend fun getGame(gameId: String): Result<Game>
 
     // Creates a scheduled game with the signed-in user on team 1, and returns its ID

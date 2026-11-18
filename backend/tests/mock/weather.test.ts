@@ -44,6 +44,12 @@ describe("Mocked: getForecast", () => {
     clearForecastCache();
     global.fetch = mockedFetch as unknown as typeof fetch;
     process.env.OPENWEATHER_API_KEY = "test-openweather-key";
+    // The forecast is for the days after now, so now is the game's day
+    jest.spyOn(Date, "now").mockReturnValue(gameTime.getTime());
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterAll(() => {
@@ -91,6 +97,16 @@ describe("Mocked: getForecast", () => {
     await expect(
       getForecast(latitude, longitude, new Date(entryAt(5) * 1000)),
     ).resolves.toBeNull();
+  });
+
+  test.each([
+    ["has already started more than 3 hours ago", -4],
+    ["is more than 5 days away", 5 * 24 + 4],
+  ])("Returns null without calling OpenWeather for a game that %s", async (_description, offsetHours) => {
+    await expect(
+      getForecast(latitude, longitude, new Date(entryAt(offsetHours) * 1000)),
+    ).resolves.toBeNull();
+    expect(mockedFetch).not.toHaveBeenCalled();
   });
 
   test("Returns null without calling OpenWeather when there is no API key", async () => {
