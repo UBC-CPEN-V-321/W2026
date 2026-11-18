@@ -23,6 +23,7 @@ import com.example.cpen321application.navigation.routes.GameChatRoute
 import com.example.cpen321application.navigation.routes.GameDetailsRoute
 import com.example.cpen321application.navigation.routes.HomeRoute
 import com.example.cpen321application.navigation.routes.JoinRequestsRoute
+import com.example.cpen321application.navigation.routes.NotificationsRoute
 import com.example.cpen321application.navigation.routes.PickLocationRoute
 import com.example.cpen321application.navigation.routes.PlayerProfilePopup
 import com.example.cpen321application.navigation.routes.ProfileRoute
@@ -59,6 +60,8 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         if (startDestination == Routes.HOME) {
             app.registerNotifications()
+            // the bell's count
+            app.notificationsState.refresh()
         }
     }
 
@@ -78,6 +81,7 @@ fun AppNavigation(
         composable(Routes.HOME) { HomeRoute(app, it, modifier) }
         composable(Routes.DISCOVER) { DiscoverRoute(app, it, modifier) }
         composable(Routes.FRIENDS) { FriendsRoute(app, it, modifier) }
+        composable(Routes.NOTIFICATIONS) { NotificationsRoute(app, it, modifier) }
         composable(Routes.GAME_DETAILS, arguments = gameIdArgument) { GameDetailsRoute(app, it, modifier) }
         composable(Routes.JOIN_REQUESTS, arguments = gameIdArgument) { JoinRequestsRoute(app, it, modifier) }
         composable(Routes.GAME_CHAT, arguments = gameIdArgument) { GameChatRoute(app, it, modifier) }
@@ -107,12 +111,18 @@ private fun ListenForAppEvents(app: AppState) {
     LaunchedEffect(Unit) {
         GameEvents.events.collect { event ->
             if (event.type == "join_request_approved" || event.type == "removed_from_game") app.homeState.refresh()
+            // most game notifications are saved for the Notifications screen too, update the bell
+            app.notificationsState.refresh()
         }
     }
 
     // a friend request arrived or was answered while the app is open
     LaunchedEffect(Unit) {
-        FriendEvents.events.collect { app.friendsState.refresh() }
+        FriendEvents.events.collect {
+            app.friendsState.refresh()
+            // the bell counts friend requests waiting for an answer
+            app.notificationsState.refresh()
+        }
     }
 }
 

@@ -10,6 +10,7 @@ object Routes {
     const val PICK_LOCATION = "pick_location"
     const val DISCOVER = "discover"
     const val FRIENDS = "friends"
+    const val NOTIFICATIONS = "notifications"
 
     // game details takes the game's id, build it with gameDetails(id)
     const val GAME_ID_ARG = "gameId"
