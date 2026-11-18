@@ -12,6 +12,9 @@ object Routes {
     const val FRIENDS = "friends"
     const val NOTIFICATIONS = "notifications"
 
+    // friend requests waiting for an answer, opened from Notifications
+    const val FRIEND_REQUESTS = "friend_requests"
+
     // game details takes the game's id, build it with gameDetails(id)
     const val GAME_ID_ARG = "gameId"
     const val GAME_DETAILS = "game_details/{$GAME_ID_ARG}"

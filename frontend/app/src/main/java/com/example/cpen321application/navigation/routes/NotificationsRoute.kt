@@ -30,8 +30,7 @@ fun NotificationsRoute(app: AppState, backStackEntry: NavBackStackEntry, modifie
         ),
         actions = NotificationsActions(
             onRetry = { notifications.refresh(markRead = true) },
-            // friend requests are answered on the Friends tab for now
-            onOpenFriendRequests = { app.openTab(BottomTab.Friends) },
+            onOpenFriendRequests = { app.navController.navigate(Routes.FRIEND_REQUESTS) },
             onOpenNotification = { openNotification(app, it) },
             onTabSelected = { tab -> app.openTab(tab) }
         ),
