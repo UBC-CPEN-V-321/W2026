@@ -135,8 +135,8 @@ internal fun QueueMap(nearby: NearbyPlayers?, modifier: Modifier = Modifier) {
     val latest = dotKeys(nearby.players)
     var drawn by remember { mutableStateOf(emptyList<DotKey>()) }
     val colors = MaterialTheme.colorScheme
-    val radar by rememberLoop(RADAR_MS, LinearOutSlowInEasing)
-    val twinkle by rememberLoop(TWINKLE_MS, LinearEasing)
+    val radarProgress by rememberRepeatingZeroToOne(RADAR_MS, LinearOutSlowInEasing)
+    val sharedTwinkle by rememberRepeatingZeroToOne(TWINKLE_MS, LinearEasing)
 
     LaunchedEffect(center) {
         cameraPositionState.position = CameraPosition.fromLatLngZoom(center, QUEUE_MAP_ZOOM)
@@ -153,15 +153,22 @@ internal fun QueueMap(nearby: NearbyPlayers?, modifier: Modifier = Modifier) {
         uiSettings = StaticMapSettings,
         contentDescription = nearbyText(nearby)
     ) {
-        SearchArea(center = center, radar = radar, color = colors.primary, outline = colors.surface)
+        OwnDotWithRadarAndMatchRadius(
+            center = center,
+            radarProgress = radarProgress,
+            color = colors.primary,
+            outline = colors.surface
+        )
         drawn.forEach { dot ->
             key(dot) {
-                PlayerDot(
+                FadingTwinklingPlayerDot(
                     dot = dot,
                     isSearching = dot in latest,
-                    twinkle = twinkle,
+                    sharedTwinkle = sharedTwinkle,
                     color = colors.tertiary,
+                    // Keeps the dot visible on light parts of the map
                     outline = colors.onSurface,
+                    // Gone dots stop being drawn
                     onFadedOut = { drawn = drawn - dot }
                 )
             }
@@ -169,11 +176,8 @@ internal fun QueueMap(nearby: NearbyPlayers?, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * @return a value going from 0 to 1 over and over, once every durationMs
- */
 @Composable
-private fun rememberLoop(durationMs: Int, easing: Easing): State<Float> {
+private fun rememberRepeatingZeroToOne(durationMs: Int, easing: Easing): State<Float> {
     return rememberInfiniteTransition(label = "queue map").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -182,13 +186,10 @@ private fun rememberLoop(durationMs: Int, easing: Easing): State<Float> {
     )
 }
 
-/**
- * The player's dot, the 10 km matching radius around it, and the radar ring that grows to it and fades
- * @param radar how far the ring has grown, from 0 to 1
- */
 @Composable
 @GoogleMapComposable
-private fun SearchArea(center: LatLng, radar: Float, color: Color, outline: Color) {
+private fun OwnDotWithRadarAndMatchRadius(center: LatLng, radarProgress: Float, color: Color, outline: Color) {
+    // The 10 km matching radius
     Circle(
         center = center,
         radius = MATCH_RADIUS_M,
@@ -196,11 +197,12 @@ private fun SearchArea(center: LatLng, radar: Float, color: Color, outline: Colo
         strokeColor = color.copy(alpha = RADIUS_STROKE_ALPHA),
         strokeWidth = 3f
     )
+    // The radar ring grows from the player to the radius and fades as it goes
     Circle(
         center = center,
-        radius = MATCH_RADIUS_M * radar,
-        fillColor = color.copy(alpha = (1 - radar) * RADAR_FILL_ALPHA),
-        strokeColor = color.copy(alpha = (1 - radar) * RADAR_STROKE_ALPHA),
+        radius = MATCH_RADIUS_M * radarProgress,
+        fillColor = color.copy(alpha = (1 - radarProgress) * RADAR_FILL_ALPHA),
+        strokeColor = color.copy(alpha = (1 - radarProgress) * RADAR_STROKE_ALPHA),
         strokeWidth = 4f
     )
     // The player, on top of the other players' dots
@@ -214,22 +216,17 @@ private fun SearchArea(center: LatLng, radar: Float, color: Color, outline: Colo
     )
 }
 
-/**
- * Another player: fades in, twinkles while they search, and fades out once they leave or are matched
- * @param twinkle the shared pulse, from 0 to 1; each dot is offset from it so they don't blink together
- * @param outline keeps the dot visible on light parts of the map
- * @param onFadedOut called once the dot is gone, to stop drawing it
- */
 @Composable
 @GoogleMapComposable
-private fun PlayerDot(
+private fun FadingTwinklingPlayerDot(
     dot: DotKey,
     isSearching: Boolean,
-    twinkle: Float,
+    sharedTwinkle: Float,
     color: Color,
     outline: Color,
     onFadedOut: () -> Unit
 ) {
+    // Fades in when the player joins, out once they leave or are matched
     val shown = remember { Animatable(0f) }
     LaunchedEffect(isSearching) {
         if (isSearching) {
@@ -240,9 +237,10 @@ private fun PlayerDot(
         }
     }
 
+    // Each dot is offset from the shared twinkle, so they don't blink together
     val offset = (dot.hashCode() and (PHASE_STEPS - 1)).toFloat() / PHASE_STEPS
-    // From 0 to 1 and back, once per pulse
-    val wave = (sin((twinkle + offset) * 2 * PI) + 1) / 2
+    // From 0 to 1 and back, once per twinkle
+    val wave = (sin((sharedTwinkle + offset) * 2 * PI) + 1) / 2
     Circle(
         center = LatLng(dot.point.latitude, dot.point.longitude),
         radius = PLAYER_DOT_RADIUS_M * shown.value * (TWINKLE_MIN_SIZE + TWINKLE_SIZE_RANGE * wave),
