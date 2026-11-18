@@ -54,16 +54,17 @@ class ScheduleGameE2ETest {
         composeRule.onAllNodesWithText(court).onFirst().assertIsDisplayed()
         composeRule.onAllNodesWithText("Singles", substring = true).onFirst().assertIsDisplayed()
 
-        // The game is listed under My games
+        // The game is listed under My games. Its card shows the time; the day is in the header above it
+        val cardTime = startsAt.substringAfter(" · ")
         composeRule.onNode(hasContentDescription("Back")).performClick()
         showMyGames()
-        waitForText(startsAt)
+        waitForText(cardTime)
 
-        cancelGame(startsAt)
+        cancelGame(cardTime)
 
         // Cancelled: back on the list, and the game is no longer in it
         showMyGames()
-        composeRule.waitUntil(TIMEOUT_MS) { countText(startsAt) == 0 }
+        composeRule.waitUntil(TIMEOUT_MS) { countText(cardTime) == 0 }
     }
 
     private fun openGamesTab() {
@@ -122,8 +123,9 @@ class ScheduleGameE2ETest {
     // The start time and court name as the app shows them
     private data class ScheduledGame(val startsAt: String, val court: String)
 
-    private fun cancelGame(startsAt: String) {
-        composeRule.onNodeWithText(startsAt, useUnmergedTree = true).performClick()
+    // cardTime: the start time as the game's card in the list shows it, e.g. "4:15 PM"
+    private fun cancelGame(cardTime: String) {
+        composeRule.onNodeWithText(cardTime, useUnmergedTree = true).performClick()
         waitForText("Cancel game")
 
         composeRule.onNode(hasText("Cancel game") and hasClickAction()).performScrollTo().performClick()

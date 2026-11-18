@@ -1,6 +1,5 @@
 package com.example.cpen321application.feature.gamedetail
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,25 +8,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,24 +31,20 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Game
-import com.example.cpen321application.core.data.model.GameStatus
-import com.example.cpen321application.core.data.model.GameTournament
 import com.example.cpen321application.core.data.model.Round
-import com.example.cpen321application.core.data.model.TEAMS
-import com.example.cpen321application.core.data.model.playersOnTeam
-import com.example.cpen321application.core.data.model.teamSize
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ConfirmDialog
 import com.example.cpen321application.core.ui.components.CourtPickerDialog
 import com.example.cpen321application.core.ui.components.DateTimePickerDialog
-import com.example.cpen321application.core.ui.formatStartsAt
-import com.example.cpen321application.core.ui.gameTournamentText
-import com.example.cpen321application.core.ui.label
+import com.example.cpen321application.core.ui.components.SectionLabel
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
+import com.example.cpen321application.core.ui.theme.TextFieldShape
 import java.time.Instant
-import kotlin.math.roundToInt
 
 // Tennis matches are best of 3 or 5 sets
 private const val MAX_SETS = 5
@@ -90,7 +76,7 @@ data class GameDetailCallbacks(
 )
 
 // The dialogs the game screen opens, at most one at a time
-private enum class GameDialog { TIME, COURT, SCORE, LEAVE, CANCEL, INVITE }
+internal enum class GameDialog { TIME, COURT, SCORE, LEAVE, CANCEL, INVITE }
 
 @Composable
 fun GameDetailRoute(
@@ -178,22 +164,19 @@ private fun GameDetails(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         GameSummaryCard(game = game, onOpenTournament = callbacks.onOpenTournament)
 
-        TEAMS.forEach { team ->
-            TeamSection(
-                game = game,
-                team = team,
-                canJoin = team in actions.joinableTeams && !uiState.isSaving,
-                onJoin = { callbacks.onJoin(team) }
-            )
-        }
+        TeamsCard(
+            game = game,
+            canJoin = { team -> team in actions.joinableTeams && !uiState.isSaving },
+            onJoin = callbacks.onJoin
+        )
 
         if (game.rounds.isNotEmpty()) {
-            ScoreSection(rounds = game.rounds, isFinal = game.status == GameStatus.COMPLETED)
+            GameScoreboard(game = game)
         }
 
         if (uiState.errorMessage != null) {
@@ -205,7 +188,7 @@ private fun GameDetails(
         }
 
         if (actions.isPlayer) {
-            PlayerActions(
+            GamePlayerActions(
                 actions = actions,
                 isSaving = uiState.isSaving,
                 onOpenDialog = { dialog ->
@@ -255,137 +238,6 @@ private fun OpenGameDialog(
             callbacks = callbacks,
             onDismiss = onDismiss
         )
-    }
-}
-
-@Composable
-private fun GameSummaryCard(game: Game, onOpenTournament: (tournamentId: String) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(text = formatStartsAt(game.startsAt), style = MaterialTheme.typography.titleLarge)
-            Text(text = game.court.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = "${game.format.label} · ${game.status.label}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (game.tournament != null) {
-                TournamentLink(tournament = game.tournament, onClick = { onOpenTournament(game.tournament.id) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun TournamentLink(tournament: GameTournament, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = "Open the bracket", onClick = onClick)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.Star,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = gameTournamentText(tournament),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
-}
-
-@Composable
-private fun PlayerActions(
-    actions: GameActions,
-    isSaving: Boolean,
-    onOpenDialog: (GameDialog) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        HorizontalDivider()
-
-        if (actions.canInvite) {
-            Button(
-                onClick = { onOpenDialog(GameDialog.INVITE) },
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Invite friends")
-            }
-        }
-
-        if (actions.canReportScore) {
-            Button(
-                onClick = { onOpenDialog(GameDialog.SCORE) },
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Report final score")
-            }
-        }
-
-        if (actions.canChangeTimeOrCourt) {
-            RescheduleButtons(isSaving = isSaving, onOpenDialog = onOpenDialog)
-        }
-
-        if (actions.canLeave) {
-            OutlinedButton(
-                onClick = { onOpenDialog(GameDialog.LEAVE) },
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Leave game")
-            }
-        }
-        if (actions.leaveTooLate) {
-            Text(
-                text = "You can't leave a game that starts in less than 30 minutes.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        if (actions.canCancel) {
-            TextButton(
-                onClick = { onOpenDialog(GameDialog.CANCEL) },
-                enabled = !isSaving,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cancel game")
-            }
-        }
-    }
-}
-
-@Composable
-private fun RescheduleButtons(isSaving: Boolean, onOpenDialog: (GameDialog) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(
-            onClick = { onOpenDialog(GameDialog.TIME) },
-            enabled = !isSaving,
-            modifier = Modifier.weight(1f)
-        ) {
-            Text("Change time")
-        }
-        OutlinedButton(
-            onClick = { onOpenDialog(GameDialog.COURT) },
-            enabled = !isSaving,
-            modifier = Modifier.weight(1f)
-        ) {
-            Text("Change court")
-        }
     }
 }
 
@@ -453,61 +305,6 @@ private fun GameDialogContent(
 }
 
 @Composable
-private fun TeamSection(
-    game: Game,
-    team: Int,
-    canJoin: Boolean,
-    onJoin: () -> Unit
-) {
-    val players = game.playersOnTeam(team)
-    val openSpots = (game.format.teamSize - players.size).coerceAtLeast(0)
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Team $team",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            if (canJoin) {
-                Button(onClick = onJoin) { Text("Join team $team") }
-            }
-        }
-
-        // Not the username: until onboarding lets players pick one, it is their email
-        players.forEach { player ->
-            Text(
-                text = "${player.name} · ${player.rating.roundToInt()}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        repeat(openSpots) {
-            Text(
-                text = "Open spot",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScoreSection(rounds: List<Round>, isFinal: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = if (isFinal) "Final score" else "Score",
-            style = MaterialTheme.typography.titleMedium
-        )
-        rounds.forEach { round ->
-            Text(
-                text = "Set ${round.number}: ${round.team1Score} – ${round.team2Score}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-@Composable
 private fun ReportScoreDialog(
     initialRounds: List<Round>,
     isSaving: Boolean,
@@ -551,14 +348,14 @@ private fun ScoreForm(rounds: SnapshotStateList<RoundInput>, error: String?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(modifier = Modifier.width(48.dp))
-            Text("Team 1", modifier = Modifier.width(80.dp), style = MaterialTheme.typography.labelLarge)
+            SectionLabel(text = "Team 1", modifier = Modifier.width(80.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Team 2", modifier = Modifier.width(80.dp), style = MaterialTheme.typography.labelLarge)
+            SectionLabel(text = "Team 2", modifier = Modifier.width(80.dp))
         }
 
         rounds.forEachIndexed { index, round ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Set ${index + 1}", modifier = Modifier.width(48.dp))
+                Text("Set ${index + 1}", modifier = Modifier.width(48.dp), style = MaterialTheme.typography.bodyMedium)
                 ScoreField(
                     value = round.team1,
                     onValueChange = { rounds[index] = round.copy(team1 = it) }
@@ -570,7 +367,7 @@ private fun ScoreForm(rounds: SnapshotStateList<RoundInput>, error: String?) {
                 )
                 if (rounds.size > 1) {
                     IconButton(onClick = { rounds.removeAt(index) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Remove set ${index + 1}")
+                        Icon(painterResource(R.drawable.ic_close), contentDescription = "Remove set ${index + 1}")
                     }
                 }
             }
@@ -598,6 +395,8 @@ private fun ScoreField(value: String, onValueChange: (String) -> Unit) {
         onValueChange = { text -> onValueChange(text.filter { it.isDigit() }.take(2)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        shape = TextFieldShape,
+        textStyle = DonutTextStyles.numericSmall.copy(fontSize = MaterialTheme.typography.titleMedium.fontSize),
         modifier = Modifier.width(80.dp)
     )
 }

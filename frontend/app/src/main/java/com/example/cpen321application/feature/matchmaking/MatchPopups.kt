@@ -38,9 +38,13 @@ fun MatchPopups(
 
     val match = uiState.match
     if (match != null) {
-        MatchDialog(
+        val searchedFrom = uiState.location
+        MatchSheet(
             match = match,
             prompt = matchPrompt(match, username),
+            distanceKm = searchedFrom?.let {
+                distanceKm(it.latitude, it.longitude, match.court.latitude, match.court.longitude)
+            },
             isAnswering = uiState.isAnswering,
             errorMessage = uiState.errorMessage,
             onAccept = { scope.launch { viewModel.onAccept() } },

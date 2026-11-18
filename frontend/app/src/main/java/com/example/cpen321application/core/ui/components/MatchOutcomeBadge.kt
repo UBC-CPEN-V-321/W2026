@@ -2,47 +2,79 @@ package com.example.cpen321application.core.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.cpen321application.core.data.model.MatchOutcome
-
-val WinColor = Color(0xFF2E7D32)
-val LossColor = Color(0xFFC62828)
-private val WinContainer = Color(0xFFE8F5E9)
-private val LossContainer = Color(0xFFFFEBEE)
+import com.example.cpen321application.core.ui.ratingChangeText
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
+import com.example.cpen321application.core.ui.theme.DonutTheme
 
 /**
- * A "WIN" or "LOSS" chip, or "—" when the score has no winner
+ * A square "W" or "L" badge, or "—" when the score has no winner. TalkBack reads "Win" or "Loss".
  * @param outcome how the game went for the signed-in user
- * @param textStyle the chip's text size
+ * @param size the badge's width and height
+ * @param textStyle the letter's style, Geist Mono 13 by default
  */
 @Composable
-fun MatchOutcomeBadge(
+fun OutcomeBadge(
     outcome: MatchOutcome?,
     modifier: Modifier = Modifier,
-    textStyle: TextStyle = MaterialTheme.typography.labelMedium,
+    size: Dp = 28.dp,
+    textStyle: TextStyle = DonutTextStyles.numericSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
 ) {
-    val (label, color, container) = when (outcome) {
-        MatchOutcome.WIN -> Triple("WIN", WinColor, WinContainer)
-        MatchOutcome.LOSS -> Triple("LOSS", LossColor, LossContainer)
-        null -> Triple("—", MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.surface)
+    val donut = DonutTheme.colors
+    val (letter, spoken) = when (outcome) {
+        MatchOutcome.WIN -> "W" to "Win"
+        MatchOutcome.LOSS -> "L" to "Loss"
+        null -> "—" to "No result"
     }
-
+    val (content, container) = when (outcome) {
+        MatchOutcome.WIN -> donut.win to donut.winContainer
+        MatchOutcome.LOSS -> donut.loss to donut.lossContainer
+        null -> MaterialTheme.colorScheme.onSurfaceVariant to MaterialTheme.colorScheme.surfaceContainerHigh
+    }
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(container)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .size(size)
+            .background(container, RoundedCornerShape(8.dp))
+            .clearAndSetSemantics { contentDescription = spoken },
+        contentAlignment = Alignment.Center,
     ) {
-        Text(text = label, color = color, style = textStyle, fontWeight = FontWeight.Bold)
+        Text(text = letter, color = content, style = textStyle)
     }
+}
+
+/**
+ * A rating change like "+14" or "−6" in mono, green when it went up and red when it went down
+ * @param change the rounded change
+ */
+@Composable
+fun RatingDelta(
+    change: Int,
+    modifier: Modifier = Modifier,
+    style: TextStyle = DonutTextStyles.numericSmall,
+) {
+    val donut = DonutTheme.colors
+    Text(
+        text = ratingChangeText(change),
+        modifier = modifier,
+        style = style,
+        color = when {
+            change > 0 -> donut.win
+            change < 0 -> donut.loss
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }

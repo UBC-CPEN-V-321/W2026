@@ -213,7 +213,7 @@ class FriendsRepositoryImpl(
             }
             val emailVal = directDto?.email ?: if (targetObj.has("email") && !targetObj.get("email").isJsonNull) targetObj.get("email").asString else null
 
-            return UserMeDto(id = idVal, username = usernameVal, email = emailVal, elo = eloVal)
+            return UserMeDto(id = idVal, username = usernameVal, name = directDto?.name, email = emailVal, elo = eloVal)
         }
 
         return null

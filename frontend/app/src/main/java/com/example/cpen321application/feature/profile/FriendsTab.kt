@@ -1,29 +1,19 @@
 package com.example.cpen321application.feature.profile
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,12 +23,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.network.dto.FriendDto
 import com.example.cpen321application.core.network.dto.FriendRequestDto
+import com.example.cpen321application.core.ui.components.PersonRow
+import com.example.cpen321application.core.ui.components.SectionLabel
+import com.example.cpen321application.core.ui.components.SmallButtonHeight
+
+// Dividers start where the name does: 20 dp gutter + 36 dp avatar + 12 dp
+private val DIVIDER_INSET = 68.dp
+// The outline of Remove is the error colour at 40%, like every destructive button
+private const val REMOVE_OUTLINE_ALPHA = 0.4f
 
 @Composable
 internal fun FriendsTabContent(
@@ -49,26 +49,40 @@ internal fun FriendsTabContent(
         LoadingBox()
     } else {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
         ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    IconButton(onClick = actions.onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh Friends")
-                    }
-                }
-            }
-
             friendRequestsSection(uiState = uiState, actions = actions)
             friendsListSection(uiState = uiState, actions = actions)
         }
     }
+}
+
+// The label of a section of the list; the first one also holds the refresh button
+@Composable
+private fun ListHeader(text: String, onRefresh: (() -> Unit)?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(start = 20.dp, end = 8.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SectionLabel(text = text, modifier = Modifier.weight(1f))
+        if (onRefresh != null) {
+            IconButton(onClick = onRefresh) {
+                Icon(painterResource(R.drawable.ic_refresh), contentDescription = "Refresh Friends")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = DIVIDER_INSET, end = 20.dp),
+        color = MaterialTheme.colorScheme.outlineVariant,
+    )
 }
 
 private fun LazyListScope.friendRequestsSection(
@@ -77,26 +91,18 @@ private fun LazyListScope.friendRequestsSection(
 ) {
     if (uiState.friendRequests.isEmpty()) return
 
-    item {
-        Text(
-            text = "Friend Requests (${uiState.friendRequests.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-        )
+    item(key = "requests-header") {
+        ListHeader(text = "Requests · ${uiState.friendRequests.size}", onRefresh = actions.onRefresh)
     }
-
-    items(uiState.friendRequests, key = { it.userId }) { request ->
-        FriendRequestItem(
+    itemsIndexed(uiState.friendRequests, key = { _, request -> "request-${request.userId}" }) { index, request ->
+        if (index > 0) {
+            RowDivider()
+        }
+        FriendRequestRow(
             request = request,
             isActionInProgress = uiState.isActionInProgress,
             onAccept = { actions.onAcceptRequest(request.userId) },
         )
-    }
-
-    item {
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider()
     }
 }
 
@@ -104,32 +110,32 @@ private fun LazyListScope.friendsListSection(
     uiState: ProfileUiState,
     actions: ProfileActions,
 ) {
-    item {
-        Text(
-            text = "Friends (${uiState.friends.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
+    item(key = "friends-header") {
+        ListHeader(
+            text = "Friends · ${uiState.friends.size}",
+            // Only the first header gets the refresh button
+            onRefresh = if (uiState.friendRequests.isEmpty()) actions.onRefresh else null,
         )
     }
 
     if (uiState.friends.isEmpty()) {
-        item {
-            Column(
+        item(key = "friends-empty") {
+            Text(
+                text = "No friends added yet. Add players from a match summary.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "No friends added yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            )
         }
     } else {
-        items(uiState.friends, key = { it.userId }) { friend ->
-            FriendItem(
+        itemsIndexed(uiState.friends, key = { _, friend -> "friend-${friend.userId}" }) { index, friend ->
+            if (index > 0) {
+                RowDivider()
+            }
+            FriendRow(
                 friend = friend,
                 isActionInProgress = uiState.isActionInProgress,
                 onRemove = { actions.onRemoveFriend(friend.userId) },
@@ -139,139 +145,43 @@ private fun LazyListScope.friendsListSection(
 }
 
 @Composable
-private fun ItemAvatar(
-    username: String,
-    backgroundColor: Color,
-    textColor: Color,
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(backgroundColor),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = username.firstOrNull()?.uppercase() ?: "?",
-            color = textColor,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun FriendRequestItem(
+private fun FriendRequestRow(
     request: FriendRequestDto,
     isActionInProgress: Boolean,
     onAccept: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+    PersonRow(name = request.username, supporting = "Wants to be your friend") {
+        Button(
+            onClick = onAccept,
+            enabled = !isActionInProgress,
+            modifier = Modifier.height(SmallButtonHeight),
+            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f),
-            ) {
-                ItemAvatar(
-                    username = request.username,
-                    backgroundColor = MaterialTheme.colorScheme.primary,
-                    textColor = MaterialTheme.colorScheme.onPrimary,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = request.username,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "Wants to be your friend",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Button(
-                onClick = onAccept,
-                enabled = !isActionInProgress,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Accept",
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Accept")
-            }
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("Accept", modifier = Modifier.padding(start = 6.dp))
         }
     }
 }
 
 @Composable
-private fun FriendItem(
+private fun FriendRow(
     friend: FriendDto,
     isActionInProgress: Boolean,
     onRemove: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Row(
+    val error = MaterialTheme.colorScheme.error
+    PersonRow(name = friend.username, supporting = friend.elo?.let { "Rating $it" }) {
+        OutlinedButton(
+            onClick = onRemove,
+            enabled = !isActionInProgress,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .height(SmallButtonHeight)
+                .semantics { contentDescription = "Remove ${friend.username}" },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = error),
+            border = BorderStroke(1.dp, error.copy(alpha = REMOVE_OUTLINE_ALPHA)),
+            contentPadding = PaddingValues(horizontal = 16.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f),
-            ) {
-                ItemAvatar(
-                    username = friend.username,
-                    backgroundColor = MaterialTheme.colorScheme.secondary,
-                    textColor = MaterialTheme.colorScheme.onSecondary,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = friend.username,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    friend.elo?.let { eloValue ->
-                        Text(
-                            text = "Elo: $eloValue",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-
-            OutlinedButton(
-                onClick = onRemove,
-                enabled = !isActionInProgress,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Remove Friend",
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Remove")
-            }
+            Text("Remove")
         }
     }
 }

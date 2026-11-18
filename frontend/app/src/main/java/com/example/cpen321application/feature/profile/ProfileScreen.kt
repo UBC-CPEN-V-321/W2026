@@ -1,50 +1,26 @@
 package com.example.cpen321application.feature.profile
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
+import com.example.cpen321application.core.ui.components.MessageBanner
+import com.example.cpen321application.core.ui.components.UnderlineTabs
+
+private val PROFILE_TABS = listOf(ProfileTab.MATCH_HISTORY, ProfileTab.FRIENDS, ProfileTab.EQUIPMENT)
 
 data class ProfileActions(
     val onSignOut: () -> Unit = {},
@@ -102,35 +78,39 @@ fun ProfileScreen(
     uiState: ProfileUiState,
     actions: ProfileActions = ProfileActions(),
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = 16.dp),
-    ) {
-        if ((uiState.errorMessage != null) || (uiState.successMessage != null)) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        ProfileTopBar(onSignOut = actions.onSignOut)
+
+        val message = uiState.errorMessage ?: uiState.successMessage
+        if (message != null) {
             MessageBanner(
-                errorMessage = uiState.errorMessage,
-                successMessage = uiState.successMessage,
+                message = message,
+                isError = uiState.errorMessage != null,
                 onDismiss = actions.onClearMessages,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
             )
         }
 
-        ProfileHeader(
-            username = uiState.username,
-            elo = uiState.elo,
-            friendCount = uiState.friendCount,
-            onSignOut = actions.onSignOut,
+        ProfileIdentity(name = uiState.name, username = uiState.username)
+        RatingCard(
+            rating = uiState.elo,
+            lastChange = uiState.matchHistory.firstOrNull()?.ratingChange,
+            trend = ratingTrend(uiState.matchHistory),
+        )
+        StatsRow(
+            stats = listOf(
+                recordText(uiState.matchHistory) to "Record",
+                uiState.matchHistory.size.toString() to "Matches",
+                uiState.friendCount.toString() to "Friends",
+            )
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        ProfileTabs(
-            selectedTab = uiState.selectedTab,
-            pendingRequestsCount = uiState.friendRequests.size,
-            onSelectTab = actions.onSelectTab,
+        UnderlineTabs(
+            titles = listOf("History", "Friends", "Equipment"),
+            selectedIndex = PROFILE_TABS.indexOf(uiState.selectedTab),
+            onSelect = { actions.onSelectTab(PROFILE_TABS[it]) },
+            badges = mapOf(PROFILE_TABS.indexOf(ProfileTab.FRIENDS) to uiState.friendRequests.size),
         )
-
-        HorizontalDivider()
 
         ProfileTabBody(
             uiState = uiState,
@@ -172,223 +152,6 @@ private fun ProfileTabBody(
                 actions = actions,
             )
         }
-    }
-}
-
-@Composable
-private fun MessageBanner(
-    errorMessage: String?,
-    successMessage: String?,
-    onDismiss: () -> Unit,
-) {
-    val isError = errorMessage != null
-    val message = errorMessage ?: successMessage ?: return
-    val backgroundColor = if (isError) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.primaryContainer
-    }
-    val textColor = if (isError) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = message,
-                color = textColor,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Dismiss",
-                    tint = textColor,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileHeader(
-    username: String,
-    elo: Int,
-    friendCount: Int,
-    onSignOut: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        UserAvatar(username = username)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = username.ifEmpty { "User" },
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        StatsRow(elo = elo, friendCount = friendCount)
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier = Modifier.fillMaxWidth(0.6f),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Sign Out")
-        }
-    }
-}
-
-@Composable
-private fun UserAvatar(username: String) {
-    Box(
-        modifier = Modifier
-            .size(72.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = username.firstOrNull()?.uppercase() ?: "?",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun StatsRow(elo: Int, friendCount: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        StatCard(
-            label = "1v1 Elo",
-            value = "$elo",
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        StatCard(
-            label = "Friends",
-            value = friendCount.toString(),
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun StatCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProfileTabs(
-    selectedTab: ProfileTab,
-    pendingRequestsCount: Int,
-    onSelectTab: (ProfileTab) -> Unit,
-) {
-    TabRow(selectedTabIndex = selectedTab.ordinal) {
-        Tab(
-            selected = selectedTab == ProfileTab.MATCH_HISTORY,
-            onClick = { onSelectTab(ProfileTab.MATCH_HISTORY) },
-            text = { Text("Match History") },
-            icon = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "Match History",
-                )
-            },
-        )
-
-        Tab(
-            selected = selectedTab == ProfileTab.FRIENDS,
-            onClick = { onSelectTab(ProfileTab.FRIENDS) },
-            text = { Text("Friends") },
-            icon = { FriendsTabIcon(pendingRequestsCount = pendingRequestsCount) },
-        )
-
-        Tab(
-            selected = selectedTab == ProfileTab.EQUIPMENT,
-            onClick = { onSelectTab(ProfileTab.EQUIPMENT) },
-            text = { Text("Equipment") },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = "Equipment",
-                )
-            },
-        )
-    }
-}
-
-@Composable
-private fun FriendsTabIcon(pendingRequestsCount: Int) {
-    if (pendingRequestsCount > 0) {
-        BadgedBox(
-            badge = {
-                Badge { Text("$pendingRequestsCount") }
-            },
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Friends",
-            )
-        }
-    } else {
-        Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = "Friends",
-        )
     }
 }
 

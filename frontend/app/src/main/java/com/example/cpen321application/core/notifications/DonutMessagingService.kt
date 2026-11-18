@@ -40,7 +40,7 @@ class DonutMessagingService : FirebaseMessagingService() {
             this, message.messageId.hashCode(), openApp, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification = NotificationCompat.Builder(this, getString(R.string.match_channel_id))
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_donut)
             .setContentTitle(content.title)
             .setContentText(content.body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

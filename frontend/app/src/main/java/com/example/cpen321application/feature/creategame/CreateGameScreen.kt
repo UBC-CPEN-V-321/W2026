@@ -2,15 +2,12 @@ package com.example.cpen321application.feature.creategame
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,9 +18,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.ui.components.BackHeader
+import com.example.cpen321application.core.ui.components.FormLabel
+import com.example.cpen321application.core.ui.components.SegmentedControl
 import com.example.cpen321application.core.ui.components.CourtPickerDialog
 import com.example.cpen321application.core.ui.components.DateTimePickerDialog
 import com.example.cpen321application.core.ui.components.PickerButton
@@ -114,33 +114,31 @@ private fun CreateGameForm(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = "Format", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Format.entries.forEach { format ->
-                FilterChip(
-                    selected = uiState.format == format,
-                    onClick = { onFormatSelected(format) },
-                    label = { Text(format.label) }
-                )
-            }
-        }
+        FormLabel("Format")
+        SegmentedControl(
+            options = Format.entries,
+            selected = uiState.format,
+            label = { it.label },
+            onSelect = onFormatSelected
+        )
 
-        Text(text = "Start time", style = MaterialTheme.typography.titleMedium)
+        FormLabel("Start time")
         PickerButton(
-            icon = Icons.Default.DateRange,
+            icon = R.drawable.ic_calendar_month,
             text = uiState.startsAt?.let { formatStartsAt(it) } ?: "Pick a date and time",
             onClick = onPickTime
         )
 
-        Text(text = "Court", style = MaterialTheme.typography.titleMedium)
+        FormLabel("Court")
         PickerButton(
-            icon = Icons.Default.Place,
+            icon = R.drawable.ic_location_on,
             text = uiState.court?.name ?: "Pick a court",
             onClick = onPickCourt
         )
+        Spacer(modifier = Modifier.height(6.dp))
 
         if (uiState.errorMessage != null) {
             Text(

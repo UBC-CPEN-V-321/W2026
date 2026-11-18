@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -30,14 +31,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.network.dto.LeaderboardEntryDto
+import com.example.cpen321application.core.ui.components.PlayerAvatar
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
+import com.example.cpen321application.core.ui.theme.DonutTheme
 import kotlin.math.roundToInt
+
+private const val MUTED_ON_INVERSE = 0.7f
+private const val PODIUM = 3
+// Wide enough for "#120"; rank, avatar and name are 12 dp apart
+private val RANK_WIDTH = 40.dp
+// Row dividers start where the avatar ends: 20 dp gutter + rank + 12 dp + 36 dp avatar
+private val DIVIDER_INSET = 108.dp
 
 @Composable
 fun LeaderboardRoute(
@@ -63,12 +77,17 @@ fun LeaderboardScreen(
     onRetry: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Leaderboard",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+        Column(
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(text = "Leaderboard", style = MaterialTheme.typography.headlineLarge)
+            Text(
+                text = "Everyone starts at 1500. Beat stronger players to climb faster.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         when {
             uiState.isLoading && uiState.entries.isEmpty() -> CenteredBox {
                 CircularProgressIndicator()
@@ -76,12 +95,12 @@ fun LeaderboardScreen(
             uiState.errorMessage != null && uiState.entries.isEmpty() -> CenteredBox {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(uiState.errorMessage, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.size(8.dp))
+                    Spacer(Modifier.size(12.dp))
                     Button(onClick = onRetry) { Text("Retry") }
                 }
             }
             uiState.entries.isEmpty() -> CenteredBox {
-                Text("No players yet")
+                Text("No players yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> LeaderboardList(uiState)
         }
@@ -107,50 +126,93 @@ private fun LeaderboardList(uiState: LeaderboardUiState) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        ColumnHeaders()
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(bottom = 8.dp),
         ) {
             itemsIndexed(uiState.entries, key = { _, entry -> entry.id }) { index, entry ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = DIVIDER_INSET, end = 20.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                }
                 LeaderboardRow(entry = entry, isMe = index == myIndex)
-                HorizontalDivider()
             }
         }
         if (showPinnedMe && me != null) {
-            Surface(shadowElevation = 8.dp, tonalElevation = 2.dp) {
-                LeaderboardRow(entry = me, isMe = true)
-            }
+            PinnedMeRow(entry = me)
         }
     }
 }
 
 @Composable
-private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean) {
-    val background = if (isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-    val content = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+private fun ColumnHeaders() {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp)) {
+        Text("RANK", style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.width(RANK_WIDTH + 12.dp))
+        Text("PLAYER", style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
+        Text("RATING", style = MaterialTheme.typography.labelSmall, color = muted)
+    }
+}
 
+// An inverse-surface pill with a ball-yellow edge, floating above the bottom bar
+@Composable
+private fun PinnedMeRow(entry: LeaderboardEntryDto) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(18.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+        shape = shape,
+        color = colors.inverseSurface,
+        contentColor = colors.inverseOnSurface,
+        shadowElevation = 10.dp,
+    ) {
+        val edge = DonutTheme.colors.highlight
+        // The ball-yellow edge is drawn behind the row, so it never changes the row's height
+        Box(
+            modifier = Modifier.drawBehind {
+                val inset = 14.dp.toPx()
+                val width = 3.dp.toPx()
+                drawRoundRect(
+                    color = edge,
+                    topLeft = Offset(0f, inset),
+                    size = Size(width, size.height - inset * 2),
+                    cornerRadius = CornerRadius(width),
+                )
+            },
+        ) {
+            LeaderboardRow(entry = entry, isMe = true, onInverse = true)
+        }
+    }
+}
+
+/**
+ * @param onInverse drawn on the dark pinned pill, so text uses the inverse colours
+ */
+@Composable
+private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean, onInverse: Boolean = false) {
+    val colors = MaterialTheme.colorScheme
+    val content = if (onInverse) colors.inverseOnSurface else colors.onSurface
+    val muted = if (onInverse) colors.inverseOnSurface.copy(alpha = MUTED_ON_INVERSE) else colors.onSurfaceVariant
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(background)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(if (isMe && !onInverse) colors.surfaceContainerLow else Color.Transparent)
+            .padding(horizontal = if (onInverse) 16.dp else 20.dp, vertical = if (onInverse) 10.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = "#${entry.rank}",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = content,
-            modifier = Modifier.width(48.dp),
-        )
-        Avatar(entry)
+        Rank(rank = entry.rank, color = if (entry.rank <= PODIUM && !onInverse) content else muted)
+        PlayerAvatar(name = entry.name.ifBlank { entry.username }, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (isMe) "${entry.name} (You)" else entry.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isMe) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.titleMedium,
                 color = content,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -158,35 +220,39 @@ private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean) {
             Text(
                 text = "@${entry.username}",
                 style = MaterialTheme.typography.bodySmall,
-                color = content.copy(alpha = 0.7f),
+                color = muted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         Text(
             text = entry.rating.roundToInt().toString(),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = DonutTextStyles.numericSmall.copy(fontSize = MaterialTheme.typography.titleMedium.fontSize),
             color = content,
         )
     }
 }
 
-// Initial-letter placeholder: the backend does not send profile pictures yet
+// "#1" in mono, with a gold, silver or bronze dot for the top three
 @Composable
-private fun Avatar(entry: LeaderboardEntryDto) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.secondaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = (entry.name.ifBlank { entry.username }).take(1).uppercase(),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
+private fun Rank(rank: Int, color: Color) {
+    val donut = DonutTheme.colors
+    val medal = when (rank) {
+        1 -> donut.medal1
+        2 -> donut.medal2
+        PODIUM -> donut.medal3
+        else -> null
+    }
+    Row(modifier = Modifier.width(RANK_WIDTH), verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "#$rank", style = DonutTextStyles.numericSmall, color = color, maxLines = 1)
+        if (medal != null) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .size(6.dp)
+                    .background(medal, CircleShape),
+            )
+        }
     }
 }
 

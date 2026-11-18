@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,8 +18,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.R
 import com.example.cpen321application.core.network.dto.FriendDto
+import com.example.cpen321application.core.ui.components.ChipStyle
+import com.example.cpen321application.core.ui.components.PlayerAvatar
+import com.example.cpen321application.core.ui.components.SmallButtonHeight
+import com.example.cpen321application.core.ui.components.StatusChip
 
 /**
  * Lists the user's friends who are not in the game, each with a button that sends them an invite
@@ -107,9 +114,19 @@ private fun FriendInviteRow(
     isAnotherInviteSending: Boolean,
     onInvite: () -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        PlayerAvatar(name = friend.username, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = friend.username, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = friend.username,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             if (status == InviteStatus.NOT_NOTIFIED) {
                 Text(
                     text = "They have notifications off, so let them know yourself.",
@@ -119,13 +136,14 @@ private fun FriendInviteRow(
             }
         }
         when (status) {
-            InviteStatus.SENDING -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            InviteStatus.NOTIFIED, InviteStatus.NOT_NOTIFIED -> Text(
-                text = "Invited",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-            InviteStatus.NOT_INVITED -> OutlinedButton(onClick = onInvite, enabled = !isAnotherInviteSending) {
+            InviteStatus.SENDING -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            InviteStatus.NOTIFIED, InviteStatus.NOT_NOTIFIED ->
+                StatusChip(text = "Invited", style = ChipStyle.OPEN, icon = R.drawable.ic_check)
+            InviteStatus.NOT_INVITED -> OutlinedButton(
+                onClick = onInvite,
+                enabled = !isAnotherInviteSending,
+                modifier = Modifier.height(SmallButtonHeight)
+            ) {
                 Text("Invite")
             }
         }

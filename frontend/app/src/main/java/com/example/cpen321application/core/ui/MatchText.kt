@@ -1,6 +1,9 @@
 package com.example.cpen321application.core.ui
 
+import com.example.cpen321application.core.data.model.MatchResult
 import com.example.cpen321application.core.data.model.Player
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 // How completed games are written on screen, shared by the match history and the match summary
 
@@ -25,3 +28,20 @@ fun ratingChangeText(change: Int): String = when {
     change < 0 -> "−${-change}"
     else -> "±0"
 }
+
+/**
+ * @return "6–4  7–5", the signed-in user's games first, sets two spaces apart
+ */
+fun setsText(scores: List<Pair<Int, Int>>): String =
+    scores.joinToString("  ") { (mine, theirs) -> "$mine–$theirs" }
+
+/**
+ * The second line of a match history row
+ * @return e.g. "6–4  7–5 · Kitsilano Beach Park · Nov 12"
+ */
+fun historyDetailText(match: MatchResult, zone: ZoneId = ZoneId.systemDefault()): String =
+    listOf(setsText(match.myScores), match.game.court.name, shortDateFormatter.format(match.game.startsAt.atZone(zone)))
+        .filter { it.isNotEmpty() }
+        .joinToString(" · ")
+
+private val shortDateFormatter = DateTimeFormatter.ofPattern("MMM d")

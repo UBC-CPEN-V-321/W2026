@@ -66,3 +66,41 @@ fun MatchmakingUiState.textFor(option: LocationOption): OptionText {
     }
     return OptionText("Enter an address", "Where you are or where you want to play")
 }
+
+/**
+ * The queue card's title
+ * @param location null when the search was picked up after an app restart: the place name is not saved
+ */
+fun searchingText(location: MatchLocation?): String = when {
+    location == null -> "Finding a match"
+    location.label == CURRENT_LOCATION_LABEL -> "Finding a match near you"
+    else -> "Finding a match near ${location.label}"
+}
+
+/**
+ * How far apart in rating matched players can be (Product_Design §5.2): 200 in singles, 400 in doubles
+ * @return e.g. "±200 rating"
+ */
+fun ratingRangeText(format: MatchFormat): String = when (format) {
+    MatchFormat.SINGLES -> "±200 rating"
+    MatchFormat.DOUBLES -> "±400 rating"
+    MatchFormat.EITHER -> "±200–400 rating"
+}
+
+/**
+ * The rules of a match, as the queue card's chips: distance, rating, start time
+ */
+fun criteriaChips(format: MatchFormat): List<String> =
+    listOf("Within 10 km", ratingRangeText(format), "Game in ~1 h")
+
+/**
+ * The line under Find a match, e.g. "10 km · ±200 rating · starts ~1 h after match"
+ */
+fun criteriaText(format: MatchFormat): String = "10 km · ${ratingRangeText(format)} · starts ~1 h after match"
+
+/**
+ * @return the time since joining the queue, e.g. "0:42" or "12:05"
+ */
+fun elapsedText(seconds: Long): String = "%d:%02d".format(seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
+
+private const val SECONDS_PER_MINUTE = 60

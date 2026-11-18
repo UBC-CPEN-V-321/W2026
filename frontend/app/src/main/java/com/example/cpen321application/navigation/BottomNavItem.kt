@@ -1,19 +1,27 @@
 package com.example.cpen321application.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.annotation.DrawableRes
+import com.example.cpen321application.R
 
+/**
+ * A bottom bar tab
+ * @property icon the outlined icon, shown when the tab is not open
+ * @property selectedIcon the filled icon, shown when it is
+ */
 sealed class BottomNavItem(
     val route: String,
     val title: String,
-    val icon: ImageVector
+    @DrawableRes val icon: Int,
+    @DrawableRes val selectedIcon: Int
 ) {
-    object Profile : BottomNavItem("profile", "Profile", Icons.Default.Person)
-    object Matchmaking : BottomNavItem("matchmaking", "Matchmaking", Icons.Default.Search)
-    object Leaderboard : BottomNavItem("leaderboard", "Leaderboard", Icons.AutoMirrored.Filled.List)
-    object ScheduledGame : BottomNavItem("scheduled_game", "Games", Icons.Default.DateRange)
+    object Matchmaking : BottomNavItem(
+        "matchmaking", "Play", R.drawable.ic_sports_tennis, R.drawable.ic_sports_tennis_filled
+    )
+    object ScheduledGame : BottomNavItem(
+        "scheduled_game", "Games", R.drawable.ic_calendar_month, R.drawable.ic_calendar_month_filled
+    )
+    object Leaderboard : BottomNavItem(
+        "leaderboard", "Leaderboard", R.drawable.ic_leaderboard, R.drawable.ic_leaderboard_filled
+    )
+    object Profile : BottomNavItem("profile", "Profile", R.drawable.ic_person, R.drawable.ic_person_filled)
 }

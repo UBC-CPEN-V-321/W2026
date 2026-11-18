@@ -1,5 +1,6 @@
 package com.example.cpen321application.feature.tournamentdetail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Card
+import androidx.compose.material3.Surface
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.cpen321application.core.ui.theme.DonutTextStyles
 
 /**
  * The bracket, one column per round, scrolling sideways on narrow screens
@@ -50,11 +52,7 @@ private fun RoundColumn(column: BracketColumn, onMatchClick: (gameId: String) ->
             .fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = column.title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Text(text = column.title, style = MaterialTheme.typography.titleSmall)
         // Spread the matches out so each one sits between the two that feed it
         Column(
             modifier = Modifier
@@ -69,37 +67,48 @@ private fun RoundColumn(column: BracketColumn, onMatchClick: (gameId: String) ->
     }
 }
 
+// A hairline card per match; it opens the match's game once both teams are known
 @Composable
 private fun MatchCard(match: BracketMatch, onMatchClick: (gameId: String) -> Unit) {
-    Card(
+    val colors = MaterialTheme.colorScheme
+    val decided = match.team1.isWinner || match.team2.isWinner
+    Surface(
         onClick = { match.gameId?.let(onMatchClick) },
         enabled = match.gameId != null,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = colors.surfaceContainerLowest,
+        border = BorderStroke(1.dp, colors.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            SlotRow(slot = match.team1)
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            SlotRow(slot = match.team2)
+            SlotRow(slot = match.team1, isDecided = decided)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = colors.outlineVariant)
+            SlotRow(slot = match.team2, isDecided = decided)
         }
     }
 }
 
+/**
+ * @param isDecided the match has a winner: the loser is muted
+ */
 @Composable
-private fun SlotRow(slot: BracketSlot) {
-    val weight = if (slot.isWinner) FontWeight.Bold else FontWeight.Normal
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun SlotRow(slot: BracketSlot, isDecided: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val color = if (isDecided && !slot.isWinner) colors.onSurfaceVariant else colors.onSurface
+    val numbers = DonutTextStyles.numericSmall.copy(fontWeight = if (slot.isWinner) FontWeight.SemiBold else FontWeight.Medium)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = slot.seed?.toString().orEmpty(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(16.dp)
+            style = DonutTextStyles.numericSmall.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize),
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.width(14.dp)
         )
         Text(
             text = slot.name,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = weight,
+            style = if (slot.isWinner) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
+            color = color,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
@@ -107,10 +116,10 @@ private fun SlotRow(slot: BracketSlot) {
         slot.scores.forEach { score ->
             Text(
                 text = score.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = weight,
+                style = numbers,
+                color = color,
                 textAlign = TextAlign.End,
-                modifier = Modifier.width(18.dp)
+                modifier = Modifier.width(14.dp)
             )
         }
     }
