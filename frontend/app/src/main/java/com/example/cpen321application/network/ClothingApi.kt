@@ -184,7 +184,13 @@ internal fun parseClothingItem(json: JSONObject): ClothingItem? {
                 ((minArr.optDouble(2, 0.0) + maxArr.optDouble(2, 0.0)) / 2.0).toFloat()
             } else 0f
         } else 0f
-        GarmentReferencePoints(type = type, points = ptsMap, boundingBoxCenterZ = cz)
+        val sleeve = refJson.optString("sleeve", "").ifBlank { null }
+        GarmentReferencePoints(
+            type = type,
+            points = ptsMap,
+            boundingBoxCenterZ = cz,
+            sleeve = sleeve,
+        )
     } else null
 
     return ClothingItem(
