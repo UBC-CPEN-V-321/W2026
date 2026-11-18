@@ -12,6 +12,7 @@ import com.example.cpen321application.core.network.dto.InviteFriendResponseDto
 import com.example.cpen321application.core.network.dto.JoinGameRequestDto
 import com.example.cpen321application.core.network.dto.LeaveGameRequestDto
 import com.example.cpen321application.core.network.dto.ReportScoreRequestDto
+import com.example.cpen321application.core.network.dto.StartGameRequestDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -78,6 +79,13 @@ interface GamesApi {
         @Header("Authorization") authorization: String,
         @Body request: InviteFriendRequestDto
     ): InviteFriendResponseDto
+
+    // Starts a booked game now, before its start time
+    @POST("games/start")
+    suspend fun startGame(
+        @Header("Authorization") authorization: String,
+        @Body request: StartGameRequestDto
+    )
 
     @PATCH("games/time")
     suspend fun changeGameTime(

@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 /**
- * One game's screen: its details, and joining, leaving, changing, scoring or cancelling it
+ * One game's screen: its details, and joining, leaving, changing, starting early, scoring or cancelling it
  * @param gameId the game on screen
  * @param gamesRepository the /games routes
  * @param courtsRepository the /courts route, for changing the court
@@ -49,6 +49,12 @@ class GameDetailViewModel(
     fun join(team: Int) = sendAction { gamesRepository.joinGame(gameId, team) }
 
     fun leave() = sendAction { gamesRepository.leaveGame(gameId) }
+
+    /**
+     * Starts the booked game now, before its start time. The reload then shows it as started, so the
+     * score can be reported
+     */
+    fun startNow() = sendAction { gamesRepository.startGame(gameId) }
 
     fun changeTime(startsAt: Instant) = sendAction { gamesRepository.changeGameTime(gameId, startsAt) }
 

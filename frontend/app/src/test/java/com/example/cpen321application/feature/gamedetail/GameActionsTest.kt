@@ -116,6 +116,52 @@ class GameActionsTest {
         assertTrue(actions.leaveTooLate)
     }
 
+    // Input: player in a booked scheduled, matched or tournament game that starts in 2 hours
+    // Expected output: they can start it now, but can't report the score until it has started
+    @Test
+    fun playerCanStartABookedGameEarly() {
+        for (source in listOf(GameSource.SCHEDULED, GameSource.MATCHED, GameSource.TOURNAMENT)) {
+            val actions = gameActions(
+                game(players = listOf(alice, bob), status = GameStatus.BOOKED, source = source),
+                "alice",
+                now
+            )
+
+            assertTrue(actions.canStartNow)
+            assertFalse(actions.canReportScore)
+        }
+    }
+
+    // Input: the same booked game once it has started (as it shows after Start now moves its start time to now)
+    // Expected output: Report final score replaces Start now
+    @Test
+    fun startedGameOffersTheScoreInsteadOfStartNow() {
+        val actions = gameActions(
+            game(players = listOf(alice, bob), status = GameStatus.BOOKED, startsIn = Duration.ZERO),
+            "alice",
+            now
+        )
+
+        assertFalse(actions.canStartNow)
+        assertTrue(actions.canReportScore)
+    }
+
+    // Input: games that can't start early: viewed by a non-player or signed out, open (free spots or a match
+    // waiting for answers), completed, or cancelled
+    // Expected output: no Start now
+    @Test
+    fun cannotStartGamesThatAreNotBookedOrNotYours() {
+        val booked = game(players = listOf(alice, bob), status = GameStatus.BOOKED)
+        val unansweredMatch = game(players = listOf(alice, bob), source = GameSource.MATCHED)
+
+        assertFalse(gameActions(booked, "carol", now).canStartNow)
+        assertFalse(gameActions(booked, null, now).canStartNow)
+        assertFalse(gameActions(game(players = listOf(alice)), "alice", now).canStartNow)
+        assertFalse(gameActions(unansweredMatch, "alice", now).canStartNow)
+        assertFalse(gameActions(game(status = GameStatus.COMPLETED), "alice", now).canStartNow)
+        assertFalse(gameActions(game(status = GameStatus.CANCELLED), "alice", now).canStartNow)
+    }
+
     // Input: player in a completed or cancelled game
     // Expected output: nothing can be changed any more
     @Test
