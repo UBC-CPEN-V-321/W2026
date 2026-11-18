@@ -41,13 +41,15 @@ The features in this app will facilitate the entire trip planning process for UB
 
 ### **3.2. Use Case Diagram**
 
-![My diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/Usecase_diagram.png)
+![Use case diagram](images/Usecase_diagram_recreated.png)
 
 ### **3.3. Actors Description**
 
 1. **Exchange Student**: The primary user of ExploreUBC. An incoming or current UBC exchange student who plans trips around campus and Vancouver, maintains a travel profile, creates itineraries, views maps, estimates transportation costs, and receives live event recommendations.
 2. **Google Maps Service**: An external mapping service that supplies map tiles, geocoded activity coordinates, transportation routes between itinerary stops, and popular nearby locations.
 3. **Ticketmaster Discovery API**: An external event service that supplies upcoming event details, venues, locations, prices, images, and ticket links used to generate live-event recommendations.
+4. **Google Authentication Service**: An external identity service that authenticates users with Google and provides identity credentials for the backend to validate.
+5. **External LLM Service**: An external AI service that generates candidate itinerary content from the user's trip constraints and preferences.
 
 ### **3.4. Use Case Description**
 
@@ -152,7 +154,7 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### Use Case 3: View Itinerary on Map
 
-**Description**: The exchange student visualizes a selected trip itinerary on Google Maps, including activity pins and transportation routes between consecutive activities.
+**Description**: The exchange student visualizes a selected trip itinerary on a map, including activity pins and transportation routes between consecutive activities.
 
 **Primary actor(s)**: Exchange Student
 
@@ -162,11 +164,10 @@ The features in this app will facilitate the entire trip planning process for UB
 2. The exchange student selects the itinerary they want to visualize.
 3. The exchange student opens the map view for that itinerary.
 4. The system loads the itinerary's scheduled activities (type, name, start/end time, location) and transportation segments (type, start/end time, pick-up/drop-off location, distance).
-5. The backend obtains the geocoded coordinates and route data needed for the itinerary.
-6. The frontend loads the interactive map tiles directly through the Google Maps SDK.
-7. The system displays the map with activity pins in chronological order and drawn routes between consecutive activities.
-8. The exchange student selects a route leg.
-9. The system highlights the selected route polyline and displays its directions.
+5. The system places the itinerary locations on the map and determines the routes between consecutive activities.
+6. The system displays an interactive map with activity pins in chronological order and routes drawn between consecutive activities.
+7. The exchange student selects a route leg.
+8. The system highlights the selected route and displays its directions.
 
 **Failure scenario(s)**:
 
@@ -183,14 +184,14 @@ The features in this app will facilitate the entire trip planning process for UB
   - 4a1. The system displays an error and offers a retry action.
   - 4a2. If retry succeeds, the use case resumes at step 4. Otherwise, the use case ends.
 - 5a. One or more activities have a missing or invalid location.
-  - 5a1. The system plots the activities that can be geocoded and marks the invalid stops as unmapped.
+  - 5a1. The system shows the activities that have a usable location and marks the others as not shown on the map.
   - 5a2. The system warns the student that some activities could not be shown on the map.
-  - 5a3. The use case continues with the remaining mapped activities.
-- 5b. A route cannot be computed between two consecutive activities.
-  - 5b1. The system still shows both activity pins and omits only the failed route segment.
+  - 5a3. The use case continues with the remaining activities that can be shown.
+- 5b. A route between two consecutive activities is unavailable.
+  - 5b1. The system still shows both activity pins and omits only that route.
   - 5b2. The system notifies the student that this transportation leg could not be drawn.
   - 5b3. The use case continues with the remaining routes.
-- 6a. The frontend cannot load the interactive map tiles.
+- 6a. The system cannot display the interactive map.
   - 6a1. The system displays a map-unavailable message and offers the existing list view of the itinerary.
 
 #### Use Case 4: View Event Recommendations
