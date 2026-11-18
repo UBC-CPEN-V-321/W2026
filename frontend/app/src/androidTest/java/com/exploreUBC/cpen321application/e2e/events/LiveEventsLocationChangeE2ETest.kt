@@ -1,6 +1,8 @@
 package com.exploreUBC.cpen321application.e2e.events
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import com.exploreUBC.cpen321application.MainActivity2
@@ -48,6 +50,25 @@ class LiveEventsLocationChangeE2ETest {
         composeRule.onAllNodesWithText("E2E Far Event 01").assertCountEquals(0)
     }
 
+    @Test
+    // Section 4.2 — Refresh After a Location Change: a move under 10 km does not refresh (UBC -> Kitsilano, about 5.6 km).
+    fun movingLessThanTenKilometresDoesNotRefresh() {
+        composeRule.waitForText("E2E Event 01")
+        composeRule.onAllNodesWithText("0.1 km away").onFirst().assertIsDisplayed()
+
+        // Keep the device at the nearby place for longer than one location update interval (60 s).
+        val end = System.currentTimeMillis() + NO_REFRESH_OBSERVATION_MS
+        while (System.currentTimeMillis() < end) {
+            mockLocation.moveTo(NEARBY_LATITUDE, NEARBY_LONGITUDE)
+            Thread.sleep(RESEND_INTERVAL_MS)
+        }
+
+        // A refetch would recompute distances from the new place (about 5.6 km), so the
+        // seeded "0.1 km away" label would be gone.
+        composeRule.onAllNodesWithText("E2E Event 01").onFirst().assertIsDisplayed()
+        composeRule.onAllNodesWithText("0.1 km away").onFirst().assertIsDisplayed()
+    }
+
     /** Keeps the device at the given place, re-sending it every few seconds, until [text] is shown. */
     private fun waitForTextWhileAt(latitude: Double, longitude: Double, text: String) {
         val deadline = System.currentTimeMillis() + LOCATION_CHANGE_TIMEOUT_MS
@@ -61,6 +82,9 @@ class LiveEventsLocationChangeE2ETest {
 
     private companion object {
         const val RESEND_INTERVAL_MS = 5_000L
+        const val NO_REFRESH_OBSERVATION_MS = 75_000L
+        const val NEARBY_LATITUDE = 49.2700
+        const val NEARBY_LONGITUDE = -123.1700
         const val UBC_LATITUDE = 49.2606
         const val UBC_LONGITUDE = -123.2460
         const val ABBOTSFORD_LATITUDE = 49.0504

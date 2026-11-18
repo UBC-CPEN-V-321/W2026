@@ -460,6 +460,12 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 3. The app detects the movement and refetches events for the new location. | Wait for the location provider to report the move (up to 2 minutes).<br>Check that "E2E Far Event 01" is present and "E2E Event 01" is no longer present. |
     | 4. The user moves back to UBC and the events for UBC return. | Set the device location back to UBC.<br>Check that "E2E Event 01" is present again and no "E2E Far Event" card is present. |
 
+  - **Alternate scenario, move under the threshold:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 2b. The user moves less than 10 km (UBC to Kitsilano, about 5.6 km). | Set the device location to 49.2700, -123.1700 and keep it there for 75 seconds (longer than one 60-second location update interval). |
+    | 3b. The app does not refetch, so the events stay as they were. | Check that "E2E Event 01" is still present and still shows "0.1 km away" (a refetch from the new place would show about 5.6 km). |
+
   - **Test file:** [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt). The 10 km threshold itself (REFRESH-7) is verified through this test rather than a separate unit test.
 
   - **Test Logs:**
