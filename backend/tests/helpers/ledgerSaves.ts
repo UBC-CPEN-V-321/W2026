@@ -18,6 +18,13 @@ export function memoryLedgerSaves() {
       saves.set(key(userId, slot), save);
       return summary(save);
     },
+    async rename(userId, slot, name, expectedRevision) {
+      const existing = saves.get(key(userId, slot));
+      if (!existing || existing.revision !== expectedRevision) throw new LedgerSaveConflictError();
+      const save = { ...existing, name, revision: existing.revision + 1 };
+      saves.set(key(userId, slot), save);
+      return summary(save);
+    },
     async delete(userId, slot, expectedRevision) {
       const existing = saves.get(key(userId, slot));
       if (existing && existing.revision !== expectedRevision) throw new LedgerSaveConflictError();

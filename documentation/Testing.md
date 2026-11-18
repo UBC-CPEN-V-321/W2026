@@ -5,16 +5,63 @@
 | Date | Description |
 | --- | --- |
 | 11/02/2026 | Creation of this file. Reporting E2E testing results for Feature 1 and backend testing results for Bill Import component. |
+| 11/18/2026 | Backend tests restructured to one unmocked and one mocked `describe` per interface with Input/Expected comments; added mocked tests for every interface with a mockable component; added full-stack E2E tests that run the app against the Node backend. |
 
 
 ## Locations of Backend Tests
 
+Each interface has one `describe` without mocks (`backend/tests/no-mock/`) and one with mocks (`backend/tests/mock/`), both named after the interface (`Unmocked: <interface>` / `Mocked: <interface>`). Every test starts with the four comments `Input`, `Expected status code`, `Expected behavior` and `Expected output`. The unmocked groups run the real Express app, sessions and MongoDB (an isolated in-memory `mongod` per suite); authenticated interfaces also include the shared missing/unknown/expired-session checks from [sessionRejection.ts](../backend/tests/helpers/sessionRejection.ts). Socket.IO interfaces are listed by namespace and event. Store-level checks that call no interface are in [backend/tests/unit/](../backend/tests/unit/).
+
 | Interfaces | Describe group without mocks | Describe group with mocks | Components mocked |
 | --- | --- | --- | --- |
-| `GET /api/ledger/meta` | [billImport.test.ts:5](../backend/tests/no-mock/billImport.test.ts#L5) | [billImport.test.ts:12](../backend/tests/mock/billImport.test.ts#L12) | FX provider `quote` and document extractor `extract`. |
-| `GET /api/ledger/exchange` | [billImport.test.ts:20](../backend/tests/no-mock/billImport.test.ts#L20) | [billImport.test.ts:29](../backend/tests/mock/billImport.test.ts#L29) | Frankfurter HTTP `fetch` for upstream responses/errors; FX provider `quote` and `Date.now` for rate-limit window recovery. |
-| `POST /api/ledger/imports/preview` | [billImport.test.ts:61](../backend/tests/no-mock/billImport.test.ts#L61); [ledgerServices.test.ts:96 — authenticated requests and live recognition](../backend/tests/no-mock/ledgerServices.test.ts#L96) | [billImport.test.ts:76](../backend/tests/mock/billImport.test.ts#L76) | OpenAI HTTP `fetch` for recognition responses/errors; document extractor `extract` for upload validation and file-signature checks. |
-| `POST /api/ledger/imports/statement-preview` | [billImport.test.ts:76](../backend/tests/no-mock/billImport.test.ts#L76) | [billImport.test.ts:131](../backend/tests/mock/billImport.test.ts#L131) | Local statement extractor `localExtractor.extract` and AI extractor `extractor.extract` for shared concurrency limits, capacity recovery, rate limits, and absence of implicit AI calls. |
+| `POST /api/auth/register` | [accountAuth.test.ts:13](../backend/tests/no-mock/accountAuth.test.ts#L13) | [accountAuth.test.ts:25](../backend/tests/mock/accountAuth.test.ts#L25) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/login` | [accountAuth.test.ts:78](../backend/tests/no-mock/accountAuth.test.ts#L78) | [accountAuth.test.ts:128](../backend/tests/mock/accountAuth.test.ts#L128) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `GET /api/users/me` | [accountAuth.test.ts:146](../backend/tests/no-mock/accountAuth.test.ts#L146) | [accountAuth.test.ts:232](../backend/tests/mock/accountAuth.test.ts#L232) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/logout` | [accountAuth.test.ts:172](../backend/tests/no-mock/accountAuth.test.ts#L172) | [accountAuth.test.ts:194](../backend/tests/mock/accountAuth.test.ts#L194) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `PATCH /api/users/me` | [accountSettings.test.ts:12](../backend/tests/no-mock/accountSettings.test.ts#L12) | [accountSettings.test.ts:23](../backend/tests/mock/accountSettings.test.ts#L23) | MongoDB user and session stores (in-memory replacements whose methods fail or race); Google ID-token verifier |
+| `POST /api/groups/:groupId/shared-entries` | [entrySharing.test.ts:27](../backend/tests/no-mock/entrySharing.test.ts#L27) | [entrySharing.test.ts:19](../backend/tests/mock/entrySharing.test.ts#L19) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
+| `GET /api/groups/:groupId/expenses/:expenseId/personal-entry` | [entrySharing.test.ts:124](../backend/tests/no-mock/entrySharing.test.ts#L124) | [entrySharing.test.ts:62](../backend/tests/mock/entrySharing.test.ts#L62) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
+| `POST /api/groups/:groupId/expenses/:expenseId/personal-entry/imported` | [entrySharing.test.ts:191](../backend/tests/no-mock/entrySharing.test.ts#L191) | [entrySharing.test.ts:87](../backend/tests/mock/entrySharing.test.ts#L87) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
+| `POST /api/auth/google` | [googleAuth.test.ts:20](../backend/tests/no-mock/googleAuth.test.ts#L20) | [googleAuth.test.ts:32](../backend/tests/mock/googleAuth.test.ts#L32) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/google/register` | [googleAuth.test.ts:43](../backend/tests/no-mock/googleAuth.test.ts#L43) | [googleAuth.test.ts:175](../backend/tests/mock/googleAuth.test.ts#L175) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/google/link` | [googleAuth.test.ts:56](../backend/tests/no-mock/googleAuth.test.ts#L56) | [googleAuth.test.ts:263](../backend/tests/mock/googleAuth.test.ts#L263) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `GET /api/groups` | [groupExpenses.test.ts:72](../backend/tests/no-mock/groupExpenses.test.ts#L72) | [groupExpenses.test.ts:21](../backend/tests/mock/groupExpenses.test.ts#L21) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /api/groups/:groupId/summary` | [groupExpenses.test.ts:88](../backend/tests/no-mock/groupExpenses.test.ts#L88) | [groupExpenses.test.ts:38](../backend/tests/mock/groupExpenses.test.ts#L38) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/:groupId/expenses` | [groupExpenses.test.ts:147](../backend/tests/no-mock/groupExpenses.test.ts#L147) | [groupExpenses.test.ts:82](../backend/tests/mock/groupExpenses.test.ts#L82) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `PUT /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:431](../backend/tests/no-mock/groupExpenses.test.ts#L431) | [groupExpenses.test.ts:130](../backend/tests/mock/groupExpenses.test.ts#L130) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `DELETE /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:661](../backend/tests/no-mock/groupExpenses.test.ts#L661) | [groupExpenses.test.ts:174](../backend/tests/mock/groupExpenses.test.ts#L174) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups` | [groupManagement.test.ts:75](../backend/tests/no-mock/groupManagement.test.ts#L75) | [groupManagement.test.ts:15](../backend/tests/mock/groupManagement.test.ts#L15) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /api/groups/invitations/:token` | [groupManagement.test.ts:152](../backend/tests/no-mock/groupManagement.test.ts#L152) | [groupManagement.test.ts:53](../backend/tests/mock/groupManagement.test.ts#L53) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/invitations/:token/accept` | [groupManagement.test.ts:191](../backend/tests/no-mock/groupManagement.test.ts#L191) | [groupManagement.test.ts:69](../backend/tests/mock/groupManagement.test.ts#L69) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/:groupId/invitations` | [groupManagement.test.ts:236](../backend/tests/no-mock/groupManagement.test.ts#L236) | [groupManagement.test.ts:109](../backend/tests/mock/groupManagement.test.ts#L109) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `PUT /api/groups/:groupId/name` | [groupManagement.test.ts:253](../backend/tests/no-mock/groupManagement.test.ts#L253) | [groupManagement.test.ts:126](../backend/tests/mock/groupManagement.test.ts#L126) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `DELETE /api/groups/:groupId` | [groupManagement.test.ts:281](../backend/tests/no-mock/groupManagement.test.ts#L281) | [groupManagement.test.ts:156](../backend/tests/mock/groupManagement.test.ts#L156) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /invite/:token` | [groupManagement.test.ts:316](../backend/tests/no-mock/groupManagement.test.ts#L316) | [groupManagement.test.ts:175](../backend/tests/mock/groupManagement.test.ts#L175) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /.well-known/assetlinks.json` | [groupManagement.test.ts:350](../backend/tests/no-mock/groupManagement.test.ts#L350) | — | — (reads only deployment configuration; nothing to mock) |
+| `POST /api/groups/:groupId/leave` | [groupMembership.test.ts:26](../backend/tests/no-mock/groupMembership.test.ts#L26) | [groupMembership.test.ts:22](../backend/tests/mock/groupMembership.test.ts#L22) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
+| `DELETE /api/groups/:groupId/members/:memberId` | [groupMembership.test.ts:94](../backend/tests/no-mock/groupMembership.test.ts#L94) | [groupMembership.test.ts:42](../backend/tests/mock/groupMembership.test.ts#L42) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
+| `GET /health` | [health.test.ts:6](../backend/tests/no-mock/health.test.ts#L6) | — | — (no database or external component) |
+| `GET /api/ledger-saves` | [ledgerSaves.test.ts:44](../backend/tests/no-mock/ledgerSaves.test.ts#L44) | [ledgerSaves.test.ts:28](../backend/tests/mock/ledgerSaves.test.ts#L28) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `GET /api/ledger-saves/:slot` | [ledgerSaves.test.ts:62](../backend/tests/no-mock/ledgerSaves.test.ts#L62) | [ledgerSaves.test.ts:76](../backend/tests/mock/ledgerSaves.test.ts#L76) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `PUT /api/ledger-saves/:slot` | [ledgerSaves.test.ts:79](../backend/tests/no-mock/ledgerSaves.test.ts#L79) | [ledgerSaves.test.ts:121](../backend/tests/mock/ledgerSaves.test.ts#L121) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `PATCH /api/ledger-saves/:slot` | [ledgerSaves.test.ts:137](../backend/tests/no-mock/ledgerSaves.test.ts#L137) | [ledgerSaves.test.ts:238](../backend/tests/mock/ledgerSaves.test.ts#L238) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `DELETE /api/ledger-saves/:slot` | [ledgerSaves.test.ts:169](../backend/tests/no-mock/ledgerSaves.test.ts#L169) | [ledgerSaves.test.ts:290](../backend/tests/mock/ledgerSaves.test.ts#L290) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `GET /api/ledger/meta` | [ledgerServices.test.ts:30](../backend/tests/no-mock/ledgerServices.test.ts#L30) | [ledgerServices.test.ts:39](../backend/tests/mock/ledgerServices.test.ts#L39) | Document extractor and FX provider; `OPENAI_API_KEY` placeholders |
+| `GET /api/ledger/exchange` | [ledgerServices.test.ts:46](../backend/tests/no-mock/ledgerServices.test.ts#L46) | [ledgerServices.test.ts:62](../backend/tests/mock/ledgerServices.test.ts#L62) | Frankfurter HTTP `fetch` (real FX provider) and the FX provider `quote` |
+| `POST /api/ledger/imports/preview` | [ledgerServices.test.ts:70](../backend/tests/no-mock/ledgerServices.test.ts#L70) | [ledgerServices.test.ts:117](../backend/tests/mock/ledgerServices.test.ts#L117) | OpenAI HTTP `fetch` (real recognition adapter) and the document extractor `extract` |
+| `POST /api/ledger/imports/statement-preview` | [ledgerServices.test.ts:115](../backend/tests/no-mock/ledgerServices.test.ts#L115) | [ledgerServices.test.ts:315](../backend/tests/mock/ledgerServices.test.ts#L315) | Local statement extractor and AI extractor `extract` (spy that must not be called) |
+| `Socket.IO /dutch connection` | [splitSessionLive.test.ts:43](../backend/tests/no-mock/splitSessionLive.test.ts#L43) | [splitSessionLive.test.ts:39](../backend/tests/mock/splitSessionLive.test.ts#L39) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch subscribe` | [splitSessionLive.test.ts:102](../backend/tests/no-mock/splitSessionLive.test.ts#L102) | [splitSessionLive.test.ts:55](../backend/tests/mock/splitSessionLive.test.ts#L55) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupUpdated` | [splitSessionLive.test.ts:156](../backend/tests/no-mock/splitSessionLive.test.ts#L156) | [splitSessionLive.test.ts:81](../backend/tests/mock/splitSessionLive.test.ts#L81) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupChanged` | [splitSessionLive.test.ts:265](../backend/tests/no-mock/splitSessionLive.test.ts#L265) | [splitSessionLive.test.ts:102](../backend/tests/mock/splitSessionLive.test.ts#L102) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupMembershipChanged` | [splitSessionLive.test.ts:301](../backend/tests/no-mock/splitSessionLive.test.ts#L301) | [splitSessionLive.test.ts:121](../backend/tests/mock/splitSessionLive.test.ts#L121) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `POST /api/groups/:groupId/split-sessions` | [splitSessions.test.ts:98](../backend/tests/no-mock/splitSessions.test.ts#L98) | [splitSessions.test.ts:52](../backend/tests/mock/splitSessions.test.ts#L52) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `GET /api/groups/:groupId/snapshot` | [splitSessions.test.ts:187](../backend/tests/no-mock/splitSessions.test.ts#L187) | [splitSessions.test.ts:78](../backend/tests/mock/splitSessions.test.ts#L78) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `POST /api/split-sessions/:sessionId/claims` | [splitSessions.test.ts:249](../backend/tests/no-mock/splitSessions.test.ts#L249) | [splitSessions.test.ts:105](../backend/tests/mock/splitSessions.test.ts#L105) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `POST /api/split-sessions/:sessionId/finalize` | [splitSessions.test.ts:377](../backend/tests/no-mock/splitSessions.test.ts#L377) | [splitSessions.test.ts:139](../backend/tests/mock/splitSessions.test.ts#L139) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `GET /api/operations/:operationKey` | [splitSessions.test.ts:517](../backend/tests/no-mock/splitSessions.test.ts#L517) | [splitSessions.test.ts:174](../backend/tests/mock/splitSessions.test.ts#L174) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+
+Unknown routes are covered by `Unmocked: GET /does-not-exist` in [health.test.ts](../backend/tests/no-mock/health.test.ts) (404 fallback).
 
 ## Location of .yml files
 
@@ -61,6 +108,15 @@ Execution logs see Gradle log (res/testing/cp2/android-e2e.txt) and per-test JUn
 | newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting | **UC-F1-05 1, 4:** Seed historical PDF/receipt records through the repository → create a fresh ViewModel; its month filter is unset and both saved IDs are visible. This checks reload state, not document extraction or a full process restart. | PASS |
 | bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords | **UC-F1-05 1:** Seed two expenses/one income and set search/kind through the ViewModel; two expenses are visible.<br>**UC-F1-05 3, 3a:** Select all shown → Delete → Cancel; all three records remain.<br>**UC-F1-05 3b:** Change the kind filter through the ViewModel; selection clears and selection mode ends.<br>**UC-F1-05 3–4:** Filter expenses again → Select all shown → confirm deletion; only the income remains. | PASS |
 
+**Full-stack E2E (app + Node backend + MongoDB) — 2 tests**
+
+These launch the real app (`MainActivity`) on the emulator against the real Node backend, Socket.IO live updates and MongoDB. A second member acts as "another device" through the same backend API. They run only when the isolated backend is started (see *How to run Tests*) and `ledgerFullStack=true` is passed; otherwise they are skipped. Shared steps are in [FullStackHarness.kt](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/FullStackHarness.kt).
+
+| Test | Use case → test steps and expected behavior | Recorded status |
+| --- | --- | --- |
+| [GroupBillFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/GroupBillFullStackE2eTest.kt) `ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend` | **Sign in:** Me → Sign in with a backend-registered username and password → Me shows Log out.<br>**Create Group:** Groups → Create group → enter a name → Create group; the invitation dialog appears → Done; “Group created. You are the owner.”<br>**Join Group (other device):** the member accepts an invitation through the backend; the open group page updates live to “2 members”.<br>**Record Shared Expense:** + Add a bill → Enter manually → description and CAD 30.00, equal split → Save expense; the bill is listed.<br>**Backend check:** the member's `GET /summary` returns total 3000 cents, paid by the owner, split 1500/1500. | PASS (3 consecutive runs, 11/18/2026) |
+| [LetsGoDutchFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/LetsGoDutchFullStackE2eTest.kt) `ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice` | **Start Let's Go Dutch:** owner signs in → opens the group → + Add a bill → Enter manually → CAD 18.00 → Let’s Go Dutch → items Burger 12.00 and Fries 6.00 → confirm review → Start split session; “0 / 2 units claimed”.<br>**Claim Item (other device):** the member claims Burger through `POST /claims`; the app shows “Claimed by First joiner” and “1 / 2 units claimed” over Socket.IO.<br>**Claim and Finalize:** the owner claims Fries → “2 / 2 units claimed” → Finalize split → “Finalized · saved to group expenses”.<br>**Backend check:** the member's summary has one 1800-cent bill “Dutch dinner” with shares member 1200 / owner 600. | PASS (3 consecutive runs, 11/18/2026) |
+
 ## NFR location
 To be done within CP3. Not covered yet.
 
@@ -102,15 +158,37 @@ cd ..
 
 This runs the two Feature 1 E2E classes. `ledgerLiveAi` enables receipt recognition; `ledgerProvisionAccount` creates temporary test accounts for the authenticated Feature 1 scenarios. Open `frontend/app/build/reports/androidTests/connected/debug/index.html` for results.
 
-**Bill Import backend (from the repository root):**
+**Full-stack E2E (app + Node backend):** no `.env`, OpenAI key or internet is needed; the backend uses an in-memory MongoDB and stops by itself after 15 minutes. Keep `API_BASE_URL=http://10.0.2.2:3000` in `frontend/local.properties`. In one terminal:
 
 ```powershell
 cd backend
 npm ci
-cd ..
-./scripts/test-bill-import.ps1 -Mode no-mock
-./scripts/test-bill-import.ps1 -Mode mock
-./scripts/test-bill-import.ps1 -Mode combined
+npm run build
+$env:LEDGER_TEST_PORT = '3000'
+node tests/helpers/membership-test-server.cjs
 ```
 
-The script prints Jest coverage and saves JSON results to `backend/coverage/bill-import/<mode>/`. The combined run requires 100% statements, branches, functions and lines.
+In a second terminal, with only the emulator connected:
+
+```powershell
+cd frontend
+.\gradlew.bat :app:connectedDebugAndroidTest `
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.example.cpen321application.e2e.GroupBillFullStackE2eTest,com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest' `
+  '-Pandroid.testInstrumentationRunnerArguments.ledgerFullStack=true' --console=plain
+cd ..
+```
+
+Registration is rate-limited per client, so restart the backend if you repeat the run many times within a few minutes.
+
+**Backend interface tests (from the repository root):**
+
+```powershell
+cd backend
+npm ci
+npm run test:no-mock
+npm run test:mock
+npm run test:interface
+cd ..
+```
+
+`test:no-mock` and `test:mock` run each folder with coverage (`backend/coverage/no-mock/`, `backend/coverage/mock/`); `test:interface` runs both together (`backend/coverage/interface/`). `npm test` runs every backend suite, including `tests/unit/`.

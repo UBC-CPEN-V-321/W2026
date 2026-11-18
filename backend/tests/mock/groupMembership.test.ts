@@ -3,24 +3,57 @@ import { GroupModel } from '../../src/groupStore';
 import { groupMembershipEvents } from '../../src/groupMembershipEvents';
 import { databaseFailure, expectDatabaseError, useGroupApiFixture } from '../helpers/groupApiFixture';
 
+// Mocked component: the MongoDB group membership write (GroupModel.findOneAndUpdate) rejects or returns null.
 const fixture = useGroupApiFixture();
 beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefined); });
 
-describe.each(['leave', 'remove'] as const)('Mocked group membership: %s', action => {
-  const send = () => action === 'leave'
-    ? request(fixture.app).post(`/api/groups/${fixture.groupId}/leave`).set('Authorization', fixture.memberAuth)
-    : request(fixture.app).delete(`/api/groups/${fixture.groupId}/members/${fixture.memberId}`).set('Authorization', fixture.ownerAuth);
+const leave = () => request(fixture.app).post(`/api/groups/${fixture.groupId}/leave`).set('Authorization', fixture.memberAuth);
+const remove = () => request(fixture.app).delete(`/api/groups/${fixture.groupId}/members/${fixture.memberId}`).set('Authorization', fixture.ownerAuth);
 
-  test('a persistence failure is reported without claiming success or altering membership', async () => {
-    const publish = jest.spyOn(groupMembershipEvents, 'emit');
-    jest.spyOn(GroupModel, 'findOneAndUpdate').mockRejectedValueOnce(databaseFailure());
-    expectDatabaseError(await send());
-    expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
-    expect(publish).not.toHaveBeenCalled();
+async function expectFailedWriteLeavesMembership(send: () => request.Test) {
+  const publish = jest.spyOn(groupMembershipEvents, 'emit');
+  jest.spyOn(GroupModel, 'findOneAndUpdate').mockRejectedValueOnce(databaseFailure());
+  expectDatabaseError(await send());
+  expect((await GroupModel.findById(fixture.groupId))?.memberIds).toHaveLength(2);
+  expect(publish).not.toHaveBeenCalled();
+}
+
+// Interface POST /api/groups/:groupId/leave
+describe('Mocked: POST /api/groups/:groupId/leave', () => {
+  // Input: a member leaves; mock: the membership write rejects
+  // Expected status code: 500
+  // Expected behavior: success is not claimed, membership is unchanged and no event is published
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Reports a persistence failure without changing membership', async () => {
+    await expectFailedWriteLeavesMembership(leave);
   });
 
-  test('a concurrent group deletion is reported as unavailable', async () => {
+  // Input: a member leaves; mock: the conditional write finds no group (deleted concurrently)
+  // Expected status code: 404
+  // Expected behavior: the departure is reported as unavailable
+  // Expected output: { error: "Group not found." }
+  test('Reports a concurrently deleted group as unavailable', async () => {
     jest.spyOn(GroupModel, 'findOneAndUpdate').mockResolvedValueOnce(null);
-    expect((await send()).status).toBe(404);
+    expect((await leave()).status).toBe(404);
+  });
+});
+
+// Interface DELETE /api/groups/:groupId/members/:memberId
+describe('Mocked: DELETE /api/groups/:groupId/members/:memberId', () => {
+  // Input: the owner removes a member; mock: the membership write rejects
+  // Expected status code: 500
+  // Expected behavior: success is not claimed, membership is unchanged and no event is published
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Reports a persistence failure without changing membership', async () => {
+    await expectFailedWriteLeavesMembership(remove);
+  });
+
+  // Input: the owner removes a member; mock: the conditional write finds no group (deleted concurrently)
+  // Expected status code: 404
+  // Expected behavior: the removal is reported as unavailable
+  // Expected output: { error: "Group not found." }
+  test('Reports a concurrently deleted group as unavailable', async () => {
+    jest.spyOn(GroupModel, 'findOneAndUpdate').mockResolvedValueOnce(null);
+    expect((await remove()).status).toBe(404);
   });
 });

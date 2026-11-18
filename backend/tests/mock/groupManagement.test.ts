@@ -1,18 +1,23 @@
 import request from 'supertest';
 import { GroupInvitationModel, GroupModel } from '../../src/groupStore';
-import { databaseFailure, expectDatabaseError, useGroupApiFixture } from '../helpers/groupApiFixture';
+import { databaseFailure, expectDatabaseError, failNextFindOne, useGroupApiFixture } from '../helpers/groupApiFixture';
 import { groupMembershipEvents } from '../../src/groupMembershipEvents';
 
+// Mocked component: MongoDB group and invitation model calls are replaced with jest spies that reject or return null.
 const fixture = useGroupApiFixture();
 
 beforeEach(() => {
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
+
+// Interface POST /api/groups
 describe('Mocked: POST /api/groups', () => {
-  // Input: valid group. Mock: group insert rejects before writing.
-  // Expected: 500 with a generic error; no group or invitation is added.
-  test('does not report success when group persistence fails', async () => {
+  // Input: valid group; mock: the group insert rejects
+  // Expected status code: 500
+  // Expected behavior: success is not reported; no group or invitation is added
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Does not report success when group persistence fails', async () => {
     const create = jest.spyOn(GroupModel, 'create').mockRejectedValueOnce(databaseFailure());
     const response = await request(fixture.app).post('/api/groups').set('Authorization', fixture.ownerAuth)
       .send({ name: 'New group', currency: 'CAD', requestId: 'new-group-api-request' });
@@ -22,9 +27,11 @@ describe('Mocked: POST /api/groups', () => {
     expect(await GroupInvitationModel.countDocuments()).toBe(1);
   });
 
-  // Input: same confirmed creation retried after invitation persistence failed.
-  // Mock: first invitation insert rejects. Expected: 500, then 200; one new group, one new invite.
-  test('recovers a partially completed creation without duplicating the group', async () => {
+  // Input: the same creation retried after the invitation insert failed; mock: first invitation insert rejects
+  // Expected status code: 500, then 200
+  // Expected behavior: the retry completes the partial creation without duplicating the group
+  // Expected output: { group, invitation } with the originally saved group ID
+  test('Recovers a partially completed creation without duplicating the group', async () => {
     const createInvitation = jest.spyOn(GroupInvitationModel, 'create').mockRejectedValueOnce(databaseFailure());
     const body = { name: 'New group', currency: 'CAD', requestId: 'new-group-api-request' };
     const submit = () => request(fixture.app).post('/api/groups').set('Authorization', fixture.ownerAuth).send(body);
@@ -32,7 +39,6 @@ describe('Mocked: POST /api/groups', () => {
     const saved = await GroupModel.findOne({ createRequestId: { $eq: 'new-group-api-request' } }).lean();
     expect(saved).not.toBeNull();
     expect(await GroupInvitationModel.countDocuments()).toBe(1);
-
     const retry = await submit();
     expect(retry.status).toBe(200);
     expect(retry.body.group.id).toBe(saved?._id.toString());
@@ -43,49 +49,36 @@ describe('Mocked: POST /api/groups', () => {
   });
 });
 
-describe('Mocked: GET /api/groups', () => {
-  // Input: valid session. Mock: list query rejects.
-  // Expected: 500 rather than a misleading successful empty group list.
-  test('reports a database failure instead of returning an empty list', async () => {
-    const query = GroupModel.find();
-    jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-    const find = jest.spyOn(GroupModel, 'find').mockReturnValueOnce(query);
-    const response = await request(fixture.app).get('/api/groups').set('Authorization', fixture.ownerAuth);
-    expectDatabaseError(response);
-    expect(find).toHaveBeenCalledTimes(1);
-    expect(response.body).not.toHaveProperty('groups');
-    expect(await GroupModel.countDocuments()).toBe(1);
-  });
-});
-
+// Interface GET /api/groups/invitations/:token
 describe('Mocked: GET /api/groups/invitations/:token', () => {
-  // Input: valid invitation and invitee. Mock: invitation lookup rejects.
-  // Expected: 500, not an expired-link 404; membership is unchanged.
-  test('distinguishes failed lookup from an unavailable invitation', async () => {
-    const query = GroupInvitationModel.findOne();
-    jest.spyOn(query, 'exec').mockRejectedValueOnce(databaseFailure());
-    const find = jest.spyOn(GroupInvitationModel, 'findOne').mockReturnValueOnce(query);
+  // Input: valid invitation and invitee; mock: the invitation lookup rejects
+  // Expected status code: 500
+  // Expected behavior: a failed lookup is not reported as an expired link; membership is unchanged
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Distinguishes a failed lookup from an unavailable invitation', async () => {
+    const find = failNextFindOne(GroupInvitationModel);
     const response = await request(fixture.app).get(`/api/groups/invitations/${fixture.invitationToken}`)
       .set('Authorization', fixture.inviteeAuth);
     expectDatabaseError(response);
     expect(find).toHaveBeenCalledTimes(1);
-    expect((await GroupModel.findById(fixture.groupId))?.memberIds.map(String))
-      .toEqual([fixture.ownerId, fixture.memberId]);
+    expect((await GroupModel.findById(fixture.groupId))?.memberIds.map(String)).toEqual([fixture.ownerId, fixture.memberId]);
   });
 });
 
+// Interface POST /api/groups/invitations/:token/accept
 describe('Mocked: POST /api/groups/invitations/:token/accept', () => {
-  // Input: valid invitation, invitee not yet a member. Mock: atomic membership write rejects.
-  // Expected: 500 with unchanged membership; retry succeeds once with 200.
-  test('allows a failed membership write to be retried without duplicate members', async () => {
+  // Input: valid invitation for a new member; mock: the atomic membership write rejects once
+  // Expected status code: 500, then 200 on retry
+  // Expected behavior: membership is unchanged after the failure; the retry joins once and publishes one event
+  // Expected output: { group }; the member appears once
+  test('Allows a failed membership write to be retried without duplicates', async () => {
     const publish = jest.spyOn(groupMembershipEvents, 'emit');
     const update = jest.spyOn(GroupModel, 'findOneAndUpdate').mockRejectedValueOnce(databaseFailure());
     const accept = () => request(fixture.app).post(`/api/groups/invitations/${fixture.invitationToken}/accept`)
       .set('Authorization', fixture.inviteeAuth);
     expectDatabaseError(await accept());
     expect(publish).not.toHaveBeenCalled();
-    expect((await GroupModel.findById(fixture.groupId))?.memberIds.map(String))
-      .toEqual([fixture.ownerId, fixture.memberId]);
+    expect((await GroupModel.findById(fixture.groupId))?.memberIds.map(String)).toEqual([fixture.ownerId, fixture.memberId]);
     const retry = await accept();
     expect(retry.status).toBe(200);
     expect(publish).toHaveBeenCalledTimes(1);
@@ -96,9 +89,11 @@ describe('Mocked: POST /api/groups/invitations/:token/accept', () => {
     expect(members?.filter(id => id === fixture.inviteeId)).toHaveLength(1);
   });
 
-  // Input: valid preview followed by deletion before the conditional membership write.
-  // Mock: atomic update finds no group; existence lookup returns null. Expected: 404; no join.
-  test('does not describe a deleted group as merely full', async () => {
+  // Input: valid invitation; mock: the conditional write finds no group and the existence check returns null
+  // Expected status code: 404
+  // Expected behavior: a group deleted mid-request is reported as missing, not full
+  // Expected output: { error: "Group not found." }
+  test('Does not describe a deleted group as merely full', async () => {
     jest.spyOn(GroupModel, 'findOneAndUpdate').mockResolvedValueOnce(null);
     const exists = jest.spyOn(GroupModel, 'exists').mockResolvedValueOnce(null);
     const response = await request(fixture.app).post(`/api/groups/invitations/${fixture.invitationToken}/accept`)
@@ -110,10 +105,13 @@ describe('Mocked: POST /api/groups/invitations/:token/accept', () => {
   });
 });
 
+// Interface POST /api/groups/:groupId/invitations
 describe('Mocked: POST /api/groups/:groupId/invitations', () => {
-  // Input: active member and group. Mock: invitation insert rejects.
-  // Expected: 500; no new link is returned or invitation persisted.
-  test('does not return an invitation that could not be stored', async () => {
+  // Input: active member; mock: the invitation insert rejects
+  // Expected status code: 500
+  // Expected behavior: no link is returned or stored
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Does not return an invitation that could not be stored', async () => {
     const create = jest.spyOn(GroupInvitationModel, 'create').mockRejectedValueOnce(databaseFailure());
     const response = await request(fixture.app).post(`/api/groups/${fixture.groupId}/invitations`)
       .set('Authorization', fixture.memberAuth);
@@ -124,10 +122,13 @@ describe('Mocked: POST /api/groups/:groupId/invitations', () => {
   });
 });
 
+// Interface PUT /api/groups/:groupId/name
 describe('Mocked: PUT /api/groups/:groupId/name', () => {
-  // Input: valid member/name. Mock: rename write rejects.
-  // Expected: 500; stored name, currency, owner and membership remain unchanged.
-  test('preserves the original group when renaming fails', async () => {
+  // Input: valid member and name; mock: the rename write rejects
+  // Expected status code: 500
+  // Expected behavior: name, currency, owner and members are unchanged
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Preserves the group when renaming fails', async () => {
     const before = await GroupModel.findById(fixture.groupId).lean();
     const update = jest.spyOn(GroupModel, 'findOneAndUpdate').mockRejectedValueOnce(databaseFailure());
     const response = await request(fixture.app).put(`/api/groups/${fixture.groupId}/name`)
@@ -137,9 +138,11 @@ describe('Mocked: PUT /api/groups/:groupId/name', () => {
     expect(await GroupModel.findById(fixture.groupId).lean()).toEqual(before);
   });
 
-  // Input: valid rename after an earlier membership read. Mock: conditional write finds no group.
-  // Expected: 404 rather than success with a null group.
-  test('handles a group disappearing before the rename commits', async () => {
+  // Input: valid rename; mock: the conditional write finds no group
+  // Expected status code: 404
+  // Expected behavior: a group that disappears mid-request is not reported as renamed
+  // Expected output: { error: "Group not found." }
+  test('Handles a group disappearing before the rename commits', async () => {
     jest.spyOn(GroupModel, 'findOneAndUpdate').mockResolvedValueOnce(null);
     const response = await request(fixture.app).put(`/api/groups/${fixture.groupId}/name`)
       .set('Authorization', fixture.ownerAuth).send({ name: 'Changed name' });
@@ -149,10 +152,13 @@ describe('Mocked: PUT /api/groups/:groupId/name', () => {
   });
 });
 
+// Interface DELETE /api/groups/:groupId
 describe('Mocked: DELETE /api/groups/:groupId', () => {
-  // Input: owner deletes an active group. Mock: soft-delete write rejects.
-  // Expected: 500, not 204; the group stays active and its invitation remains usable.
-  test('keeps the group accessible when deletion fails', async () => {
+  // Input: owner deletes an active group; mock: the soft-delete write rejects
+  // Expected status code: 500
+  // Expected behavior: the group stays active and its invitation still works
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Keeps the group accessible when deletion fails', async () => {
     const update = jest.spyOn(GroupModel, 'updateOne').mockRejectedValueOnce(databaseFailure());
     const response = await request(fixture.app).delete(`/api/groups/${fixture.groupId}`)
       .set('Authorization', fixture.ownerAuth);
@@ -162,5 +168,30 @@ describe('Mocked: DELETE /api/groups/:groupId', () => {
     const preview = await request(fixture.app).get(`/api/groups/invitations/${fixture.invitationToken}`)
       .set('Authorization', fixture.inviteeAuth);
     expect(preview.status).toBe(200);
+  });
+});
+
+// Interface GET /invite/:token
+describe('Mocked: GET /invite/:token', () => {
+  // Input: valid invitation token; mock: the invitation lookup rejects
+  // Expected status code: 500
+  // Expected behavior: no invitation page or app link is served
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Does not serve an invitation page when the lookup fails', async () => {
+    failNextFindOne(GroupInvitationModel);
+    const page = await request(fixture.app).get(`/invite/${fixture.invitationToken}`);
+    expect(page.status).toBe(500);
+    expect(page.text).not.toContain('ledger://invite/');
+  });
+
+  // Input: valid invitation token; mock: the inviter's group membership lookup rejects
+  // Expected status code: 500
+  // Expected behavior: the group name is not disclosed
+  // Expected output: { error: "Something went wrong. Please try again." }
+  test('Does not disclose the group when its lookup fails', async () => {
+    failNextFindOne(GroupModel);
+    const page = await request(fixture.app).get(`/invite/${fixture.invitationToken}`);
+    expect(page.status).toBe(500);
+    expect(page.text).not.toContain('API test group');
   });
 });

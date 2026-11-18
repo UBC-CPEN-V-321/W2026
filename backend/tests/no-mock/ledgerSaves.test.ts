@@ -5,7 +5,9 @@ import { LedgerSaveModel } from '../../src/ledgerSaveStore';
 import { startSession } from '../../src/session';
 import { connectDatabase, disconnectDatabase, mongoSessionStore, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
 import { savedRecord } from '../helpers/ledgerSaves';
+import { testsRejectInvalidSessions } from '../helpers/sessionRejection';
 
+// Real routing, sessions and MongoDB ledger save collection. No mocked components.
 let mongo: MongoMemoryServer | undefined;
 const app = createApp();
 let auth = '';
@@ -30,58 +32,152 @@ afterAll(async () => {
 });
 
 const body = (replaces: number | null, records = [savedRecord()]) => ({ deviceName: 'Pixel 9', baseCurrency: 'CAD', records, replaces });
+const put = (slot: number, payload: object, token = auth) => request(app).put(`/api/ledger-saves/${slot}`).set('Authorization', token).send(payload);
+const savedSlots = () => LedgerSaveModel.find().sort({ _id: 1 }).lean();
 
-// Interface PUT/GET/DELETE /api/ledger-saves/:slot against MongoDB
-describe('Unmocked: ledger save slots', () => {
-  test('names are trimmed, listed, renamed atomically and isolated to their account', async () => {
-    const saved = await request(app).put('/api/ledger-saves/1').set('Authorization', auth).send({ ...body(null), name: '  Trip  ' });
+async function otherAccount() {
+  const other = await mongoUserStore.create({ email: 'other@example.com', displayName: 'Other' });
+  return `Bearer ${(await startSession(mongoSessionStore, other)).token}`;
+}
+
+// Interface GET /api/ledger-saves
+describe('Unmocked: GET /api/ledger-saves', () => {
+  testsRejectInvalidSessions(() => request(app).get('/api/ledger-saves'), () => auth, savedSlots);
+
+  // Input: list after saving slot 3, then list from another account
+  // Expected status code: 200
+  // Expected behavior: lists only this account's slot summaries, never transaction records
+  // Expected output: { slots: [summary] } for the owner and { slots: [] } for the other account
+  test('Lists slot summaries for the signed-in account only', async () => {
+    const saved = await put(3, body(null));
+    const listed = await request(app).get('/api/ledger-saves').set('Authorization', auth);
+    expect(listed.status).toBe(200);
+    expect(listed.body.slots).toEqual([saved.body.save]);
+    expect(JSON.stringify(listed.body)).not.toContain('Corner Cafe');
+    expect((await request(app).get('/api/ledger-saves').set('Authorization', await otherAccount())).body).toEqual({ slots: [] });
+  });
+});
+
+// Interface GET /api/ledger-saves/:slot
+describe('Unmocked: GET /api/ledger-saves/:slot', () => {
+  testsRejectInvalidSessions(() => request(app).get('/api/ledger-saves/1'), () => auth, savedSlots);
+
+  // Input: restore slot 3 after saving one record, and an empty slot 2
+  // Expected status code: 200 for slot 3, 404 for slot 2
+  // Expected behavior: the stored records are returned exactly as saved
+  // Expected output: { save } containing records equal to the saved record
+  test('Restores the saved records', async () => {
+    await put(3, body(null));
+    const restored = await request(app).get('/api/ledger-saves/3').set('Authorization', auth);
+    expect(restored.status).toBe(200);
+    expect(restored.body.save.records).toEqual([savedRecord()]);
+    expect((await request(app).get('/api/ledger-saves/2').set('Authorization', auth)).status).toBe(404);
+  });
+});
+
+// Interface PUT /api/ledger-saves/:slot
+describe('Unmocked: PUT /api/ledger-saves/:slot', () => {
+  testsRejectInvalidSessions(() => request(app).put('/api/ledger-saves/1').send(body(null)), () => auth, savedSlots);
+
+  // Input: save to an empty slot without a name, then overwrite revision 1 with no records
+  // Expected status code: 200 for both
+  // Expected behavior: a nameless save gets an empty name; overwriting advances the revision
+  // Expected output: { save } with revision 1 and name "", then revision 2 and recordCount 0
+  test('Stores and overwrites a slot', async () => {
+    const saved = await put(3, body(null));
+    expect(saved.status).toBe(200);
+    expect(saved.body.save).toMatchObject({ slot: 3, revision: 1, name: '', recordCount: 1 });
+    const replaced = await put(3, body(1, []));
+    expect(replaced.body.save).toMatchObject({ revision: 2, recordCount: 0 });
+  });
+
+  // Input: save name with surrounding spaces
+  // Expected status code: 200
+  // Expected behavior: the name is trimmed before it is stored
+  // Expected output: { save } with name "Trip"
+  test('Trims a supplied save name', async () => {
+    const saved = await put(1, { ...body(null), name: '  Trip  ' });
     expect(saved.status).toBe(200);
     expect(saved.body.save.name).toBe('Trip');
+  });
+
+  // Input: empty, blank, 41-character, numeric or null save name
+  // Expected status code: 400
+  // Expected behavior: nothing is stored
+  // Expected output: error message
+  test.each(['', '  ', 'x'.repeat(41), 42, null])('Rejects invalid supplied save name %p', async name => {
+    expect((await put(1, { ...body(null), name })).status).toBe(400);
+    expect(await LedgerSaveModel.countDocuments()).toBe(0);
+  });
+
+  // Input: two devices fill the same empty slot at the same time
+  // Expected status code: one 200 and one 409
+  // Expected behavior: the conditional insert admits exactly one save
+  // Expected output: { save } for the winner; conflict error for the other
+  test('Lets exactly one of two devices fill the same empty slot', async () => {
+    const results = await Promise.all([1, 2].map(() => put(1, body(null))));
+    expect(results.map(res => res.status).sort()).toEqual([200, 409]);
+    expect(await LedgerSaveModel.countDocuments({ slot: 1 })).toBe(1);
+  });
+
+  // Input: two devices overwrite revision 1 of the same slot at the same time
+  // Expected status code: one 200 and one 409
+  // Expected behavior: the revision check admits exactly one overwrite
+  // Expected output: the slot is listed once at revision 2
+  test('Lets exactly one of two devices overwrite the same revision', async () => {
+    await put(2, body(null));
+    const results = await Promise.all([[], [savedRecord()]].map(records => put(2, body(1, records))));
+    expect(results.map(res => res.status).sort()).toEqual([200, 409]);
+    const listed = await request(app).get('/api/ledger-saves').set('Authorization', auth);
+    expect(listed.body.slots).toEqual([expect.objectContaining({ slot: 2, revision: 2 })]);
+  });
+});
+
+// Interface PATCH /api/ledger-saves/:slot
+describe('Unmocked: PATCH /api/ledger-saves/:slot', () => {
+  testsRejectInvalidSessions(() => request(app).patch('/api/ledger-saves/1').send({ name: 'Trip', revision: 1 }), () => auth, savedSlots);
+
+  // Input: rename revision 1 to " Summer ", repeat with stale revision 1, and attempt from another account
+  // Expected status code: 200, then 409, then 409
+  // Expected behavior: rename is atomic, trims the name, advances the revision and keeps records
+  // Expected output: { save } with name "Summer" and revision 2
+  test('Renames atomically and only for the owning account', async () => {
+    const saved = await put(1, { ...body(null), name: 'Trip' });
     const renamed = await request(app).patch('/api/ledger-saves/1').set('Authorization', auth).send({ name: ' Summer ', revision: 1 });
     expect(renamed.status).toBe(200);
     expect(renamed.body.save).toEqual({ ...saved.body.save, name: 'Summer', revision: 2 });
     expect((await request(app).get('/api/ledger-saves/1').set('Authorization', auth)).body.save.records).toEqual([savedRecord()]);
     expect((await request(app).patch('/api/ledger-saves/1').set('Authorization', auth).send({ name: 'Stale', revision: 1 })).status).toBe(409);
-    const other = await mongoUserStore.create({ email: 'other@example.com', displayName: 'Other' });
-    const otherAuth = `Bearer ${(await startSession(mongoSessionStore, other)).token}`;
-    expect((await request(app).patch('/api/ledger-saves/1').set('Authorization', otherAuth).send({ name: 'Foreign', revision: 2 })).status).toBe(409);
+    const foreign = await request(app).patch('/api/ledger-saves/1').set('Authorization', await otherAccount()).send({ name: 'Foreign', revision: 2 });
+    expect(foreign.status).toBe(409);
     expect((await request(app).get('/api/ledger-saves').set('Authorization', auth)).body.slots[0].name).toBe('Summer');
   });
 
-  test.each(['', '  ', 'x'.repeat(41), 42, null])('rejects invalid supplied save name %p', async name => {
-    expect((await request(app).put('/api/ledger-saves/1').set('Authorization', auth).send({ ...body(null), name })).status).toBe(400);
-    expect(await LedgerSaveModel.countDocuments()).toBe(0);
+  // Input: 40-character name for a nameless save
+  // Expected status code: 200
+  // Expected behavior: the maximum length is accepted
+  // Expected output: { save } with the 40-character name
+  test('Accepts a 40-character name', async () => {
+    await put(1, body(null));
+    const res = await request(app).patch('/api/ledger-saves/1').set('Authorization', auth).send({ name: 'x'.repeat(40), revision: 1 });
+    expect(res.status).toBe(200);
+    expect(res.body.save.name).toBe('x'.repeat(40));
   });
+});
 
-  test('legacy saves have an empty name and allow a 40-character name', async () => {
-    const legacy = await request(app).put('/api/ledger-saves/1').set('Authorization', auth).send(body(null));
-    expect(legacy.body.save.name).toBe('');
-    expect((await request(app).patch('/api/ledger-saves/1').set('Authorization', auth).send({ name: 'x'.repeat(40), revision: 1 })).status).toBe(200);
-  });
-  test('stores, lists, restores, overwrites and deletes a slot', async () => {
-    const saved = await request(app).put('/api/ledger-saves/3').set('Authorization', auth).send(body(null));
-    expect(saved.status).toBe(200);
-    expect((await request(app).get('/api/ledger-saves').set('Authorization', auth)).body.slots).toEqual([saved.body.save]);
-    expect((await request(app).get('/api/ledger-saves/3').set('Authorization', auth)).body.save.records).toEqual([savedRecord()]);
-    const replaced = await request(app).put('/api/ledger-saves/3').set('Authorization', auth).send(body(1, []));
-    expect(replaced.body.save).toMatchObject({ revision: 2, recordCount: 0 });
+// Interface DELETE /api/ledger-saves/:slot
+describe('Unmocked: DELETE /api/ledger-saves/:slot', () => {
+  testsRejectInvalidSessions(() => request(app).delete('/api/ledger-saves/1?revision=1'), () => auth, savedSlots);
+
+  // Input: delete revision 1 of a slot that is now at revision 2, then delete revision 2
+  // Expected status code: 409, then 204
+  // Expected behavior: only the listed revision is deleted
+  // Expected output: empty body; no save remains in MongoDB
+  test('Deletes a slot only at its current revision', async () => {
+    await put(3, body(null));
+    await put(3, body(1, []));
     expect((await request(app).delete('/api/ledger-saves/3?revision=1').set('Authorization', auth)).status).toBe(409);
     expect((await request(app).delete('/api/ledger-saves/3?revision=2').set('Authorization', auth)).status).toBe(204);
     expect(await LedgerSaveModel.countDocuments()).toBe(0);
-  });
-
-  test('lets exactly one of two devices fill the same empty slot', async () => {
-    const results = await Promise.all([1, 2].map(() => request(app).put('/api/ledger-saves/1').set('Authorization', auth).send(body(null))));
-    expect(results.map(res => res.status).sort()).toEqual([200, 409]);
-    expect(await LedgerSaveModel.countDocuments({ slot: 1 })).toBe(1);
-  });
-
-  test('lets exactly one of two devices overwrite the same revision', async () => {
-    await request(app).put('/api/ledger-saves/2').set('Authorization', auth).send(body(null));
-    const results = await Promise.all([[], [savedRecord()]].map(records =>
-      request(app).put('/api/ledger-saves/2').set('Authorization', auth).send(body(1, records))));
-    expect(results.map(res => res.status).sort()).toEqual([200, 409]);
-    const listed = await request(app).get('/api/ledger-saves').set('Authorization', auth);
-    expect(listed.body.slots).toEqual([expect.objectContaining({ slot: 2, revision: 2 })]);
   });
 });
