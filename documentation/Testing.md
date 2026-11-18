@@ -192,7 +192,7 @@ Every route checks that the user is signed in first, in the same middleware. The
 | No mocks | `friend_ids` is rejected | `friend_ids` is missing, empty, text, not whole or zero | 400 | Returns `{ msg: "invalid_request" }` |
 | No mocks | Organizer cannot invite someone who is not their friend | The organizer invites a friend and a user who isn't their friend | 403 | Nobody is invited. Returns `{ msg: "not_friend" }` |
 | No mocks | A player who is not the organizer cannot invite | A player invites their own friend | 403 | Returns `{ msg: "forbidden" }` |
-| With mocks | Organizer invites two friends | The organizer invites two friends, `sendPushToUsers` replaced | 201 | Each friend gets a `game_invite` notification. Returns `{ msg: "success" }` |
+| With mocks | Organizer invites two friends | The organizer invites two friends, `saveNotifications` and `sendPushToUser` replaced | 201 | Each friend gets a `game_invite` notification, saved and sent as a push. Returns `{ msg: "success" }` |
 | With mocks | Database error | `getGameById` throws | 500 | Nobody is notified. Returns `{ msg: "server_error" }` |
 
 **POST /api/games/{gameId}/join-requests** (ask to join a game)
@@ -303,7 +303,8 @@ Every route checks that the user is signed in first, in the same middleware. The
 | No mocks | Receiver declines | `{ decision: "decline" }` | 200 | The request is declined. They don't become friends and no chat is opened |
 | No mocks | A request can only be answered once | Answer an accepted request again, with "decline" and with "accept" | 409 | The first answer stands. Returns `{ msg: "already_responded" }` |
 | With mocks | Database fails | `decideFriendRequest` throws | 500 | Nobody is notified. Returns `{ msg: "server_error" }` |
-| With mocks | Sender is told when the receiver answers | "accept" and "decline", `sendPushToUser` replaced | 200 | The sender gets `friend_request_accepted` or `friend_request_declined` |
+| With mocks | Sender is told when the receiver accepts | "accept", `saveNotifications` and `sendPushToUser` replaced | 200 | The sender gets a `friend_request_accepted` notification, saved and sent as a push |
+| With mocks | Sender is not told when the receiver declines | "decline", `saveNotifications` and `sendPushToUser` replaced | 200 | Nothing is saved or sent |
 | With mocks | Notification fails | An answer that saves, `sendPushToUser` throws | 200 | The answer is still saved and the failed notification is logged |
 | With mocks | Request is gone once locked | A fake transaction: the request is found, then gone after the users are locked | 404 | Nothing is written and nobody is notified. Returns `{ msg: "request_not_found" }` |
 
