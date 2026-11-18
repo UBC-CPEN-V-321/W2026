@@ -13,7 +13,7 @@
 import type { TransitLine } from '../models/trip.model';
 import type { Alert, Feed, InformedEntity, StopTimeEvent, StopTimeUpdate, TripUpdate } from './gtfs-rt-decoder';
 import { distanceMeters } from './planner.core';
-import type { TranslinkRoute, TranslinkStatic, TranslinkStop } from './translink-static';
+import { routeIdForTrip, type TranslinkRoute, type TranslinkStatic, type TranslinkStop } from './translink-static';
 
 /** How far Google's stop may be from TransLink's and still be the same stop. */
 export const MAX_STOP_DISTANCE_METERS = 150;
@@ -202,19 +202,27 @@ function predictedAt(run: TripUpdate, stop: StopTimeUpdate | undefined): { time:
  * @remarks
  * The feed doesn't say which run the trip planned on, so this takes the run on the line's route and direction whose
  * scheduled departure from the boarding stop (predicted time minus delay) is closest to the trip's scheduled
- * departure, within {@link MAX_RUN_OFFSET_SECONDS}.
+ * departure, within {@link MAX_RUN_OFFSET_SECONDS}. Most of TransLink's runs give only a trip_id, so a run's route
+ * comes from the static schedule when the feed leaves it out.
  *
  * @param feed - TransLink's decoded trip updates feed.
  * @param match - The line, matched with {@link matchLine}.
  * @param plannedDepartAt - When the trip planned to leave the boarding stop, from the line's `departAt`.
+ * @param network - TransLink's routes, to find a run's route from its trip_id.
  * @returns The prediction, or null when no run in the feed is near the planned time.
  */
-export function predictLine(feed: Feed, match: LineMatch, plannedDepartAt: Date): LinePrediction | null {
+export function predictLine(
+  feed: Feed,
+  match: LineMatch,
+  plannedDepartAt: Date,
+  network: TranslinkStatic,
+): LinePrediction | null {
   const planned = Math.floor(plannedDepartAt.getTime() / 1000);
   let best: { prediction: LinePrediction; offset: number } | null = null;
   for (const entity of feed.entities) {
     const run = entity.tripUpdate;
-    if (entity.deleted || run?.routeId !== match.routeId) continue;
+    if (entity.deleted || run === null) continue;
+    if ((run.routeId ?? routeIdForTrip(network, run.tripId)) !== match.routeId) continue;
     if (run.directionId !== null && run.directionId !== match.directionId) continue;
     const boarding = run.stopTimeUpdates.find((update) => update.stopId === match.boardingStopId);
     const departure = predictedAt(run, boarding);

@@ -44,7 +44,7 @@ export interface StopSpec { stopId: string; arrival?: EventSpec; departure?: Eve
 /** A run of a route, with its stops' predictions. */
 export interface TripUpdateSpec {
   id: string;
-  routeId: string;
+  routeId?: string; // left out like most of TransLink's runs, which give only a trip_id
   tripId?: string;
   directionId?: number;
   cancelled?: boolean;
@@ -83,7 +83,7 @@ export function tripUpdateEntity(spec: TripUpdateSpec): number[] {
   const trip = pb.message(1,
     optional(spec.tripId, (id) => pb.string(1, id)),
     spec.cancelled === true ? pb.int(4, 3) : [],
-    pb.string(5, spec.routeId),
+    optional(spec.routeId, (id) => pb.string(5, id)),
     optional(spec.directionId, (d) => pb.int(6, d)));
   const stops = spec.stops.map((stop) => pb.message(2,
     stopTimeEvent(2, stop.arrival),

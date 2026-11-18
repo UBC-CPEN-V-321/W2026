@@ -1,5 +1,6 @@
 // Refreshes the TransLink static GTFS data that LiveUpdates matches trips against (#87):
-//   backend/src/data/translink-routes.json   each route's IDs and names, and the stops it serves in each direction, in order
+//   backend/src/data/translink-routes.json   each route's IDs and names, the stops it serves in each direction, in order,
+//                                            and its trip IDs as ranges (most real-time runs give only a trip_id)
 //   backend/src/data/translink-stops.json    each stop a route serves: name, location and parent station
 //
 // Google gives a trip's line names and stop names and locations, but TransLink's real-time feeds use its own route
@@ -172,12 +173,36 @@ function mergePatterns(patterns) {
   return merged;
 }
 
-// the stops each route serves in each direction (GTFS direction_id 0 and 1), in travel order
+/**
+ * Turns a route's trip IDs into sorted [first, last] ranges of consecutive IDs. TransLink numbers a route's trips in
+ * blocks, so about 63,000 trips become under 1,000 ranges. A trip ID that isn't a number would need a different
+ * format, so it stops the script rather than being dropped.
+ */
+function toRanges(tripIds) {
+  const numbers = tripIds.map((id) => {
+    if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id))) throw new Error(`Trip ID ${id} is not a whole number`);
+    return Number(id);
+  }).sort((a, b) => a - b);
+  const ranges = [];
+  for (const id of numbers) {
+    const last = ranges[ranges.length - 1];
+    if (last !== undefined && id <= last[1] + 1) last[1] = Math.max(last[1], id);
+    else ranges.push([id, id]);
+  }
+  return ranges;
+}
+
+// the stops each route serves in each direction (GTFS direction_id 0 and 1), in travel order, and its trip IDs
 function readRouteStops(zip, entries) {
   const tripRoute = new Map(); // trip_id → { routeId, direction }
   eachRow(readZipText(zip, entries, 'trips.txt'), ['trip_id', 'route_id', 'direction_id'], (row) => {
     tripRoute.set(row.trip_id, { routeId: row.route_id, direction: row.direction_id === '1' ? 1 : 0 });
   });
+  const routeTrips = new Map(); // route_id → trip_ids
+  for (const [tripId, { routeId }] of tripRoute) {
+    if (!routeTrips.has(routeId)) routeTrips.set(routeId, []);
+    routeTrips.get(routeId).push(tripId);
+  }
   const tripStops = new Map(); // trip_id → [[stop_sequence, stop_id]]
   eachRow(readZipText(zip, entries, 'stop_times.txt'), ['trip_id', 'stop_id', 'stop_sequence'], (row) => {
     if (!tripStops.has(row.trip_id)) tripStops.set(row.trip_id, []);
@@ -195,10 +220,10 @@ function readRouteStops(zip, entries) {
   for (const [routeId, directions] of patterns) {
     routeStops.set(routeId, directions.map((byKey) => byKey.size === 0 ? [] : mergePatterns([...byKey.values()])));
   }
-  return routeStops;
+  return { routeStops, routeTrips };
 }
 
-function readRoutes(zip, entries, routeStops) {
+function readRoutes(zip, entries, { routeStops, routeTrips }) {
   const routes = [];
   const columns = ['route_id', 'route_short_name', 'route_long_name', 'route_type'];
   eachRow(readZipText(zip, entries, 'routes.txt'), columns, (row) => {
@@ -210,6 +235,7 @@ function readRoutes(zip, entries, routeStops) {
       longName: row.route_long_name,
       type: Number(row.route_type), // GTFS route_type: 1 SkyTrain, 2 West Coast Express, 3 bus, 4 SeaBus
       stopsByDirection: [direction0, direction1], // in travel order, so the matcher can tell the two directions apart
+      tripIdRanges: toRanges(routeTrips.get(row.route_id) ?? []), // [first, last] trip_ids, for runs with no route_id
     });
   });
   return routes.sort((a, b) => byId(a.id, b.id));
@@ -255,8 +281,7 @@ async function main() {
   const zip = await loadZip(process.argv[2]);
   const entries = readZipEntries(zip);
   const feed = readFeedVersion(zip, entries);
-  const routeStops = readRouteStops(zip, entries);
-  const routes = readRoutes(zip, entries, routeStops);
+  const routes = readRoutes(zip, entries, readRouteStops(zip, entries));
   const served = new Set(routes.flatMap((route) => route.stopsByDirection.flat()));
   const stops = readStops(zip, entries, served);
 

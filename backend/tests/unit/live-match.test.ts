@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { TransitLine } from '../../src/models/trip.model';
 import { decodeFeed } from '../../src/services/gtfs-rt-decoder';
 import { alertsForLines, matchLine, predictLine, type LineMatch } from '../../src/services/live-match';
-import { translinkStatic } from '../../src/services/translink-static';
+import { routeIdForTrip, translinkStatic } from '../../src/services/translink-static';
 import { alertEntity, feedBytes, tripUpdateEntity, type StopSpec } from '../helpers/gtfs-rt';
 
 // these use TransLink's real network from src/data/, so they also check the committed GTFS files fit the matcher
@@ -164,8 +166,9 @@ describe('alertsForLines', () => {
 });
 
 describe('predictLine', () => {
-  const run = (id: string, stops: StopSpec[], extra: { directionId?: number; cancelled?: boolean; delay?: number; routeId?: string } = {}) =>
-    tripUpdateEntity({ id, routeId: extra.routeId ?? '6641', ...extra, stops });
+  type RunExtra = { directionId?: number; cancelled?: boolean; delay?: number; routeId?: string; tripId?: string };
+  const run = (id: string, stops: StopSpec[], extra: RunExtra = {}) =>
+    tripUpdateEntity(extra.tripId === undefined ? { id, routeId: '6641', ...extra, stops } : { id, ...extra, stops });
   const trips = (entities: number[][]) => decodeFeed(feedBytes(NOW, entities));
 
   // Input: three eastbound 99 runs at the boarding stop, scheduled 8 minutes before, 1 minute after and 9 minutes
@@ -179,7 +182,7 @@ describe('predictLine', () => {
         { stopId: '11588', arrival: { time: PLANNED_SECONDS + 2400, delay: 240 } },
       ], { directionId: 0 }),
       run('later', [{ stopId: '12057', departure: { time: PLANNED_SECONDS + 540, delay: 0 } }]),
-    ]), BUS_99_MATCH, PLANNED);
+    ]), BUS_99_MATCH, PLANNED, network);
 
     expect(prediction).toStrictEqual({
       departAt: new Date((PLANNED_SECONDS + 240) * 1000),
@@ -189,13 +192,27 @@ describe('predictLine', () => {
     });
   });
 
+  // Input: runs with only a trip_id, as most of TransLink's are: one of the 99's, one of the Expo Line's, and one the
+  //        schedule doesn't have
+  // Expected: the 99's run, its route found from the schedule's trip_id ranges
+  test('finds a run\'s route from its trip_id', () => {
+    const atBoarding = (offset: number) => [{ stopId: '12057', departure: { time: PLANNED_SECONDS + offset, delay: offset } }];
+    const prediction = predictLine(trips([
+      run('expo', atBoarding(0), { tripId: '15521851' }),
+      run('unknown', atBoarding(0), { tripId: '99999999' }),
+      run('99', atBoarding(120), { tripId: '15460920' }),
+    ]), BUS_99_MATCH, PLANNED, network);
+
+    expect(prediction).toMatchObject({ delaySeconds: 120 });
+  });
+
   // Input: a run with only an arrival time at the boarding stop and the run's delay instead of the stop's, and no
   //        prediction at the alighting stop
   // Expected: the arrival is used as the departure, the run's delay picks it, and the arrival is unknown
   test('falls back to the arrival time and the run delay', () => {
     const prediction = predictLine(trips([
       run('only arrival', [{ stopId: '12057', arrival: { time: PLANNED_SECONDS + 300 } }], { delay: 300 }),
-    ]), BUS_99_MATCH, PLANNED);
+    ]), BUS_99_MATCH, PLANNED, network);
 
     expect(prediction).toStrictEqual({
       departAt: new Date((PLANNED_SECONDS + 300) * 1000), arriveAt: null, delaySeconds: 300, cancelled: false,
@@ -207,9 +224,9 @@ describe('predictLine', () => {
   test('reports cancelled runs and skipped stops', () => {
     const departure = { time: PLANNED_SECONDS, delay: 0 };
 
-    expect(predictLine(trips([run('x', [{ stopId: '12057', departure }], { cancelled: true })]), BUS_99_MATCH, PLANNED))
+    expect(predictLine(trips([run('x', [{ stopId: '12057', departure }], { cancelled: true })]), BUS_99_MATCH, PLANNED, network))
       .toMatchObject({ cancelled: true });
-    expect(predictLine(trips([run('x', [{ stopId: '12057', departure, skipped: true }])]), BUS_99_MATCH, PLANNED))
+    expect(predictLine(trips([run('x', [{ stopId: '12057', departure, skipped: true }])]), BUS_99_MATCH, PLANNED, network))
       .toMatchObject({ cancelled: true });
   });
 
@@ -227,6 +244,34 @@ describe('predictLine', () => {
     ]));
     feed.entities.push({ id: 'deleted', deleted: true, alert: null, tripUpdate: decodeFeed(feedBytes(NOW, [run('d', atBoarding)])).entities[0]?.tripUpdate ?? null });
 
-    expect(predictLine(feed, BUS_99_MATCH, PLANNED)).toBeNull();
+    expect(predictLine(feed, BUS_99_MATCH, PLANNED, network)).toBeNull();
+  });
+});
+
+describe('routeIdForTrip', () => {
+  // Input: trip_ids at the ends and inside of the 99's and Expo Line's ranges, one between ranges, one past every
+  //        range, a non-numeric one and null
+  // Expected: the 99's and Expo Line's route IDs, then null for the rest
+  test('finds the route of a trip_id', () => {
+    expect(routeIdForTrip(network, '15460920')).toBe('6641');
+    expect(routeIdForTrip(network, '15461751')).toBe('6641');
+    expect(routeIdForTrip(network, '15522000')).toBe('30053');
+    expect(routeIdForTrip(network, '15461752')).not.toBe('6641');
+    expect(routeIdForTrip(network, '99999999')).toBeNull();
+    expect(routeIdForTrip(network, '1')).toBeNull();
+    expect(routeIdForTrip(network, 'ABC-123')).toBeNull();
+    expect(routeIdForTrip(network, null)).toBeNull();
+  });
+
+  // Input: every run in TransLink's saved trip updates feed
+  // Expected: the schedule knows each run's trip_id, and agrees with the route_id of every run that gives one
+  test('knows every run in the saved feed', () => {
+    const feed = decodeFeed(readFileSync(path.join(__dirname, '..', 'fixtures', 'translink', 'gtfsrealtime.pb')));
+    const runs = feed.entities.flatMap((entity) => entity.tripUpdate ?? []);
+
+    expect(runs.every((tripRun) => routeIdForTrip(network, tripRun.tripId) !== null)).toBe(true);
+    for (const tripRun of runs.filter((r) => r.routeId !== null)) {
+      expect(routeIdForTrip(network, tripRun.tripId)).toBe(tripRun.routeId);
+    }
   });
 });
