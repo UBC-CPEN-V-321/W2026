@@ -285,3 +285,17 @@ export function parseStatusChange(body: unknown, now = new Date()): TripStatusCh
   const at = parseEventTime(status === 'ACTIVE' ? body.actualStart : body.actualEnd, now);
   return at === undefined ? undefined : { status, at };
 }
+
+/**
+ * Parses a live update's `fromLeg` query parameter: the index of the leg the rider is on.
+ *
+ * @param value - The raw query value; missing means the first leg.
+ * @param legCount - How many legs the trip has.
+ * @returns The index, or undefined when it isn't a whole number naming one of the legs.
+ */
+export function parseFromLeg(value: unknown, legCount: number): number | undefined {
+  if (value === undefined) return 0;
+  if (typeof value !== 'string' || !/^\d{1,2}$/.test(value)) return undefined;
+  const index = Number(value);
+  return index < legCount ? index : undefined;
+}
