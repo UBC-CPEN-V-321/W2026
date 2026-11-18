@@ -88,6 +88,27 @@ describe('reputationScore', () => {
     expect(reputationScore([ONE, SIX, SIX])).toBe(4.6);
   });
 
+  test('a game exactly 1.5 stars from the middle still counts in full, past it a quarter', () => {
+    // two players gave 4 and 5 stars: the game scores 4.5, exactly 1.5 from the middle (6)
+    const exactlyAtLimit = game(2, 4, 5);
+    // one player gave 4, 4, 4, 5 and 5 stars: the game scores 4.4, 1.6 from the middle
+    const pastLimit: PlayedGame = {
+      noShow: false,
+      raterCount: 1,
+      ratings: [{ punctuality: 4, sportsmanship: 4, skill: 4, reliability: 5, overall: 5 }],
+    };
+    // weight 1: (15 + 4.5 + 6 × (0.9 + 0.81 + 0.729)) / (3 + 1 + 2.439)
+    expect(reputationScore([exactlyAtLimit, SIX, SIX, SIX])).toBe(5.3);
+    // weight 0.25: (15 + 0.25 × 4.4 + 6 × 2.439) / (3 + 0.25 + 2.439)
+    expect(reputationScore([pastLimit, SIX, SIX, SIX])).toBe(5.4);
+  });
+
+  test('a no-show does not count toward the four games needed to find unusual games', () => {
+    // three games showed up to and one no-show: the 1 star game still counts in full,
+    // (15 + 1 + 0.9 × 6 + 0.81 × 6 + 0.729 × 1) / 6.439. As unusual it would be 4.61
+    expect(reputationScore([ONE, SIX, SIX, NO_SHOW])).toBe(4.19);
+  });
+
   test('a no-show always counts in full, even far from the other games', () => {
     expect(reputationScore([NO_SHOW, SIX, SIX, SIX, SIX])).toBe(4.87);
   });
