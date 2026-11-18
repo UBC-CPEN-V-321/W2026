@@ -7,12 +7,12 @@ import com.exploreUBC.cpen321application.BuildConfig
 import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.data.events.EventsApi
 import com.exploreUBC.cpen321application.testutil.REAL_BACKEND_USER_ID
+import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
 import com.exploreUBC.cpen321application.testutil.waitForText
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -26,12 +26,10 @@ class LiveEventsEmptyStateE2ETest {
     private val composeRule = createAndroidComposeRule<MainActivity2>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(permissions).around(composeRule)
-
-    @Before
-    fun resetUser() {
-        resetUserInterest()
-    }
+    val rules: RuleChain = RuleChain
+        .outerRule(permissions)
+        .around(beforeActivityRule { resetUserInterest() })
+        .around(composeRule)
 
     @Test
     // Section 4.2 — View Event Recommendations: failure 2b (no matching events).

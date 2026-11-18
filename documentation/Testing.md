@@ -10,6 +10,7 @@
 | October 28, 2026  | 3.1, 3.2              | Added automated and manual verification details and results for the Accessibility NFR. |
 | November 6, 2026  | 2.1.1, 2.1.3, 2.3, 2.4, 2.5, 2.6 | Added the planned Live Events backend API test locations, run instructions, and coverage placeholders. |
 | November 6, 2026  | 4.1, 4.2              | Added the planned Live Events frontend E2E scenarios: View Event Recommendations, Add an Event to an Itinerary, and Refresh After a Preference Change. |
+| November 18, 2026 | 2.6, 4.1, 4.2         | Implemented the Live Events tests: removed the planned markers, added the Ticketmaster coverage note, the real-backend setup, the component tests, and the Refresh After a Location Change scenario. |
 
 ---
 
@@ -99,10 +100,13 @@ The no-mock run is intentionally below 100% because database/network failure bra
 The main remaining branches are unreachable empty Express route parameters. Recommendation interface tests run in both suites; the no-mock suite covers live generation, real persistence, parsing, configuration, profile validation, and ranking, while the mock suite covers provider failures and database publication races. `*Types.ts` and `*Repository.ts` files contain only TypeScript types and interfaces that are erased at runtime, so both focused coverage configurations exclude them.
 The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot non-interactively obtain a valid user Google ID token. The mocked suites cover verified identity claims, invalid claims, Google Maps response parsing, configuration failures, and transport failures.
 
-**Live Events:** `src/events/eventDao.ts`, `eventRouter.ts`, and `eventService.ts` reach 100% in the combined run. The uncovered areas are:
+**Live Events:** `src/events/eventDao.ts`, `eventRouter.ts`, `eventService.ts`, and `eventSync.ts` reach 100% in the combined run. The code that connects to the database and starts a sync from the command line (`npm run sync:events`) lives in [`backend/scripts/sync-events.ts`](../backend/scripts/sync-events.ts), outside `src/`, so it is not part of the coverage. It only connects to MongoDB and calls `syncEvents`, which is tested in `backend/tests/mock/events/eventSync.test.ts`. Event synchronization is not exposed through the API, and a scheduled job (GitHub Actions or an AWS cron job) will run that script instead of users.
 
-- `src/events/eventSync.ts` (manual runner): the code that connects to the database and starts a sync when the file is run as a script is not tested. Event synchronization is not exposed through the API, and it will be run automatically by a scheduled job (GitHub Actions or an AWS cron job) rather than by users. The `syncEvents` function it calls is tested in `backend/tests/mock/events/eventSync.test.ts`. The runner is kept because it is the entry point the scheduled job will use.
-- `src/events/ticketmaster/ticketmaster.client.ts`: `[Placeholder: to be filled in once the Ticketmaster client coverage is reviewed.]`
+The only uncovered area is:
+
+- `src/events/ticketmaster.client.ts`: one unreachable statement and a few defensive fallbacks remain uncovered (about 98% of lines in the combined run).
+  - The final `throw new Error('Ticketmaster request failed')` after the retry loop cannot run: on the last attempt the loop either returns or throws, so the statement exists only to satisfy the TypeScript return type.
+  - The remaining uncovered branches are default values used when a Ticketmaster response omits its `page` object (page number, total pages, total elements) and the default `page = 0` argument. They are defensive fallbacks for a malformed Ticketmaster response; the real response always includes `page`, and the client is only called with an explicit page number.
 
 ---
 
@@ -207,11 +211,13 @@ The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot no
 - Map scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt)
 - Recommendation scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
-- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt) (location change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
+- Live Events scenarios: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt) (location change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
 
 - Live Events component tests (fake repositories or a local HTTP server, no real backend; they cover loading, error, retry, pagination, refresh and notification behaviour that the real-backend E2E tests cannot produce): [`LiveEventsScreenTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/LiveEventsScreenTest.kt), [`EventRecommendationRefreshTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/EventRecommendationRefreshTest.kt), [`EventsApiTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/data/events/EventsApiTest.kt)
 
 #### Running the real-backend E2E tests
+
+**One command:** with an emulator (API 36 or lower) already running, run `npm run e2e:events` from `backend/`. It does steps 1 to 6 below automatically, including the empty-state test, and discards the database when it finishes. The manual steps are listed for running individual tests.
 
 The Live Events E2E tests launch the real app on its main screen and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. Use an emulator on API 36 or lower.
 
@@ -385,7 +391,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'Save Itinerary' button  | Check that the button "+Activity" and "+Transportation" are present.|
 
 
-- **Use Case: View Event Recommendations** (Live Events) *(planned; not yet implemented or run)*
+- **Use Case: View Event Recommendations** (Live Events) 
 
   - **Setup:** The test starts on the main screen with a known user already logged in. Before the test, the backend is seeded with the user's `live_music` interest and 21 known upcoming Music events near the default location, each with a different distance so their ranking is known. The seeded data is removed after the test.
   - **Expected Behaviors:**
@@ -406,7 +412,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     [Placeholder for E2E test execution logs]
     ```
 
-- **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) *(planned; not yet implemented or run)*
+- **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) 
 
   - **Setup:** The test starts on the main screen with a known user already logged in, one seeded upcoming event, and one seeded saved itinerary. Before each test, the test deletes the user's itineraries and recreates one saved itinerary whose activity overlaps the first seeded event (it creates none for the no-itinerary scenario). Results are checked on screen and by reading the itinerary back from the real backend.
   - **Expected Behaviors:**
@@ -431,7 +437,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     [Placeholder for E2E test execution logs]
     ```
 
-- **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) *(planned; not yet implemented or run)*
+- **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) 
 
   - **Setup:** The test starts on the main screen (the app opens on Events) with a known user already logged in whose interest is `outdoors`. The backend is seeded with Sports events and Music events, so changing the interest to `live_music` adds Music events to the user's first page of recommendations. The seeded data is removed after the test.
   - **Expected Behaviors:**

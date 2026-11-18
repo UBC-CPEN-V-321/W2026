@@ -44,6 +44,8 @@ internal class MockLocationRule(
                 moveTo(initialLatitude, initialLongitude)
                 base.evaluate()
             } finally {
+                // Leave the device at the start place, so the next test does not inherit a moved location.
+                runCatching { moveTo(initialLatitude, initialLongitude) }
                 providers.forEach { runCatching { locationManager.removeTestProvider(it) } }
             }
         }

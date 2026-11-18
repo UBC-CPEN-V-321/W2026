@@ -1,11 +1,8 @@
 // Coordinates retrieving Ticketmaster events and synchronizing them with MongoDB.
 
-import { MongoClient } from 'mongodb';
-
 import { env } from '../config/env';
-import { EventDao } from './eventDao';
 import type { EventRepository } from './eventRepository';
-import { fetchLiveEventPage } from './ticketmaster/ticketmaster.client';
+import { fetchLiveEventPage } from './ticketmaster.client';
 
 const MAX_TICKETMASTER_RESULTS = 1000;
 const REQUEST_DELAY_MS = 500;
@@ -82,25 +79,4 @@ export async function syncEvents(
     expiredCount,
     staleCount,
   };
-}
-
-async function runManualSync(): Promise<void> {
-  const mongoClient = new MongoClient(env.mongodbUri);
-  await mongoClient.connect();
-
-  try {
-    const eventDao = new EventDao(mongoClient.db('cpen321'));
-    await eventDao.createIndexes();
-    const result = await syncEvents(eventDao);
-    console.log('Event sync completed:', result);
-  } finally {
-    await mongoClient.close();
-  }
-}
-
-if (require.main === module) {
-  void runManualSync().catch((error: unknown) => {
-    console.error('Event sync failed:', error);
-    process.exitCode = 1;
-  });
 }

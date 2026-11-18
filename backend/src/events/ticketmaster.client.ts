@@ -1,7 +1,7 @@
 // Fetches Ticketmaster events and maps provider responses into internal Event objects.
 
-import { env } from '../../config/env';
-import type { LiveEvent } from '../eventTypes';
+import { env } from '../config/env';
+import type { LiveEvent } from './eventTypes';
 
 const MAX_REQUEST_ATTEMPTS = 3;
 

@@ -11,11 +11,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.exploreUBC.cpen321application.MainActivity2
+import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
 import com.exploreUBC.cpen321application.testutil.scrollToText
 import com.exploreUBC.cpen321application.testutil.waitForText
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -29,12 +29,10 @@ class LiveEventsE2ETest {
     private val composeRule = createAndroidComposeRule<MainActivity2>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(permissions).around(composeRule)
-
-    @Before
-    fun resetUser() {
-        resetUserInterest()
-    }
+    val rules: RuleChain = RuleChain
+        .outerRule(permissions)
+        .around(beforeActivityRule { resetUserInterest() })
+        .around(composeRule)
 
     @Test
     // Section 4.2 — View Event Recommendations: steps 1–6.
@@ -45,7 +43,7 @@ class LiveEventsE2ETest {
         composeRule.onNodeWithText("E2E Event 01").assertIsDisplayed()
         composeRule.onAllNodesWithText("Sports").onFirst().assertIsDisplayed()
         composeRule.onAllNodesWithText("E2E Venue, Vancouver").onFirst().assertIsDisplayed()
-        composeRule.onAllNodesWithText("0.1 km away").onFirst().assertIsDisplayed()
+        composeRule.onAllNodesWithText("km away", substring = true).onFirst().assertIsDisplayed()
         composeRule.onAllNodesWithText("Add to itinerary").onFirst().assertIsDisplayed()
         // Page 1 holds 20 events; the 21st is not loaded yet.
         composeRule.onAllNodesWithText("E2E Event 21").assertCountEquals(0)

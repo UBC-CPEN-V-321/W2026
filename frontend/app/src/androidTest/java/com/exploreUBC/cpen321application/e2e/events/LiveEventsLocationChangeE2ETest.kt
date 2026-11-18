@@ -7,10 +7,10 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.testutil.MockLocationRule
+import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
 import com.exploreUBC.cpen321application.testutil.waitForText
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -30,12 +30,8 @@ class LiveEventsLocationChangeE2ETest {
     val rules: RuleChain = RuleChain
         .outerRule(grantLocationPermissionRule())
         .around(mockLocation)
+        .around(beforeActivityRule { resetUserInterest() })
         .around(composeRule)
-
-    @Before
-    fun resetUser() {
-        resetUserInterest()
-    }
 
     @Test
     // Section 4.2 — Refresh After a Location Change: UBC -> Abbotsford (about 70 km) -> UBC.

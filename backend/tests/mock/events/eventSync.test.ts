@@ -1,6 +1,6 @@
 import { syncEvents } from '../../../src/events/eventSync';
 import type { LiveEvent } from '../../../src/events/eventTypes';
-import { fetchLiveEventPage } from '../../../src/events/ticketmaster/ticketmaster.client';
+import { fetchLiveEventPage } from '../../../src/events/ticketmaster.client';
 import {
   buildEvent,
   createMockEventRepository,
@@ -10,7 +10,7 @@ import {
 jest.mock('../../../src/config/env', () => ({
   env: { mongodbUri: 'mongodb://unused', ticketmaster: { pageSize: 200 } },
 }));
-jest.mock('../../../src/events/ticketmaster/ticketmaster.client');
+jest.mock('../../../src/events/ticketmaster.client');
 
 const mockedFetchPage = jest.mocked(fetchLiveEventPage);
 

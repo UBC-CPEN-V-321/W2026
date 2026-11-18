@@ -133,3 +133,16 @@ internal fun loadItineraries(): List<Itinerary> = runBlocking {
 }
 
 internal fun Itinerary.activities(): List<ActivityItem> = items.filterIsInstance<ActivityItem>()
+
+/**
+ * Runs [block] before the next rule in a RuleChain (put it before the activity rule), so backend
+ * state is reset before the app starts and its first request sees the reset data.
+ */
+internal fun beforeActivityRule(block: () -> Unit): TestRule = TestRule { base, _ ->
+    object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+            block()
+            base.evaluate()
+        }
+    }
+}

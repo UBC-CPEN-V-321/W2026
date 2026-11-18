@@ -1,5 +1,5 @@
 import { env } from '../../../src/config/env';
-import { fetchLiveEventPage } from '../../../src/events/ticketmaster/ticketmaster.client';
+import { fetchLiveEventPage } from '../../../src/events/ticketmaster.client';
 import {
   buildEvent,
   buildTicketmasterEvent,

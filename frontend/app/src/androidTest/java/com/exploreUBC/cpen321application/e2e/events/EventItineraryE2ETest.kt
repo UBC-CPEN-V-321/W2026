@@ -16,6 +16,7 @@ import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.testutil.BASELINE_ITINERARY_NAME
 import com.exploreUBC.cpen321application.testutil.OVERLAPPING_ACTIVITY_NAME
 import com.exploreUBC.cpen321application.testutil.activities
+import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
 import com.exploreUBC.cpen321application.testutil.loadItineraries
 import com.exploreUBC.cpen321application.testutil.resetItineraries
@@ -24,7 +25,6 @@ import com.exploreUBC.cpen321application.testutil.waitForText
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -39,13 +39,15 @@ class EventItineraryE2ETest {
     private val composeRule = createAndroidComposeRule<MainActivity2>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(permissions).around(composeRule)
-
-    @Before
-    fun resetBackendState() {
-        resetUserInterest()
-        resetItineraries(withOverlap = true)
-    }
+    val rules: RuleChain = RuleChain
+        .outerRule(permissions)
+        .around(
+            beforeActivityRule {
+                resetUserInterest()
+                resetItineraries(withOverlap = true)
+            },
+        )
+        .around(composeRule)
 
     /** Opens the "Add to itinerary" dialog of the event card at [position] (0 = "E2E Event 01"). */
     private fun openAddDialog(position: Int, eventTitle: String) {
