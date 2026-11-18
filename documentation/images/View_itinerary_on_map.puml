@@ -1,0 +1,119 @@
+@startuml
+title Use Case 3: View Itinerary on Map
+
+skinparam ArrowFontStyle plain
+skinparam ParticipantStyle rectangle
+skinparam Shadowing false
+skinparam DefaultTextAlignment center
+skinparam SequenceMessageAlign center
+skinparam SequenceBoxFontSize 15
+skinparam SequenceBoxPadding 0
+skinparam FontName Arial
+skinparam NoteBackgroundColor white
+skinparam NoteBorderColor black
+hide footbox
+
+actor User
+
+box "User Interface"
+participant ":ExploreUBCApp" as App
+end box
+
+box "Application Logic"
+participant ":ItineraryMapService" as MapService
+end box
+
+box "Storage"
+participant "db:MongoDB" as DB
+end box
+
+box "External Service"
+participant ":GoogleMapsService" as GoogleMaps
+end box
+
+User -> App : Open map for itinerary
+activate App
+
+App -> MapService : getItineraryMap(userId: UserId, itineraryId: ItineraryId): ItineraryMap
+activate MapService
+
+MapService -> DB : findItinerary(userId: UserId, itineraryId: ItineraryId): Itinerary
+activate DB
+DB --> MapService : itinerary: Itinerary
+deactivate DB
+
+MapService -> DB : findByItineraryId(itineraryId: ItineraryId): ItineraryMap?
+activate DB
+DB --> MapService : cachedMap: ItineraryMap?
+deactivate DB
+
+alt cached map is current
+    note over MapService
+    Reuse the stored markers and routes.
+    end note
+else cache is missing or outdated
+    loop each itinerary location
+        MapService -> GoogleMaps : geocodeAddress(address: String): GeocodedLocation?
+        activate GoogleMaps
+        alt address is valid
+            GoogleMaps --> MapService : location: GeocodedLocation
+        else address is missing or invalid
+            GoogleMaps --> MapService : location: null
+            note over MapService
+            Record the activity as unmapped.
+            end note
+        end
+        deactivate GoogleMaps
+    end
+
+    loop each pair of consecutive mapped stops
+        MapService -> GoogleMaps : getRoute(origin: Coordinates, destination: Coordinates, mode: TravelMode): TravelOption?
+        activate GoogleMaps
+        alt route is available
+            GoogleMaps --> MapService : route: TravelOption
+        else route cannot be computed
+            GoogleMaps --> MapService : route: null
+            note over MapService
+            Keep both pins and omit only this route leg.
+            end note
+        end
+        deactivate GoogleMaps
+    end
+
+    MapService -> DB : upsertMapData(mapData: ItineraryMap): void
+    activate DB
+    DB --> MapService
+    deactivate DB
+end
+
+MapService --> App : itineraryMap: ItineraryMap
+deactivate MapService
+
+App -> GoogleMaps : loadMapTiles(): MapTiles
+activate GoogleMaps
+alt map tiles load successfully
+    GoogleMaps --> App : mapTiles: MapTiles
+    deactivate GoogleMaps
+
+    App --> User : Display mapped activity pins and available route legs
+
+    opt map contains unmapped activities
+        App --> User : Warn that some activities could not be shown
+    end
+
+    opt map contains unavailable route legs
+        App --> User : Warn that some route legs could not be drawn
+    end
+
+    opt User selects a route leg
+        User -> App : Select route leg
+        App --> User : Highlight polyline and display directions
+    end
+else map tiles fail to load
+    GoogleMaps --> App : error: MapUnavailable
+    deactivate GoogleMaps
+    App --> User : Display map-unavailable message and itinerary list
+end
+
+deactivate App
+@enduml
