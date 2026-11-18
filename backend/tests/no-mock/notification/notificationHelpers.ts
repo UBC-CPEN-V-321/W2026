@@ -43,6 +43,48 @@ export async function addNotifications(userId: number, count: number): Promise<v
   );
 }
 
+// a notification as really saved, for checking what a route saved
+export interface SavedNotice {
+  type: string;
+  title: string;
+  body: string;
+  game_id: number | null;
+}
+
+// every notification really saved for the user, oldest first
+export async function getNotices(userId: number): Promise<SavedNotice[]> {
+  return selectRows<SavedNotice>(
+    'SELECT type, title, body, game_id FROM notifications WHERE user_id = ? ORDER BY notification_id',
+    [userId],
+  );
+}
+
+// how long to wait for a notification a route saves after it replies
+const SAVE_WAIT_MS = 3000;
+const CHECK_EVERY_MS = 50;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+/*  routes reply before their notification is saved, so this waits until the user has count
+    notifications (or SAVE_WAIT_MS passed) and returns what was saved
+ */
+export async function waitForNotices(userId: number, count = 1): Promise<SavedNotice[]> {
+  for (let waited = 0; waited < SAVE_WAIT_MS; waited += CHECK_EVERY_MS) {
+    const saved = await getNotices(userId);
+    if (saved.length >= count) return saved;
+    await sleep(CHECK_EVERY_MS);
+  }
+  return getNotices(userId);
+}
+
+// gives a notification a route might still save time to be saved, to check none was
+export async function noticesAfterAWhile(userId: number): Promise<SavedNotice[]> {
+  await sleep(CHECK_EVERY_MS * 6);
+  return getNotices(userId);
+}
+
 export interface SavedNotificationRow {
   notification_id: number;
   // selected as a string so the exact value saved can be compared
