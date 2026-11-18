@@ -142,8 +142,8 @@ data class PendingJoinRequestDto(
     @SerializedName("play_frequency") val playFrequency: String?,
     val message: String?,
     @field:Required @SerializedName("created_at") val createdAt: String,
-    // their reputation score out of 6
-    @SerializedName("reputation_score") val reputationScore: Double
+    // their reputation score out of 6, null if they aren't rated yet
+    @SerializedName("reputation_score") val reputationScore: Double?
 )
 
 /*  reply from GET api/games/{gameId}/join-requests: msg "success" with the game and its

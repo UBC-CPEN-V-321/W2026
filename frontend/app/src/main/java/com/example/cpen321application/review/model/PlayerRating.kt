@@ -6,8 +6,12 @@ import java.util.Locale
 // the most stars a rating category, and so a reputation score, can have
 const val MAX_STARS = 6
 
-// a reputation score as it reads everywhere, e.g. "4.7/6"
-fun formatReputationScore(score: Double): String = String.format(Locale.US, "%.1f/%d", score, MAX_STARS)
+// what a player with no ratings and no missed games shows instead of a score
+const val NOT_RATED_TEXT = "Not rated yet"
+
+// a reputation score as it reads everywhere, e.g. "4.7/6", or NOT_RATED_TEXT if there is none
+fun formatReputationScore(score: Double?): String =
+    score?.let { String.format(Locale.US, "%.1f/%d", it, MAX_STARS) } ?: NOT_RATED_TEXT
 
 // the categories of a rating, in the order the form shows them
 enum class RatingCategory(val label: String) {

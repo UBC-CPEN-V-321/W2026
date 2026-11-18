@@ -66,13 +66,14 @@ private val SCORE_STAR_SIZE = 32.dp
 // the Profile actions the user confirms first, each with its own button
 enum class ProfileAction { SignOut, DeleteAccount }
 
-/*  what the Profile screen shows. profile is null until it loads, reputationScore until
-    the score loads. isLoading shows a progress bar and errorMessage a problem. busyAction
+/*  what the Profile screen shows. profile is null until it loads. isScoreLoaded says the
+    score loaded, reputationScore is then null if the user isn't rated yet. isLoading shows a progress bar and errorMessage a problem. busyAction
     shows progress on that action's button
  */
 data class ProfileUiState(
     val profile: UserProfile?,
     val reputationScore: Double? = null,
+    val isScoreLoaded: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val busyAction: ProfileAction? = null
@@ -124,7 +125,7 @@ fun ProfileScreen(state: ProfileUiState, actions: ProfileActions, modifier: Modi
             } else {
                 if (state.errorMessage != null) ErrorText(state.errorMessage)
                 ProfileIdentity(profile)
-                if (state.reputationScore != null) ReputationCard(state.reputationScore)
+                if (state.isScoreLoaded) ReputationCard(state.reputationScore)
                 ProfileDetailsCard(profile)
                 AccountButtons(busyAction = state.busyAction, onProfileAction = { action -> confirmAction = action })
             }
@@ -234,9 +235,9 @@ private fun ProfileIdentity(profile: UserProfile) {
     }
 }
 
-// the signed in user's current reputation score, as the number and as stars
+// the signed in user's current reputation score, as the number and as stars, or that they aren't rated yet
 @Composable
-private fun ReputationCard(score: Double) {
+private fun ReputationCard(score: Double?) {
     SurfaceCard {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -248,12 +249,12 @@ private fun ReputationCard(score: Double) {
             )
             Text(
                 text = formatReputationScore(score),
-                color = SportsPrimary,
-                fontSize = 22.sp,
+                color = if (score == null) SportsOnSurfaceVariant else SportsPrimary,
+                fontSize = if (score == null) 16.sp else 22.sp,
                 fontWeight = FontWeight.SemiBold
             )
         }
-        ScoreStars(score)
+        if (score != null) ScoreStars(score)
     }
 }
 

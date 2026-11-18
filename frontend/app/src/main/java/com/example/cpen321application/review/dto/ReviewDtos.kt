@@ -32,7 +32,7 @@ data class RatingBody(
     val overall: Int
 )
 
-// reply from GET api/users/me/stats: msg "success" with the user's score out of 6, or an error code
+// reply from GET api/users/me/stats: msg "success" with the user's score out of 6 (null if not rated yet), or an error code
 data class UserStatsResponse(
     val msg: String?,
     @SerializedName("reputation_score") val reputationScore: Double?,

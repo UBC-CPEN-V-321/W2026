@@ -1,5 +1,5 @@
 import { executeWrite, selectRows } from '../../core/db/mysql';
-import { GAMES_IN_SCORE, type PlayedGame, type RatingScores, reputationScore } from '../reputation';
+import { type PlayedGame, type RatingScores, reputationScore } from '../reputation';
 
 // a player the user can rate, and whether they already did
 export interface PlayerToRate {
@@ -91,6 +91,9 @@ export async function createRating(
   return { ok: true };
 }
 
+// the most recent games read for a score. Older ones count too little to change it
+const GAMES_IN_SCORE = 50;
+
 interface RecentGameRow {
   game_id: number;
   no_show: number;
@@ -101,11 +104,12 @@ interface ReceivedRatingRow extends RatingScores {
   game_id: number;
 }
 
-/*  a player's reputation score, used by Game to show organizers who is asking to join.
+/*  a player's reputation score, or null if they aren't rated yet. Read from their most
+    recent games, newest first by when the game was, with how many others showed up to each.
     Worked out when it's read, since players can still rate a game after it's completed
  */
-export async function getReputationScore(userId: number): Promise<number> {
-  const recent = await selectRows<RecentGameRow>(
+export async function getReputationScore(userId: number): Promise<number | null> {
+  const games = await selectRows<RecentGameRow>(
     `SELECT a.game_id, a.no_show,
             (SELECT COUNT(*) FROM game_attendance other
              WHERE other.game_id = a.game_id AND other.no_show = FALSE AND other.user_id <> a.user_id) AS rater_count
@@ -115,18 +119,18 @@ export async function getReputationScore(userId: number): Promise<number> {
      LIMIT ${GAMES_IN_SCORE}`,
     [userId],
   );
-  if (recent.length === 0) return reputationScore([]);
+  if (games.length === 0) return null;
 
   const ratings = await selectRows<ReceivedRatingRow>(
     `SELECT game_id, punctuality, sportsmanship, skill, reliability, overall
      FROM player_ratings
-     WHERE rated_id = ? AND game_id IN (${recent.map(() => '?').join(', ')})`,
-    [userId, ...recent.map((game) => game.game_id)],
+     WHERE rated_id = ? AND game_id IN (${games.map(() => '?').join(', ')})`,
+    [userId, ...games.map((game) => game.game_id)],
   );
-  const games: PlayedGame[] = recent.map((game) => ({
+  const played: PlayedGame[] = games.map((game) => ({
     noShow: Number(game.no_show) === 1,
     raterCount: Number(game.rater_count),
     ratings: ratings.filter((rating) => rating.game_id === game.game_id),
   }));
-  return reputationScore(games);
+  return reputationScore(played);
 }

@@ -48,7 +48,8 @@ suspend fun fetchPlayersToRate(context: Context, gameId: Int): PlayersToRateResu
 }
 
 sealed interface ReputationScoreResult {
-    data class Loaded(val score: Double) : ReputationScoreResult
+    // score is null if the user isn't rated yet
+    data class Loaded(val score: Double?) : ReputationScoreResult
     data class Failed(val message: String) : ReputationScoreResult
 }
 
@@ -57,8 +58,12 @@ suspend fun fetchMyReputationScore(context: Context): ReputationScoreResult {
         val response = Session.call(context) { authorization ->
             ServerApi.reviewService.getMyStats(authorization = authorization)
         } ?: return ReputationScoreResult.Failed(SESSION_ENDED_MESSAGE)
-        val score = response.body()?.reputationScore
-        if (score != null) ReputationScoreResult.Loaded(score) else ReputationScoreResult.Failed(COULD_NOT_LOAD_SCORE)
+        val body = response.body()
+        if (response.isSuccessful && body?.msg == "success") {
+            ReputationScoreResult.Loaded(body.reputationScore)
+        } else {
+            ReputationScoreResult.Failed(COULD_NOT_LOAD_SCORE)
+        }
     } catch (e: IOException) {
         ReputationScoreResult.Failed(NETWORK_MESSAGE)
     } catch (e: JsonParseException) {

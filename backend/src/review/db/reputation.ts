@@ -1,9 +1,11 @@
 import { selectRows } from '../../core/db/mysql';
 import { getReputationScore } from './ratings';
 
-// a player's record as other players see it. Badges aren't built yet, so badges is empty
+/*  a player's record as other players see it. score is null if they aren't rated yet.
+    Badges aren't built yet, so badges is empty
+ */
 export interface Reputation {
-  score: number;
+  score: number | null;
   badges: string[];
   gamesPlayed: number;
 }

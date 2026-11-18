@@ -116,7 +116,7 @@ private fun ProfileDetails(profile: PlayerProfile, state: PlayerProfileUiState, 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             Stat(value = profile.gamesPlayed.toString(), label = "Games played", modifier = Modifier.weight(1f))
             Stat(
-                value = profile.reputationScore?.let(::formatReputationScore) ?: "–",
+                value = formatReputationScore(profile.reputationScore),
                 label = "Rating",
                 modifier = Modifier.weight(1f)
             )
@@ -156,7 +156,7 @@ private fun Stat(value: String, label: String, modifier: Modifier) {
             .cardBackground(SportsSurfaceContainer)
             .padding(vertical = 12.dp, horizontal = 8.dp)
     ) {
-        Text(text = value, color = SportsOnSurface, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = value, color = SportsOnSurface, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Text(text = label, color = SportsOnSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center)
     }
 }

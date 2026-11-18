@@ -1,8 +1,8 @@
 import { executeWrite } from '../../../../src/core/db/mysql';
 import { addGame, addUser, api, asUser, cleanUpAfterTests } from '../../helpers';
 
-// a new player's score: every game counts as 5 stars until they have played some
-const NEW_PLAYER_SCORE = 5;
+// a new player isn't rated yet, so they have no score
+const NEW_PLAYER_SCORE = null;
 
 let organizerId: number;
 let olderRequesterId: number;

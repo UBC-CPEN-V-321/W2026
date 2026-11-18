@@ -49,7 +49,7 @@ export function discoverGameJson(entry: DiscoverGame) {
   };
 }
 
-export function pendingJoinRequestJson(request: PendingJoinRequest, reputationScore: number) {
+export function pendingJoinRequestJson(request: PendingJoinRequest, reputationScore: number | null) {
   return {
     request_id: request.requestId,
     user: { user_id: request.userId, first_name: request.firstName, last_name: request.lastName },
