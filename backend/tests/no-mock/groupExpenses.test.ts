@@ -1,8 +1,8 @@
 import request from 'supertest';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createApp } from '../../src/app';
 import { ExpenseModel, GroupModel } from '../../src/groupStore';
-import { connectDatabase, disconnectDatabase, mongoUserStore, mongoSessionStore, SessionModel, UserModel } from '../../src/userStore';
+import { mongoUserStore, mongoSessionStore, SessionModel, UserModel } from '../../src/userStore';
+import { useIsolatedMongo } from '../helpers/isolatedMongo';
 import { startSession } from '../../src/session';
 import { groupMembershipEvents } from '../../src/groupMembershipEvents';
 import { MAX_AMOUNT_MINOR } from '../../src/money';
@@ -10,7 +10,6 @@ import { testsRejectInvalidSessions } from '../helpers/sessionRejection';
 import { expectEachRejected, operatorShapedIds } from '../helpers/operatorInput';
 
 // Real HTTP routing, session verification and MongoDB. No mocked components.
-let mongo: MongoMemoryServer;
 const app = createApp();
 let auth: string;
 let memberAuth: string;
@@ -19,10 +18,7 @@ let groupId: string;
 let ids: string[];
 let sharedExpenseId = '';
 
-beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await connectDatabase(mongo.getUri('group-expenses-test'));
-}, 120000);
+useIsolatedMongo('group-expenses-test', [ExpenseModel, GroupModel, UserModel, SessionModel]);
 beforeEach(async () => {
   const accounts = [];
   for (const name of ['owner', 'member', 'third', 'outsider']) {
@@ -36,10 +32,6 @@ beforeEach(async () => {
   const group = await GroupModel.create({ name: 'Roommates', currency: 'CAD', ownerId: ids[0]!, memberIds: ids });
   groupId = group.id;
 });
-afterEach(async () => {
-  await Promise.all([ExpenseModel.deleteMany({}), GroupModel.deleteMany({}), UserModel.deleteMany({}), SessionModel.deleteMany({})]);
-});
-afterAll(async () => { await disconnectDatabase(); await mongo?.stop(); }, 30000);
 
 function bill(overrides: Record<string, unknown> = {}) {
   return { description: 'Dinner', amount: '10.00', paidBy: ids[0], splitMode: 'equal',

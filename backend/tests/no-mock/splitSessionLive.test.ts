@@ -31,6 +31,14 @@ function acceptInvitation(token: string) {
     .set('Authorization', `Bearer ${outsider.token}`);
 }
 
+// A started split with owner and member subscribed, collecting any update the member receives.
+async function splitWithSubscribers() {
+  const created = await createSplit();
+  const ownerClient = await subscribed(owner);
+  const memberClient = await subscribed(member);
+  return { created, ownerClient, memberClient, leaked: collect<SplitSessionUpdate>(memberClient, 'onGroupUpdated') };
+}
+
 // Interface Socket.IO /dutch connection
 describe('Unmocked: Socket.IO /dutch connection', () => {
   // Input: connection attempt without a Ledger session token
@@ -183,10 +191,7 @@ describe('Unmocked: Socket.IO /dutch onGroupUpdated', () => {
   // Expected behavior: the revoked socket is disconnected instead of receiving the update
   // Expected output: owner gets version 1; the revoked socket gets nothing
   test('A revoked session cannot receive a later committed update', async () => {
-    const created = await createSplit();
-    const ownerClient = await subscribed(owner);
-    const memberClient = await subscribed(member);
-    const leaked = collect<SplitSessionUpdate>(memberClient, 'onGroupUpdated');
+    const { created, ownerClient, memberClient, leaked } = await splitWithSubscribers();
     expect((await logout(member)).status).toBe(204);
     const disconnected = nextEvent<string>(memberClient, 'disconnect');
     const delivered = nextEvent<SplitSessionUpdate>(ownerClient, 'onGroupUpdated');
@@ -202,10 +207,7 @@ describe('Unmocked: Socket.IO /dutch onGroupUpdated', () => {
   // Expected behavior: the former member receives no later group data
   // Expected output: both get onGroupMembershipChanged; only the owner gets onGroupUpdated
   test.each(['leave', 'remove'])('A member who exits through %s cannot receive later updates', async action => {
-    const created = await createSplit();
-    const ownerClient = await subscribed(owner);
-    const memberClient = await subscribed(member);
-    const leaked = collect<SplitSessionUpdate>(memberClient, 'onGroupUpdated');
+    const { created, ownerClient, memberClient, leaked } = await splitWithSubscribers();
     const changes = [ownerClient, memberClient].map(client => nextEvent<GroupMembershipChange>(client, 'onGroupMembershipChanged'));
     const exited = action === 'leave'
       ? await request(server).post(`/api/groups/${groupId}/leave`).set('Authorization', `Bearer ${member.token}`)
