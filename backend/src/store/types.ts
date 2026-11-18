@@ -149,5 +149,8 @@ export interface Store {
   conversations: ConversationCollection;
   messages: MessageCollection;
   photos: PhotoStorage;
+  transaction<T>(work: (tx: TransactionStore) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
+
+export type TransactionStore = Pick<Store, 'ratings' | 'reputations'>;

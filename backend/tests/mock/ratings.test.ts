@@ -82,7 +82,7 @@ describe('Mocked: POST /api/deals/:id/ratings', () => {
   // Mocked behavior: the store method named in each row rejects with Error('MongoDB is unreachable')
   // Input: { stars: 4 } from ME on a deal ME has not rated
   // Expected status code: 500
-  // Expected behavior: the error is handled and the method is called once; if reputations.addRating fails the rating stays stored and no reputation is created
+  // Expected behavior: the error is handled and the method is called once; if reputations.addRating fails the transaction is aborted, so the rating is not stored
   // Expected output: { error: 'Internal Server Error' }
   test.each<FailureCase>([
     {
@@ -97,7 +97,7 @@ describe('Mocked: POST /api/deals/:id/ratings', () => {
       label: 'ratings.insert',
       method: 'POST',
       stars: 4,
-      install: (store, spies) => { spies.push(rejecting(store.ratings, 'insert')); },
+      install: (store, spies) => { spies.push(rejecting(Object.getPrototypeOf(store.ratings), 'insert')); },
       storedStars: null,
       starSum: null,
     },
@@ -105,8 +105,8 @@ describe('Mocked: POST /api/deals/:id/ratings', () => {
       label: 'reputations.addRating',
       method: 'POST',
       stars: 4,
-      install: (store, spies) => { spies.push(rejecting(store.reputations, 'addRating')); },
-      storedStars: 4,
+      install: (store, spies) => { spies.push(rejecting(Object.getPrototypeOf(store.reputations), 'addRating')); },
+      storedStars: null,
       starSum: null,
     },
   ])('$label Throws: 500', runFailure);
@@ -117,7 +117,7 @@ describe('Mocked: PUT /api/deals/:id/ratings', () => {
   // Mocked behavior: the store method named in each row rejects with Error('MongoDB is unreachable')
   // Input: { stars: 5 } from ME, or { stars: 3 } for reputations.find, when ME rated this deal 3 stars
   // Expected status code: 500
-  // Expected behavior: the error is handled and the method is called once; if reputations.changeStars fails the rating has its new stars and the reputation is unchanged
+  // Expected behavior: the error is handled and the method is called once; if reputations.changeStars fails the transaction is aborted, so the rating keeps its old stars and the reputation is unchanged
   // Expected output: { error: 'Internal Server Error' }
   test.each<FailureCase>([
     {
@@ -132,7 +132,7 @@ describe('Mocked: PUT /api/deals/:id/ratings', () => {
       label: 'ratings.update',
       method: 'PUT',
       stars: 5,
-      install: (store, spies) => { spies.push(rejecting(store.ratings, 'update')); },
+      install: (store, spies) => { spies.push(rejecting(Object.getPrototypeOf(store.ratings), 'update')); },
       storedStars: SEEDED_STARS,
       starSum: SEEDED_STARS,
     },
@@ -140,17 +140,59 @@ describe('Mocked: PUT /api/deals/:id/ratings', () => {
       label: 'reputations.changeStars',
       method: 'PUT',
       stars: 5,
-      install: (store, spies) => { spies.push(rejecting(store.reputations, 'changeStars')); },
-      storedStars: 5,
+      install: (store, spies) => { spies.push(rejecting(Object.getPrototypeOf(store.reputations), 'changeStars')); },
+      storedStars: SEEDED_STARS,
       starSum: SEEDED_STARS,
     },
     {
       label: 'reputations.find',
       method: 'PUT',
       stars: SEEDED_STARS,
-      install: (store, spies) => { spies.push(rejecting(store.reputations, 'find')); },
+      install: (store, spies) => { spies.push(rejecting(Object.getPrototypeOf(store.reputations), 'find')); },
       storedStars: SEEDED_STARS,
       starSum: SEEDED_STARS,
     },
   ])('$label Throws: 500', runFailure);
+});
+
+// Interface POST /api/deals/:id/ratings
+describe('Mocked: POST /api/deals/:id/ratings retry', () => {
+  // Mocked behavior: reputations.addRating rejects with Error('MongoDB is unreachable') once, then works
+  // Input: { stars: 4 } from ME on a deal ME has not rated, sent twice
+  // Expected status code: 500, then 201
+  // Expected behavior: the failed transaction saved nothing, so the retry saves the rating and counts it once
+  // Expected output: { error: 'Internal Server Error' }, then { rating, otherUser: { id: OTHER, score: 4, ratingCount: 1 } }
+  test('reputations.addRating Throws Then Retry: 201', async () => {
+    const dealId = await dealFor('POST');
+    rejecting(Object.getPrototypeOf(mongo.store.reputations), 'addRating');
+    expect((await rate(app, 'POST', dealId, { stars: 4 })).status).toBe(500);
+    jest.restoreAllMocks();
+
+    const retry = await rate(app, 'POST', dealId, { stars: 4 });
+
+    expect(retry.status).toBe(201);
+    expect(retry.body).toMatchObject({ otherUser: { id: OTHER, score: 4, ratingCount: 1 } });
+    expect((await storedRatings(mongo.db)).map((rating) => rating.stars)).toStrictEqual([4]);
+  });
+});
+
+// Interface PUT /api/deals/:id/ratings
+describe('Mocked: PUT /api/deals/:id/ratings retry', () => {
+  // Mocked behavior: reputations.changeStars rejects with Error('MongoDB is unreachable') once, then works
+  // Input: { stars: 5 } from ME, sent twice, when ME rated this deal 3 stars
+  // Expected status code: 500, then 200
+  // Expected behavior: the failed transaction changed nothing, so the retry moves the score from 3 to 5 stars
+  // Expected output: { error: 'Internal Server Error' }, then { rating, otherUser: { id: OTHER, score: 5, ratingCount: 1 } }
+  test('reputations.changeStars Throws Then Retry: 200', async () => {
+    const dealId = await dealFor('PUT');
+    rejecting(Object.getPrototypeOf(mongo.store.reputations), 'changeStars');
+    expect((await rate(app, 'PUT', dealId, { stars: 5 })).status).toBe(500);
+    jest.restoreAllMocks();
+
+    const retry = await rate(app, 'PUT', dealId, { stars: 5 });
+
+    expect(retry.status).toBe(200);
+    expect(retry.body).toMatchObject({ otherUser: { id: OTHER, score: 5, ratingCount: 1 } });
+    expect(await mongo.store.reputations.find(OTHER)).toMatchObject({ starSum: 5, ratingCount: 1 });
+  });
 });
