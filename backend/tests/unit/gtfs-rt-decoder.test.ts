@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { decodeFeed, FeedDecodeError } from '../../src/services/gtfs-rt-decoder';
 import { alertEntity, feedBytes, pb, tripUpdateEntity } from '../helpers/gtfs-rt';
 
@@ -163,5 +165,72 @@ describe('decodeFeed', () => {
     for (const bytes of invalid) {
       expect(() => decodeFeed(bytes)).toThrow(FeedDecodeError);
     }
+  });
+});
+
+// TransLink's real feeds, saved on 2026-11-18 at about 2 a.m. Pacific (tests/fixtures/translink/). They pin the
+// decoder to what TransLink actually sends: most runs give only a trip_id, not a route_id, many delays are negative,
+// and alerts name SkyTrain platforms by stop.
+describe('decodeFeed with TransLink\'s saved feeds', () => {
+  const fixture = (name: string) => readFileSync(path.join(__dirname, '..', 'fixtures', 'translink', name));
+
+  // Input: the saved trip updates feed
+  // Expected: its header timestamp, all 1,021 runs with unique ids and no alerts, a run with only a trip_id decoded
+  //           exactly, and every stop's predicted time within a few hours of the feed's
+  test('decodes the saved trip updates feed', () => {
+    const feed = decodeFeed(fixture('gtfsrealtime.pb'));
+    const runs = feed.entities.map((entity) => entity.tripUpdate);
+
+    expect(feed.timestamp).toBe(1_794_995_986);
+    expect(feed.entities).toHaveLength(1021);
+    expect(new Set(feed.entities.map((entity) => entity.id)).size).toBe(1021);
+    expect(feed.entities.every((entity) => entity.alert === null && entity.tripUpdate !== null)).toBe(true);
+    expect(runs.filter((run) => run?.routeId !== null)).toHaveLength(348);
+    expect(feed.entities[0]).toStrictEqual({
+      id: '15440390',
+      deleted: false,
+      alert: null,
+      tripUpdate: {
+        tripId: '15440390',
+        routeId: null,
+        directionId: 0,
+        cancelled: false,
+        delay: null,
+        stopTimeUpdates: [
+          { stopId: '12603', arrival: { delay: -91, time: 1_794_991_112 }, departure: { delay: -91, time: 1_794_991_112 }, skipped: false },
+          { stopId: '30', arrival: { delay: -84, time: 1_794_991_146 }, departure: { delay: -84, time: 1_794_991_146 }, skipped: false },
+        ],
+      },
+    });
+    const times = runs.flatMap((run) => run?.stopTimeUpdates ?? [])
+      .flatMap((stop) => [stop.arrival?.time, stop.departure?.time])
+      .filter((time): time is number => typeof time === 'number');
+    expect(times.length).toBeGreaterThan(2000);
+    for (const time of times) expect(Math.abs(time - 1_794_995_986)).toBeLessThan(6 * 60 * 60);
+  });
+
+  // Input: the saved service alerts feed
+  // Expected: its header timestamp, all 213 alerts with headers and selectors, and the Expo Line and 9 Boundary
+  //           alerts decoded with their effects, periods and selectors
+  test('decodes the saved alerts feed', () => {
+    const feed = decodeFeed(fixture('gtfsalerts.pb'));
+    const byId = new Map(feed.entities.map((entity) => [entity.id, entity.alert]));
+
+    expect(feed.timestamp).toBe(1_794_995_959);
+    expect(feed.entities).toHaveLength(213);
+    expect(feed.entities.every((entity) => entity.tripUpdate === null && entity.alert !== null)).toBe(true);
+    expect(feed.entities.every((entity) => entity.alert?.header !== null && entity.alert?.informedEntities.length !== 0)).toBe(true);
+
+    const expo = byId.get('454491');
+    expect(expo?.effect).toBe('MODIFIED_SERVICE');
+    expect(expo?.activePeriods).toStrictEqual([{ start: 1_708_864_200, end: null }]);
+    expect(expo?.informedEntities.map((selector) => selector.stopId)).toStrictEqual(['8580', '8578', '8579', '8577']);
+    expect(expo?.informedEntities[0]).toStrictEqual({ routeId: '30053', routeType: 1, stopId: '8580', directionId: null });
+    expect(expo?.header).toMatch(/^Reduced service & temporary platform assignments/);
+
+    const detour = byId.get('733912');
+    expect(detour?.effect).toBe('DETOUR');
+    expect(detour?.informedEntities).toStrictEqual([{ routeId: '6619', routeType: 3, stopId: null, directionId: 0 }]);
+    expect(detour?.header).toMatch(/^9 Boundary detour/);
   });
 });
