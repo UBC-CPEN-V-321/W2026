@@ -198,7 +198,7 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
-- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Setup check: [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
+- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
 
 #### Running the real-backend E2E tests
 
@@ -207,8 +207,9 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
 1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
 2. Start the backend on that database (from `backend/`): `npm run e2e:backend`.
 3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`.
-4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest` from `frontend/`).
-5. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
+4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest` from `frontend/`). Each test resets the user's interest through the real backend first.
+5. Empty state: run `npm run e2e:seed -- empty` (no events), restart nothing, and run `LiveEventsEmptyStateE2ETest`. With events seeded, that test is skipped.
+6. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
 
 ### 4.2. Tests
 

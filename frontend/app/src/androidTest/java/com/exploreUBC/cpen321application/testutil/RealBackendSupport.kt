@@ -1,9 +1,22 @@
 package com.exploreUBC.cpen321application.testutil
 
 import android.Manifest
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
+import com.exploreUBC.cpen321application.BuildConfig
+import com.exploreUBC.cpen321application.data.users.BudgetPreference
+import com.exploreUBC.cpen321application.data.users.InterestPreference
+import com.exploreUBC.cpen321application.data.users.TransportationMode
+import com.exploreUBC.cpen321application.data.users.TransportationPreference
+import com.exploreUBC.cpen321application.data.users.UserPreferences
+import com.exploreUBC.cpen321application.data.users.UserUpdate
+import com.exploreUBC.cpen321application.data.users.UsersApi
+import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 
 /** User the app signs in as (hardcoded in MainActivity2); seeded by backend `npm run e2e:seed`. */
@@ -37,5 +50,32 @@ internal fun grantLocationPermissionRule(): TestRule = TestRule { base, _ ->
             ).forEach { instrumentation.uiAutomation.grantRuntimePermission(packageName, it) }
             base.evaluate()
         }
+    }
+}
+
+/** Waits for [text] in the (lazy) list to load, scrolls to it, and fails if it never appears. */
+internal fun ComposeTestRule.scrollToText(
+    text: String,
+    timeoutMillis: Long = REAL_BACKEND_TIMEOUT_MS,
+) {
+    val target: SemanticsMatcher = hasText(text)
+    waitUntil(timeoutMillis) {
+        runCatching { onNode(hasScrollAction()).performScrollToNode(target) }.isSuccess
+    }
+}
+
+/** Sets the seeded user's interest through the real backend, so every test starts from the same state. */
+internal fun resetUserInterest(interest: InterestPreference = InterestPreference.OUTDOORS) {
+    runBlocking {
+        UsersApi(BuildConfig.API_BASE_URL).updateUser(
+            REAL_BACKEND_USER_ID,
+            UserUpdate(
+                preferences = UserPreferences(
+                    transportation = TransportationPreference(TransportationMode.TRANSIT),
+                    budget = BudgetPreference.BALANCED,
+                    interest = interest,
+                ),
+            ),
+        )
     }
 }
