@@ -65,7 +65,8 @@ data class Game(
     val court: Court,
     val players: List<Player>,
     val rounds: List<Round>,
-    // Only feed games have one, and it is null when OpenWeather could not be reached
+    // Only games still to be played have one, and it is null when the game is more than 5 days away
+    // or OpenWeather could not be reached
     val forecast: Forecast? = null,
     // Only tournament games have one
     val tournament: GameTournament? = null
