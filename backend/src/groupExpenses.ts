@@ -12,10 +12,15 @@ import { groupManagementRouter, groupJson } from './groupManagement';
 import { entrySharingRouter } from './entrySharing';
 import { requireGroupMember, type GroupLocals } from './groupAccess';
 
+function expenseDescription(value: unknown): string {
+  const description = typeof value === 'string' ? value.trim() : '';
+  if (!description || description.length > 100) throw new MoneyInputError('Enter a description of 1-100 characters.');
+  return description;
+}
+
 function expenseInput(body: unknown, group: { memberIds: Types.ObjectId[]; currency: string }) {
   const fields = body && typeof body === 'object' ? body as Record<string, unknown> : {};
-  const description = typeof fields.description === 'string' ? fields.description.trim() : '';
-  if (!description || description.length > 100) throw new MoneyInputError('Enter a description of 1-100 characters.');
+  const description = expenseDescription(fields.description);
   // Amounts are integer minor units of the group's currency (cents, or whole yen and won).
   const digits = minorUnitDigits(group.currency);
   const amountCents = parseMoney(fields.amount, false, digits);
@@ -164,9 +169,13 @@ export function groupExpensesRouter(users: UserStore, sessions: SessionStore): R
       if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) {
         throw new MoneyInputError('Refresh the group to load the current expense version.');
       }
-      const input = expenseInput(req.body, group);
+      const descriptionOnly = Object.keys(req.body).every(key => key === 'description' || key === 'revision');
+      const input = descriptionOnly
+        ? { description: expenseDescription(req.body.description) }
+        : expenseInput(req.body, group);
       // An unchanged form or a retry after an uncertain response needs no further write.
-      if (sameExpense(existing, input)) { res.json({ expense: expenseJson(existing) }); return; }
+      const unchanged = 'shares' in input ? sameExpense(existing, input) : existing.description === input.description;
+      if (unchanged) { res.json({ expense: expenseJson(existing) }); return; }
       const updated = await ExpenseModel.findOneAndUpdate({
         _id: existing._id, groupId: group._id,
         ...(revision === 0 ? { $or: [{ __v: 0 }, { __v: { $exists: false } }] } : { __v: revision }),

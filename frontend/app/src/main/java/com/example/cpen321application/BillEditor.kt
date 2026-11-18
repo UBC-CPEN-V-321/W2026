@@ -68,6 +68,13 @@ internal class BillDraft {
     /** Kept across rotation and uncertain network results so retrying cannot duplicate a bill. */
     var requestId = UUID.randomUUID().toString()
 
+    fun sameAllocation(other: BillDraft): Boolean =
+        amount == other.amount && tax == other.tax && tip == other.tip && mode == other.mode &&
+            legacy == other.legacy && receiptSplit == other.receiptSplit && tipChoice == other.tipChoice &&
+            paidBy == other.paidBy && selected == other.selected && custom == other.custom &&
+            extraEnabled == other.extraEnabled && extraRates == other.extraRates &&
+            percentages == other.percentages && adjustments == other.adjustments
+
     companion object {
         fun from(summary: GroupExpenseSummary, bill: GroupBill?, selfId: String, digits: Int, prefill: BillPrefill? = null) = BillDraft().apply {
             val meal = bill?.customCalculation?.members.orEmpty().associateBy { it.userId }
@@ -194,28 +201,48 @@ internal fun BillEditor(summary: GroupExpenseSummary, session: Session, onSessio
     // Amount fields use the group currency's decimals; tip and tax rates always use two.
     val digits = Money.digits(currency)
     val draft = rememberSaveable(saver = BillDraft.Saver) { BillDraft.from(summary, bill, session.account.id, digits, prefill) }
+    val original = if (bill != null) rememberSaveable(bill.id, saver = BillDraft.Saver) {
+        BillDraft.from(summary, bill, session.account.id, digits, prefill)
+    } else null
+    val descriptionOnly = original != null && draft.sameAllocation(original)
     val request = remember { RequestState() }
     val busy = request.working
     val scope = rememberCoroutineScope()
     val calc = draft.calculate(summary, digits, bill)
     Text("${if (bill == null) t("New expense") else t("Edit expense")} · ${summary.group.name}", style = MaterialTheme.typography.titleLarge)
     prefill?.let { BillPrefillNotes(it, currency) }
-    BillModeChips(draft, busy, summary.group.ownerId == session.account.id, onByItem?.let { open ->
-        { open((prefill ?: BillPrefill()).copy(description = draft.description, total = draft.amount, tax = draft.tax, tip = draft.tip,
-            paidBy = draft.paidBy, warnings = emptyList())) }
-    })
-    BillAmountFields(draft, calc, currency, busy)
-    BillPayerPicker(draft, summary.members, busy)
-    BillParticipants(draft, calc, summary, digits, busy)
-    BillTotals(draft, calc, currency)
+    OutlinedTextField(draft.description, { draft.description = it.take(100) }, label = { Text(t("Description")) },
+        enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth())
+    var editSplit by rememberSaveable { mutableStateOf(false) }
+    val historical = calc.missingParticipants.isNotEmpty() || summary.members.none { it.id == draft.paidBy }
+    val preserveHistoricalSplit = historical && descriptionOnly
+    if (bill != null && preserveHistoricalSplit && !editSplit) {
+        BillCard(bill, summary)
+        BarButton(onClick = { editSplit = true }, enabled = !busy) { Text(t("Edit split")) }
+    } else {
+        BillModeChips(draft, busy, summary.group.ownerId == session.account.id, onByItem?.let { open ->
+            { open((prefill ?: BillPrefill()).copy(description = draft.description, total = draft.amount, tax = draft.tax, tip = draft.tip,
+                paidBy = draft.paidBy, warnings = emptyList())) }
+        })
+        BillAmountFields(draft, calc, currency, busy)
+        BillPayerPicker(draft, summary.members, busy)
+        BillParticipants(draft, calc, summary, digits, busy)
+        BillTotals(draft, calc, currency)
+    }
     request.error?.let { Text(t(it), color = MaterialTheme.colorScheme.error) }
     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-    PrimaryBarButton(enabled = calc.valid && !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+    PrimaryBarButton(enabled = !busy && (calc.valid || (descriptionOnly && draft.description.trim().length in 1..100)), modifier = Modifier.fillMaxWidth(), onClick = {
         scope.launch {
             request.run(onSessionExpired, onFailure = {
                 request.error = it.message ?: "Unable to save expense. Retry to check this submission."
             }) {
-                withContext(Dispatchers.IO) { submitBill(session.token, summary.group.id, bill, draft, calc, digits) }
+                withContext(Dispatchers.IO) {
+                    if (bill != null && descriptionOnly) {
+                        GroupExpenseApi.updateDescription(session.token, summary.group.id, bill.id, draft.description.trim(), draft.expectedRevision)
+                    } else {
+                        submitBill(session.token, summary.group.id, bill, draft, calc, digits)
+                    }
+                }
                 onSaved()
             }
         }
@@ -251,8 +278,6 @@ private fun LetsGoDutchButton(busy: Boolean, canStart: Boolean, onClick: () -> U
 
 @Composable
 private fun BillAmountFields(draft: BillDraft, calc: BillCalculation, currency: String, busy: Boolean) {
-    OutlinedTextField(draft.description, { draft.description = it.take(100) }, label = { Text(t("Description")) },
-        enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth())
     if (draft.mode == "custom" && !draft.legacy) {
         Row {
             Checkbox(checked = draft.receiptSplit, onCheckedChange = { draft.receiptSplit = it }, enabled = !busy)

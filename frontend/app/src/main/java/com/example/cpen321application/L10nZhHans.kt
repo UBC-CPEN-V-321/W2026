@@ -2,6 +2,7 @@ package com.example.cpen321application
 
 // Simplified Chinese interface text, keyed by the English source text.
 internal val ZH_HANS: Map<String, String> = mapOf(
+    "Edit split" to "编辑分摊",
     "This image could not be compressed. Choose another image." to "无法压缩此图片，请选择其他图片。",
     "%1\$d / %2\$d units claimed" to "已认领 %1\$d / %2\$d 份",
     "%1\$d extracted transactions" to "已识别 %1\$d 笔交易",
