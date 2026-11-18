@@ -1,5 +1,6 @@
 // Seeds (or cleans) the throwaway MongoDB used by the frontend E2E tests.
 //   node scripts/seed-e2e.js         create schema/indexes and seed test data
+//   node scripts/seed-e2e.js empty   same, but with no events (for the empty-state test)
 //   node scripts/seed-e2e.js clean   remove the seeded events and itinerary
 // Refuses to run against Atlas. The target is E2E_MONGODB_URI (default: local Docker DB).
 const { execFileSync } = require('node:child_process');
@@ -99,17 +100,21 @@ function buildBaselineItinerary(firstEvent, base) {
   };
 }
 
-async function seed(database) {
+async function seed(database, { withEvents = true } = {}) {
   const base = new Date();
-  const events = buildEvents(base);
+  const events = withEvents ? buildEvents(base) : [];
 
   await database.collection('liveevents').deleteMany({
     externalId: { $regex: `^${EVENT_ID_PREFIX}` },
   });
-  await database.collection('liveevents').insertMany(events);
+  if (events.length > 0) {
+    await database.collection('liveevents').insertMany(events);
+  }
 
   await database.collection('itineraries').deleteMany({ ownerId: TEST_USER_ID });
-  await database.collection('itineraries').insertOne(buildBaselineItinerary(events[0], base));
+  if (events.length > 0) {
+    await database.collection('itineraries').insertOne(buildBaselineItinerary(events[0], base));
+  }
 
   await database
     .collection('users')
@@ -119,7 +124,9 @@ async function seed(database) {
     );
 
   console.log(
-    `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, 1 itinerary.`,
+    withEvents
+      ? `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, 1 itinerary.`
+      : 'E2E data ready: test user only, no events.',
   );
 }
 
@@ -151,7 +158,8 @@ async function main() {
   try {
     await client.connect();
     const database = client.db(DATABASE_NAME);
-    await (mode === 'clean' ? clean(database) : seed(database));
+    if (mode === 'clean') await clean(database);
+    else await seed(database, { withEvents: mode !== 'empty' });
   } finally {
     await client.close();
   }
