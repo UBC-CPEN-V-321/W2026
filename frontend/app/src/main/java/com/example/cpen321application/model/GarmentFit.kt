@@ -359,78 +359,94 @@ fun computeBodyAdjustments(
     val offsets = mutableMapOf<String, Float3>()
     val autoHidden = mutableSetOf<String>()
 
-    // Bottom adjustments (pants vs. shorts/skirts)
+    applyBottomAdjustments(bottomItem, bottomPlacement, joints, footDrop, offsets, autoHidden)
+    applyTopAdjustments(topItem, topPlacement, joints, offsets, autoHidden)
+
+    return BodyAdjustmentResult(offsets = offsets, autoHiddenParts = autoHidden)
+}
+
+private fun applyBottomAdjustments(
+    bottomItem: ClothingItem?,
+    bottomPlacement: GarmentPlacement?,
+    joints: AvatarJoints,
+    footDrop: Float,
+    offsets: MutableMap<String, Float3>,
+    autoHidden: MutableSet<String>,
+) {
     val bottomRef = bottomItem?.referencePoints
-    if (bottomItem != null && bottomPlacement != null && bottomPlacement.hemY != null) {
-        if (isPantsItem(bottomItem) && bottomRef?.bottomHemLeft != null && bottomRef.bottomHemRight != null) {
-            // Pants: hide thighs + lower legs, put each foot at its pants opening (slightly below the hem).
-            val (leftHem, rightHem) = bySide(
-                bottomPlacement.worldPoint(bottomRef.bottomHemLeft!!),
-                bottomPlacement.worldPoint(bottomRef.bottomHemRight!!),
-            )
-            listOf("left" to (joints.left to leftHem), "right" to (joints.right to rightHem))
-                .forEach { (side, pair) ->
-                    val (j, hem) = pair
-                    offsets["${side}Foot"] = Float3(
-                        x = hem.x - j.footCenter.x,
-                        y = (hem.y - footDrop) - j.ankle.y,
-                        z = FEET_INSET,
-                    )
-                    autoHidden.add("${side}UpperLeg")
-                    autoHidden.add("${side}LowerLeg")
-                }
-        } else if (bottomPlacement.hemTargetY != null) {
-            // Shorts / skirts: lower legs + feet follow the hem.
-            val dy = bottomPlacement.hemY - bottomPlacement.hemTargetY
-            for (side in listOf("left", "right")) {
-                offsets["${side}LowerLeg"] = Float3(0f, dy, 0f)
-                offsets["${side}Foot"] = Float3(0f, dy, 0f)
+    if (bottomItem == null || bottomPlacement?.hemY == null) return
+
+    if (isPantsItem(bottomItem) && bottomRef?.bottomHemLeft != null && bottomRef.bottomHemRight != null) {
+        val (leftHem, rightHem) = bySide(
+            bottomPlacement.worldPoint(bottomRef.bottomHemLeft!!),
+            bottomPlacement.worldPoint(bottomRef.bottomHemRight!!),
+        )
+        listOf("left" to (joints.left to leftHem), "right" to (joints.right to rightHem))
+            .forEach { (side, pair) ->
+                val (j, hem) = pair
+                offsets["${side}Foot"] = Float3(
+                    x = hem.x - j.footCenter.x,
+                    y = (hem.y - footDrop) - j.ankle.y,
+                    z = FEET_INSET,
+                )
+                autoHidden.add("${side}UpperLeg")
+                autoHidden.add("${side}LowerLeg")
             }
+    } else if (bottomPlacement.hemTargetY != null) {
+        val dy = bottomPlacement.hemY - bottomPlacement.hemTargetY
+        for (side in listOf("left", "right")) {
+            offsets["${side}LowerLeg"] = Float3(0f, dy, 0f)
+            offsets["${side}Foot"] = Float3(0f, dy, 0f)
         }
     }
+}
 
-    // Top / Outerwear adjustments (short sleeve vs. long sleeve)
-    val topRef = topItem?.referencePoints
-    if (topItem != null && topPlacement != null) {
-        autoHidden.add("torso")
-        val openLeft = topRef?.sleeveOpeningLeft
-        val openRight = topRef?.sleeveOpeningRight
-        if (openLeft != null && openRight != null) {
-            val (leftOpen, rightOpen) = bySide(
-                topPlacement.worldPoint(openLeft),
-                topPlacement.worldPoint(openRight),
-            )
-            val isShort = isShortSleeveItem(topItem)
-            listOf("left" to (joints.left to leftOpen), "right" to (joints.right to rightOpen))
-                .forEach { (side, pair) ->
-                    val (j, o) = pair
-                    autoHidden.add("${side}UpperArm")
-                    if (isShort) {
-                        var dx = o.x - j.elbow.x
-                        if (side == "right") {
-                            dx -= SLEEVE_INSET
-                        } else {
-                            dx += SLEEVE_INSET
-                        }
-                        val dy = o.y - j.elbow.y 
-                        val offset = Float3(dx, dy, o.z)
-                        offsets["${side}UpperArm"] = offset
-                        offsets["${side}ForeArm"] = offset
-                        offsets["${side}Hand"] = offset
-                    } else {
-                        autoHidden.add("${side}ForeArm")
-                        offsets["${side}Hand"] = Float3(
-                            x = o.x - j.wrist.x,
-                            y = o.y - j.wrist.y,
-                            z = o.z,
-                        )
-                    }
-                }
-        }
-    }
+private fun applyTopAdjustments(
+    topItem: ClothingItem?,
+    topPlacement: GarmentPlacement?,
+    joints: AvatarJoints,
+    offsets: MutableMap<String, Float3>,
+    autoHidden: MutableSet<String>,
+) {
+    if (topItem == null || topPlacement == null) return
+    autoHidden.add("torso")
 
-    return BodyAdjustmentResult(
-        offsets = offsets,
-        autoHiddenParts = autoHidden,
+    val topRef = topItem.referencePoints
+    val openLeft = topRef?.sleeveOpeningLeft ?: return
+    val openRight = topRef.sleeveOpeningRight ?: return
+    val (leftOpen, rightOpen) = bySide(
+        topPlacement.worldPoint(openLeft),
+        topPlacement.worldPoint(openRight),
     )
+
+    val isShort = isShortSleeveItem(topItem)
+    listOf("left" to (joints.left to leftOpen), "right" to (joints.right to rightOpen))
+        .forEach { (side, pair) ->
+            applySleeveSideAdjustment(side, pair.first, pair.second, isShort, offsets, autoHidden)
+        }
+}
+
+private fun applySleeveSideAdjustment(
+    side: String,
+    joint: SideJoints,
+    opening: Float3,
+    isShort: Boolean,
+    offsets: MutableMap<String, Float3>,
+    autoHidden: MutableSet<String>,
+) {
+    autoHidden.add("${side}UpperArm")
+    if (isShort) {
+        val dx = (opening.x - joint.elbow.x) + if (side == "right") -SLEEVE_INSET else SLEEVE_INSET
+        val offset = Float3(dx, opening.y - joint.elbow.y, opening.z)
+        offsets["${side}UpperArm"] = offset
+        offsets["${side}ForeArm"] = offset
+        offsets["${side}Hand"] = offset
+    } else {
+        autoHidden.add("${side}ForeArm")
+        offsets["${side}Hand"] = Float3(
+            x = opening.x - joint.wrist.x,
+            y = opening.y - joint.wrist.y,
+            z = opening.z,
+        )
+    }
 }
