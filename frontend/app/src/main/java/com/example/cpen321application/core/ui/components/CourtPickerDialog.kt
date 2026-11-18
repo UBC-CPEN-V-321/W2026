@@ -105,7 +105,7 @@ fun CourtPickerDialog(
                 } else if (courts.isEmpty()) {
                     CenteredInPicker { Text("No courts yet.") }
                 } else {
-                    CourtMapAndList(courts = courts, selectedCourtId = selectedCourtId, onSelect = onSelect)
+                    CourtMapAboveSyncedList(courts = courts, selectedCourtId = selectedCourtId, onSelect = onSelect)
                 }
             }
         }
@@ -134,11 +134,9 @@ private fun CenteredInPicker(content: @Composable () -> Unit) {
     }
 }
 
-/**
- * The map on top and the list under it, both showing which court is highlighted
- */
 @Composable
-private fun CourtMapAndList(courts: List<Court>, selectedCourtId: Int?, onSelect: (Court) -> Unit) {
+private fun CourtMapAboveSyncedList(courts: List<Court>, selectedCourtId: Int?, onSelect: (Court) -> Unit) {
+    // The map and the list both show this court as highlighted
     var highlightedId by rememberSaveable { mutableStateOf(selectedCourtId) }
     val highlighted = courts.firstOrNull { it.id == highlightedId }
     val cameraPositionState = rememberCameraPositionState()
