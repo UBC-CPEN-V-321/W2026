@@ -20,6 +20,7 @@ import {
   fetchGameDetails,
   fetchUserGames,
   fetchUserHistory,
+  startBookedGame,
 } from "../../src/games/games.repository";
 import { applyGameResult } from "../../src/ranking/ranking.service";
 import { advanceBracket } from "../../src/tournaments/bracket.repository";
@@ -659,6 +660,37 @@ describe("Mocked: cancelMatchedGame", () => {
     db.game.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(cancelMatchedGame(gameId)).resolves.toBe(false);
+  });
+});
+
+describe("Mocked: startBookedGame", () => {
+  const now = new Date("2026-11-02T12:00:00Z");
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Input: a booked game that has not started
+  // Expected behavior: its start time moves to now, only if it is still booked and not started
+  // Expected output: the started game
+  test("Moves a booked game's start time to now", async () => {
+    const started = { ...gameRow(), status: GameStatus.BOOKED, startsAt: now };
+    db.game.updateManyAndReturn.mockResolvedValue([started]);
+
+    await expect(startBookedGame(gameId, now)).resolves.toBe(started);
+    expect(db.game.updateManyAndReturn).toHaveBeenCalledWith({
+      where: { id: gameId, status: GameStatus.BOOKED, startsAt: { gt: now } },
+      data: { startsAt: now },
+    });
+  });
+
+  // Input: a game that is gone, not booked, or already started
+  // Expected behavior: nothing changes
+  // Expected output: null
+  test("Returns null when no game can be started", async () => {
+    db.game.updateManyAndReturn.mockResolvedValue([]);
+
+    await expect(startBookedGame(gameId, now)).resolves.toBeNull();
   });
 });
 
