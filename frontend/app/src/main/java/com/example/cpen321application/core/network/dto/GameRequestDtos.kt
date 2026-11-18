@@ -28,6 +28,10 @@ data class InviteFriendRequestDto(
     val userId: String
 )
 
+data class StartGameRequestDto(
+    val gameId: String
+)
+
 data class ChangeGameTimeRequestDto(
     val gameId: String,
     val startsAt: String

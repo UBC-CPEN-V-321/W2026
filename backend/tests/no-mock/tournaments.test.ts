@@ -309,6 +309,45 @@ describe("Unmocked: tournament flow", () => {
     expect(await prisma.gameUser.count({ where: { gameId } })).toBe(2);
   });
 
+  // Interface POST /games/start
+  // Input: a player outside the bracket starts a quarterfinal, then one of its players starts it twice
+  // Expected status code: 403, then 200, then 409
+  // Expected behavior: only the quarterfinal's start time moves to now; the other quarterfinals keep the
+  // tournament's start, and the next test checks the semifinals are still timed from it
+  // Expected output: the started game, then { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
+  test("Lets a quarterfinal's players start it early without moving the rest of the bracket", async () => {
+    const details = await fetchDetails();
+    const quarterfinal = matchAt(details.matches, 1, 0);
+    const gameId = quarterfinal.game?.id ?? "";
+    const outsider = users.find(({ id }) => !details.players.some((player) => player.id === id));
+    const playerAuth = authOfSeed(details.players, quarterfinal.team1);
+    const startGame = (auth: string) =>
+      request(app).post("/games/start").set("Authorization", auth).send({ gameId });
+
+    const byOutsider = await startGame(outsider?.auth ?? "");
+    expect(byOutsider.status).toBe(403);
+
+    const before = Date.now();
+    const started = await startGame(playerAuth);
+    expect(started.status).toBe(200);
+    expect(started.body.game).toMatchObject({ id: gameId, status: GameStatus.BOOKED });
+    const { startsAt: startedAtIso } = started.body.game as { startsAt: string };
+    const startedAt = new Date(startedAtIso).getTime();
+    expect(startedAt).toBeGreaterThanOrEqual(before);
+    expect(startedAt).toBeLessThanOrEqual(Date.now());
+
+    const again = await startGame(playerAuth);
+    expect(again.status).toBe(409);
+    expect(again.body).toEqual(errorBody(gameErrors.AlreadyStarted));
+
+    const others = await prisma.game.findMany({
+      where: { tournamentMatch: { tournamentId, round: 1 }, id: { not: gameId } },
+      select: { startsAt: true },
+    });
+    expect(others).toHaveLength(3);
+    expect(others.every((game) => game.startsAt.getTime() === startsAt.getTime())).toBe(true);
+  });
+
   // Interface POST /games/score
   // Input: the two quarterfinals feeding semifinal 0 are reported at the same time; then the other two
   // Expected status code: 200 for each report

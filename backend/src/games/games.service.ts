@@ -8,6 +8,7 @@ import {
   GameSource,
   GameStatus,
 } from "../generated/prisma/enums";
+import type { Game } from "../generated/prisma/client";
 import { IncompleteTeamsError } from "../ranking/ranking.service";
 import { pushToUsers } from "../users/users.service";
 import {
@@ -25,6 +26,7 @@ import {
   fetchUserHistory,
   type GameDetails,
   isUserInGame,
+  startBookedGame,
   updateGame,
 } from "./games.repository";
 import {
@@ -59,6 +61,12 @@ export const gameErrors = {
   TooLate: { status: 409, code: "LEAVE_TOO_LATE", message: "Game starts in less than 30 minutes" },
   NotPending: { status: 409, code: "MATCH_NOT_PENDING", message: "Match is no longer waiting for answers" },
   AlreadyAccepted: { status: 409, code: "MATCH_ALREADY_ACCEPTED", message: "Match already accepted" },
+  NotBooked: {
+    status: 409,
+    code: "GAME_NOT_BOOKED",
+    message: "Only a booked game can start: every spot must be filled and every player must accept",
+  },
+  AlreadyStarted: { status: 409, code: "GAME_ALREADY_STARTED", message: "Game has already started" },
   NotFriends: { status: 403, code: "NOT_FRIENDS", message: "Users are not friends" },
   // Two games sharing a player finished at the same moment and Postgres aborted one of them
   ScoreConflict: { status: 409, code: "SCORE_CONFLICT", message: "The score could not be saved, please try again" },
@@ -474,6 +482,73 @@ export async function changeGameTime(
 ) {
   await checkCanEditGame(gameId, userId, true);
   return await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
+}
+
+/**
+ * Decides whether a game can start now: it must be booked, so its players are known and every one of them
+ * has accepted it, and its start time must not have passed
+ * @param game the game to start
+ * @param now the current time
+ * @returns the reason the game cannot start, or null if it can
+ */
+function whyGameCannotStart(game: Game, now: Date): ErrorDefinition | null {
+  if (
+    game.status === GameStatus.COMPLETED ||
+    game.status === GameStatus.CANCELLED
+  ) {
+    return gameErrors.Closed;
+  }
+
+  // An open game still has free spots, or is a match waiting for answers
+  if (game.status !== GameStatus.BOOKED) {
+    return gameErrors.NotBooked;
+  }
+
+  if (game.startsAt <= now) {
+    return gameErrors.AlreadyStarted;
+  }
+
+  return null;
+}
+
+/**
+ * Starts a booked game before its start time, for players who want to play early: its start time moves to now,
+ * so every player can report its score. Scheduled, matched and tournament games can all start early, since a
+ * booked game's players are known and have accepted it. A tournament's later rounds are timed from the
+ * tournament's start, so they don't move
+ * @param gameId the game ID of the game to start
+ * @param userId the user starting the game, who must be in it
+ * @returns the started game
+ * @throws AppError with the reason the game cannot start
+ */
+export async function startGame(gameId: string, userId: string) {
+  const game = await fetchGame(gameId);
+  if (game === null) {
+    throw new AppError(gameErrors.NotFound);
+  }
+
+  if (!(await isUserInGame(userId, gameId))) {
+    throw new AppError(gameErrors.NotInGame);
+  }
+
+  const now = new Date();
+  const error = whyGameCannotStart(game, now);
+  if (error) {
+    throw new AppError(error);
+  }
+
+  const started = await startBookedGame(gameId, now);
+  if (started === null) {
+    // Another player started it, or it was completed, cancelled or deleted, after the check above
+    const current = await fetchGame(gameId);
+    const reason =
+      current === null
+        ? gameErrors.NotFound
+        : (whyGameCannotStart(current, now) ?? gameErrors.AlreadyStarted);
+    throw new AppError(reason);
+  }
+
+  return started;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   joinGameSchema,
   leaveGameSchema,
   reportScoreSchema,
+  startGameSchema,
 } from "./games.schemas";
 import {
   acceptMatch,
@@ -26,6 +27,7 @@ import {
   leaveGame,
   newGame,
   reportScore,
+  startGame,
 } from "./games.service";
 
 export const gamesRouter = Router();
@@ -92,6 +94,13 @@ gamesRouter.post("/invite", async (req: Request, res: Response) => {
 gamesRouter.patch("/time", async (req: Request, res: Response) => {
   const { gameId, startsAt } = parseRequest(changeGameTimeSchema, req.body);
   const game = await changeGameTime(gameId, authedUserId(req), startsAt);
+  res.status(200).json({ game });
+});
+
+// Starts a booked game now, before its start time, so its players can report the score
+gamesRouter.post("/start", async (req: Request, res: Response) => {
+  const { gameId } = parseRequest(startGameSchema, req.body);
+  const game = await startGame(gameId, authedUserId(req));
   res.status(200).json({ game });
 });
 

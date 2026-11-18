@@ -48,6 +48,10 @@ export const inviteFriendSchema = z.strictObject({
   userId: z.uuid(),
 });
 
+export const startGameSchema = z.strictObject({
+  gameId: z.uuid(),
+});
+
 export const changeGameTimeSchema = z.strictObject({
   gameId: z.uuid(),
   startsAt: startsAtSchema,
@@ -85,6 +89,7 @@ export type CreateGameUserInput = z.infer<typeof createGameUserSchema>;
 export type LeaveGameInput = z.infer<typeof leaveGameSchema>;
 export type AcceptMatchInput = z.infer<typeof acceptMatchSchema>;
 export type InviteFriendInput = z.infer<typeof inviteFriendSchema>;
+export type StartGameInput = z.infer<typeof startGameSchema>;
 export type ChangeGameTimeInput = z.infer<typeof changeGameTimeSchema>;
 export type ChangeGameLocationInput = z.infer<typeof changeGameLocationSchema>;
 export type ReportScoreInput = z.infer<typeof reportScoreSchema>;

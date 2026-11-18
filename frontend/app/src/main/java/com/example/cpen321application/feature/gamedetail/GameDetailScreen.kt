@@ -57,6 +57,7 @@ private const val MAX_SETS = 5
  * @property onOpenCourtPicker loads the courts the game can move to
  * @property onChangeCourt moves the game to the court with this id
  * @property onReportScore reports the final score, then calls onReported if the backend accepted it
+ * @property onStartNow starts the booked game now, before its start time
  * @property onCancelGame cancels the game for every player
  * @property onOpenTournament opens the bracket of the tournament with this id, for a tournament game
  * @property onOpenInvite loads the friends who can be invited
@@ -69,14 +70,34 @@ data class GameDetailCallbacks(
     val onOpenCourtPicker: () -> Unit,
     val onChangeCourt: (courtId: Int) -> Unit,
     val onReportScore: (rounds: List<Pair<Int, Int>>, onReported: () -> Unit) -> Unit,
+    val onStartNow: () -> Unit,
     val onCancelGame: () -> Unit,
     val onOpenTournament: (tournamentId: String) -> Unit,
     val onOpenInvite: () -> Unit,
     val onInvite: (userId: String) -> Unit
 )
 
+// What a confirm dialog asks before the game is started early, left or cancelled
+private data class GameConfirmation(val title: String, val text: String, val confirmLabel: String)
+
+private val START_CONFIRMATION = GameConfirmation(
+    title = "Start this game now?",
+    text = "The start time moves to now for every player, so you can report the score once you've played.",
+    confirmLabel = "Start now"
+)
+private val LEAVE_CONFIRMATION = GameConfirmation(
+    title = "Leave this game?",
+    text = "Your spot opens up for other players.",
+    confirmLabel = "Leave"
+)
+private val CANCEL_CONFIRMATION = GameConfirmation(
+    title = "Cancel this game?",
+    text = "The game is cancelled for every player.",
+    confirmLabel = "Cancel game"
+)
+
 // The dialogs the game screen opens, at most one at a time
-internal enum class GameDialog { TIME, COURT, SCORE, LEAVE, CANCEL, INVITE }
+internal enum class GameDialog { TIME, COURT, SCORE, START, LEAVE, CANCEL, INVITE }
 
 @Composable
 fun GameDetailRoute(
@@ -93,6 +114,7 @@ fun GameDetailRoute(
             onOpenCourtPicker = viewModel::loadCourts,
             onChangeCourt = viewModel::changeCourt,
             onReportScore = viewModel::reportScore,
+            onStartNow = viewModel::startNow,
             onCancelGame = { viewModel.cancel(onCancelled = onBack) },
             onOpenTournament = onOpenTournament,
             onOpenInvite = viewModel::loadFriends,
@@ -279,29 +301,27 @@ private fun GameDialogContent(
             onDismiss = onDismiss,
             onSubmit = { rounds -> callbacks.onReportScore(rounds, onDismiss) }
         )
-        GameDialog.LEAVE -> ConfirmDialog(
-            title = "Leave this game?",
-            text = "Your spot opens up for other players.",
-            confirmLabel = "Leave",
-            onDismiss = onDismiss,
-            onConfirm = {
-                onDismiss()
-                callbacks.onLeave()
-            }
-        )
-        GameDialog.CANCEL -> ConfirmDialog(
-            title = "Cancel this game?",
-            text = "The game is cancelled for every player.",
-            confirmLabel = "Cancel game",
-            onDismiss = onDismiss,
-            onConfirm = {
-                onDismiss()
-                callbacks.onCancelGame()
-            }
-        )
+        GameDialog.START -> GameConfirmDialog(START_CONFIRMATION, callbacks.onStartNow, onDismiss)
+        GameDialog.LEAVE -> GameConfirmDialog(LEAVE_CONFIRMATION, callbacks.onLeave, onDismiss)
+        GameDialog.CANCEL -> GameConfirmDialog(CANCEL_CONFIRMATION, callbacks.onCancelGame, onDismiss)
         // Shown by GameDetails, since it needs the friends list
         GameDialog.INVITE -> Unit
     }
+}
+
+// Asks before starting, leaving or cancelling the game, then closes and sends the action
+@Composable
+private fun GameConfirmDialog(confirmation: GameConfirmation, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    ConfirmDialog(
+        title = confirmation.title,
+        text = confirmation.text,
+        confirmLabel = confirmation.confirmLabel,
+        onDismiss = onDismiss,
+        onConfirm = {
+            onDismiss()
+            onConfirm()
+        }
+    )
 }
 
 @Composable
