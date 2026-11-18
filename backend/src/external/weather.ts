@@ -5,6 +5,7 @@ const FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast";
 
 // The free forecast has one entry every 3 hours for the next 5 days
 const FORECAST_STEP_MS = 3 * 60 * 60 * 1000;
+const FORECAST_RANGE_MS = 5 * 24 * 60 * 60 * 1000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 2000;
 
@@ -35,7 +36,7 @@ export interface Forecast {
   precipitationChance: number;
 }
 
-// One forecast request per court location every CACHE_TTL_MS, shared by every feed request
+// One forecast request per court location every CACHE_TTL_MS, shared by every games and tournaments request
 const cache = new Map<string, { expiresAt: number; entries: Promise<ForecastEntry[]> }>();
 
 /**
@@ -84,11 +85,21 @@ export async function getForecast(
     return null;
   }
 
+  // No entry can be close enough to a time long past or beyond the 5 days, so don't ask OpenWeather.
+  // The margins are a full step, since the first entry can be up to a step away from now
+  const now = Date.now();
+  if (
+    at.getTime() < now - FORECAST_STEP_MS ||
+    at.getTime() > now + FORECAST_RANGE_MS + FORECAST_STEP_MS
+  ) {
+    return null;
+  }
+
   const key = `${latitude},${longitude}`;
   let cached = cache.get(key);
-  if (cached === undefined || cached.expiresAt <= Date.now()) {
+  if (cached === undefined || cached.expiresAt <= now) {
     cached = {
-      expiresAt: Date.now() + CACHE_TTL_MS,
+      expiresAt: now + CACHE_TTL_MS,
       entries: fetchForecastEntries(latitude, longitude, apiKey),
     };
     cache.set(key, cached);
