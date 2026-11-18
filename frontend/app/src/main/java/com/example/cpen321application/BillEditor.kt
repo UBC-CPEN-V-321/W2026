@@ -215,7 +215,8 @@ internal fun BillEditor(summary: GroupExpenseSummary, session: Session, onSessio
         enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth())
     var editSplit by rememberSaveable { mutableStateOf(false) }
     val historical = calc.missingParticipants.isNotEmpty() || summary.members.none { it.id == draft.paidBy }
-    if (bill != null && historical && descriptionOnly && !editSplit) {
+    val preserveHistoricalSplit = historical && descriptionOnly
+    if (bill != null && preserveHistoricalSplit && !editSplit) {
         BillCard(bill, summary)
         BarButton(onClick = { editSplit = true }, enabled = !busy) { Text(t("Edit split")) }
     } else {
