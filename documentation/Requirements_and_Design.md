@@ -16,6 +16,7 @@
 | Nov 3, 2026 | All | Shortened the document and matched it to the code: token auth (`/user/refresh`, `/user/logout`), equipment, location-based matchmaking (`/matchmaking`, `POST /games/accept`, the deadline job), no game owner, and the libraries in use. Unbuilt parts are marked *(planned)*. |
 | Nov 3, 2026 | 3.1, 3.3, 3.5 (Use Case 4), 4.3 | A scheduled game's court is picked from a list; the map shows a matched game's court. |
 | Nov 18, 2026 | 4.1 | The ELO K-factor depends on each player's number of rated games (`calculateKFactor`), counted by `applyGameResult`. |
+| Nov 18, 2026 | 3.1, 4.1 | Added player stats: `GET /stats` and the stats screen with the ELO chart. |
 
 ---
 
@@ -42,7 +43,7 @@ Users schedule a game for a future time at a court they pick from a list. It sho
 During a game, a player updates the score, and it syncs live to every other player's device.
 
 #### **ELO ranking**
-After a game's final score is reported, every player's ELO rating changes, and a leaderboard ranks players by rating.
+After a game's final score is reported, every player's ELO rating changes, and a leaderboard ranks players by rating. A player's stats screen shows their ELO over time, their match, set and game totals, and how they do against opponents of different ratings.
 
 #### **Tournaments**
 Users create an 8-team single-elimination tournament (singles or doubles) that players register for from the feed. When it fills, the system forms and seeds the teams, draws the bracket and books the quarterfinals. Each reported score moves the winner on, up to the champion.
@@ -322,6 +323,8 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
             - **Purpose**: The pure ELO calculation. Each player's K comes from their own number of rated games, so new players move faster (tennis `K = 250 / (gamesPlayed + 5)^0.4`; see Product_Design.md §7.2).
         3. `GET /leaderboard` with optional `limit` (1–100, default 50) → `{ leaderboard, me }` - E
             - **Purpose**: The top players and the caller's entry, each `{ rank, id, username, name, rating }`. Ranked by full rating, ties by username.
+        4. `GET /stats` with optional `userId` (defaults to the caller) → `{ stats }` - E
+            - **Purpose**: A player's statistics, built from the `ratingBefore` and `ratingAfter` stored on `game_users`: `user` (their leaderboard entry), `sport`, `gamesPlayed`, `wins`, `losses`, `setsPlayed`, `setsWon`, `setsLost`, `pointsWon`, `pointsLost` (games in tennis), `ratingHistory` (`{ gameId, playedAt, ratingBefore, ratingAfter }`, oldest first, for the ELO chart) and `vsOpponentRating` (`{ minRating, maxRating, games, wins, losses, averageMargin }` per 100-point band of the opponents' average rating before the game). `404` if the user doesn't exist.
 5. **Tournaments**
     - **Purpose**: Registration, the bracket draw, the bracket and moving winners through it. Each match is an ordinary game with `gameSource` `TOURNAMENT`.
     - **Rationale**: A tournament has its own lifecycle and rules spanning several games, so it has its own tables (`tournaments`, `tournament_players`, `tournament_matches`), while each match reuses the game's players, score and ratings. Bracket writes live in `bracket.repository.ts`, which only takes the caller's transaction, so Games can call it without an import cycle. Limitations: 8-team brackets only, no forfeits, no tournament notifications.
