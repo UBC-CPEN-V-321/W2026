@@ -20,6 +20,11 @@ const KM_PER_DEGREE_LATITUDE = 111.2;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
+// Abbotsford, about 70 km from UBC (outside the 30 km search radius), for the location-change test.
+const FAR_LONGITUDE = -122.3045;
+const FAR_LATITUDE = 49.0504;
+const FAR_EVENT_COUNT = 3;
+
 const SPORTS_EVENT_COUNT = 21; // the seeded user's interest is outdoors -> Sports; 21 exercises "Load more"
 const MUSIC_EVENT_COUNT = 3;
 
@@ -34,13 +39,13 @@ function assertLocalTarget() {
  * north of UBC, so lower n scores higher. The fixed evening time keeps the end time (start + 2 hours)
  * in the evening, which the invalid-end-time E2E test relies on.
  */
-function buildEvent(category, label, n, base) {
+function buildEvent(category, label, n, base, origin = { latitude: UBC_LATITUDE, longitude: UBC_LONGITUDE }) {
   const todayUtc = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
   const start = new Date(todayUtc + (n + 2) * DAY_MS + 3 * HOUR_MS);
   const padded = String(n).padStart(2, '0');
   return {
     externalId: `${EVENT_ID_PREFIX}${label}-${padded}`,
-    title: `E2E ${label === 'sports' ? 'Event' : 'Music'} ${padded}`,
+    title: `E2E ${{ sports: 'Event', music: 'Music', far: 'Far Event' }[label]} ${padded}`,
     description: `Seeded ${category} event ${padded} for E2E tests.`,
     imageUrl: 'https://example.com/e2e-event.jpg',
     startDateTime: start,
@@ -49,7 +54,7 @@ function buildEvent(category, label, n, base) {
     city: 'Vancouver',
     location: {
       type: 'Point',
-      coordinates: [UBC_LONGITUDE, UBC_LATITUDE + (n * 0.1) / KM_PER_DEGREE_LATITUDE],
+      coordinates: [origin.longitude, origin.latitude + (n * 0.1) / KM_PER_DEGREE_LATITUDE],
     },
     category,
     ticketUrl: 'https://example.com/e2e-tickets',
@@ -67,7 +72,10 @@ function buildEvents(base) {
   const music = Array.from({ length: MUSIC_EVENT_COUNT }, (_, i) =>
     buildEvent('Music', 'music', i + 1, base),
   );
-  return [...sports, ...music];
+  const far = Array.from({ length: FAR_EVENT_COUNT }, (_, i) =>
+    buildEvent('Sports', 'far', i + 1, base, { latitude: FAR_LATITUDE, longitude: FAR_LONGITUDE }),
+  );
+  return [...sports, ...music, ...far];
 }
 
 /** Baseline itinerary whose activity overlaps "E2E Event 01" (for the time-conflict tests). */
@@ -126,7 +134,7 @@ async function seed(database, { withEvents = true } = {}) {
 
   console.log(
     withEvents
-      ? `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, 1 itinerary.`
+      ? `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, ${FAR_EVENT_COUNT} far-away Sports events, 1 itinerary.`
       : 'E2E data ready: test user only, no events.',
   );
 }
