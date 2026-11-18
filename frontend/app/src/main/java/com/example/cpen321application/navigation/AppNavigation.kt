@@ -8,7 +8,6 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.example.cpen321application.core.notifications.FriendChatLink
 import com.example.cpen321application.core.notifications.FriendEvents
 import com.example.cpen321application.core.notifications.GameEvents
 import com.example.cpen321application.core.session.Session
@@ -40,17 +39,15 @@ private val friendChatArguments = listOf(
     navArgument(Routes.FRIEND_NAME_ARG) { type = NavType.StringType; defaultValue = "" }
 )
 
-/*  connects each route to its screen, the shared state lives in AppState. gameToOpen is
-    the game of a tapped invite notification and friendChatToOpen the chat of a tapped
-    friend's message notification, their callbacks are called once they're handled
+/*  connects each route to its screen, the shared state lives in AppState. routeToOpen is
+    the screen a tapped notification asks for (see notificationRoute), onRouteOpened is
+    called once it's handled
  */
 @Composable
 fun AppNavigation(
     modifier: Modifier = Modifier,
-    gameToOpen: Int? = null,
-    onGameOpened: () -> Unit = {},
-    friendChatToOpen: FriendChatLink? = null,
-    onFriendChatOpened: () -> Unit = {}
+    routeToOpen: String? = null,
+    onRouteOpened: () -> Unit = {}
 ) {
     val app = rememberAppState()
     val startDestination = remember { app.startDestination() }
@@ -66,12 +63,8 @@ fun AppNavigation(
         }
     }
 
-    // a game invite was tapped: open the game so the friend can ask to join (if signed in)
-    OpenFromNotification(gameToOpen?.let(Routes::gameDetails), onGameOpened) { app.navController.navigate(it) }
-    // a friend's message was tapped: open the chat with them (if signed in)
-    OpenFromNotification(friendChatToOpen?.let { Routes.friendChat(it.chatId, it.friendName) }, onFriendChatOpened) {
-        app.navController.navigate(it)
-    }
+    // a notification was tapped: open where the user can act on it (if signed in)
+    OpenFromNotification(routeToOpen, onRouteOpened) { app.navController.navigate(it) }
 
     NavHost(
         navController = app.navController,
