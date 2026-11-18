@@ -7,6 +7,7 @@ import {
   GameSource,
   GameStatus,
 } from "../generated/prisma/enums";
+import type { Game } from "../generated/prisma/client";
 import { IncompleteTeamsError } from "../ranking/ranking.service";
 import { pushToUsers } from "../users/users.service";
 import {
@@ -23,6 +24,7 @@ import {
   fetchUserGames,
   fetchUserHistory,
   isUserInGame,
+  startBookedGame,
   updateGame,
 } from "./games.repository";
 import {
@@ -81,6 +83,17 @@ export const cancelGameErrors = {
 
 export type CancelGameError =
   (typeof cancelGameErrors)[keyof typeof cancelGameErrors];
+
+export const startGameErrors = {
+  NotFound: "Game not found",
+  NotInGame: "User not in game",
+  Closed: "Game is already completed or cancelled",
+  NotBooked: "Only a booked game can start: every spot must be filled and every player must accept",
+  AlreadyStarted: "Game has already started",
+} as const;
+
+export type StartGameError =
+  (typeof startGameErrors)[keyof typeof startGameErrors];
 
 export const inviteFriendErrors = {
   NotFound: "Game not found",
@@ -495,6 +508,72 @@ export async function changeGameTime(
     success: true,
     game: await updateGame(gameId, { startsAt }),
   } as const;
+}
+
+/**
+ * Decides whether a game can start now: it must be booked, so its players are known and every one of them
+ * has accepted it, and its start time must not have passed
+ * @param game the game to start
+ * @param now the current time
+ * @returns the reason the game cannot start, or null if it can
+ */
+function whyGameCannotStart(game: Game, now: Date): StartGameError | null {
+  if (
+    game.status === GameStatus.COMPLETED ||
+    game.status === GameStatus.CANCELLED
+  ) {
+    return startGameErrors.Closed;
+  }
+
+  // An open game still has free spots, or is a match waiting for answers
+  if (game.status !== GameStatus.BOOKED) {
+    return startGameErrors.NotBooked;
+  }
+
+  if (game.startsAt <= now) {
+    return startGameErrors.AlreadyStarted;
+  }
+
+  return null;
+}
+
+/**
+ * Starts a booked game before its start time, for players who want to play early: its start time moves to now,
+ * so every player can report its score. Scheduled, matched and tournament games can all start early, since a
+ * booked game's players are known and have accepted it. A tournament's later rounds are timed from the
+ * tournament's start, so they don't move
+ * @param gameId the game ID of the game to start
+ * @param userId the user starting the game, who must be in it
+ * @returns the started game, or the reason the game cannot start
+ */
+export async function startGame(gameId: string, userId: string) {
+  const game = await fetchGame(gameId);
+  if (game === null) {
+    return { success: false, error: startGameErrors.NotFound } as const;
+  }
+
+  if (!(await isUserInGame(userId, gameId))) {
+    return { success: false, error: startGameErrors.NotInGame } as const;
+  }
+
+  const now = new Date();
+  const error = whyGameCannotStart(game, now);
+  if (error) {
+    return { success: false, error } as const;
+  }
+
+  const started = await startBookedGame(gameId, now);
+  if (started === null) {
+    // Another player started it, or it was completed, cancelled or deleted, after the check above
+    const current = await fetchGame(gameId);
+    const reason =
+      current === null
+        ? startGameErrors.NotFound
+        : (whyGameCannotStart(current, now) ?? startGameErrors.AlreadyStarted);
+    return { success: false, error: reason } as const;
+  }
+
+  return { success: true, game: started } as const;
 }
 
 /**
