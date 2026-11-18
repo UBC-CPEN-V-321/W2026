@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS games (
     -- scheduled, cancelled or completed. "In progress" is not a status: it's a
     -- scheduled game that has started (has_started, worked out from starts_at)
     status        ENUM('scheduled', 'cancelled', 'completed') NOT NULL DEFAULT 'scheduled',
+    -- when the organizer marked it completed (UTC). Its players can rate each other for a
+    -- day after, and are reminded an hour before that ends (rating_reminder_sent)
+    completed_at  DATETIME NULL,
+    rating_reminder_sent BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -42,6 +46,8 @@ CREATE TABLE IF NOT EXISTS games (
     KEY idx_games_organizer (organizer_id, starts_at),
     -- upcoming games that are still on (Discover screen)
     KEY idx_games_status_starts (status, starts_at),
+    -- completed games whose rating reminder is due
+    KEY idx_games_rating_reminder (status, rating_reminder_sent, completed_at),
     CONSTRAINT fk_games_organizer FOREIGN KEY (organizer_id)
         REFERENCES users (user_id) ON DELETE CASCADE,
 

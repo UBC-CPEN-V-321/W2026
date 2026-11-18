@@ -6,6 +6,7 @@ import com.example.cpen321application.core.SESSION_ENDED_MESSAGE
 import com.example.cpen321application.core.network.ServerApi
 import com.example.cpen321application.core.network.readReply
 import com.example.cpen321application.core.session.Session
+import com.example.cpen321application.review.dto.PlayersToRateResponse
 import com.example.cpen321application.review.dto.RatingBody
 import com.example.cpen321application.review.dto.RatingResponse
 import com.example.cpen321application.review.model.PlayersToRate
@@ -17,6 +18,9 @@ import java.io.IOException
 private const val COULD_NOT_LOAD_PLAYERS = "Couldn't load the players, try again"
 private const val COULD_NOT_SUBMIT_RATING = "Couldn't submit your rating, try again"
 private const val COULD_NOT_LOAD_SCORE = "Couldn't load your rating, try again"
+private const val CANNOT_RATE = "You can't rate players in this game."
+// ratings close a day after the game is marked completed
+private const val RATING_CLOSED = "Rating for this game has closed."
 
 sealed interface PlayersToRateResult {
     data class Loaded(val players: PlayersToRate) : PlayersToRateResult
@@ -31,7 +35,8 @@ suspend fun fetchPlayersToRate(context: Context, gameId: Int): PlayersToRateResu
             ServerApi.reviewService.getPlayersToRate(authorization = authorization, gameId = gameId)
         } ?: return PlayersToRateResult.Failed(SESSION_ENDED_MESSAGE)
         if (response.code() == 403 || response.code() == 404) {
-            return PlayersToRateResult.Unavailable("You can't rate players in this game.")
+            val closed = readReply(response, PlayersToRateResponse::class.java)?.msg == "rating_closed"
+            return PlayersToRateResult.Unavailable(if (closed) RATING_CLOSED else CANNOT_RATE)
         }
 
         val reply = response.body()

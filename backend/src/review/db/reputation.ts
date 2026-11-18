@@ -10,21 +10,16 @@ export interface Reputation {
   gamesPlayed: number;
 }
 
-/*  completed games the user played in: ones they organized, are still in, or were approved
-    for. An approved request stays approved after the game starts, so it still counts after
-    they leave the finished game. Games deleted because every player left are lost
+/*  completed games the user showed up to, read from the same attendance the score uses so the
+    two always agree. Attendance is kept after they leave a game, and after the game is deleted
  */
 const GAMES_PLAYED = `
   SELECT COUNT(*) AS games_played
-  FROM games g
-  WHERE g.status = 'completed'
-    AND (g.organizer_id = ?
-         OR EXISTS (SELECT 1 FROM game_players p WHERE p.game_id = g.game_id AND p.user_id = ?)
-         OR EXISTS (SELECT 1 FROM join_requests r
-                    WHERE r.game_id = g.game_id AND r.user_id = ? AND r.status = 'approved'))`;
+  FROM game_attendance
+  WHERE user_id = ? AND no_show = FALSE`;
 
 // the user's reputation score, badges and games played, used by the public profile
 export async function getReputation(userId: number): Promise<Reputation> {
-  const rows = await selectRows<{ games_played: number }>(GAMES_PLAYED, [userId, userId, userId]);
+  const rows = await selectRows<{ games_played: number }>(GAMES_PLAYED, [userId]);
   return { score: await getReputationScore(userId), badges: [], gamesPlayed: Number(rows[0]?.games_played ?? 0) };
 }

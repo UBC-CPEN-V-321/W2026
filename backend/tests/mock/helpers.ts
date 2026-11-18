@@ -66,6 +66,7 @@ export function testGame(overrides: Partial<Game> = {}): Game {
     skillLevel: 'any',
     status: 'scheduled',
     hasStarted: false,
+    ratingClosesAt: null,
     createdAt: '2026-10-01T00:00:00Z',
     ...overrides,
   };

@@ -23,6 +23,7 @@ export function gameJson(game: Game) {
     skill_level: game.skillLevel,
     status: game.status,
     has_started: game.hasStarted,
+    rating_closes_at: game.ratingClosesAt,
     created_at: game.createdAt,
   };
 }

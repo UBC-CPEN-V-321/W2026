@@ -1,4 +1,5 @@
 import { executeWrite, selectRows } from '../../core/db/mysql';
+import { RATING_WINDOW_HOURS, REMINDER_BEFORE_CLOSE_HOURS } from '../ratingWindow';
 import { type PlayedGame, type RatingScores, reputationScore } from '../reputation';
 
 // a player the user can rate, and whether they already did
@@ -33,12 +34,30 @@ function showedUp(rows: AttendanceRow[], userId: number): boolean {
   return rows.some((row) => row.user_id === userId && Number(row.no_show) === 0);
 }
 
-/*  the other players who showed up to the completed game, or null if the user can't rate
-    in it: the game isn't completed yet, they weren't in it, or they were a no-show.
-    Says who the user already rated, but never what anyone was rated
+// whether the game was marked completed less than RATING_WINDOW_HOURS ago, by the database's clock
+async function isRatingOpen(gameId: number): Promise<boolean> {
+  const rows = await selectRows<{ game_id: number }>(
+    `SELECT game_id FROM games
+     WHERE game_id = ? AND status = 'completed'
+       AND completed_at > UTC_TIMESTAMP() - INTERVAL ${RATING_WINDOW_HOURS} HOUR`,
+    [gameId],
+  );
+  return rows.length > 0;
+}
+
+/*  why the user can't see who to rate: they can't rate in this game (it isn't completed,
+    they weren't in it, or they were a no-show), or rating it has closed
  */
-export async function getPlayersToRate(gameId: number, userId: number): Promise<PlayerToRate[] | null> {
-  if (!showedUp(await readAttendance(gameId, [userId]), userId)) return null;
+export type PlayersToRateResult =
+  | { ok: true; players: PlayerToRate[] }
+  | { ok: false; problem: 'not_allowed' | 'rating_closed' };
+
+/*  the other players who showed up to the completed game. Says who the user already rated,
+    but never what anyone was rated
+ */
+export async function getPlayersToRate(gameId: number, userId: number): Promise<PlayersToRateResult> {
+  if (!showedUp(await readAttendance(gameId, [userId]), userId)) return { ok: false, problem: 'not_allowed' };
+  if (!(await isRatingOpen(gameId))) return { ok: false, problem: 'rating_closed' };
 
   const rows = await selectRows<PlayerToRateRow>(
     `SELECT u.user_id, u.first_name, u.last_name, r.rater_id IS NOT NULL AS rated
@@ -50,18 +69,22 @@ export async function getPlayersToRate(gameId: number, userId: number): Promise<
      ORDER BY u.first_name, u.last_name, u.user_id`,
     [userId, gameId, userId],
   );
-  return rows.map((row) => ({
-    userId: row.user_id,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    rated: Number(row.rated) === 1,
-  }));
+  return {
+    ok: true,
+    players: rows.map((row) => ({
+      userId: row.user_id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      rated: Number(row.rated) === 1,
+    })),
+  };
 }
 
-/*  why the user can't give this rating: they can't rate in this game, it's their own
-    rating, the other player was a no-show or wasn't in the game, or they already rated them
+/*  why the user can't give this rating: they can't rate in this game, rating it has closed,
+    it's their own rating, the other player was a no-show or wasn't in the game, or they
+    already rated them
  */
-export type CreateRatingProblem = 'not_allowed' | 'self' | 'player_not_found' | 'already_rated';
+export type CreateRatingProblem = 'not_allowed' | 'rating_closed' | 'self' | 'player_not_found' | 'already_rated';
 
 export type CreateRatingResult = { ok: true } | { ok: false; problem: CreateRatingProblem };
 
@@ -74,6 +97,7 @@ export async function createRating(
 ): Promise<CreateRatingResult> {
   const attendance = await readAttendance(gameId, [raterId, ratedId]);
   if (!showedUp(attendance, raterId)) return { ok: false, problem: 'not_allowed' };
+  if (!(await isRatingOpen(gameId))) return { ok: false, problem: 'rating_closed' };
   if (raterId === ratedId) return { ok: false, problem: 'self' };
   if (!showedUp(attendance, ratedId)) return { ok: false, problem: 'player_not_found' };
 
@@ -133,4 +157,48 @@ export async function getReputationScore(userId: number): Promise<number | null>
     ratings: ratings.filter((rating) => rating.game_id === game.game_id),
   }));
   return reputationScore(played);
+}
+
+// a completed game whose rating closes within REMINDER_BEFORE_CLOSE_HOURS
+export interface ReminderGame {
+  gameId: number;
+  title: string;
+}
+
+/*  completed games whose rating closes within REMINDER_BEFORE_CLOSE_HOURS and haven't had
+    their reminder yet. Each is marked reminded as it's returned, and a game another server
+    marked first is left out, so every game's players are reminded once
+ */
+export async function claimDueRatingReminders(): Promise<ReminderGame[]> {
+  const due = await selectRows<{ game_id: number; title: string }>(
+    `SELECT game_id, title FROM games
+     WHERE status = 'completed' AND rating_reminder_sent = FALSE
+       AND completed_at <= UTC_TIMESTAMP() - INTERVAL ${RATING_WINDOW_HOURS - REMINDER_BEFORE_CLOSE_HOURS} HOUR
+       AND completed_at > UTC_TIMESTAMP() - INTERVAL ${RATING_WINDOW_HOURS} HOUR`,
+    [],
+  );
+  const claimed: ReminderGame[] = [];
+  for (const game of due) {
+    const result = await executeWrite(
+      'UPDATE games SET rating_reminder_sent = TRUE WHERE game_id = ? AND rating_reminder_sent = FALSE',
+      [game.game_id],
+    );
+    if (result.affectedRows === 1) claimed.push({ gameId: game.game_id, title: game.title });
+  }
+  return claimed;
+}
+
+// the players who showed up to the game and still haven't rated someone else who did
+export async function getPlayersWithRatingsLeft(gameId: number): Promise<number[]> {
+  const rows = await selectRows<{ user_id: number }>(
+    `SELECT a.user_id FROM game_attendance a
+     WHERE a.game_id = ? AND a.no_show = FALSE
+       AND EXISTS (
+         SELECT 1 FROM game_attendance other
+         WHERE other.game_id = a.game_id AND other.no_show = FALSE AND other.user_id <> a.user_id
+           AND NOT EXISTS (SELECT 1 FROM player_ratings r
+                           WHERE r.game_id = a.game_id AND r.rater_id = a.user_id AND r.rated_id = other.user_id))`,
+    [gameId],
+  );
+  return rows.map((row) => row.user_id);
 }

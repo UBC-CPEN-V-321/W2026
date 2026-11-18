@@ -33,12 +33,15 @@ fun createNotificationChannel(context: Context) {
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
 }
 
-/*  the game to open when the app was opened by tapping a game invite notification, null
-    otherwise. The notification's data is in the intent's extras, put there by Android for
-    notifications shown in the background and by showNotification while the app is open
+// notifications that open their game when tapped: an invite, and the reminder to rate its players
+private val GAME_OPENING_TYPES = setOf("game_invite", "rating_reminder")
+
+/*  the game to open when the app was opened by tapping a game invite or rating reminder
+    notification, null otherwise. The notification's data is in the intent's extras, put there
+    by Android for notifications shown in the background and by showNotification while the app is open
  */
 fun invitedGameId(intent: Intent): Int? =
-    if (intent.getStringExtra("type") == "game_invite") intent.getStringExtra("gameId")?.toIntOrNull() else null
+    if (intent.getStringExtra("type") in GAME_OPENING_TYPES) intent.getStringExtra("gameId")?.toIntOrNull() else null
 
 // a friend's chat to open: its id, and the friend's name to title it with
 data class FriendChatLink(val chatId: Int, val friendName: String)

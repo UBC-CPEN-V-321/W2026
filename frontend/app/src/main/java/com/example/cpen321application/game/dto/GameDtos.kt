@@ -25,6 +25,8 @@ data class GameDto(
     @field:Required val status: String,
     // the server decides whether the game started, by its own clock
     @SerializedName("has_started") val hasStarted: Boolean,
+    // when its players can no longer rate each other (UTC ISO 8601), null until it's completed
+    @SerializedName("rating_closes_at") val ratingClosesAt: String? = null,
     @field:Required @SerializedName("created_at") val createdAt: String,
     // join requests waiting for the organizer, only sent with the user's organized games on Home
     @SerializedName("pending_requests") val pendingRequests: Int? = null

@@ -73,6 +73,7 @@ describe('Mocked: POST /api/games/{gameId}/ratings', () => {
   // Expected output: the problem's msg
   test.each([
     ['not_allowed', 403, 'forbidden'],
+    ['rating_closed', 403, 'rating_closed'],
     ['self', 409, 'rated_self'],
     ['player_not_found', 404, 'player_not_found'],
     ['already_rated', 409, 'already_rated'],
@@ -131,9 +132,10 @@ describe('Mocked: GET /api/games/{gameId}/ratings', () => {
   test('Lists the players to rate without any scores', async () => {
     const token = signIn(testPlayer());
     jest.spyOn(gamesDb, 'getGameById').mockResolvedValue(testGame({ status: 'completed' }));
-    jest.spyOn(ratingsDb, 'getPlayersToRate').mockResolvedValue([
-      { userId: RATED_ID, firstName: 'Rae', lastName: 'Rated', rated: true },
-    ]);
+    jest.spyOn(ratingsDb, 'getPlayersToRate').mockResolvedValue({
+      ok: true,
+      players: [{ userId: RATED_ID, firstName: 'Rae', lastName: 'Rated', rated: true }],
+    });
 
     const response = await api.get(`/api/games/${GAME_ID}/ratings`).set(withToken(token));
 
@@ -154,11 +156,27 @@ describe('Mocked: GET /api/games/{gameId}/ratings', () => {
   test('A no-show cannot open the list', async () => {
     const token = signIn(testPlayer());
     jest.spyOn(gamesDb, 'getGameById').mockResolvedValue(testGame({ status: 'completed' }));
-    jest.spyOn(ratingsDb, 'getPlayersToRate').mockResolvedValue(null);
+    jest.spyOn(ratingsDb, 'getPlayersToRate').mockResolvedValue({ ok: false, problem: 'not_allowed' });
 
     const response = await api.get(`/api/games/${GAME_ID}/ratings`).set(withToken(token));
 
     expect(response.status).toBe(403);
     expect(response.body.msg).toBe('forbidden');
+  });
+
+  // Mocked behavior: getPlayersToRate says rating the game has closed
+  // Input: a player who showed up opens the list more than a day after the game was completed
+  // Expected status code: 403
+  // Expected behavior: nothing changes
+  // Expected output: { msg: "rating_closed" } with an error saying rating has closed
+  test('The list closes a day after the game is completed', async () => {
+    const token = signIn(testPlayer());
+    jest.spyOn(gamesDb, 'getGameById').mockResolvedValue(testGame({ status: 'completed' }));
+    jest.spyOn(ratingsDb, 'getPlayersToRate').mockResolvedValue({ ok: false, problem: 'rating_closed' });
+
+    const response = await api.get(`/api/games/${GAME_ID}/ratings`).set(withToken(token));
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ msg: 'rating_closed', error: 'Rating for this game has closed' });
   });
 });

@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| Nov 17, 2026 | 3.4, 4.1 | Players can rate each other for 1 day after the organiser marks a game completed, so old games stop changing scores. The "Game completed" notification now asks players to rate their teammates, and players who still have someone to rate get a reminder 1 hour before rating closes. Games played now counts the completed games a player showed up to, from the same attendance the score uses, so the two always agree and a game deleted after everyone left still counts. |
 | Nov 17, 2026 | 3.1, 3.4, 4.1 | Ratings are out of 6 stars. The reputation score no longer gives players a default of 5: a player with no ratings and no missed games is "Not rated yet" (a null score), and is left out of anything that ranks or filters by score, including badges. The score is now a weighted average of the player's games that starts from 5: each game scores the average over the other players who showed up, counting anyone who didn't rate as 5, newer games count more, unusual games count less, and each no-show counts as a game scoring 1. Section 4.1 gives the formula. |
 | Nov 17, 2026 | 3.7, 4.7 | Following CP2 feedback, the Energy Efficiency requirement (at most 1% battery in 10 minutes) is replaced by Chat Responsiveness (a message reaches the other members within 1 second), because battery drain can't be checked by an automated test. Section 4.7 describes how chat meets it and how each requirement will be tested. |
 | Nov 16, 2026 | 4.1, 4.3, 4.6, 4.7 | Following CP2 feedback, the components are renamed to match their code folders: Message is now Chat, Social is now Friend, and Player Review is now Review. Section 4.1 now matches the code: added complete game, leave game and delete account, remove player is built and only for the organiser, and `getReputation` returns the real score. Sending push notifications moved from User to a shared Notifications module, where the code has it. Section 4.3 adds the Google Places API, the Android Geocoder and Android Location, which the app uses for place search, addresses and the phone's location, and the Google Maps interface now matches the code. The planned `getFinishedGames` is removed, because rating starts from the finished game on the home screen. The sequence diagrams for Send Friend Message, Rate Players and Discover Game use the new component names and the REST replies the app receives. Section 4.7 says how the performance requirement will be tested. |
@@ -123,7 +124,7 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 
 **Primary actor(s)**: User
 
-**Preconditions**: User is logged in and has finished a game
+**Preconditions**: User is logged in, showed up to a game, and the organiser marked it completed less than 1 day ago
     
 [**[Sequence Diagram]**](#seq-uc2)
 
@@ -141,6 +142,8 @@ To keep the community made up of accurately skilled players, SportsNow builds a 
 **Failure scenario(s)**:
 - 7a. User did not give a rating for one or more categories.
     - 7a1. System displays an error message identifying the missing ratings.
+- 4a. More than 1 day has passed since the game was marked completed.
+    - 4a1. System displays "Rating for this game has closed." and does not show the players.
 - 8a. The User already rated this player for this game.
     - 8a1. System displays "You already rated this player" and does not record a second rating.
 - 8b. The phone cannot reach the server (e.g. no internet connection).
@@ -312,7 +315,7 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
         9. `PATCH /api/games/{gameId}/join-requests/{requestId}` body `{ decision: "approve" | "decline" }` → `200 { game }`
             - **Purpose**: Lets the organiser approve or decline a join request and notifies the requester.
         10. `POST /api/games/{gameId}/complete` body `{ no_show_user_ids }` (optional) → `200 { game }`
-            - **Purpose**: Lets the organiser mark a game that has started as completed, recording the players who didn't show up, and notifies its players. Fails with `game_not_started` before the start time.
+            - **Purpose**: Lets the organiser mark a game that has started as completed, recording the players who didn't show up and when it was completed, and notifies its players to rate each other within 1 day. Fails with `game_not_started` before the start time. Each game the app receives carries `rating_closes_at`, 1 day after it was completed, so it only offers Rate Players while rating is open.
         11. `POST /api/games/{gameId}/leave` → `200 { game, game_deleted }`
             - **Purpose**: Lets a player leave a game and tells the organiser if the game is still on. The organiser can't leave a game that is still on and must cancel or complete it instead (`organizer_must_cancel`, `organizer_must_complete`). The last player to leave a cancelled or completed game deletes it, and `game_deleted` is then true.
         12. `DELETE /api/games/{gameId}/players/{userId}` → `200 { game }`
@@ -333,18 +336,19 @@ All front-end to back-end interfaces are HTTP/REST calls that send and return JS
         - **Few games**: the score is a Bayesian average that starts from 3 games scoring 5, so a few games can't make it extreme. One game rated 6 by its only other player gives 5.25, ten give 5.68, one game rated 1 and 6 by two players gives 4.63, and a game where one of three other players gave 6 gives 5.08:
 
           score = (3 × 5 + Σ wᵢ × gameScoreᵢ) / (3 + Σ wᵢ), rounded to two decimal places.
-        - **Abuse**: a player can rate another only once per game (the table's primary key), only if both showed up to that completed game, and never themselves. A rating can't be changed once given. A game where someone was rated far lower or higher than usual only moves their score a quarter as much.
+        - **Rating window**: players can rate each other for 1 day after the organiser marks the game completed (`completed_at`), after which both rating interfaces refuse with `rating_closed`. Every minute the server looks for completed games whose rating closes within 1 hour, marks each as reminded so it's only reminded once, and sends a "Rating closes soon" notification to the players who showed up and still haven't rated someone else who did. Tapping it opens the game.
+        - **Abuse**: a player can rate another only once per game (the table's primary key), only if both showed up to that completed game, only within the rating window, and never themselves. A rating can't be changed once given. A game where someone was rated far lower or higher than usual only moves their score a quarter as much.
     - **Interfaces**:
         1. `GET /api/games/{gameId}/ratings` → `200 { game_title, organizer_id, players }`
-            - **Purpose**: Returns the other players who showed up to a completed game and whether the user already rated them.
+            - **Purpose**: Returns the other players who showed up to a completed game and whether the user already rated them. Fails with `rating_closed` once the rating window has ended.
         2. `POST /api/games/{gameId}/ratings` body `{ rated_user_id, punctuality, sportsmanship, skill, reliability, overall }` → `201 { msg: "success" }`
-            - **Purpose**: Records a user's rating of another player after a finished game. A player can only be rated once per game.
+            - **Purpose**: Records a user's rating of another player after a finished game. A player can only be rated once per game, and only within 1 day of the game being marked completed (`rating_closed` after that).
         3. `GET /api/users/me/stats` → `200 { reputation_score }` (`null` if not rated yet)
             - **Purpose**: Returns the signed in user's own score for their profile.
         4. `Double getReputationScore(int userId)`
             - **Purpose**: Used by Game to show each requester's score on the join request list. Returns null if the player isn't rated yet.
         5. `Reputation getReputation(int userId)`
-            - **Purpose**: Used by User's public profile to show a player's reputation score and games played. Its badges stay empty until badges are built.
+            - **Purpose**: Used by User's public profile to show a player's reputation score and games played. Games played counts the completed games they showed up to, from the same attendance the score uses. Its badges stay empty until badges are built.
         6. `GET /api/users/{userId}/stats` → `200 { reputation_score, games_played, badges }` *(planned)*
             - **Purpose**: Returns a user's reputation score, game history, and badges.
 
@@ -390,7 +394,7 @@ Push notifications are sent by several components, so sending them lives in a sh
 - `int sendPushToUser(int userId, PushMessage message)`
     - **Purpose**: Used by Game and Friend to send a push notification to every device one user is signed into, such as for a join request or friend request, returning how many devices it reached.
 - `int sendPushToUsers(List<Integer> userIds, PushMessage message)`
-    - **Purpose**: Used by Game, Chat and User to notify several users at once, such as a game's players when it is cancelled, a chat's members about a new message, or players when an account is deleted, returning how many devices it reached.
+    - **Purpose**: Used by Game, Chat, User and Review to notify several users at once, such as a game's players when it is cancelled, a chat's members about a new message, players when an account is deleted, or players who still have teammates to rate, returning how many devices it reached.
 
 
 ### **4.2. Databases**

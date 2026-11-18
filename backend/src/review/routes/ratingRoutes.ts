@@ -25,8 +25,14 @@ const NOT_ALLOWED: ErrorResponse = {
   body: { msg: 'forbidden', error: 'Only players who showed up to a completed game can rate in it' },
 };
 
+const RATING_CLOSED: ErrorResponse = {
+  status: 403,
+  body: { msg: 'rating_closed', error: 'Rating for this game has closed' },
+};
+
 const CREATE_RATING_ERRORS: Record<CreateRatingProblem, ErrorResponse> = {
   not_allowed: NOT_ALLOWED,
+  rating_closed: RATING_CLOSED,
   self: { status: 409, body: { msg: 'rated_self', error: "You can't rate yourself" } },
   player_not_found: { status: 404, body: { msg: 'player_not_found', error: "This player didn't show up to the game" } },
   already_rated: { status: 409, body: { msg: 'already_rated', error: 'You already rated this player' } },
@@ -45,9 +51,9 @@ function playerToRateJson(player: PlayerToRate) {
 export function ratingsRouter(): Router {
   const router = Router();
 
-  /*  the other players who showed up and whether the user already rated them.
-      Errors: 400 invalid_request, 403 forbidden (didn't show up, or the game isn't
-      completed), 404 not_found
+  /*  the other players who showed up and whether the user already rated them, for a day
+      after the game is marked completed. Errors: 400 invalid_request, 403 forbidden (didn't
+      show up, or the game isn't completed) / rating_closed, 404 not_found
    */
   router.get('/api/games/:gameId/ratings', requireAuth, asyncRoute('Could not load the players, try again later',
     async (req: Request<{ gameId: string }>, res: Response) => {
@@ -57,20 +63,21 @@ export function ratingsRouter(): Router {
 
       const game = await getGameById(gameId);
       if (!game) return sendError(res, gameChangeError('not_found'));
-      const players = await getPlayersToRate(gameId, user.userId);
-      if (!players) return sendError(res, NOT_ALLOWED);
+      const result = await getPlayersToRate(gameId, user.userId);
+      if (!result.ok) return sendError(res, result.problem === 'rating_closed' ? RATING_CLOSED : NOT_ALLOWED);
 
       return res.status(200).json({
         msg: 'success',
         game_title: game.title,
         organizer_id: game.organizerId,
-        players: players.map(playerToRateJson),
+        players: result.players.map(playerToRateJson),
       });
     }));
 
-  /*  records the user's rating of another player, once per player per game. Every
-      category is required. Errors: 400 invalid_request, 403 forbidden,
-      404 player_not_found, 409 rated_self / already_rated
+  /*  records the user's rating of another player, once per player per game, within a day
+      of the game being marked completed. Every category is required. Errors: 400
+      invalid_request, 403 forbidden / rating_closed, 404 player_not_found, 409 rated_self /
+      already_rated
    */
   router.post('/api/games/:gameId/ratings', requireAuth, asyncRoute('Could not submit your rating, try again later',
     async (req: Request<{ gameId: string }, unknown, RatingBody | undefined>, res: Response) => {

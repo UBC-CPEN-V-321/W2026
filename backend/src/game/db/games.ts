@@ -1,5 +1,6 @@
 import { createGameChat } from '../../chat/db/chats';
 import { executeWrite, inTransaction, type Queryable, selectRows } from '../../core/db/mysql';
+import { RATING_WINDOW_HOURS } from '../../review/ratingWindow';
 import type { JoinRequestStatus } from './joinRequests';
 
 export type SkillLevel = 'any' | 'beginner' | 'intermediate' | 'advanced';
@@ -75,6 +76,8 @@ export interface Game {
   // starts_at has passed by the database's clock. A started game stays 'scheduled'
   // (shown as in progress) until the organizer marks it completed
   hasStarted: boolean;
+  // when its players can no longer rate each other (UTC ISO 8601), null until it's completed
+  ratingClosesAt: string | null;
   createdAt: string;
 }
 
@@ -96,6 +99,7 @@ interface GameRow {
   skill_level: SkillLevel;
   status: GameStatus;
   has_started: number;
+  rating_closes_at: string | null;
   // TIMESTAMP column read as seconds since 1970 so time zones can't shift it
   created_at_unix: number;
 }
@@ -117,6 +121,7 @@ const GAME_COLUMNS = `
   g.location_name, g.address, g.latitude, g.longitude,
   g.max_players, g.skill_level, g.status,
   ${HAS_STARTED} AS has_started,
+  DATE_FORMAT(g.completed_at + INTERVAL ${RATING_WINDOW_HOURS} HOUR, ${ISO_UTC}) AS rating_closes_at,
   UNIX_TIMESTAMP(g.created_at) AS created_at_unix,
   (SELECT COUNT(*) FROM game_players p WHERE p.game_id = g.game_id) AS player_count`;
 
@@ -234,6 +239,7 @@ function toGame(row: GameRow): Game {
     skillLevel: row.skill_level,
     status: row.status,
     hasStarted: Number(row.has_started) === 1,
+    ratingClosesAt: row.rating_closes_at,
     // same format as the other times, without milliseconds
     createdAt: new Date(Number(row.created_at_unix) * 1000).toISOString().replace('.000Z', 'Z'),
   };
@@ -435,7 +441,7 @@ export async function completeGame(
       connection,
     );
     await executeWrite(
-      "UPDATE games SET status = 'completed' WHERE game_id = ?",
+      "UPDATE games SET status = 'completed', completed_at = UTC_TIMESTAMP() WHERE game_id = ?",
       [gameId],
       connection,
     );

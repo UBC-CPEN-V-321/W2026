@@ -1,0 +1,39 @@
+import { logError, logInfo } from '../core/logger';
+import { sendPushToUsers } from '../core/notifications/push';
+import { claimDueRatingReminders, getPlayersWithRatingsLeft } from './db/ratings';
+import { REMINDER_BEFORE_CLOSE_HOURS } from './ratingWindow';
+
+// how often the server looks for games whose reminder is due
+const CHECK_EVERY_MS = 60 * 1000;
+
+/*  reminds the players of every game whose rating closes within REMINDER_BEFORE_CLOSE_HOURS,
+    if they still have someone to rate. Each game is reminded once. Returns how many games
+    were reminded
+ */
+export async function sendDueRatingReminders(): Promise<number> {
+  const games = await claimDueRatingReminders();
+  for (const game of games) {
+    const userIds = await getPlayersWithRatingsLeft(game.gameId);
+    const devices = await sendPushToUsers(userIds, {
+      title: 'Rating closes soon',
+      body: `Rating for ${game.title} closes in ${REMINDER_BEFORE_CLOSE_HOURS} hour, rate your teammates before it does`,
+      data: { type: 'rating_reminder', gameId: String(game.gameId) },
+    });
+    logInfo(`Rating reminder for game id: ${game.gameId} sent to ${devices} device(s)`);
+  }
+  return games.length;
+}
+
+/*  looks for due reminders every CHECK_EVERY_MS while the server runs. Returns the function
+    that stops it
+ */
+export function startRatingReminders(): () => void {
+  const timer = setInterval(() => {
+    sendDueRatingReminders().catch((error: unknown) => {
+      logError('Sending rating reminders failed:', error);
+    });
+  }, CHECK_EVERY_MS);
+  return () => {
+    clearInterval(timer);
+  };
+}
