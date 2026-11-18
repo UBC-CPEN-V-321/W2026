@@ -18,6 +18,7 @@
 | Nov 18, 2026 | 4.1 | The ELO K-factor depends on each player's number of rated games (`calculateKFactor`), counted by `applyGameResult`. |
 | Nov 18, 2026 | 3.1, 4.1 | Added player stats: `GET /stats` and the stats screen with the ELO chart. |
 | Nov 18, 2026 | 3.4, 3.5 (Use Case 3), 4.1 | Added `POST /games/start` and the game screen's "Start now" button, so players of a booked game can start it before its start time and report the score. |
+| Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
 
 ---
 
@@ -285,9 +286,9 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         2. `GET /games/feed` → `{ games: FeedGame[] }` - E
             - **Purpose**: Scheduled games that are `OPEN` and haven't started, soonest first. A `FeedGame` is a `GameDetails` with a `forecast` (`{ at, temperature, description, icon, precipitationChance }`), or `null` if it is over 5 days away or OpenWeather fails.
         3. `GET /games` with `gameId` → `{ game: GameDetails }` - E
-            - **Purpose**: One game with its court, players (`{ id, username, name, rating, team, acceptedAt, ratingBefore, ratingAfter }`), rounds and `tournament` (`{ id, name, round }`, or `null`). `404` if not found.
+            - **Purpose**: One game with its court, players (`{ id, username, name, rating, team, acceptedAt, ratingBefore, ratingAfter }`), rounds, `tournament` (`{ id, name, round }`, or `null`) and `forecast`, like a `FeedGame`'s (`null` for a `COMPLETED` or `CANCELLED` game). `404` if not found.
         4. `GET /games/me` → `{ games }` - E
-            - **Purpose**: The caller's `BOOKED` games and `OPEN` games that haven't started, soonest first.
+            - **Purpose**: The caller's `BOOKED` games and `OPEN` games that haven't started, soonest first, each with its `forecast` like a `FeedGame`.
         5. `GET /games/history` → `{ games }` - E
             - **Purpose**: The caller's `COMPLETED` games, most recent first, for the match history and summary.
         6. `DELETE /games` with `gameId` → `204` - E
@@ -383,11 +384,11 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Interfaces we call**:
         1. `sendEach(messages)` (firebase-admin) - called by Matchmaking and Games
 4. **OpenWeather**
-    - **Purpose**: Forecasts for games and tournaments in the feed.
+    - **Purpose**: Forecasts for games and tournaments in the feed, a game's screen and the caller's games.
     - **Rationale**: Most courts are outdoors; the free tier covers our load.
     - **Interfaces we call**:
         1. `GET /data/2.5/forecast?lat&lon&units=metric&appid` - called by Games and Tournaments
-            - **Purpose**: Picks the 3-hour step nearest the start time (within 1.5 hours). Cached per court for 10 minutes, with a 2-second timeout; without `OPENWEATHER_API_KEY` or on failure, the feed has no forecast.
+            - **Purpose**: Picks the 3-hour step nearest the start time (within 1.5 hours). Not called for a start time more than 3 hours ago or more than 5 days away. Cached per court for 10 minutes, with a 2-second timeout; without `OPENWEATHER_API_KEY` or on failure, games have no forecast.
 5. **Google Calendar API** *(planned)*
     - **Purpose**: Adds a booked game to the player's calendar.
     - **Interfaces we call**:

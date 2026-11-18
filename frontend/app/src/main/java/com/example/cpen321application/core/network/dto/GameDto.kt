@@ -22,7 +22,7 @@ data class GameDto(
     val court: CourtDto,
     val players: List<PlayerDto>,
     val rounds: List<RoundDto>,
-    val forecast: ForecastDto?,
+    val forecast: ForecastDto?,  // null for a completed or cancelled game; GET /games/history leaves it out
     val tournament: GameTournamentDto?  // null unless the game is a tournament match
 )
 

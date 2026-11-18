@@ -60,7 +60,7 @@ class GamesRepositoryTest {
         }
     """.trimIndent()
 
-    // The same game as GET /games returns it: no forecast, and rounds once the score is in
+    // The same game once completed: no forecast (GET /games/history leaves the key out), and its rounds
     private val completedGameJson = """
         {
           "id": "$gameId",
@@ -163,16 +163,18 @@ class GamesRepositoryTest {
         assertEquals(Forecast(11.4, "light rain", 0.4), game.forecast)
     }
 
-    // Input: GET /games/me returns games without a forecast
-    // Expected output: the games, with a null forecast
+    // Input: GET /games/me returns a game with a forecast and one whose forecast could not be loaded
+    // Expected output: the first game's forecast parsed, and a null forecast for the second
     @Test
-    fun getMyGamesParsesGamesWithoutForecast() = runBlocking {
-        respond(200, """{ "games": [$completedGameJson] }""")
+    fun getMyGamesParsesGamesWithTheirForecast() = runBlocking {
+        val noForecastJson = tournamentGameJson.replace("\"rounds\": [],", "\"rounds\": [], \"forecast\": null,")
+        respond(200, """{ "games": [$feedGameJson, $noForecastJson] }""")
 
-        val games = repository().getMyGames().getOrThrow()
+        val (withForecast, withoutForecast) = repository().getMyGames().getOrThrow()
 
         assertEquals("/games/me", takeRequest().path)
-        assertNull(games.single().forecast)
+        assertEquals(Forecast(11.4, "light rain", 0.4), withForecast.forecast)
+        assertNull(withoutForecast.forecast)
     }
 
     // Input: GET /games/me returns a tournament semifinal next to a game with "tournament": null
@@ -205,6 +207,19 @@ class GamesRepositoryTest {
         assertEquals(GameStatus.COMPLETED, game.status)
         assertEquals(GameSource.MATCHED, game.source)
         assertEquals(listOf(Round(1, 6, 4), Round(2, 3, 6)), game.rounds)
+        assertNull(game.forecast)
+    }
+
+    // Input: GET /games?gameId=... returns an open game with a forecast
+    // Expected output: the game's forecast parsed, for the game screen
+    @Test
+    fun getGameParsesTheForecastOfAnUpcomingGame() = runBlocking {
+        respond(200, """{ "game": $feedGameJson }""")
+
+        val game = repository().getGame(gameId).getOrThrow()
+
+        assertEquals(GameStatus.OPEN, game.status)
+        assertEquals(Forecast(11.4, "light rain", 0.4), game.forecast)
     }
 
     // Input: user schedules a doubles game
