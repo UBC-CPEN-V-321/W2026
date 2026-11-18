@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -112,10 +113,11 @@ internal fun ProfileIdentity(name: String, username: String) {
  * The rating, big, with the last match's change and a line of the rating over the recorded matches
  * @param lastChange the most recent match's change, null if none was recorded
  * @param trend from ratingTrend; the graph is left out when it is empty
+ * @param onOpenStats opens the full stats screen; the whole card is tappable
  */
 @Composable
-internal fun RatingCard(rating: Int, lastChange: Int?, trend: List<Int>) {
-    DonutCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+internal fun RatingCard(rating: Int, lastChange: Int?, trend: List<Int>, onOpenStats: () -> Unit) {
+    DonutCard(modifier = Modifier.padding(horizontal = 16.dp), onClick = onOpenStats) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "RATING",
@@ -154,6 +156,21 @@ internal fun RatingCard(rating: Int, lastChange: Int?, trend: List<Int>) {
                 )
             }
         }
+        ViewStatsLink()
+    }
+}
+
+@Composable
+private fun ViewStatsLink() {
+    // Only a hint that the card opens the stats screen; the card itself handles the tap
+    Row(modifier = Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "View stats", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 

@@ -13,3 +13,10 @@ export const leaderboardQuerySchema = z.strictObject({
 });
 
 export type LeaderboardQueryInput = z.infer<typeof leaderboardQuerySchema>;
+
+// userId defaults to the caller
+export const statsQuerySchema = z.strictObject({
+  userId: z.uuid().optional(),
+});
+
+export type StatsQueryInput = z.infer<typeof statsQuerySchema>;

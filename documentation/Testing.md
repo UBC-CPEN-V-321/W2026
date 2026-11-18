@@ -11,6 +11,8 @@
 | 11-03-2026        | 2.1.1                 | Added tests for `POST /games/invite`, and for `deleteGame` removing a game's players, rounds and equipment |
 | 11-03-2026        | 2.1, 3, 4             | Listed the existing tests of the user, matchmaking, accept and leaderboard routes, the deadline job and `requireAuth`; set the commit and clone URL; replaced the template examples in 3 and 4 with what exists |
 | 11-03-2026        | 4.2                   | Added the end-to-end test of Use Case 4 (create a scheduled match), with its steps and log |
+| 11-18-2026        | 2.1.1                 | Updated the ELO unit tests (`elo.test.ts`) and `ranking.service.test.ts` for the K-factor that depends on games played, and added tests of `calculateKFactor` |
+| 11-18-2026        | 2.1.1                 | Added tests for `GET /stats` (mocked, no-mock and the `stats.test.ts` unit tests) and for the games-played count in `fetchGamePlayerRatingsForUpdate` |
 
 ---
 
@@ -32,6 +34,7 @@
 | **Matchmaking**               | ...                                                  | [`tests/mock/matchmaking.job.test.ts`](#)          | Task Scheduler                     |
 | **Match deadline job**        | ...                                                  | [`tests/mock/matchDeadline.job.test.ts`](#)        | Task Scheduler                     |
 | **GET /leaderboard**          | ...                                                  | [`tests/mock/leaderboard.test.ts`](#)              | User DB                            |
+| **GET /stats**                | [`tests/no-mock/playerStats.test.ts`](#)             | [`tests/mock/stats.test.ts`](#), [`tests/mock/ratings.repository.test.ts`](#) | User DB, Game DB         |
 | **GET /courts**               | ...                                                  | [`tests/mock/courts.test.ts`](#), [`tests/mock/repositories.test.ts`](#) | Court DB                 |
 | **POST /games**               | ...                                                  | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#) | Game DB                            |
 | **GET /games**                | ...                                                  | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#) | Game DB                   |
@@ -45,7 +48,7 @@
 | **POST /games/invite**        | ...                                                  | [`tests/mock/games.test.ts`](#)                    | Game DB, Friendship DB, User DB, Firebase Cloud Messaging |
 | **PATCH /games/time**         | ...                                                  | [`tests/mock/games.test.ts`](#)                    | Game DB                            |
 | **PATCH /games/location**     | ...                                                  | [`tests/mock/games.test.ts`](#)                    | Game DB                            |
-| **POST /games/score**         | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#), [`tests/mock/bracket.repository.test.ts`](#) | Game DB, Tournament DB             |
+| **POST /games/score**         | [`tests/no-mock/tournaments.test.ts`](#), [`tests/no-mock/playerStats.test.ts`](#) | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#), [`tests/mock/bracket.repository.test.ts`](#) | Game DB, Tournament DB             |
 | **POST /tournaments**         | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#) | Tournament DB                      |
 | **GET /tournaments**          | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#) | Tournament DB                      |
 | **GET /tournaments/feed**     | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#), [`tests/mock/weather.test.ts`](#) | Tournament DB, OpenWeather API     |
@@ -59,7 +62,7 @@
 | **POST /friends/requests/accept** | ...                                              | [`tests/mock/friends.test.ts`](#)                  | Friendship DB                      |
 | **DELETE /friends**           | ...                                                  | [`tests/mock/friends.test.ts`](#)                  | Friendship DB                      |
 
-The rows that cite `tests/no-mock/tournaments.test.ts` run in its `Unmocked: tournament flow` describe group, against a real, migrated Postgres database (see 2.1.3). `tests/no-mock/requireAuth.test.ts` checks the `Authorization` header that every route except login, refresh and logout requires, and `tests/no-mock/health.test.ts` checks `GET /health` and unknown routes. Pure logic is unit tested in `tests/unit/`: the bracket rules (`bracket.test.ts`), ELO (`elo.test.ts`), distances (`geo.test.ts`), matching (`matchmaking.service.test.ts`) and tokens (`tokens.test.ts`).
+The rows that cite `tests/no-mock/tournaments.test.ts` run in its `Unmocked: tournament flow` describe group, and those that cite `tests/no-mock/playerStats.test.ts` in its `Unmocked: games played and player stats` group (which also checks that the K-factor uses each player's rated games), against a real, migrated Postgres database (see 2.1.3). `tests/no-mock/requireAuth.test.ts` checks the `Authorization` header that every route except login, refresh and logout requires, and `tests/no-mock/health.test.ts` checks `GET /health` and unknown routes. Pure logic is unit tested in `tests/unit/`: the bracket rules (`bracket.test.ts`), ELO and its K-factor (`elo.test.ts`), player stats (`stats.test.ts`), distances (`geo.test.ts`), matching (`matchmaking.service.test.ts`) and tokens (`tokens.test.ts`).
 
 #### 2.1.2. Commit Hash Where Tests Run
 

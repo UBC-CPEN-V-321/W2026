@@ -3,6 +3,7 @@ package com.example.cpen321application.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,12 +14,15 @@ import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.auth.User
 import com.example.cpen321application.core.data.repository.FriendsRepositoryImpl
 import com.example.cpen321application.core.data.repository.GamesRepositoryImpl
+import com.example.cpen321application.core.data.repository.StatsRepositoryImpl
 import com.example.cpen321application.feature.leaderboard.LeaderboardRoute
 import com.example.cpen321application.feature.login.LoginRoute
 import com.example.cpen321application.feature.matchmaking.MatchmakingRoute
 import com.example.cpen321application.feature.matchmaking.MatchmakingViewModel
 import com.example.cpen321application.feature.matchsummary.MatchSummaryRoute
 import com.example.cpen321application.feature.matchsummary.MatchSummaryViewModel
+import com.example.cpen321application.feature.playerstats.PlayerStatsRoute
+import com.example.cpen321application.feature.playerstats.PlayerStatsViewModel
 import com.example.cpen321application.feature.profile.ProfileRoute
 
 sealed class Screen(val route: String) {
@@ -26,6 +30,7 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object Matchmaking : Screen("matchmaking")
     object Leaderboard : Screen("leaderboard")
+    object PlayerStats : Screen("stats")
     object ScheduledGame : Screen("scheduled_game")
     object CreateGame : Screen("create_game")
     object GameDetail : Screen("game/{gameId}") {
@@ -76,8 +81,10 @@ fun AppNavGraph(
                 authViewModel = args.authViewModel,
                 onSignOut = args.onSignOut,
                 onOpenMatch = { gameId -> navController.navigate(Screen.MatchSummary.createRoute(gameId)) },
+                onOpenStats = { navController.navigate(Screen.PlayerStats.route) },
             )
         }
+        playerStatsDestination(navController, session)
         composable(
             route = Screen.MatchSummary.route,
             arguments = listOf(navArgument("gameId") { type = NavType.StringType }),
@@ -103,5 +110,14 @@ fun AppNavGraph(
             LeaderboardRoute(authViewModel = args.authViewModel)
         }
         gamesDestinations(navController, session, currentUsername)
+    }
+}
+
+private fun NavGraphBuilder.playerStatsDestination(navController: NavHostController, session: AuthSession) {
+    composable(Screen.PlayerStats.route) {
+        PlayerStatsRoute(
+            viewModel = viewModel { PlayerStatsViewModel(StatsRepositoryImpl(session)) },
+            onBack = { navController.popBackStack() },
+        )
     }
 }

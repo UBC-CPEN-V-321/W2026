@@ -36,6 +36,7 @@ data class ProfileActions(
     val onSaveEquipment: () -> Unit = {},
     val onDeleteEquipment: (Int) -> Unit = {},
     val onOpenMatch: (gameId: String) -> Unit = {},
+    val onOpenStats: () -> Unit = {},
 )
 
 @Composable
@@ -43,6 +44,7 @@ fun ProfileRoute(
     authViewModel: AuthViewModel,
     onSignOut: () -> Unit,
     onOpenMatch: (gameId: String) -> Unit,
+    onOpenStats: () -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val session = authViewModel.session
@@ -68,6 +70,7 @@ fun ProfileRoute(
         onSaveEquipment = { viewModel.saveEquipment(session) },
         onDeleteEquipment = { equipmentId -> viewModel.deleteEquipment(session, equipmentId) },
         onOpenMatch = onOpenMatch,
+        onOpenStats = onOpenStats,
     )
 
     ProfileScreen(uiState = uiState, actions = actions)
@@ -96,6 +99,7 @@ fun ProfileScreen(
             rating = uiState.elo,
             lastChange = uiState.matchHistory.firstOrNull()?.ratingChange,
             trend = ratingTrend(uiState.matchHistory),
+            onOpenStats = actions.onOpenStats,
         )
         StatsRow(
             stats = listOf(
