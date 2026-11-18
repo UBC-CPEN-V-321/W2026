@@ -2,6 +2,7 @@ package com.example.cpen321application
 
 // French interface text, keyed by the English source text.
 internal val FR: Map<String, String> = mapOf(
+    "Edit split" to "Modifier la répartition",
     "This image could not be compressed. Choose another image." to "Impossible de compresser cette image. Choisissez une autre image.",
     "%1\$d / %2\$d units claimed" to "%1\$d / %2\$d unités attribuées",
     "%1\$d extracted transactions" to "%1\$d transactions extraites",

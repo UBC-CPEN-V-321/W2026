@@ -75,6 +75,16 @@ class GroupExpensesUiTest {
         compose.onNodeWithText("Alex: CAD 3.33").performScrollTo().assertIsDisplayed()
     }
 
+    @Test fun descriptionCanBeSavedWithAFormerParticipant() {
+        val current = summary.copy(members = members.filter { it.id != "b" })
+        compose.setContent { TestPage { BillEditor(current, session, {}, {}, bill = bill) } }
+        compose.onNodeWithText("Description").performTextReplacement("Team dinner")
+        compose.onNodeWithText("Remove former participants from draft").assertDoesNotExist()
+        compose.onNodeWithText("View split").performScrollTo().performClick()
+        compose.onNodeWithText("Former member: CAD 3.33").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Save changes").performScrollTo().assertIsEnabled()
+    }
+
     @Test fun equalSplitUsesOnlyFinalTotal() {
         compose.setContent { TestPage { BillEditor(summary, session, {}, {}) } }
         compose.onNodeWithText("Equal + adjustments", substring = false).assertDoesNotExist()

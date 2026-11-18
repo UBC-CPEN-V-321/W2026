@@ -629,6 +629,32 @@ describe('Unmocked: PUT /api/groups/:groupId/expenses/:expenseId', () => {
     expect((await put(original.id, bill({ revision: 2 }))).status).toBe(200);
     expect((await ExpenseModel.findById(original.id))?.shares[0]?.adjustmentCents).toBeUndefined();
   });
+
+  // Input: description-only edit (twice) of a CAD 60 bill shared with a member who has since left,
+  // then a stale description edit, then an amount change
+  // Expected status code: 200, 200, 409, then 400
+  // Expected behavior: renaming keeps the payer and the departed member's historical share; the retry
+  // writes nothing; changing the amount would need the departed member in the split and is refused
+  // Expected output: stored bill "Team dinner", 6000 cents, shares 3000/3000, revision advanced once
+  test.each(['owner', 'departing member'])('Renames a bill paid by the %s without reallocating its shares', async payer => {
+    const paidBy = payer === 'owner' ? ids[0] : ids[1];
+    const created = await post(bill({ description: 'Dinner', amount: '60.00', paidBy, requestId: 'historical-dinner-01',
+      shares: [{ userId: ids[0] }, { userId: ids[1] }] }));
+    expect(created.status).toBe(201);
+    const saved = created.body.expense;
+    expect((await request(app).post(`/api/groups/${groupId}/leave`).set('Authorization', memberAuth)).status).toBe(200);
+    const rename = { description: 'Team dinner', revision: saved.revision };
+    expect((await put(saved.id, rename)).status).toBe(200);
+    expect((await put(saved.id, rename)).status).toBe(200);
+    expect((await put(saved.id, { ...rename, description: 'Stale edit' })).status).toBe(409);
+    expect((await put(saved.id, { ...rename, revision: saved.revision + 1, amount: '90.00' })).status).toBe(400);
+    const stored = await ExpenseModel.findById(saved.id).lean();
+    expect(stored).toMatchObject({ description: 'Team dinner', amountCents: 6000, __v: saved.revision + 1 });
+    expect(stored?.paidBy.toString()).toBe(paidBy);
+    expect(stored?.shares.map(share => [share.userId.toString(), share.amountCents]))
+      .toEqual(expect.arrayContaining([[ids[0], 3000], [ids[1], 3000]]));
+    expect(stored?.shares).toHaveLength(2);
+  });
 });
 
 // Interface DELETE /api/groups/:groupId/expenses/:expenseId

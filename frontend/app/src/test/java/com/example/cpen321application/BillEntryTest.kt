@@ -12,6 +12,19 @@ class BillEntryTest {
     private val receipt = LedgerReceipt("20.00", "1.00", "3.00", listOf(LedgerReceiptItem("Pasta", "2", "10.00")))
     private val members = listOf(GroupMember("owner", "Owner"))
 
+    @Test fun renamingHistoricalBillKeepsItsAllocationAfterRosterChanges() {
+        val shares = listOf(BillShare("owner", 3000), BillShare("departed", 3000))
+        val bill = GroupBill("bill", "Dinner", 6000, "departed", "equal", "", shares)
+        val group = GroupExpenseSummary(ExpenseGroup("group", "Friends", "CAD"), members, 6000, 1, shares, listOf(bill))
+        val original = BillDraft.from(group, bill, "owner", 2)
+        val draft = BillDraft.from(group, bill, "owner", 2)
+        draft.description = "Team dinner"
+        assertTrue(draft.sameAllocation(original))
+        assertFalse(draft.calculate(group, 2, bill).valid)
+        draft.selected = listOf("owner")
+        assertFalse(draft.sameAllocation(original))
+    }
+
     @Test fun receiptFillsEveryBillField() {
         val bill = billPrefill(row, receipt)
         assertEquals("Pasta Place", bill.description)
