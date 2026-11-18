@@ -7,6 +7,13 @@ export const pool = mysql.createPool(env.mysqlUrl);
 // values that can fill a query's ? placeholders
 export type SqlValue = string | number | boolean | Date | null;
 
+/*  the ? slots for a list of count values in a query, e.g. "?, ?, ?" for IN (...). The
+    values themselves are still passed separately as the query's params
+ */
+export function placeholders(count: number): string {
+  return Array<string>(count).fill('?').join(', ');
+}
+
 // the pool, or one of its connections when the query is part of a transaction
 export interface Queryable {
   execute(sql: string, params: SqlValue[]): Promise<unknown>;

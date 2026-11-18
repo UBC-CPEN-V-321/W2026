@@ -3,8 +3,15 @@ package com.example.cpen321application.review.model
 import com.example.cpen321application.review.dto.PlayersToRateResponse
 import java.util.Locale
 
-// a reputation score as it reads everywhere, e.g. "4.7/5"
-fun formatReputationScore(score: Double): String = String.format(Locale.US, "%.1f/5", score)
+// the most stars a rating category, and so a reputation score, can have
+const val MAX_STARS = 6
+
+// what a player with no ratings and no missed games shows instead of a score
+const val NOT_RATED_TEXT = "Not rated yet"
+
+// a reputation score as it reads everywhere, e.g. "4.7/6", or NOT_RATED_TEXT if there is none
+fun formatReputationScore(score: Double?): String =
+    score?.let { String.format(Locale.US, "%.1f/%d", it, MAX_STARS) } ?: NOT_RATED_TEXT
 
 // the categories of a rating, in the order the form shows them
 enum class RatingCategory(val label: String) {

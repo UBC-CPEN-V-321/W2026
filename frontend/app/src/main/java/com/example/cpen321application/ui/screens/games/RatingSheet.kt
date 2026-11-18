@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.cpen321application.review.model.MAX_STARS
 import com.example.cpen321application.review.model.PlayerToRate
 import com.example.cpen321application.review.model.RatingCategory
 import com.example.cpen321application.ui.components.FormSheet
@@ -28,8 +29,6 @@ import com.example.cpen321application.ui.theme.SportsOnSurface
 import com.example.cpen321application.ui.theme.SportsOnSurfaceVariant
 import com.example.cpen321application.ui.theme.SportsOutlineVariant
 import com.example.cpen321application.ui.theme.SportsPrimary
-
-private const val MAX_STARS = 5
 
 /*  the rating form, opened from a player on Rate Players. Every category is needed, Submit
     says which are missing. isSending shows progress on Submit while the rating is sent,
@@ -82,7 +81,7 @@ internal fun RatingSheet(
     }
 }
 
-// a category's name with its five stars, tapping a star gives that many
+// a category's name with its six stars, tapping a star gives that many
 @Composable
 private fun StarsRow(category: RatingCategory, stars: Int, enabled: Boolean, onStars: (Int) -> Unit) {
     Column {

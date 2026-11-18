@@ -25,6 +25,8 @@ data class GameDto(
     @field:Required val status: String,
     // the server decides whether the game started, by its own clock
     @SerializedName("has_started") val hasStarted: Boolean,
+    // when its players can no longer rate each other (UTC ISO 8601), null until it's completed
+    @SerializedName("rating_closes_at") val ratingClosesAt: String? = null,
     @field:Required @SerializedName("created_at") val createdAt: String,
     // join requests waiting for the organizer, only sent with the user's organized games on Home
     @SerializedName("pending_requests") val pendingRequests: Int? = null
@@ -142,8 +144,8 @@ data class PendingJoinRequestDto(
     @SerializedName("play_frequency") val playFrequency: String?,
     val message: String?,
     @field:Required @SerializedName("created_at") val createdAt: String,
-    // their reputation score out of 5
-    @SerializedName("reputation_score") val reputationScore: Double
+    // their reputation score out of 6, null if they aren't rated yet
+    @SerializedName("reputation_score") val reputationScore: Double?
 )
 
 /*  reply from GET api/games/{gameId}/join-requests: msg "success" with the game and its

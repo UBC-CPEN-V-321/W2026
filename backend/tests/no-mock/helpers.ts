@@ -99,9 +99,14 @@ export async function addFriends(userId: number, friendId: number): Promise<void
     [userId, friendId, friendId, userId]);
 }
 
-// puts the game straight into a status, without going through the interface
+/*  puts the game straight into a status, without going through the interface. A game put
+    into completed is completed now, so its players can still rate each other
+ */
 export async function setGameStatus(gameId: number, status: 'cancelled' | 'completed'): Promise<void> {
-  await executeWrite('UPDATE games SET status = ? WHERE game_id = ?', [status, gameId]);
+  await executeWrite(
+    "UPDATE games SET status = ?, completed_at = IF(? = 'completed', UTC_TIMESTAMP(), NULL) WHERE game_id = ?",
+    [status, status, gameId],
+  );
 }
 
 // who is really saved as playing in the game

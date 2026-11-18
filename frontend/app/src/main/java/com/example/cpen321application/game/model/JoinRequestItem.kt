@@ -7,6 +7,7 @@ import com.example.cpen321application.game.formatDay
 import com.example.cpen321application.game.formatRequestedAgo
 import com.example.cpen321application.game.parseInstant
 import com.example.cpen321application.game.spotsLeftLabel
+import com.example.cpen321application.review.model.NOT_RATED_TEXT
 import com.example.cpen321application.review.model.formatReputationScore
 import java.time.Instant
 import java.util.Locale
@@ -22,7 +23,7 @@ private val FREQUENCY_TEXT = mapOf(
 // the game at the top of Join Requests: "Volleyball Night" and "Fri, Oct 17 · 8/12 players · 4 spots left"
 data class JoinRequestsHeader(val title: String, val subtitle: String, val isFull: Boolean)
 
-// a request card: who asked, "Rating 4.7/5 · Intermediate · Plays weekly", "Requested 2h ago" and their message
+// a request card: who asked, "Rating 4.7/6 · Intermediate · Plays weekly" ("Not rated yet" instead of a rating), "Requested 2h ago" and their message
 data class JoinRequestItem(
     val requestId: Int,
     val userId: Int,
@@ -44,7 +45,7 @@ fun GameDto.toJoinRequestsHeader(): JoinRequestsHeader {
 
 fun PendingJoinRequestDto.toJoinRequestItem(now: Instant = Instant.now()): JoinRequestItem {
     val details = listOfNotNull(
-        "Rating ${formatReputationScore(reputationScore)}",
+        reputationScore?.let { "Rating ${formatReputationScore(it)}" } ?: NOT_RATED_TEXT,
         skillLevel.capitalized(),
         playFrequency?.let { FREQUENCY_TEXT[it] }
     ).joinToString(" · ")

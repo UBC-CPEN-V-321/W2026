@@ -22,7 +22,7 @@ data class PlayersToRateResponse(
     val error: String?
 )
 
-// body for POST api/games/{gameId}/ratings, each category is from 1 to 5
+// body for POST api/games/{gameId}/ratings, each category is from 1 to 6
 data class RatingBody(
     @SerializedName("rated_user_id") val ratedUserId: Int,
     val punctuality: Int,
@@ -32,7 +32,7 @@ data class RatingBody(
     val overall: Int
 )
 
-// reply from GET api/users/me/stats: msg "success" with the user's score out of 5, or an error code
+// reply from GET api/users/me/stats: msg "success" with the user's score out of 6 (null if not rated yet), or an error code
 data class UserStatsResponse(
     val msg: String?,
     @SerializedName("reputation_score") val reputationScore: Double?,

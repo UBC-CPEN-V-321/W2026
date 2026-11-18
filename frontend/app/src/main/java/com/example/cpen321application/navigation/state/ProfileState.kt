@@ -22,8 +22,10 @@ import kotlinx.coroutines.launch
 class ProfileState(private val context: Context, private val scope: CoroutineScope) {
     var profile by mutableStateOf<UserProfile?>(null)
         private set
-    // null until it first loads
+    // null until it first loads, and while the user isn't rated yet
     var reputationScore by mutableStateOf<Double?>(null)
+        private set
+    var isScoreLoaded by mutableStateOf(false)
         private set
     var isLoading by mutableStateOf(false)
         private set
@@ -52,7 +54,10 @@ class ProfileState(private val context: Context, private val scope: CoroutineSco
                 }
                 // the score can change after any game, so it's read every time. The last one stays on failure
                 when (val result = fetchMyReputationScore(context)) {
-                    is ReputationScoreResult.Loaded -> reputationScore = result.score
+                    is ReputationScoreResult.Loaded -> {
+                        reputationScore = result.score
+                        isScoreLoaded = true
+                    }
                     is ReputationScoreResult.Failed -> error = error ?: result.message
                 }
             } finally {
@@ -111,6 +116,7 @@ class ProfileState(private val context: Context, private val scope: CoroutineSco
         isDeleting = false
         profile = null
         reputationScore = null
+        isScoreLoaded = false
         error = null
         saveError = null
     }

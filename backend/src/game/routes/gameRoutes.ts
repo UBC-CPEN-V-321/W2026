@@ -4,6 +4,7 @@ import { asyncRoute } from '../../core/http/asyncRoute';
 import { invalidRequest } from '../../core/http/responses';
 import { logError, logInfo } from '../../core/logger';
 import { type PushMessage, sendPushToUser, sendPushToUsers } from '../../core/notifications/push';
+import { RATING_WINDOW_HOURS } from '../../review/ratingWindow';
 import { getAuthUser, requireAuth } from '../../user/auth/middleware';
 import {
   cancelGame,
@@ -276,7 +277,7 @@ export function gamesRouter(): Router {
 
       return replyWithChangedGame(res, gameId, user.userId, 'completing it', (game) => ({
         title: 'Game completed',
-        body: `${game.title} was marked completed by the organizer`,
+        body: `${game.title} was marked completed by the organizer. Rate your teammates within ${RATING_WINDOW_HOURS} hours`,
         data: { type: 'game_completed', gameId: String(gameId) },
       }));
     }));

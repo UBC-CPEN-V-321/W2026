@@ -1,14 +1,15 @@
 import { executeWrite } from '../../../src/core/db/mysql';
 import { addGame, addJoinRequest, addUser, api, asUser, cleanUpAfterTests, MISSING_GAME_ID } from '../helpers';
 
-// a new player's score: every game counts as perfect until they have played some
-const NEW_PLAYER_SCORE = 5;
+// a new player isn't rated yet, so they have no score
+const NEW_PLAYER_SCORE = null;
 // past games the requester played. game_attendance and player_ratings don't reference
 // the games table, so these needn't be real games
 const NO_SHOW_GAME_ID = 900001;
 const RATED_GAME_ID = 900002;
-// (no-show 1 + rated 3 + three games still counted as perfect 5 + 5 + 5) / 5 games
-const EXPECTED_SCORE = 3.8;
+// newest game first: the game rated 3 stars (Jan 2) then the no-show (Jan 1), which counts
+// 0.9 as much, on top of the baseline of three games scoring 5: (15 + 3 + 0.9 × 1) / 4.9
+const EXPECTED_SCORE = 3.86;
 
 let organizerId: number;
 let olderRequesterId: number;
@@ -85,7 +86,7 @@ describe('Unmocked: GET /api/games/{gameId}/join-requests', () => {
   //   and was rated 3 stars in every category by the only other player in another
   // Expected status code: 200
   // Expected behavior: the score is worked out from the requester's real history
-  // Expected output: { msg: "success", requests } with the request's reputation_score 3.8
+  // Expected output: { msg: "success", requests } with the request's reputation_score 3.86
   test('Reputation score', async () => {
     // 1. a game the requester asked to join
     const gameId = await addGame(organizerId);

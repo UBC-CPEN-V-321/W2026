@@ -5,6 +5,7 @@ import com.example.cpen321application.game.dto.GameDetailsResponse
 import com.example.cpen321application.game.dto.GameDto
 import com.example.cpen321application.game.formatDayTime
 import com.example.cpen321application.game.formatGameTime
+import com.example.cpen321application.game.parseInstant
 import com.example.cpen321application.game.parseZoned
 import java.io.Serializable
 import java.time.Instant
@@ -43,7 +44,8 @@ data class GameLocation(
 ) : Serializable
 
 /*  pendingRequests is only used for the organizer, joinRequestStatus only for viewers
-    ("pending", "approved", "declined", "cancelled" or null if they never asked)
+    ("pending", "approved", "declined", "cancelled" or null if they never asked).
+    ratingClosesAt is null until the game is completed
  */
 data class GameDetails(
     val gameId: Int,
@@ -61,16 +63,18 @@ data class GameDetails(
     val maxPlayers: Int,
     val pendingRequests: Int,
     val joinRequestStatus: String?,
-    val state: GameState
+    val state: GameState,
+    val ratingClosesAt: Instant? = null
 ) {
     val spotsLeft get() = (maxPlayers - playerCount).coerceAtLeast(0)
     val isCancelled get() = state == GameState.Cancelled
     val isCompleted get() = state == GameState.Completed
     // a cancelled game counts as not started, it can't be played any more
     val hasStarted get() = state == GameState.InProgress || state == GameState.Completed
-    // players who showed up can rate once the game is completed
+    // players who showed up can rate for a day after the game is completed
     val canRatePlayers get() = isCompleted && role != GameRole.Viewer &&
-        players.none { it.userId == viewerId && it.noShow }
+        players.none { it.userId == viewerId && it.noShow } &&
+        ratingClosesAt?.isAfter(Instant.now()) == true
 }
 
 /*  the Input Game Info form. sport and skillLevel use the server's values
@@ -127,7 +131,8 @@ fun GameDetailsResponse.toGameDetails(game: GameDto): GameDetails {
         maxPlayers = game.maxPlayers,
         pendingRequests = pendingRequests ?: 0,
         joinRequestStatus = joinRequestStatus,
-        state = gameState(game.status, game.hasStarted)
+        state = gameState(game.status, game.hasStarted),
+        ratingClosesAt = game.ratingClosesAt?.let { parseInstant(it) }
     )
 }
 

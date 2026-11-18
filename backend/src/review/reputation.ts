@@ -1,6 +1,11 @@
 // how a player's reputation score is worked out. No database here so the rules are in one place
 
-// the stars given to a player in one rating, each from 1 to 5
+import { type CountedGame, weighOutliers } from './outliers';
+
+// the most stars a category can be given
+export const MAX_STARS = 6;
+
+// the stars given to a player in one rating, each from 1 to MAX_STARS
 export interface RatingScores {
   punctuality: number;
   sportsmanship: number;
@@ -9,8 +14,8 @@ export interface RatingScores {
   overall: number;
 }
 
-/*  one game of a player: whether they were a no-show, how many other players showed up
-    and could rate them, and the ratings those players gave
+/*  one game the player was in: whether they were a no-show, how many other players showed
+    up and could rate them, and the ratings those players gave
  */
 export interface PlayedGame {
   noShow: boolean;
@@ -18,33 +23,50 @@ export interface PlayedGame {
   ratings: RatingScores[];
 }
 
-// a score is the average of this many games, new players start with this many perfect games
-export const GAMES_IN_SCORE = 5;
-// a player who showed up gets this from anyone who didn't rate them
-const DEFAULT_RATING = 5;
-const NO_SHOW_RATING = 1;
+/*  the score a player starts from and is pulled toward while they have few games. Also
+    what anyone who showed up but didn't rate them is taken to have given
+ */
+export const BASELINE_SCORE = 5;
+// the baseline counts as this many games scoring BASELINE_SCORE
+export const BASELINE_WEIGHT = 3;
+// every newer game makes each older one count this much as it did before
+export const RECENCY_DECAY = 0.9;
+// what a game the player didn't show up to scores
+export const NO_SHOW_STARS = 1;
 const CATEGORY_COUNT = 5;
 
-function ratingAverage(rating: RatingScores): number {
+export function ratingAverage(rating: RatingScores): number {
   return (rating.punctuality + rating.sportsmanship + rating.skill + rating.reliability + rating.overall) / CATEGORY_COUNT;
 }
 
-/*  a player's score for one game: a no-show gets the lowest score, otherwise the average
-    of every other player who showed up, counting anyone who didn't rate them as perfect
+/*  what a game scored: NO_SHOW_STARS for a no-show, otherwise the average over every other
+    player who showed up, counting anyone who didn't rate them as BASELINE_SCORE. The order
+    ratings were given in doesn't matter. A game nobody else showed up to scores BASELINE_SCORE
  */
-export function gameScore(game: PlayedGame): number {
-  if (game.noShow) return NO_SHOW_RATING;
-  if (game.raterCount === 0) return DEFAULT_RATING;
-  const rated = game.ratings.reduce((total, rating) => total + ratingAverage(rating), 0);
-  return (rated + (game.raterCount - game.ratings.length) * DEFAULT_RATING) / game.raterCount;
+function countedGame(game: PlayedGame): CountedGame {
+  if (game.noShow) return { noShow: true, stars: NO_SHOW_STARS };
+  // at least one, so a game nobody else showed up to is one missing rating of BASELINE_SCORE
+  const raters = Math.max(game.raterCount, game.ratings.length, 1);
+  const rated = game.ratings.reduce((sum, rating) => sum + ratingAverage(rating), 0);
+  return { noShow: false, stars: (rated + (raters - game.ratings.length) * BASELINE_SCORE) / raters };
 }
 
-/*  a player's score: the average of their most recent games, to two decimal places. Until
-    they have played GAMES_IN_SCORE games the rest count as perfect
+// whether anything real is known about the player: a rating, or a game they missed
+function hasBeenRated(games: PlayedGame[]): boolean {
+  return games.some((game) => game.noShow || game.ratings.length > 0);
+}
+
+/*  a player's score from the games they were in, newest first, to two decimal places. A
+    weighted average of the games that starts from BASELINE_WEIGHT games of BASELINE_SCORE so
+    a few games can't make it extreme. Each game counts RECENCY_DECAY as much as the one after
+    it, and less again if it's unusual. Every game counts the same however many players rated
+    it. Null if nobody has rated them and they never missed a game
  */
-export function reputationScore(recentGames: PlayedGame[]): number {
-  const games = recentGames.slice(0, GAMES_IN_SCORE);
-  const played = games.reduce((total, game) => total + gameScore(game), 0);
-  const score = (played + (GAMES_IN_SCORE - games.length) * DEFAULT_RATING) / GAMES_IN_SCORE;
-  return Math.round(score * 100) / 100;
+export function reputationScore(games: PlayedGame[]): number | null {
+  if (!hasBeenRated(games)) return null;
+  const weighted = weighOutliers(games.map(countedGame))
+    .map((game, newerCount) => ({ stars: game.stars, weight: game.weight * RECENCY_DECAY ** newerCount }));
+  const total = weighted.reduce((sum, game) => sum + game.weight * game.stars, BASELINE_WEIGHT * BASELINE_SCORE);
+  const weights = weighted.reduce((sum, game) => sum + game.weight, BASELINE_WEIGHT);
+  return Math.round((total / weights) * 100) / 100;
 }
