@@ -85,15 +85,15 @@ private fun buildAvatarNode(
     position = Position(0f, 0f, 0f)
     cacheInitialPartTransforms(this, state)
     garments.entries
-        .sortedBy { (category, _) -> if (category == ClothingCategory.Bottom) 0 else 1 }
-        .forEach { (category, file) ->
-            val priority = if (category == ClothingCategory.Bottom) BOTTOM_RENDER_PRIORITY else TOP_RENDER_PRIORITY
-            val gNode = ModelNode(modelInstance = modelLoader.createModelInstance(file)).apply {
-                renderableNodes.forEach { it.setPriority(priority) }
-            }
-            state.garmentNodes[category] = gNode
-            addChildNode(gNode)
+      .sortedBy { (category, _) -> if (category == ClothingCategory.Bottom) 0 else 1 }
+      .forEach { (category, file) ->
+        val priority = if (category == ClothingCategory.Bottom) BOTTOM_RENDER_PRIORITY else TOP_RENDER_PRIORITY
+        val gNode = ModelNode(modelInstance = modelLoader.createModelInstance(file)).apply {
+            renderableNodes.forEach { it.setPriority(priority) }
         }
+        state.garmentNodes[category] = gNode
+        addChildNode(gNode)
+      }
 }
 
 private fun cacheInitialPartTransforms(avatarNode: ModelNode, state: AvatarSceneState) {
