@@ -198,7 +198,7 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
-- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
+- Live Events scenarios *(planned)*: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt) (location change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
 
 - Live Events component tests (fake repositories or a local HTTP server, no real backend; they cover loading, error, retry, pagination, refresh and notification behaviour that the real-backend E2E tests cannot produce): [`LiveEventsScreenTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/LiveEventsScreenTest.kt), [`EventRecommendationRefreshTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/EventRecommendationRefreshTest.kt), [`EventsApiTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/data/events/EventsApiTest.kt)
 
@@ -206,9 +206,9 @@ The main remaining branches are unreachable empty Express route parameters and `
 
 The Live Events E2E tests launch the real app on its main screen and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. Use an emulator on API 36 or lower.
 
-1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
+1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, 3 Sports events about 70 km away (for the location-change test), and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
 2. Start the backend on that database (from `backend/`): `npm run e2e:backend`.
-3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`.
+3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`. (`LiveEventsLocationChangeE2ETest` sets its own location, so it does not need this.)
 4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest` from `frontend/`). Each test resets the user's interest through the real backend first.
 5. Empty state: run `npm run e2e:seed -- empty` (no events), restart nothing, and run `LiveEventsEmptyStateE2ETest`. With events seeded, that test is skipped.
 6. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
@@ -398,9 +398,24 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     [Placeholder for E2E test execution logs]
     ```
 
-- **Use Case: Refresh Event Recommendations After a Location Change** (Live Events) *(to be defined)*
+- **Use Case: Refresh Event Recommendations After a Location Change** (Live Events)
 
-  - The 10 km movement threshold depends on the device location provider, so how to test it will be decided later.
+  - **Setup:** The test starts on the main screen with a known user already logged in and location permission granted. The device location is set by the test itself (mock location), first to UBC. Before the test, the backend is seeded with the user's `outdoors` interest, 21 Sports events near UBC, and 3 Sports events ("E2E Far Event 01" to "03") near Abbotsford, about 70 km from UBC and outside the 30 km search radius. The seeded data is removed after the test.
+
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user opens the app near UBC and views the events. | Set the device location to UBC (49.2606, -123.2460) and launch the app.<br>Check that "E2E Event 01" is present and no "E2E Far Event" card is present. |
+    | 2. The user moves at least 10 km away (to Abbotsford). | Set the device location to Abbotsford (49.0504, -122.3045). |
+    | 3. The app detects the movement and refetches events for the new location. | Wait for the location provider to report the move (up to 2 minutes).<br>Check that "E2E Far Event 01" is present and "E2E Event 01" is no longer present. |
+    | 4. The user moves back to UBC and the events for UBC return. | Set the device location back to UBC.<br>Check that "E2E Event 01" is present again and no "E2E Far Event" card is present. |
+
+  - **Test file:** [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt). The 10 km threshold itself (REFRESH-7) is verified through this test rather than a separate unit test.
+
+  - **Test Logs:**
+    ```
+    [Placeholder for E2E test execution logs]
+    ```
 
     <!-- | 3a. The user inputs an ill-formatted string. | Input "_^_^^OQ#$" in the text field. |
     | 3a1. The app displays an error message prompting the user for the expected format. | Check that a dialog is opened with the text: "Please use only alphanumeric characters ". |
