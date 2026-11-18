@@ -17,6 +17,7 @@
 | Nov 3, 2026 | 3.1, 3.3, 3.5 (Use Case 4), 4.3 | A scheduled game's court is picked from a list; the map shows a matched game's court. |
 | Nov 18, 2026 | 4.1 | The ELO K-factor depends on each player's number of rated games (`calculateKFactor`), counted by `applyGameResult`. |
 | Nov 18, 2026 | 3.1, 4.1 | Added player stats: `GET /stats` and the stats screen with the ELO chart. |
+| Nov 18, 2026 | 3.4, 3.5 (Use Case 3), 4.1 | Added `POST /games/start` and the game screen's "Start now" button, so players of a booked game can start it before its start time and report the score. |
 
 ---
 
@@ -90,7 +91,7 @@ External services are drawn with plain lines because they support use cases but 
 12. **Live game data syncing**: The score updates on every player's device.
 
 - Feature 5: ELO ranking
-13. **Submit final score**: A player reports the final score, and every player sees the match summary with their rating change.
+13. **Submit final score**: Once the game has started, a player reports the final score, and every player sees the match summary with their rating change. Players who want to play early can start a booked game before its start time with "Start now".
 14. **ELO change calculation**: The system calculates each player's rating change.
 15. **Update leaderboard**: The system applies the new ratings to the leaderboard.
 16. **View leaderboard**: The user views players ranked by rating, with their own rank.
@@ -160,7 +161,7 @@ External services are drawn with plain lines because they support use cases but 
 
 **Primary actor(s)**: User
 
-**Preconditions**: The user is signed in and is a player in a game that has started and has no final score.
+**Preconditions**: The user is signed in and is a player in a game that has started and has no final score. A player can start a booked game early by tapping "Start now", which moves its start time to now.
 
 **Postconditions**: The game is completed, its score can't change, every player's rating is updated, and the match summary shows each rating before and after.
 
@@ -276,7 +277,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         8. `string[] getFcmTokens(userIds)`, `void clearFcmTokens(tokens)` - In
             - **Purpose**: Used by Matchmaking and Games to send notifications and drop dead tokens.
 2. **Games**
-    - **Purpose**: Games, their players and rounds, and their lifecycle: create, feed, join, leave, invite, accept, move, cancel and final score.
+    - **Purpose**: Games, their players and rounds, and their lifecycle: create, feed, join, leave, invite, accept, move, start early, cancel and final score.
     - **Rationale**: A game's players, status and rounds change together, so they stay in one component. Scheduled, matched and tournament games share it, told apart by `gameSource`.
     - **Interfaces**:
         1. `POST /games` with `{ format, startsAt, courtId, gameSource }` → `201 { game }` - E
@@ -299,9 +300,11 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
             - **Purpose**: Sends a friend a push notification that opens the game, where they join it. The caller must be in the game (`403`), it must be an open scheduled game that hasn't started (`409`), and the user must be a friend (`403`) not already in it (`409`). `notified` is `false` without Firebase credentials or a working device token.
         10. `PATCH /games/time` with `{ gameId, startsAt }`, `PATCH /games/location` with `{ gameId, courtId }` → `{ game }` - E
             - **Purpose**: Move a game to a future time or another court. The caller must be in it (`403`), and it must be open or booked and not a matched game (`409`).
-        11. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }` → `{ game, rounds, ratingChanges }` - E
+        11. `POST /games/start` with `{ gameId }` → `{ game }` - E
+            - **Purpose**: Starts a game early for players who want to play before its start time: its `startsAt` moves to now, so the app lets every player report the score. Scheduled, matched and tournament games can start once they are `BOOKED`; a tournament's later rounds stay timed from the tournament's start. The update only applies to a booked game that hasn't started, so two players starting it at once can't both move it. `403` if the caller isn't in it, `404` if not found, `409` if it is completed or cancelled, still `OPEN` (free spots, or a match waiting for answers), or already started.
+        12. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }` → `{ game, rounds, ratingChanges }` - E
             - **Purpose**: Reports the final score. In one transaction it saves the rounds, completes the game, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). `400` for an invalid score, `409` if already reported, a team isn't full, or Postgres aborts the transaction on a deadlock.
-        12. `POST /games/check-in` *(planned)*, live round updates and a Socket.IO `game-update` event *(planned)* - E
+        13. `POST /games/check-in` *(planned)*, live round updates and a Socket.IO `game-update` event *(planned)* - E
             - **Purpose**: Check-in at the court, and the live score.
 3. **Matchmaking**
     - **Purpose**: The matchmaking queue, the matching algorithm, and the jobs that run it every 10 seconds and cancel unanswered matches every minute.
