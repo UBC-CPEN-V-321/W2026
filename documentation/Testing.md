@@ -6,12 +6,13 @@
 | --------------- | --------------------- | ------------- |
 | Oct 20, 2026 | 2.1, 4 | First test plan for CP1. Section 2.1 plans the back-end tests for the Game component. Section 4 plans the end-to-end test for Use Case 2, Discover Game. We will write and run the tests, and add the results, coverage, GitHub Actions file and logs, at CP2. |
 | Nov 17, 2026 | 2, 2.1 | The back-end tests for the Game and Friend components are written. Each interface now has one test file without mocks and one with mocks, so section 2.1.1 gives those files and the line where each `describe` group starts. The test tables now match the tests that were written, and the Friend component's tests are added. Section 2.1.3 explains how to start the test database and run the tests. |
+| Nov 17, 2026 | 2, 2.1 | The back-end tests for the Review component are written: its three interfaces, the rating reminder the server checks for every minute, and the score rules. The existing mocked rating tests are split into one file per interface, and each interface gets a test file without mocks. New edge cases cover the 1 to 6 star limits, values that aren't whole numbers, the edges of the 1-day rating window, games that aren't completed, players who didn't show up or left, rating twice or at the same time, the order games count in, and a game exactly 1.5 stars from a player's middle score. The Reputation score case of the join request list now gives the exact score its test checks, 3.86. |
 
 ---
 
 ## 2. Back-end Test Specification: APIs
 
-We test every interface of the **Game** and **Friend** components that is built (see Requirements and Design, section 4.1). The test folders are named after the back-end components in `backend/src`, so the Game tests are in `game` and the Friend tests in `friend`.
+We test every interface of the **Game**, **Friend** and **Review** components that is built (see Requirements and Design, section 4.1). The Review component also has a timed part the app never calls, the rating reminder the server checks for every minute, which is tested the same way. The test folders are named after the back-end components in `backend/src`, so the Game tests are in `game`, the Friend tests in `friend` and the Review tests in `review`.
 
 Each interface has two test files, each with one `describe` group:
 - one **without mocks**, in `backend/tests/no-mock/`, for example `describe('Unmocked: GET /api/games/discover', ...)`
@@ -26,12 +27,14 @@ Each test has comments that say its input, the status code we expect, what shoul
 - After each test, we delete the users it added. Deleting a user also deletes their games, players, chats, join requests, friend requests and friendships, so one test can't change another.
 - We sign in by making a JWT for the test user with `createAuthToken`. This way the tests don't need Google sign in.
 - The Friend tests search all users, and other test files run at the same time on the same database. So the search tests use made-up names that no other test uses, and only check the users they added.
+- The Review tests mark a game completed with the same `completeGame` the organizer's request uses, then move the time it was completed back to test the 1-day rating window. To see who is sent a rating reminder, they watch `sendPushToUsers` with `jest.spyOn` without replacing it. The test users have no devices, so no notification leaves the server. Other test files' games can be due for a reminder at the same time, so these tests only check their own games.
 
 **Tests with mocks** don't use the database. They replace the database settings with `backend/tests/mock/mockEnv.ts`, and sign in by mocking the user lookup. They use `jest.spyOn` to:
 - make database functions throw an error, to check that the server answers `500 server_error`
 - replace the push notification functions (`sendPushToUser` and `sendPushToUsers`), to check who gets a notification and what type it is
 - make a push notification fail, to check the server still answers and logs the failure
 - replace the database transaction with a fake one, to test a request that is deleted while the server waits for it
+- The rating reminder's tests with mocks also use Jest's fake timers, so the server's check every minute can run without waiting.
 
 ### 2.1. Locations of Back-end Tests and Instructions to Run Them
 
@@ -67,11 +70,22 @@ Each test has comments that say its input, the status code we expect, what shoul
 
 The unmocked Friend tests share their setup helpers in [`backend/tests/no-mock/friend/friendHelpers.ts`](../backend/tests/no-mock/friend/friendHelpers.ts).
 
+**Review component**
+
+| **Interface** | **Describe Group Location, No Mocks** | **Describe Group Location, With Mocks** | **Mocked Components** |
+| ------------- | ------------------------------------- | --------------------------------------- | --------------------- |
+| **GET /api/games/{gameId}/ratings** | [`backend/tests/no-mock/review/listPlayersToRate.test.ts#L54`](../backend/tests/no-mock/review/listPlayersToRate.test.ts#L54) | [`backend/tests/mock/review/listPlayersToRate.test.ts#L13`](../backend/tests/mock/review/listPlayersToRate.test.ts#L13) | Games DB, Ratings DB |
+| **POST /api/games/{gameId}/ratings** | [`backend/tests/no-mock/review/ratePlayer.test.ts#L40`](../backend/tests/no-mock/review/ratePlayer.test.ts#L40) | [`backend/tests/mock/review/ratePlayer.test.ts#L27`](../backend/tests/mock/review/ratePlayer.test.ts#L27) | Ratings DB |
+| **GET /api/users/me/stats** | [`backend/tests/no-mock/review/getMyStats.test.ts#L25`](../backend/tests/no-mock/review/getMyStats.test.ts#L25) | [`backend/tests/mock/review/getMyStats.test.ts#L13`](../backend/tests/mock/review/getMyStats.test.ts#L13) | Reputation DB |
+| **Rating reminders** (the server's check every minute) | [`backend/tests/no-mock/review/ratingReminders.test.ts#L44`](../backend/tests/no-mock/review/ratingReminders.test.ts#L44) | [`backend/tests/mock/review/ratingReminders.test.ts#L20`](../backend/tests/mock/review/ratingReminders.test.ts#L20) | Rating Reminders DB, Firebase push, Logger, timers |
+
+The unmocked Review tests share their setup helpers in [`backend/tests/no-mock/review/reviewHelpers.ts`](../backend/tests/no-mock/review/reviewHelpers.ts). The rules that work out a reputation score have no database code, so they also have unit tests, in [`backend/tests/unit/review/reputation.test.ts#L22`](../backend/tests/unit/review/reputation.test.ts#L22).
+
 #### Test cases
 
 **Signing in**
 
-Every route checks that the user is signed in first, in the same middleware. The Friend component's groups without mocks test it for each of their interfaces:
+Every route checks that the user is signed in first, in the same middleware. The Friend and Review components' groups without mocks test it for each of their interfaces:
 
 | **Test** | **Input** | **Expected status** | **What should happen** |
 | -------- | --------- | ------------------- | ---------------------- |
@@ -203,7 +217,7 @@ Every route checks that the user is signed in first, in the same middleware. The
 | **Group** | **Test** | **Input** | **Expected status** | **What should happen** |
 | --------- | -------- | --------- | ------------------- | ---------------------- |
 | No mocks | Pending requests | The organizer's game has two pending requests and one declined | 200 | Returns only the two pending requests, newest first, with each person's name and answers |
-| No mocks | Reputation score | The requester has a no-show in one past game and 3 stars from the only other player in another | 200 | The request's `reputation_score` is 3.8 |
+| No mocks | Reputation score | The requester has a no-show in one past game and 3 stars from the only other player in another | 200 | The request's `reputation_score` is 3.86 |
 | No mocks | No requests | Nobody has asked to join | 200 | `requests` is an empty list |
 | No mocks | Not the organizer | Another user asks for the list | 403 | Returns `{ msg: "forbidden" }` |
 | No mocks | Game doesn't exist | An id with no game | 404 | Returns `{ msg: "not_found" }` |
@@ -293,6 +307,110 @@ Every route checks that the user is signed in first, in the same middleware. The
 | With mocks | Notification fails | An answer that saves, `sendPushToUser` throws | 200 | The answer is still saved and the failed notification is logged |
 | With mocks | Request is gone once locked | A fake transaction: the request is found, then gone after the users are locked | 404 | Nothing is written and nobody is notified. Returns `{ msg: "request_not_found" }` |
 
+
+##### Review component
+
+The tests without mocks use a completed game with the organizer (Olivia) and players Alice, Ben and Cara, where Ned didn't show up and Sam was never in the game. Rating is open for 1 day after the organizer marks the game completed (Requirements and Design, Use Case 2: Rate Players).
+
+**GET /api/games/{gameId}/ratings** (the players the user can rate after a game)
+
+| **Group** | **Test** | **Input** | **Expected status** | **What should happen** |
+| --------- | -------- | --------- | ------------------- | ---------------------- |
+| No mocks | Rejects a call that is not signed in | See "Signing in" above | 400, then 401 | No players are read |
+| No mocks | Lists the other players who showed up and who was rated | Alice opens the list. She already rated Ben | 200 | Returns `game_title`, `organizer_id`, and Ben, Cara and Olivia in name order, Ben with `rated: true`. Alice and Ned are left out, and no stars are sent |
+| No mocks | Nobody else showed up | The organizer opens the list when the only other player didn't show up | 200 | `players` is an empty list |
+| No mocks | A player who left after the game was completed still counts | Ben leaves the completed game, then Ben and Alice open the list | 200 | Ben still gets his list, and Alice's list still has Ben |
+| No mocks | Rejects a bad game id | Game ids `abc`, `0` and `1.5` | 400 | Returns `{ msg: "invalid_request", error: "gameId must be a positive whole number" }` |
+| No mocks | Game doesn't exist | An id with no game | 404 | Returns `{ msg: "not_found" }` |
+| No mocks | Cannot open the list of a game that isn't completed | A player opens an upcoming, a started and a cancelled game | 403 | Returns `{ msg: "forbidden" }` |
+| No mocks | Only players who showed up can open the list | Ned, who didn't show up, and Sam, who wasn't in the game | 403 | Returns `{ msg: "forbidden" }` |
+| No mocks | The list is still open just before a day has passed | Opened 23 hours 59 minutes after the game was completed | 200 | Returns the players |
+| No mocks | The list closes once a day has passed | Opened 24 hours 1 minute after the game was completed | 403 | The players aren't shown. Returns `{ msg: "rating_closed", error: "Rating for this game has closed" }` |
+| With mocks | Lists the players to rate without any scores | `getGameById` and `getPlayersToRate` replaced | 200 | Returns the players and who was rated, with no stars anywhere in the reply |
+| With mocks | A no-show cannot open the list | `getPlayersToRate` says `not_allowed` | 403 | Returns `{ msg: "forbidden" }` |
+| With mocks | The list closes a day after the game is completed | `getPlayersToRate` says `rating_closed` | 403 | Returns `{ msg: "rating_closed", error: "Rating for this game has closed" }` |
+| With mocks | Database fails while reading the game | `getGameById` throws | 500 | Returns `{ msg: "server_error" }`. The players are never read |
+| With mocks | Database fails while reading the players | `getPlayersToRate` throws | 500 | Returns `{ msg: "server_error", error: "Could not load the players, try again later" }` |
+
+**POST /api/games/{gameId}/ratings** (rate a player)
+
+| **Group** | **Test** | **Input** | **Expected status** | **What should happen** |
+| --------- | -------- | --------- | ------------------- | ---------------------- |
+| No mocks | Rejects a call that is not signed in | See "Signing in" above | 400, then 401 | No rating is saved |
+| No mocks | Records a rating | Alice rates Ben 6, 5, 4, 3 and 2 stars | 201 | The rating is saved with Alice as the rater and each category's stars. Returns `{ msg: "success" }` |
+| No mocks | Accepts the lowest and highest stars | 1 star, then 6 stars, in every category | 201 | The rating is saved with those stars |
+| No mocks | Rejects stars outside 1 to 6 | `skill: 0`, then `skill: 7` | 400 | Nothing is saved. Returns `{ msg: "invalid_request", error: "skill must be a whole number from 1 to 6" }` |
+| No mocks | Rejects stars that aren't whole numbers | `overall` of `3.5`, `"5"`, `null` and `true` | 400 | Nothing is saved. Returns `{ msg: "invalid_request", error: "overall must be a whole number from 1 to 6" }` |
+| No mocks | Names every missing category | Only `punctuality` is given | 400 | Nothing is saved. The error names sportsmanship, skill, reliability and overall |
+| No mocks | Rejects a missing or invalid rated_user_id | No body, then `rated_user_id` left out, `"2"`, `0`, `-1` and `1.5` | 400 | Nothing is saved. Returns `{ msg: "invalid_request", error: "rated_user_id must be a user id" }` |
+| No mocks | Rejects a bad game id | `/api/games/abc/ratings` | 400 | Returns `{ msg: "invalid_request" }` |
+| No mocks | Game doesn't exist | An id with no game | 403 | Nothing is saved. Returns `{ msg: "forbidden" }`, since nobody showed up to it |
+| No mocks | Cannot rate yourself | Alice rates herself | 409 | Nothing is saved. Returns `{ msg: "rated_self", error: "You can't rate yourself" }` |
+| No mocks | Can only rate players who showed up | Alice rates Ned, then Sam, then a user id nobody has | 404 | Nothing is saved. Returns `{ msg: "player_not_found" }` |
+| No mocks | Only players who showed up can rate | Ned and Sam each rate Ben | 403 | Nothing is saved. Returns `{ msg: "forbidden" }` |
+| No mocks | Cannot rate before the game is marked completed | Alice rates Ben in a game that started but isn't completed | 403 | Nothing is saved. Returns `{ msg: "forbidden" }` |
+| No mocks | Can still rate just before a day has passed | Rated 23 hours 59 minutes after the game was completed | 201 | The rating is saved |
+| No mocks | Cannot rate once a day has passed | Rated 24 hours 1 minute after the game was completed | 403 | Nothing is saved. Returns `{ msg: "rating_closed", error: "Rating for this game has closed" }` |
+| No mocks | A player can only be rated once by the same player | Alice rates Ben 6 stars, then 1 star | 201, then 409 | Only the 6 star rating is saved. Returns `{ msg: "already_rated", error: "You already rated this player" }` the second time |
+| No mocks | Two ratings sent at once save only one | Alice sends the same rating of Ben twice at the same time | 201 and 409 | One rating is saved |
+| No mocks | Each player can rate each other player once | Ben already rated Alice. Alice rates Ben, and the organizer rates Ben | 201 | All three ratings are saved |
+| No mocks | A player who left after the game was completed can still rate and be rated | Ben leaves, then Ben rates Alice and Alice rates Ben | 201 | Both ratings are saved |
+| No mocks | The rater is always the signed in user | Alice sends a rating with `rater_id` set to the organizer | 201 | The rating is saved as Alice's |
+| With mocks | Records a rating | `createRating` replaced | 201 | `createRating` gets the signed in user as the rater and the five categories |
+| With mocks | Rejects missing and out of range categories | `skill` left out and `overall: 7`, `createRating` watched | 400 | The error names skill and overall. `createRating` is never called |
+| With mocks | Each problem a rating can have | `createRating` returns `not_allowed`, `rating_closed`, `self`, `player_not_found` and `already_rated` | 403, 403, 409, 404, 409 | Returns `{ msg }` of `forbidden`, `rating_closed`, `rated_self`, `player_not_found` and `already_rated` |
+| With mocks | Database fails | `createRating` throws | 500 | Returns `{ msg: "server_error", error: "Could not submit your rating, try again later" }` |
+
+**GET /api/users/me/stats** (the user's own reputation score)
+
+Each expected score follows the formula in Requirements and Design, section 4.1: (3 × 5 + Σ weight × game score) / (3 + Σ weight), rounded to two decimal places. The newest game has weight 1, and each older one 0.9 times the weight of the one after it.
+
+| **Group** | **Test** | **Input** | **Expected status** | **What should happen** |
+| --------- | -------- | --------- | ------------------- | ---------------------- |
+| No mocks | Rejects a call that is not signed in | See "Signing in" above | 400, then 401 | No score is read |
+| No mocks | A new player is not rated yet | A user who never played | 200 | Returns `{ msg: "success", reputation_score: null }` |
+| No mocks | A player nobody rated is not rated yet, even after playing | Alice played a game and rated Ben, but nobody rated her | 200 | `reputation_score` is null |
+| No mocks | One game rated 6 by its only other player gives 5.25 | The organizer gave Alice 6 stars in her only game | 200 | `reputation_score` is 5.25: (15 + 6) / 4 |
+| No mocks | Players who showed up but did not rate count as 5, no-shows do not count | The organizer gave Alice 6 stars. Ben and Cara didn't rate, and Ned didn't show up | 200 | `reputation_score` is 5.08: the game scores (6 + 5 + 5) / 3 |
+| No mocks | A no-show counts as a game scoring 1 | Ned didn't show up to his only game | 200 | `reputation_score` is 4: (15 + 1) / 4 |
+| No mocks | The game played most recently counts most | Two games: the one saved first was played later and got 6 stars, the other got 2 | 200 | `reputation_score` is 4.65, because games are ordered by when they were played. In the wrong order it would be 4.57 |
+| With mocks | Returns the signed in user's score | `getReputationScore` replaced | 200 | Returns `{ msg: "success", reputation_score: 4.2 }`, looked up for the signed in user |
+| With mocks | Needs a signed in user | No sign in, `getReputationScore` watched | 400 or above | No score is read |
+| With mocks | Database fails | `getReputationScore` throws | 500 | Returns `{ msg: "server_error", error: "Could not load your rating, try again later" }` |
+
+**Rating reminders** (checked by the server every minute, not called by the app)
+
+| **Group** | **Test** | **Input** | **What should happen** |
+| --------- | -------- | --------- | ---------------------- |
+| No mocks | Players with someone left to rate are reminded once | A game completed 23.5 hours ago. Alice rated everyone, the organizer and Ben haven't, Ned didn't show up. The check runs twice | The organizer and Ben get one "Rating closes soon" reminder that opens the game. Alice and Ned get none. The game is marked reminded, so the second check sends nothing |
+| No mocks | Games outside the last hour of rating are not reminded | A game completed 30 minutes ago, and one completed 24 hours 1 minute ago | Nobody is reminded, and neither game is marked reminded |
+| No mocks | Nobody is reminded when everyone already rated | A game completed 23.5 hours ago where both players rated each other | The game is marked reminded, and nobody is notified |
+| With mocks | Players with someone left to rate are reminded | `claimDueRatingReminders` returns two games, `getPlayersWithRatingsLeft` and `sendPushToUsers` replaced | Each game's players with someone left to rate get one reminder. Returns 2 |
+| With mocks | Nothing is sent when no reminder is due | `claimDueRatingReminders` returns no games | Nobody is notified. Returns 0 |
+| With mocks | The server checks every minute until it is stopped | Fake timers: two minutes pass, the reminders stop, two more minutes pass | 2 checks, none after stopping |
+| With mocks | A failed check is logged and the next one still runs | Fake timers: `claimDueRatingReminders` throws once, then two minutes pass | The failure is logged as "Sending rating reminders failed:", and the next check still runs |
+
+**Score rules** (unit tests of `reputationScore` in `backend/src/review/reputation.ts`, no database)
+
+| **Test** | **Input** (games newest first) | **Expected output** |
+| -------- | ------------------------------ | ------------------- |
+| A player nobody rated and who never missed a game is not rated yet | No games, then two games nobody rated | `null` |
+| One rated game moves the score from 5 only part of the way | One game rated 6, then one rated 1, by its only other player | 5.25, then 4 |
+| Every rating is averaged across its five categories | One rating of 1, 2, 3, 4 and 5 stars | 4.5 |
+| A game scores the average of its ratings, whatever order they were given in | Ratings of 1 and 6 stars, in both orders | 4.63 both times |
+| A player who showed up but did not rate counts as giving 5 | One of three other players gave 6 stars | 5.08 |
+| A game nobody rated scores 5, even if nobody else showed up | A game nobody rated, then a game rated 6 | 5.18 |
+| Every game counts the same however many players rated it | A game rated 6 by eight players, then one rated 2 | The same as a game rated 6 by one player, then one rated 2 |
+| A no-show counts as a game scoring 1 | One no-show | The same as one game rated 1 |
+| A newer game counts more than an older one | Games rated 6 then 2, then 2 then 6 | 4.65, then 4.57 |
+| Many games move the score toward what the player is rated | Ten games rated 6 | 5.68 |
+| A game far from the rest counts a quarter as much once they showed up to four games | Games rated 1, 6, 6 and 6 | 5.25 |
+| With fewer than four games no game is treated as unusual | Games rated 1, 6 and 6 | 4.6 |
+| A game exactly 1.5 stars from the middle still counts in full, past it a quarter | A game scoring 4.5 (exactly 1.5 from 6), then 6, 6, 6. Then a game scoring 4.4 (1.6 from 6), then 6, 6, 6 | 5.3, then 5.4 |
+| A no-show does not count toward the four games needed to find unusual games | Games rated 1, 6 and 6, then a no-show | 4.19 (as unusual it would be 4.61) |
+| A no-show always counts in full, even far from the other games | A no-show, then four games rated 6 | 4.87 |
+| The score stays between 1 and 6 | 50 no-shows, then 50 games rated 6 | At least 1, then at most 6 |
+
 #### 2.1.2. Commit Hash Where Tests Run
 
 _To be added at CP2._
@@ -333,6 +451,7 @@ In our Docker setup MySQL is only reachable from inside Docker, so `docker-compo
    - Tests with mocks: `npx jest tests/mock`
    - Tests without mocks: `npx jest tests/no-mock`
    - One component: `npx jest tests/no-mock/game` or `npx jest tests/mock/friend`
+   - The Review component's tests: `npx jest tests/mock/review tests/no-mock/review tests/unit/review`
    - One interface: `npx jest tests/no-mock/friend/searchUsers.test.ts`
 4. **Stop the database** from the root folder when you're done:
    ```
