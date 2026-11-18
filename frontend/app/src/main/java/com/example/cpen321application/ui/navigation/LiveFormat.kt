@@ -15,6 +15,9 @@ import kotlin.math.abs
 
 /** Shown on a transit leg when its times aren't live. */
 const val NOT_LIVE_TEXT = "Scheduled times, not live"
+
+/** Shown on a transit leg when TransLink has cancelled its run. */
+const val CANCELLED_TEXT = "Cancelled"
 private const val ON_TIME_SECONDS = 60 // within a minute either way is on time, like TransLink's signs
 private const val SECONDS_PER_MINUTE = 60
 
@@ -30,9 +33,13 @@ private val EFFECT_LABELS = mapOf(
     "ACCESSIBILITY_ISSUE" to "Accessibility",
 )
 
-/** The live times of leg [legIndex], when the update is live and TransLink predicted that leg's run. */
+/** The live times of leg [legIndex], when the update is live and TransLink predicted that leg's run, and it's running. */
 fun liveLeg(update: LiveUpdate?, legIndex: Int): LiveLeg? =
-    update?.takeIf { it.live }?.legs?.firstOrNull { it.legIndex == legIndex && it.matched }
+    update?.takeIf { it.live }?.legs?.firstOrNull { it.legIndex == legIndex && it.matched && !it.cancelled }
+
+/** Whether TransLink has cancelled the run leg [legIndex] was planned to ride. */
+fun isCancelled(update: LiveUpdate?, legIndex: Int): Boolean =
+    update?.takeIf { it.live }?.legs?.any { it.legIndex == legIndex && it.cancelled } == true
 
 /** How late a run is, like "3 min late", "2 min early" or "On time", rounded to the nearest minute. */
 fun delayText(seconds: Int): String {
@@ -42,14 +49,16 @@ fun delayText(seconds: Int): String {
 }
 
 /** How a leg's live status reads, and whether it's worth drawing attention to. */
-data class LiveStatus(val text: String, val live: Boolean, val late: Boolean)
+data class LiveStatus(val text: String, val live: Boolean, val late: Boolean, val cancelled: Boolean = false)
 
 /**
- * The line under a transit leg's title: "Live · 3 min late" when TransLink predicted its run, else [NOT_LIVE_TEXT].
- * `null` for a drive or walk leg, and before the first answer, so the card doesn't flash "not live" on opening.
+ * The line under a transit leg's title: "Live · 3 min late" when TransLink predicted its run, [CANCELLED_TEXT] when
+ * it cancelled it, else [NOT_LIVE_TEXT]. `null` for a drive or walk leg, and before the first answer, so the card
+ * doesn't flash "not live" on opening.
  */
 fun liveStatus(route: RouteOption, legIndex: Int, update: LiveUpdate?): LiveStatus? {
     if (update == null || route.legs.getOrNull(legIndex)?.mode != TripMode.TRANSIT) return null
+    if (isCancelled(update, legIndex)) return LiveStatus(CANCELLED_TEXT, live = true, late = false, cancelled = true)
     val leg = liveLeg(update, legIndex) ?: return LiveStatus(NOT_LIVE_TEXT, live = false, late = false)
     val delay = leg.delaySeconds ?: 0
     return LiveStatus("Live · ${delayText(delay)}", live = true, late = delay >= ON_TIME_SECONDS)
@@ -64,7 +73,7 @@ fun liveDeparture(update: LiveUpdate?, legIndex: Int): Instant? = liveLeg(update
  */
 fun liveArrival(route: RouteOption, legIndex: Int, update: LiveUpdate?): Instant? {
     val last = update?.takeIf { it.live }?.legs
-        ?.filter { it.matched && it.arriveAt != null && it.legIndex >= legIndex && it.legIndex < route.legs.size }
+        ?.filter { it.matched && !it.cancelled && it.arriveAt != null && it.legIndex >= legIndex && it.legIndex < route.legs.size }
         ?.maxByOrNull { it.legIndex } ?: return null
     val arriveAt = last.arriveAt ?: return null
     return arriveAt.plus(Duration.between(route.legs[last.legIndex].arriveAt, route.arriveAt))

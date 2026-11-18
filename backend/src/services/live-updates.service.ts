@@ -53,7 +53,7 @@ function tidy(text: string | null): string | null {
 
 /** A transit leg's times from the trip's schedule, for when there's no prediction. */
 function scheduled(leg: Leg, legIndex: number): LiveLeg {
-  return { legIndex, matched: false, departAt: leg.departAt, arriveAt: leg.arriveAt, delaySeconds: null };
+  return { legIndex, matched: false, departAt: leg.departAt, arriveAt: leg.arriveAt, delaySeconds: null, cancelled: false };
 }
 
 /**
@@ -62,6 +62,7 @@ function scheduled(leg: Leg, legIndex: number): LiveLeg {
  * @remarks
  * A leg is matched when TransLink predicts the run its first line was planned to board: its departure is that
  * run's, and its arrival is the last line's predicted arrival, or else the scheduled arrival moved by the same delay.
+ * When that run, or the one a transfer boards, is cancelled, the leg is matched and cancelled, at scheduled times.
  * Alerts are included whenever the alerts feed is live, even if trip updates aren't, so a detour still shows.
  *
  * @param legs - The trip's legs.
@@ -96,12 +97,14 @@ export function buildLiveUpdate(
     const plannedDepart = first?.line.departAt ?? leg.departAt;
     if (runs === null || first?.match == null || plannedDepart === null) return scheduled(leg, legIndex);
     const departure = predictLine(runs, first.match, plannedDepart, network);
-    if (departure === null || departure.cancelled) return scheduled(leg, legIndex);
+    if (departure === null) return scheduled(leg, legIndex);
 
     // a leg with a transfer arrives on its last line, whose run is predicted the same way
     const lastPlanned = last?.line.departAt ?? null;
     const arrival = last === first ? departure
       : last?.match == null || lastPlanned === null ? null : predictLine(runs, last.match, lastPlanned, network);
+    // the run boarded, or the one transferred to, isn't coming: TransLink knows the run, but there's no time to show
+    if (departure.cancelled || arrival?.cancelled === true) return { ...scheduled(leg, legIndex), matched: true, cancelled: true };
     const shiftedArrival = leg.arriveAt === null ? null : new Date(leg.arriveAt.getTime() + departure.delaySeconds * 1000);
     return {
       legIndex,
@@ -109,6 +112,7 @@ export function buildLiveUpdate(
       departAt: departure.departAt,
       arriveAt: arrival?.arriveAt ?? shiftedArrival,
       delaySeconds: departure.delaySeconds,
+      cancelled: false,
     };
   });
 

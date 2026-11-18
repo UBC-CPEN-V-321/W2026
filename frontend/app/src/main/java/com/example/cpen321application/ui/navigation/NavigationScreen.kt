@@ -317,7 +317,7 @@ private fun LegCard(route: RouteOption, legIndex: Int, line: LegLine, along: Dou
             }
             status?.let {
                 val colour = when {
-                    it.late -> MaterialTheme.colorScheme.error
+                    it.late || it.cancelled -> MaterialTheme.colorScheme.error
                     it.live -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 }

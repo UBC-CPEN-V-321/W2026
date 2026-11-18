@@ -37,7 +37,8 @@ describe('buildLiveUpdate with TransLink\'s saved feeds', () => {
 
   // Input: a walk, then the 025 planned to leave when run 15456173 was scheduled to, against TransLink's real feeds
   // Expected output: live; the bus leg matched to that run, 51 s early, with its predicted arrival at Still Creek;
-  //                  and the two real alerts on the 025's stops, on leg 1
+  //                  and the real alert on the 025's alighting stop, on leg 1, but not the network-wide Compass
+  //                  Card notice
   test('matches a real run and its alerts', () => {
     const update = buildLiveUpdate(legs, 0, { tripUpdates: ok(tripUpdates, now), alerts: ok(alerts, now) }, network, now);
 
@@ -49,9 +50,10 @@ describe('buildLiveUpdate with TransLink\'s saved feeds', () => {
       departAt: new Date(1_794_986_756 * 1000),
       arriveAt: new Date(1_794_986_906 * 1000),
       delaySeconds: -51,
+      cancelled: false,
     }]);
+    // 769018, a Compass Card notice for every route type, is network-wide, so it isn't shown
     expect(update.alerts.map((alert) => [alert.id, alert.effect, alert.legIndexes])).toStrictEqual([
-      ['769018', 'OTHER_EFFECT', [1]],
       ['769063', 'STOP_MOVED', [1]],
     ]);
     for (const alert of update.alerts) {
@@ -69,7 +71,7 @@ describe('buildLiveUpdate with TransLink\'s saved feeds', () => {
     expect(update).toStrictEqual({
       live: false,
       updatedAt: null,
-      legs: [{ legIndex: 1, matched: false, departAt: plannedDepart, arriveAt: legs[1]?.arriveAt, delaySeconds: null }],
+      legs: [{ legIndex: 1, matched: false, departAt: plannedDepart, arriveAt: legs[1]?.arriveAt, delaySeconds: null, cancelled: false }],
       alerts: [],
     });
   });
@@ -97,7 +99,7 @@ describe('buildLiveUpdate', () => {
 
     expect(update.live).toBe(false);
     expect(update.updatedAt).toBeNull();
-    expect(update.legs).toStrictEqual([{ legIndex: 0, matched: false, departAt, arriveAt: legs[0]?.arriveAt, delaySeconds: null }]);
+    expect(update.legs).toStrictEqual([{ legIndex: 0, matched: false, departAt, arriveAt: legs[0]?.arriveAt, delaySeconds: null, cancelled: false }]);
     expect(update.alerts.map((alert) => alert.id)).toStrictEqual(['detour-99']);
   });
 
@@ -119,16 +121,42 @@ describe('buildLiveUpdate', () => {
     expect(hasTransitAhead(legs, 1)).toBe(false);
   });
 
-  // Input: the planned run cancelled
-  // Expected output: live, but the leg unmatched at its scheduled times, since that bus isn't coming
-  test('does not use a cancelled run', () => {
-    const cancelled = decodeFeed(bus99Feed(nowSeconds, departAt, 0));
-    const run = cancelled.entities[0]?.tripUpdate;
-    if (run) run.cancelled = true;
+  // Input: the planned run cancelled, and (in a second feed) the planned run skipping the boarding stop
+  // Expected output: live, with the leg matched and cancelled, at its scheduled times and no delay
+  test('marks a leg whose run is cancelled', () => {
+    for (const how of ['cancelled', 'skipped'] as const) {
+      const feed = decodeFeed(bus99Feed(nowSeconds, departAt, 120));
+      const run = feed.entities[0]?.tripUpdate;
+      if (run && how === 'cancelled') run.cancelled = true;
+      const boarding = run?.stopTimeUpdates[0];
+      if (boarding && how === 'skipped') boarding.skipped = true;
 
-    const update = buildLiveUpdate(legs, 0, { tripUpdates: ok(cancelled, NOW), alerts: ok(detour, NOW) }, network, NOW);
+      const update = buildLiveUpdate(legs, 0, { tripUpdates: ok(feed, NOW), alerts: ok(detour, NOW) }, network, NOW);
 
-    expect(update).toMatchObject({ live: true, legs: [{ matched: false, delaySeconds: null }] });
+      expect(update.live).toBe(true);
+      expect(update.legs).toStrictEqual([
+        { legIndex: 0, matched: true, departAt, arriveAt: legs[0]?.arriveAt, delaySeconds: null, cancelled: true },
+      ]);
+    }
+  });
+
+  // Input: a leg that boards the 99, then transfers to a second 99 run that's cancelled
+  // Expected output: the leg is cancelled, since the transfer isn't coming
+  test('marks a leg whose transfer run is cancelled', () => {
+    const transferAt = new Date(departAt.getTime() + 20 * 60_000);
+    const firstLeg = legs[0] as Leg;
+    const withTransfer: Leg = { ...firstLeg, transitLines: [bus99Line(departAt), bus99Line(transferAt)] };
+    const feed = decodeFeed(bus99Feed(nowSeconds, departAt, 0));
+    const transferRun = decodeFeed(bus99Feed(nowSeconds, transferAt, 0)).entities[0];
+    if (transferRun?.tripUpdate) {
+      transferRun.id = 'transfer';
+      transferRun.tripUpdate.cancelled = true;
+      feed.entities.push(transferRun);
+    }
+
+    const update = buildLiveUpdate([withTransfer], 0, { tripUpdates: ok(feed, NOW), alerts: ok(detour, NOW) }, network, NOW);
+
+    expect(update.legs[0]).toMatchObject({ matched: true, cancelled: true, delaySeconds: null });
   });
 
   // Input: a bus leg with a transfer to a second line that no TransLink route has, and a leg whose line has no
@@ -150,8 +178,9 @@ describe('buildLiveUpdate', () => {
         departAt: new Date(departAt.getTime() + 240_000),
         arriveAt: new Date((firstLeg.arriveAt?.getTime() ?? 0) + 240_000),
         delaySeconds: 240,
+        cancelled: false,
       },
-      { legIndex: 1, matched: false, departAt: null, arriveAt: firstLeg.arriveAt, delaySeconds: null },
+      { legIndex: 1, matched: false, departAt: null, arriveAt: firstLeg.arriveAt, delaySeconds: null, cancelled: false },
     ]);
     expect(update.alerts[0]?.legIndexes).toStrictEqual([0, 1]);
   });

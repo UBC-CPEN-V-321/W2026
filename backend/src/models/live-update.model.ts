@@ -11,7 +11,7 @@
  *   "live": true,
  *   "updatedAt": "2026-11-18T17:02:30.000Z",
  *   "legs": [
- *     { "legIndex": 1, "matched": true, "departAt": "…", "arriveAt": "…", "delaySeconds": 180 }
+ *     { "legIndex": 1, "matched": true, "departAt": "…", "arriveAt": "…", "delaySeconds": 180, "cancelled": false }
  *   ],
  *   "alerts": [
  *     { "id": "733912", "header": "9 Boundary detour…", "description": "…", "effect": "DETOUR",
@@ -28,6 +28,9 @@ export interface LiveLeg {
   departAt: Date | null; // predicted departure from the leg's first stop, else scheduled
   arriveAt: Date | null; // predicted arrival at the leg's last stop, else scheduled
   delaySeconds: number | null; // how late the run leaves compared with the trip's plan, negative when early; null unless matched
+  // TransLink cancelled the run (or it skips the boarding stop), so the times are the scheduled ones and delaySeconds
+  // is null. Optional for clients, where missing means false; the backend always sends it.
+  cancelled?: boolean;
 }
 
 /** A TransLink service alert on one or more of the trip's transit legs. */

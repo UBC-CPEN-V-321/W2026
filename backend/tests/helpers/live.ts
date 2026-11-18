@@ -70,13 +70,15 @@ export async function createLiveTrip(userId: Types.ObjectId, legs: Leg[], status
  * @param nowSeconds - The feed's timestamp.
  * @param plannedDepart - When the trip planned to board.
  * @param delaySeconds - How late the run is.
+ * @param cancelled - Whether TransLink has cancelled the run.
  */
-export function bus99Feed(nowSeconds: number, plannedDepart: Date, delaySeconds: number): Uint8Array {
+export function bus99Feed(nowSeconds: number, plannedDepart: Date, delaySeconds: number, cancelled = false): Uint8Array {
   const planned = Math.floor(plannedDepart.getTime() / 1000);
   return feedBytes(nowSeconds, [tripUpdateEntity({
     id: BUS_99.tripId,
     tripId: BUS_99.tripId,
     directionId: 0,
+    cancelled,
     stops: [
       { stopId: BUS_99.boardingStopId, departure: { time: planned + delaySeconds, delay: delaySeconds } },
       { stopId: BUS_99.alightingStopId, arrival: { time: planned + 2100 + delaySeconds, delay: delaySeconds } },
@@ -84,7 +86,7 @@ export function bus99Feed(nowSeconds: number, plannedDepart: Date, delaySeconds:
   })]);
 }
 
-/** An alerts feed with a detour on the 99 until `endSeconds`, and one on another route. */
+/** An alerts feed with a detour on the 99 until `endSeconds`, one on another route, and a network-wide one for all buses. */
 export function detourFeed(nowSeconds: number, endSeconds: number): Uint8Array {
   return feedBytes(nowSeconds, [
     alertEntity({
@@ -96,6 +98,7 @@ export function detourFeed(nowSeconds: number, endSeconds: number): Uint8Array {
       description: 'Regular route, then Main St.\r\n\r\n\r\nNo stops missed. ',
     }),
     alertEntity({ id: 'elsewhere', selectors: [{ routeId: '6612' }], effect: 4, header: '2 detour' }),
+    alertEntity({ id: 'all-buses', selectors: [{ routeType: 3 }, {}], effect: 7, header: 'Compass Card notice' }),
   ]);
 }
 

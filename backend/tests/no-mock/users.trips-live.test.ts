@@ -45,6 +45,7 @@ describe('Unmocked: GET /api/users/me/trips/:id/live', () => {
         departAt: departAt.toISOString(),
         arriveAt: legs[0]?.arriveAt?.toISOString(),
         delaySeconds: null,
+        cancelled: false,
       }],
       alerts: [],
     });

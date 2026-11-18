@@ -3,12 +3,14 @@ package com.example.cpen321application
 import com.example.cpen321application.data.LiveAlert
 import com.example.cpen321application.data.LiveLeg
 import com.example.cpen321application.data.LiveUpdate
+import com.example.cpen321application.ui.navigation.CANCELLED_TEXT
 import com.example.cpen321application.ui.navigation.LiveStatus
 import com.example.cpen321application.ui.navigation.NOT_LIVE_TEXT
 import com.example.cpen321application.ui.navigation.alertsAhead
 import com.example.cpen321application.ui.navigation.cardTitle
 import com.example.cpen321application.ui.navigation.delayText
 import com.example.cpen321application.ui.navigation.effectLabel
+import com.example.cpen321application.ui.navigation.isCancelled
 import com.example.cpen321application.ui.navigation.etaText
 import com.example.cpen321application.ui.navigation.liveArrival
 import com.example.cpen321application.ui.navigation.liveDeparture
@@ -64,6 +66,33 @@ class LiveFormatTest {
         assertEquals(notLive, liveStatus(route, 2, LiveUpdate.NOT_LIVE))
         assertEquals(notLive, liveStatus(route, 2, liveUpdate(180).copy(live = false)))
         assertEquals(notLive, liveStatus(route, 2, unmatched))
+    }
+
+    @Test
+    fun aCancelledRunSaysCancelledInsteadOfNotLive() {
+        // as the backend sends it: matched, at the scheduled times, with no delay
+        val cancelled = liveUpdate(0).copy(legs = listOf(LiveLeg(2, matched = true, BOARDS, ARRIVES, null, cancelled = true)))
+
+        assertEquals(LiveStatus(CANCELLED_TEXT, live = true, late = false, cancelled = true), liveStatus(route, 2, cancelled))
+        assertEquals(true, isCancelled(cancelled, 2))
+        assertEquals(false, isCancelled(cancelled, 1))
+        assertEquals(false, isCancelled(liveUpdate(180), 2))
+    }
+
+    @Test
+    fun aCancelledRunGivesNoLiveTimes() {
+        val cancelled = liveUpdate(0).copy(legs = listOf(LiveLeg(2, matched = true, BOARDS, ARRIVES.plusSeconds(600), null, cancelled = true)))
+
+        assertNull(liveDeparture(cancelled, 2)) // the card keeps the scheduled boarding time
+        assertNull(liveArrival(route, 0, cancelled)) // and the arrival isn't moved by a bus that isn't coming
+    }
+
+    @Test
+    fun aCancelledFlagOnANotLiveUpdateIsIgnored() {
+        val stale = LiveUpdate.NOT_LIVE.copy(legs = listOf(LiveLeg(2, matched = true, BOARDS, ARRIVES, null, cancelled = true)))
+
+        assertEquals(false, isCancelled(stale, 2))
+        assertEquals(NOT_LIVE_TEXT, liveStatus(route, 2, stale)?.text)
     }
 
     @Test

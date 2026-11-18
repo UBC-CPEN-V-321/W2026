@@ -62,7 +62,8 @@ describe('Mocked: GET /api/users/me/trips/:id/live', () => {
   // Input: the active trip, on its first leg
   // Expected status code: 200
   // Expected behavior: both feeds are fetched once, with the key; the leg's times are the run's
-  // Expected output: live, the bus leg matched 180 s late, only the 99's detour with its text tidied and end time
+  // Expected output: live, the bus leg matched 180 s late, and only the 99's detour with its text tidied and end
+  //                  time: not the other route's, nor the network-wide notice for all buses
   test('returns live times and alerts for the active trip', async () => {
     const { token, departAt, tripId } = await activeBusTrip();
     const fetchSpy = translink(departAt);
@@ -84,6 +85,7 @@ describe('Mocked: GET /api/users/me/trips/:id/live', () => {
       departAt: new Date(Math.floor(departAt.getTime() / 1000) * 1000 + DELAY * 1000).toISOString(),
       arriveAt: new Date(Math.floor(departAt.getTime() / 1000) * 1000 + (2100 + DELAY) * 1000).toISOString(),
       delaySeconds: DELAY,
+      cancelled: false,
     }]);
     expect(body.alerts).toStrictEqual([{
       id: 'detour-99',
@@ -94,6 +96,25 @@ describe('Mocked: GET /api/users/me/trips/:id/live', () => {
       activeUntil: expect.any(String) as unknown,
     }]);
     expect(Date.parse(body.alerts[0]?.activeUntil ?? '') - Date.now()).toBeGreaterThan(7000_000);
+  });
+
+  // Mocked behavior: TransLink's trip updates feed has the planned 99 run cancelled
+  // Input: the active trip
+  // Expected status code: 200
+  // Expected behavior: the run is found by trip_id, and its cancellation is passed on
+  // Expected output: live, the bus leg matched and cancelled at its scheduled times with no delay, the detour shown
+  test('marks a leg whose run TransLink cancelled', async () => {
+    const { token, departAt, tripId } = await activeBusTrip();
+    translink(departAt, { tripUpdates: () => bus99Feed(Math.floor(Date.now() / 1000), departAt, DELAY, true) });
+
+    const res = await getLive(tripId, token);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      live: true,
+      legs: [{ legIndex: 0, matched: true, cancelled: true, departAt: departAt.toISOString(), delaySeconds: null }],
+      alerts: [{ id: 'detour-99' }],
+    });
   });
 
   // Mocked behavior: TransLink as above
@@ -146,7 +167,7 @@ describe('Mocked: GET /api/users/me/trips/:id/live', () => {
     expect(res.body).toMatchObject({
       live: false,
       updatedAt: null,
-      legs: [{ legIndex: 0, matched: false, departAt: departAt.toISOString(), delaySeconds: null }],
+      legs: [{ legIndex: 0, matched: false, departAt: departAt.toISOString(), delaySeconds: null, cancelled: false }],
       alerts: [{ id: 'detour-99' }],
     });
     expect(fetchSpy.mock.calls.filter(([url]) => String(url).includes('gtfsrealtime'))).toHaveLength(1);

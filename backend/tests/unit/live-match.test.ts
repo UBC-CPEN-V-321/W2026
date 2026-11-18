@@ -125,20 +125,43 @@ describe('alertsForLines', () => {
     expect(found[0]?.alert.informedEntities).toHaveLength(1);
   });
 
-  // Input: alerts on another route, the Expo Line eastbound, the 99 at a SkyTrain route type, an agency-wide
-  //        selector, a stop the trip only passes through, and one that names the 99 but is deleted
+  // Input: alerts on another route, the Expo Line eastbound, the 99 at a SkyTrain route type, a stop the trip only
+  //        passes through, and one that names the 99 but is deleted
   // Expected: none of them, since each selector's fields must all match
   test('skips alerts for other routes, directions and stops', () => {
     const found = alertsForLines(alerts([
       alertEntity({ id: 'other route', selectors: [{ routeId: '37810' }] }),
       alertEntity({ id: 'eastbound', selectors: [{ routeId: '30053', directionId: 0 }] }),
       alertEntity({ id: 'wrong type', selectors: [{ routeId: '6641', routeType: 1 }] }),
-      alertEntity({ id: 'agency', selectors: [{}] }),
       alertEntity({ id: 'passed stop', selectors: [{ stopId: '8044' }] }),
       alertEntity({ id: 'deleted', selectors: [{ routeId: '6641' }], deleted: true }),
     ]), [BUS_99_MATCH, EXPO_MATCH], network, NOW);
 
     expect(found).toStrictEqual([]);
+  });
+
+  // Input: network-wide alerts, as TransLink sends them: one naming only the agency, one for all buses (route type 3,
+  //        like the saved feed's Compass Card notice), one for all buses in direction 0, and one for all SkyTrain
+  // Expected: none of them, since none names one of the trip's routes or stops
+  test('skips network-wide alerts', () => {
+    const found = alertsForLines(alerts([
+      alertEntity({ id: 'agency', selectors: [{}] }),
+      alertEntity({ id: 'all buses', selectors: [{ routeType: 3 }] }),
+      alertEntity({ id: 'all buses one way', selectors: [{ routeType: 3, directionId: 0 }] }),
+      alertEntity({ id: 'all SkyTrain', selectors: [{ routeType: 1 }, { directionId: 1 }] }),
+    ]), [BUS_99_MATCH, EXPO_MATCH], network, NOW);
+
+    expect(found).toStrictEqual([]);
+  });
+
+  // Input: one alert with a network-wide selector and a selector naming the 99's route
+  // Expected: the alert, for the 99 only, since one selector naming the line is enough
+  test('keeps an alert that also names one of the lines', () => {
+    const found = alertsForLines(alerts([
+      alertEntity({ id: 'mixed', selectors: [{ routeType: 3 }, { routeId: '6641' }] }),
+    ]), [BUS_99_MATCH, EXPO_MATCH], network, NOW);
+
+    expect(ids(found)).toStrictEqual([['mixed', [0]]]);
   });
 
   // Input: 99 alerts that ended, haven't started, are open-ended, or have one current period among others

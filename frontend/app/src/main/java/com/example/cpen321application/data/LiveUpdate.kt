@@ -12,7 +12,7 @@ import org.json.JSONObject
  * {
  *   "live": true,
  *   "updatedAt": "2026-11-18T17:02:30.000Z",
- *   "legs": [{ "legIndex": 1, "matched": true, "departAt": "…", "arriveAt": "…", "delaySeconds": 180 }],
+ *   "legs": [{ "legIndex": 1, "matched": true, "departAt": "…", "arriveAt": "…", "delaySeconds": 180, "cancelled": false }],
  *   "alerts": [{ "id": "733912", "header": "…", "description": "…", "effect": "DETOUR", "legIndexes": [1], "activeUntil": null }]
  * }
  */
@@ -23,6 +23,8 @@ import org.json.JSONObject
  * @property legIndex Which of the trip's legs it is.
  * @property matched Whether TransLink predicted the run this leg rides. When it didn't, the times are the scheduled ones.
  * @property delaySeconds How late the run leaves compared with the plan, negative when early, `null` unless [matched].
+ * @property cancelled Whether TransLink cancelled the run (or it skips the boarding stop). The times are then the
+ *   scheduled ones. Optional in the message, where missing means `false`.
  */
 data class LiveLeg(
     val legIndex: Int,
@@ -30,6 +32,7 @@ data class LiveLeg(
     val departAt: Instant?,
     val arriveAt: Instant?,
     val delaySeconds: Int?,
+    val cancelled: Boolean = false,
 )
 
 /**
@@ -95,6 +98,7 @@ private fun JSONObject.toLiveLeg() = LiveLeg(
     departAt = instantOrNull("departAt"),
     arriveAt = instantOrNull("arriveAt"),
     delaySeconds = if (isNull("delaySeconds")) null else getInt("delaySeconds"),
+    cancelled = optBoolean("cancelled", false), // optional, so a backend without it still parses
 )
 
 private fun JSONObject.toLiveAlert() = LiveAlert(

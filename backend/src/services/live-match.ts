@@ -129,11 +129,12 @@ function isActive(alert: Alert, now: number): boolean {
 }
 
 /**
- * Whether one of an alert's selectors names this line. Its fields are ANDed, as GTFS-RT says, and a selector naming
- * only the agency is skipped, since it would put every TransLink alert on every trip.
+ * Whether one of an alert's selectors names this line. Its fields are ANDed, as GTFS-RT says. A selector must name
+ * the line's route or one of its stops: one naming only the agency, a route type ("all buses") or a direction is
+ * network-wide, like a Compass Card notice, and would put that alert on every trip.
  */
 function selectorMatches(selector: InformedEntity, match: LineMatch, routeType: number, stopIds: ReadonlySet<string>): boolean {
-  if (selector.routeId === null && selector.stopId === null && selector.routeType === null) return false;
+  if (selector.routeId === null && selector.stopId === null) return false;
   if (selector.routeId !== null && selector.routeId !== match.routeId) return false;
   if (selector.routeType !== null && selector.routeType !== routeType) return false;
   if (selector.directionId !== null && selector.directionId !== match.directionId) return false;
