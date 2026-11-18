@@ -22,4 +22,7 @@ object RetrofitClient {
 
     // The /tournaments routes, on the same client as apiService
     val tournamentApi: TournamentApi by lazy { retrofit.create(TournamentApi::class.java) }
+
+    // The /stats route, on the same client as apiService
+    val statsApi: StatsApi by lazy { retrofit.create(StatsApi::class.java) }
 }

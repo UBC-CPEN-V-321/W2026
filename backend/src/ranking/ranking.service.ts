@@ -1,16 +1,26 @@
 // New ratings after a game: reads the players' ratings, applies elo.ts, saves via ratings.repository.
 import { Format, Prisma } from "../generated/prisma/client";
 import { calculateELOChange } from "./elo";
-import { PlayerInfo, RatingChange, RoundScore } from "./ranking.types";
+import { PlayerInfo, RatingChange, RoundScore, Sport } from "./ranking.types";
 import {
   fetchGamePlayerRatingsForUpdate,
   fetchLeaderboard,
   fetchLeaderboardUser,
+  fetchRatedGames,
   type LeaderboardUser,
   saveRatingChanges,
 } from "./ratings.repository";
+import { PlayerStats, summarizePlayerStats } from "./stats";
+
+// Every game is tennis for now; games have no sport column
+export const GAME_SPORT: Sport = "TENNIS";
 
 export type LeaderboardEntry = LeaderboardUser & { rank: number };
+
+export type PlayerStatsResponse = PlayerStats & {
+  user: LeaderboardEntry;
+  sport: Sport;
+};
 
 // Thrown when a game can't be rated because its teams are not full
 export class IncompleteTeamsError extends Error {
@@ -69,7 +79,11 @@ export async function applyGameResult(
     throw new IncompleteTeamsError(format, team1Size, team2Size);
   }
 
-  const changes = calculateELOChange(eloPlayers, { format, scores: rounds });
+  const changes = calculateELOChange(eloPlayers, {
+    sport: GAME_SPORT,
+    format,
+    scores: rounds,
+  });
   await saveRatingChanges(tx, gameId, changes);
 
   return changes;
@@ -93,5 +107,29 @@ export async function getLeaderboard(
   return {
     leaderboard: top.map((user, index) => ({ ...user, rank: index + 1 })),
     me: me && { ...me.user, rank: me.rank },
+  };
+}
+
+/**
+ * Gets a player's statistics: their rating and rank, game, set and point totals,
+ * rating history and results against opponents of different ratings
+ * @param userId the player whose statistics are requested
+ * @returns the player's statistics, or null if the user does not exist
+ */
+export async function getPlayerStats(
+  userId: string,
+): Promise<PlayerStatsResponse | null> {
+  const [me, games] = await Promise.all([
+    fetchLeaderboardUser(userId),
+    fetchRatedGames(userId),
+  ]);
+  if (me === null) {
+    return null;
+  }
+
+  return {
+    user: { ...me.user, rank: me.rank },
+    sport: GAME_SPORT,
+    ...summarizePlayerStats(games),
   };
 }

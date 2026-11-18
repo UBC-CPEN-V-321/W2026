@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -60,6 +61,7 @@ data class ProfileActions(
     val onSaveEquipment: () -> Unit = {},
     val onDeleteEquipment: (Int) -> Unit = {},
     val onOpenMatch: (gameId: String) -> Unit = {},
+    val onOpenStats: () -> Unit = {},
 )
 
 @Composable
@@ -67,6 +69,7 @@ fun ProfileRoute(
     authViewModel: AuthViewModel,
     onSignOut: () -> Unit,
     onOpenMatch: (gameId: String) -> Unit,
+    onOpenStats: () -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val session = authViewModel.session
@@ -92,6 +95,7 @@ fun ProfileRoute(
         onSaveEquipment = { viewModel.saveEquipment(session) },
         onDeleteEquipment = { equipmentId -> viewModel.deleteEquipment(session, equipmentId) },
         onOpenMatch = onOpenMatch,
+        onOpenStats = onOpenStats,
     )
 
     ProfileScreen(uiState = uiState, actions = actions)
@@ -120,6 +124,7 @@ fun ProfileScreen(
             elo = uiState.elo,
             friendCount = uiState.friendCount,
             onSignOut = actions.onSignOut,
+            onOpenStats = actions.onOpenStats,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -230,6 +235,7 @@ private fun ProfileHeader(
     elo: Int,
     friendCount: Int,
     onSignOut: () -> Unit,
+    onOpenStats: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -247,6 +253,19 @@ private fun ProfileHeader(
         Spacer(modifier = Modifier.height(16.dp))
         StatsRow(elo = elo, friendCount = friendCount)
         Spacer(modifier = Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = onOpenStats,
+            modifier = Modifier.fillMaxWidth(0.6f),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("View Stats")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
             onClick = onSignOut,
             modifier = Modifier.fillMaxWidth(0.6f),
