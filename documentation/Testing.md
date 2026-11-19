@@ -410,22 +410,12 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
   - **Omitted failure scenarios:** Failures 2a and 6a (network or server error while loading) can only be produced by replacing the frontend's backend connection with a mock, so they are not part of the required real-backend E2E suite.
   - **Test Logs:**
     ```
-    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
-    ```
-    ==> Running the Live Events E2E tests
-    > Task :app:connectedDebugAndroidTest
-    Starting 12 tests on Pixel_9_3(AVD) - 16
-    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
-    Finished 13 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 3m 58s
+    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
 
-    ==> Re-seeding with no events and running the empty-state test
-    > Task :app:connectedDebugAndroidTest
-    Starting 1 tests on Pixel_9_3(AVD) - 16
-    Finished 1 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 10s
-    ```
-    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
+    PASSED  LiveEventsSmokeE2ETest > appLaunchesOnEventsScreenAndShowsSeededEventFromBackend  (1.3 s)
+    PASSED  LiveEventsE2ETest > viewEventRecommendationsShowsRankedSeededEvents  (1.4 s)
+    PASSED  LiveEventsE2ETest > loadMoreAppendsTheLastEventAndHidesTheButton  (2.7 s)
+    PASSED  LiveEventsEmptyStateE2ETest > showsNoEventsMessageWhenNothingMatches  (2.3 s, run on a database with no events)
     ```
 
 - **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) 
@@ -450,22 +440,13 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
   - **Omitted failure scenarios:** Failures that need the itinerary request to fail (itinerary loading error, creation error, activity insertion error, replacement error) can only be produced by mocking the frontend's backend connection, so they are not part of the required E2E suite.
   - **Test Logs:**
     ```
-    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
-    ```
-    ==> Running the Live Events E2E tests
-    > Task :app:connectedDebugAndroidTest
-    Starting 12 tests on Pixel_9_3(AVD) - 16
-    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
-    Finished 13 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 3m 58s
+    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
 
-    ==> Re-seeding with no events and running the empty-state test
-    > Task :app:connectedDebugAndroidTest
-    Starting 1 tests on Pixel_9_3(AVD) - 16
-    Finished 1 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 10s
-    ```
-    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
+    PASSED  EventItineraryE2ETest > addsNonOverlappingEventToExistingItinerary  (3.4 s)
+    PASSED  EventItineraryE2ETest > createsItineraryWhenUserHasNone  (3.3 s)
+    PASSED  EventItineraryE2ETest > rejectsEndTimeNotAfterEventStart  (3.9 s)
+    PASSED  EventItineraryE2ETest > keepsExistingScheduleOnTimeConflict  (2.5 s)
+    PASSED  EventItineraryE2ETest > replacesConflictingItemOnTimeConflict  (2.6 s)
     ```
 
 - **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) 
@@ -482,22 +463,9 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
 
   - **Test Logs:**
     ```
-    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
-    ```
-    ==> Running the Live Events E2E tests
-    > Task :app:connectedDebugAndroidTest
-    Starting 12 tests on Pixel_9_3(AVD) - 16
-    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
-    Finished 13 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 3m 58s
+    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
 
-    ==> Re-seeding with no events and running the empty-state test
-    > Task :app:connectedDebugAndroidTest
-    Starting 1 tests on Pixel_9_3(AVD) - 16
-    Finished 1 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 10s
-    ```
-    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
+    PASSED  LiveEventsE2ETest > changingInterestShowsSnackbarAndLinksToNewEvents  (3.6 s)
     ```
 
 - **Use Case: Refresh Event Recommendations After a Location Change** (Live Events)
@@ -522,22 +490,10 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
 
   - **Test Logs:**
     ```
-    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
-    ```
-    ==> Running the Live Events E2E tests
-    > Task :app:connectedDebugAndroidTest
-    Starting 12 tests on Pixel_9_3(AVD) - 16
-    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
-    Finished 13 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 3m 58s
+    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
 
-    ==> Re-seeding with no events and running the empty-state test
-    > Task :app:connectedDebugAndroidTest
-    Starting 1 tests on Pixel_9_3(AVD) - 16
-    Finished 1 tests on Pixel_9_3(AVD) - 16
-    BUILD SUCCESSFUL in 10s
-    ```
-    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
+    PASSED  LiveEventsLocationChangeE2ETest > movingFarAwayReplacesTheEventsAndMovingBackRestoresThem  (112.8 s)
+    PASSED  LiveEventsLocationChangeE2ETest > movingLessThanTenKilometresDoesNotRefresh  (76.8 s)
     ```
 
     <!-- | 3a. The user inputs an ill-formatted string. | Input "_^_^^OQ#$" in the text field. |
