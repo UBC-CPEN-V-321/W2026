@@ -143,7 +143,6 @@ async function fetchTicketmasterEventPage(
 
   const query = new URLSearchParams({
     apikey: env.ticketmaster.apiKey,
-    city: env.ticketmaster.city,
     stateCode: env.ticketmaster.stateCode,
     countryCode: env.ticketmaster.countryCode,
     size: String(env.ticketmaster.pageSize),

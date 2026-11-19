@@ -76,6 +76,8 @@ Set at least:
 - `MONGODB_URI`: for local development, use `mongodb://localhost:27017/cpen321` to connect to the local MongoDB container. Docker Compose configures its own connection when running the full stack.
 - `PORT` (optional): defaults to `3000` if unset.
 - `TICKETMASTER_API_KEY`: API key for searching and syncing live events.
+- `EVENT_SEARCH_STATE_CODE`: province or state searched during event synchronization, such as `BC`.
+- `EVENT_SEARCH_COUNTRY_CODE`: country searched during event synchronization, such as `CA`.
 - `GEOCODING_API_KEY`: Google Geocoding API key used to convert addresses into coordinates.
 - `ROUTES_API_KEY`: Google Routes API key used to calculate travel routes.
 - `PLACES_API_KEY`: Google Places API key used for address autocomplete and popular-place pins.
@@ -115,7 +117,7 @@ Set at least:
    npm run sync:events
    ```
 
-   This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Run the sync again whenever you want to refresh the event catalog.
+   This requires `MONGODB_URI`, `TICKETMASTER_API_KEY`, `EVENT_SEARCH_STATE_CODE`, and `EVENT_SEARCH_COUNTRY_CODE` to be set in `backend/.env`. Run the sync again whenever you want to refresh the event catalog.
 
 5. **Development** (TypeScript with auto-reload):
 

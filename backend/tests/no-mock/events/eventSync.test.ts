@@ -124,7 +124,6 @@ describe('Unmocked: Ticketmaster client', () => {
     expect(requestedUrls[0]).toContain('/discovery/v2/events.json');
     expect(Object.fromEntries(query)).toEqual({
       apikey: 'test-key',
-      city: 'Vancouver',
       stateCode: 'BC',
       countryCode: 'CA',
       size: '200',

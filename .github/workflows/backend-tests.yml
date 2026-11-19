@@ -21,6 +21,8 @@ jobs:
           --health-retries 5
     env:
       MONGODB_URI: mongodb://127.0.0.1:27017/exploreubc_test
+      EVENT_SEARCH_STATE_CODE: BC
+      EVENT_SEARCH_COUNTRY_CODE: CA
       SOCLAAS_ENDPOINT: ${{ secrets.SOCLAAS_ENDPOINT }}
       SOCLAAS_API_KEY: ${{ secrets.SOCLAAS_API_KEY }}
       SOCLAAS_MODEL: ${{ secrets.SOCLAAS_MODEL }}

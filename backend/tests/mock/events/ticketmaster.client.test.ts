@@ -20,7 +20,6 @@ jest.mock('../../../src/config/env', () => ({
     ticketmaster: {
       apiKey: 'test-key',
       baseUrl: 'https://tm.test/discovery/v2',
-      city: 'Vancouver',
       stateCode: 'BC',
       countryCode: 'CA',
       pageSize: 200,
@@ -325,7 +324,6 @@ describe('Mocked: Ticketmaster client fetchLiveEventPage', () => {
     expect(`${url.origin}${url.pathname}`).toBe('https://tm.test/discovery/v2/events.json');
     expect(Object.fromEntries(url.searchParams)).toEqual({
       apikey: 'test-key',
-      city: 'Vancouver',
       stateCode: 'BC',
       countryCode: 'CA',
       size: '200',
