@@ -34,10 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.Round
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ConfirmDialog
 import com.example.cpen321application.core.ui.components.CourtPickerDialog

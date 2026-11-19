@@ -36,9 +36,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.isRegistered
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.UnderlineTabs
 import com.example.cpen321application.core.ui.dayHeaderText
 import com.example.cpen321application.core.ui.startDay

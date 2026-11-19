@@ -36,13 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
 import com.example.cpen321application.core.data.model.playersOnTeam
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ChipStyle
 import com.example.cpen321application.core.ui.components.ConfirmDialog
