@@ -14,7 +14,7 @@ import type { StreamEvent } from "../events/eventStreams";
 
 // A game in progress counts as being played for this long after it started. A game nobody reports a score for
 // stays in progress, and its players shouldn't show as playing forever
-const PLAYING_WINDOW_MS = 3 * 60 * 60 * 1000;
+export const PLAYING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 export const friendErrors = {
   SelfRequest: { status: 400, code: "SELF_REQUEST", message: "Cannot friend yourself" },

@@ -3,8 +3,8 @@
 import { type GameChange, onGameChanged, onTournamentChanged, type TournamentChange, tournamentChanged } from "../events/changes";
 import type { StreamEvent } from "../events/eventStreams";
 import { friendStreams } from "../friends/friends.events";
-import { refreshFriendsOfPlayers } from "../friends/friends.service";
-import { GameSource } from "../generated/prisma/enums";
+import { PLAYING_WINDOW_MS, refreshFriendsOfPlayers } from "../friends/friends.service";
+import { GameSource, GameStatus } from "../generated/prisma/enums";
 import { gameListStreams, gameStreams } from "../games/games.events";
 import { fetchGameDetails } from "../games/games.repository";
 import { getFeed, getUserGames, withForecast } from "../games/games.service";
@@ -44,8 +44,41 @@ export async function getGameListEvents(userId: string): Promise<StreamEvent[]> 
   return await Promise.all([loadFeedEvent(), loadMineEvent(userId)]);
 }
 
+/**
+ * When a game starts, its players show as playing to their friends for PLAYING_WINDOW_MS. Nothing changes in
+ * the database when that runs out, so this pushes the friends pages again then, unless nobody has one open or
+ * the game already ended (which pushed them already). The timer doesn't keep the process alive; one lost to a
+ * restart only leaves a page stale until it reconnects, which loads it again
+ * @param gameId the game that started
+ * @param startedAt when it started
+ */
+function schedulePlayingEnd(gameId: string, startedAt: Date): void {
+  const endsIn = startedAt.getTime() + PLAYING_WINDOW_MS - Date.now();
+  const timer = setTimeout(() => {
+    pushPlayingEnd(gameId).catch((err: unknown) => {
+      console.error(`Could not push the end of game ${gameId}'s playing window`, err);
+    });
+  }, Math.max(endsIn, 0));
+  timer.unref();
+}
+
+// The window of a game ran out: if it is still in progress, its players no longer show as playing
+async function pushPlayingEnd(gameId: string): Promise<void> {
+  if (friendStreams.isEmpty()) {
+    return;
+  }
+  const game = await fetchGameDetails(gameId);
+  if (game?.status === GameStatus.IN_PROGRESS) {
+    await refreshFriendsOfPlayers(game.players.map((player) => player.id));
+  }
+}
+
 // A game changed: its own screen, its players' friends, its tournament, and the Games tab lists it is on
-async function pushGameChange({ gameId, playerIds, onFeed }: GameChange): Promise<void> {
+async function pushGameChange({ gameId, playerIds, onFeed, startedAt }: GameChange): Promise<void> {
+  if (startedAt) {
+    schedulePlayingEnd(gameId, startedAt);
+  }
+
   gameStreams.refresh(gameId, async () => {
     const game = await fetchGameDetails(gameId);
     if (game === null) {

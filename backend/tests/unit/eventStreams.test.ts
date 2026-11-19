@@ -1,5 +1,5 @@
 import { FakeResponse, settle } from "../fakeResponse";
-import { EventStreams, type StreamEvent, writeEvent } from "../../src/events/eventStreams";
+import { EventStreams, MAX_STREAMS_PER_USER, type StreamEvent, writeEvent } from "../../src/events/eventStreams";
 
 const event = (name: string, data: unknown): StreamEvent => ({ event: name, data });
 
@@ -33,7 +33,7 @@ describe("Unit: EventStreams", () => {
   test("opens a stream and sends its first events", () => {
     const res = new FakeResponse();
 
-    streams.open("k1", res.asResponse(), [event("a", 1), event("b", 2)]);
+    streams.open("k1", res.asResponse(), [event("a", 1), event("b", 2)], "u1");
 
     expect(res.statusCode).toBe(200);
     expect(res.headers["Content-Type"]).toBe("text/event-stream");
@@ -50,9 +50,9 @@ describe("Unit: EventStreams", () => {
     const first = new FakeResponse();
     const second = new FakeResponse();
     const other = new FakeResponse();
-    streams.open("k1", first.asResponse(), []);
-    streams.open("k1", second.asResponse(), []);
-    streams.open("k2", other.asResponse(), []);
+    streams.open("k1", first.asResponse(), [], "u1");
+    streams.open("k1", second.asResponse(), [], "u1");
+    streams.open("k2", other.asResponse(), [], "u1");
     const load = jest.fn(() => Promise.resolve([event("x", "new")]));
 
     streams.refresh("k1", load);
@@ -82,8 +82,8 @@ describe("Unit: EventStreams", () => {
   test("refreshEveryone loads once and sends to every client", async () => {
     const first = new FakeResponse();
     const other = new FakeResponse();
-    streams.open("k1", first.asResponse(), []);
-    streams.open("k2", other.asResponse(), []);
+    streams.open("k1", first.asResponse(), [], "u1");
+    streams.open("k2", other.asResponse(), [], "u1");
     const load = jest.fn(() => Promise.resolve([event("feed", [])]));
 
     streams.refreshEveryone(load);
@@ -111,7 +111,7 @@ describe("Unit: EventStreams", () => {
   // Expected output: the events arrive in the order the refreshes were asked for
   test("keeps a key's refreshes in order", async () => {
     const res = new FakeResponse();
-    streams.open("k1", res.asResponse(), []);
+    streams.open("k1", res.asResponse(), [], "u1");
     let finishSlow: (events: StreamEvent[]) => void = () => undefined;
     const slow = new Promise<StreamEvent[]>((resolve) => {
       finishSlow = resolve;
@@ -132,7 +132,7 @@ describe("Unit: EventStreams", () => {
   test("logs a failed refresh and keeps going", async () => {
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
     const res = new FakeResponse();
-    streams.open("k1", res.asResponse(), []);
+    streams.open("k1", res.asResponse(), [], "u1");
 
     streams.refresh("k1", () => Promise.reject(new Error("db down")));
     streams.refresh("k1", () => Promise.resolve([event("ok", true)]));
@@ -149,8 +149,8 @@ describe("Unit: EventStreams", () => {
   test("forgets a key once its last client disconnects", () => {
     const first = new FakeResponse();
     const second = new FakeResponse();
-    streams.open("k1", first.asResponse(), []);
-    streams.open("k1", second.asResponse(), []);
+    streams.open("k1", first.asResponse(), [], "u1");
+    streams.open("k1", second.asResponse(), [], "u1");
 
     first.emit("close");
     expect(streams.has("k1")).toBe(true);
@@ -166,7 +166,7 @@ describe("Unit: EventStreams", () => {
   test("sends a heartbeat every 25 seconds while open", () => {
     jest.useFakeTimers();
     const res = new FakeResponse();
-    streams.open("k1", res.asResponse(), []);
+    streams.open("k1", res.asResponse(), [], "u1");
 
     jest.advanceTimersByTime(25_000);
     res.emit("close");
@@ -175,14 +175,51 @@ describe("Unit: EventStreams", () => {
     expect(res.written).toEqual([": ping\n\n"]);
   });
 
+  // Input: one user opens one stream more than the limit, across two kinds of streams; another user opens one
+  // Expected behavior: the user's oldest stream is closed, so they never hold more than the limit; others keep theirs
+  // Expected output: only the first of the user's streams ended, the other user's stream still open
+  test("closes a user's oldest stream past the limit", () => {
+    const otherKind = new EventStreams();
+    const opened: FakeResponse[] = [];
+    for (let index = 0; index <= MAX_STREAMS_PER_USER; index++) {
+      const res = new FakeResponse();
+      // Every other stream on a second kind, since the limit counts every kind together
+      (index % 2 === 0 ? streams : otherKind).open(`game-${index}`, res.asResponse(), [], "busy-user");
+      opened.push(res);
+    }
+    const otherUser = new FakeResponse();
+    streams.open("game-x", otherUser.asResponse(), [], "other-user");
+
+    expect(opened.map((res) => res.ended)).toEqual([true, ...Array<boolean>(MAX_STREAMS_PER_USER).fill(false)]);
+    expect(otherUser.ended).toBe(false);
+    otherKind.closeAll();
+  });
+
+  // Input: a user at the limit closes one stream, then opens another
+  // Expected behavior: the closed one freed its place
+  // Expected output: none of the open streams is ended
+  test("frees a user's place when a stream closes", () => {
+    const opened: FakeResponse[] = [];
+    for (let index = 0; index < MAX_STREAMS_PER_USER; index++) {
+      const res = new FakeResponse();
+      streams.open(`game-${index}`, res.asResponse(), [], "busy-user");
+      opened.push(res);
+    }
+
+    opened[0]?.emit("close");
+    streams.open("game-new", new FakeResponse().asResponse(), [], "busy-user");
+
+    expect(opened.slice(1).some((res) => res.ended)).toBe(false);
+  });
+
   // Input: open streams on two keys, then closeAll (server shutdown)
   // Expected behavior: every stream is ended and nothing is watched any more
   // Expected output: both responses ended, isEmpty true
   test("closeAll ends every stream", () => {
     const first = new FakeResponse();
     const other = new FakeResponse();
-    streams.open("k1", first.asResponse(), []);
-    streams.open("k2", other.asResponse(), []);
+    streams.open("k1", first.asResponse(), [], "u1");
+    streams.open("k2", other.asResponse(), [], "u1");
 
     streams.closeAll();
 

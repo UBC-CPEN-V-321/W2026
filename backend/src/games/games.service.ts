@@ -572,7 +572,8 @@ export async function startGame(gameId: string, userId: string) {
     throw new AppError(reason);
   }
 
-  gameChanged({ gameId });
+  // startedAt: its players stop showing as playing to their friends a while after it
+  gameChanged({ gameId, startedAt: started.startsAt });
   return started;
 }
 

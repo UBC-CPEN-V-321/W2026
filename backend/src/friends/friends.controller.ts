@@ -27,7 +27,7 @@ friendsRouter.get("/events", async (req: Request, res: Response) => {
   const userId = authedUserId(req);
   // Loaded before the stream opens, so a database error is a normal 500
   const firstEvents = await getFriendsPageEvents(userId);
-  friendStreams.open(userId, res, firstEvents);
+  friendStreams.open(userId, res, firstEvents, userId);
 });
 
 friendsRouter.delete("/", async (req: Request, res: Response) => {

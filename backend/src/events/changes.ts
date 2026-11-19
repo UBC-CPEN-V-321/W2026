@@ -7,11 +7,13 @@ import { EventEmitter } from "node:events";
  * @property gameId the game
  * @property playerIds its players, given when the game is already gone (deleted) so they can't be looked up
  * @property onFeed whether the game was on the feed, given with playerIds for a deleted game
+ * @property startedAt when the game was started, given when this change is a player starting it
  */
 export interface GameChange {
   gameId: string;
   playerIds?: string[] | undefined;
   onFeed?: boolean | undefined;
+  startedAt?: Date | undefined;
 }
 
 /**

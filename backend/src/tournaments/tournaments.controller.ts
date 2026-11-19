@@ -39,7 +39,8 @@ tournamentsRouter.get("/events", async (req: Request, res: Response) => {
   const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
   // Loaded before the stream opens, so a missing tournament is a normal 404
   const tournament = await getTournament(tournamentId);
-  tournamentStreams.open(tournamentId, res, [{ event: "tournamentUpdated", data: { tournament } }]);
+  const firstEvents = [{ event: "tournamentUpdated", data: { tournament } }];
+  tournamentStreams.open(tournamentId, res, firstEvents, authedUserId(req));
 });
 
 tournamentsRouter.get("/feed", async (_req: Request, res: Response) => {

@@ -8,6 +8,34 @@ const HEARTBEAT_MS = 25_000;
 // The ordering key of refreshEveryone; not a real key, since IDs are UUIDs
 const EVERYONE = "*";
 
+// The most streams one user can keep open, across every kind and device. The app opens one or two at a time
+export const MAX_STREAMS_PER_USER = 10;
+
+// Each user's open streams of every kind, oldest first, so the oldest can be closed past the limit
+const streamsByUser = new Map<string, Response[]>();
+
+// Counts a new stream against its user, closing their oldest streams past the limit
+function limitStreamsPerUser(userId: string, res: Response): void {
+  const userStreams = streamsByUser.get(userId) ?? [];
+  userStreams.push(res);
+  streamsByUser.set(userId, userStreams);
+
+  res.on("close", () => {
+    const index = userStreams.indexOf(res);
+    if (index >= 0) {
+      userStreams.splice(index, 1);
+    }
+    if (userStreams.length === 0 && streamsByUser.get(userId) === userStreams) {
+      streamsByUser.delete(userId);
+    }
+  });
+
+  while (userStreams.length > MAX_STREAMS_PER_USER) {
+    // The app reconnects a stream the server ends, so a screen still in use comes back
+    userStreams.shift()?.end();
+  }
+}
+
 export interface StreamEvent {
   event: string;
   data: unknown;
@@ -32,12 +60,14 @@ export class EventStreams {
   private readonly refreshes = new Map<string, Promise<void>>();
 
   /**
-   * Turns a response into an event stream for a key, kept open until the client disconnects
+   * Turns a response into an event stream for a key, kept open until the client disconnects. A user with too
+   * many streams open has their oldest closed (see MAX_STREAMS_PER_USER)
    * @param key what the client watches
    * @param res the response the events are written to
    * @param firstEvents sent right away, usually the current state
+   * @param userId the user the stream is for
    */
-  open(key: string, res: Response, firstEvents: StreamEvent[]): void {
+  open(key: string, res: Response, firstEvents: StreamEvent[], userId: string): void {
     res.status(200).set({
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -65,6 +95,8 @@ export class EventStreams {
     for (const event of firstEvents) {
       writeEvent(res, event);
     }
+
+    limitStreamsPerUser(userId, res);
   }
 
   /**

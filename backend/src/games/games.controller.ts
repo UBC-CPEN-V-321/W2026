@@ -53,7 +53,7 @@ gamesRouter.get("/events", async (req: Request, res: Response) => {
   const gameId = parseRequest(gameIdSchema, req.query.gameId);
   // Loaded before the stream opens, so a missing game is a normal 404
   const game = await getGame(gameId);
-  gameStreams.open(gameId, res, [{ event: "gameUpdated", data: { game } }]);
+  gameStreams.open(gameId, res, [{ event: "gameUpdated", data: { game } }], authedUserId(req));
 });
 
 // Server-Sent Events stream of the caller's Games tab: "feed" (games and tournaments to join) and "mine" (their own
@@ -62,7 +62,7 @@ gamesRouter.get("/feed/events", async (req: Request, res: Response) => {
   const userId = authedUserId(req);
   // Loaded before the stream opens, so a database error is a normal 500
   const firstEvents = await getGameListEvents(userId);
-  gameListStreams.open(userId, res, firstEvents);
+  gameListStreams.open(userId, res, firstEvents, userId);
 });
 
 gamesRouter.get("/feed", async (_req: Request, res: Response) => {

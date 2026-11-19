@@ -48,6 +48,7 @@ import { signAccessToken } from "../../src/auth/tokens";
 import { authErrors } from "../../src/auth/requireAuth";
 import { commonErrors, errorBody } from "../../src/errors";
 import { IncompleteTeamsError } from "../../src/ranking/ranking.service";
+import * as changes from "../../src/events/changes";
 
 // Every /games route is behind requireAuth, so requests need a valid token
 process.env.JWT_SECRET = "test-jwt-secret";
@@ -1922,6 +1923,23 @@ describe("Mocked: POST /games/start", () => {
     expect(response.status).toBe(200);
     expect(response.body.game).toMatchObject({ id: editGameId, status: GameStatus.IN_PROGRESS });
     expect(mockedStartBookedGame).toHaveBeenCalledTimes(1);
+  });
+
+  // Input: a player starts a booked game
+  // Expected behavior: the start is announced with when it started, so its players stop showing as playing to
+  // their friends once the playing window runs out
+  // Expected output: gameChanged with the game and its new start time
+  test("Announces when the game started", async () => {
+    const gameChanged = jest.spyOn(changes, "gameChanged");
+    mockedStartBookedGame.mockImplementation((_gameId, now) =>
+      Promise.resolve(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: now })),
+    );
+
+    await start();
+
+    const [startedAt] = mockedStartBookedGame.mock.calls.map(([, now]) => now);
+    expect(gameChanged).toHaveBeenCalledWith({ gameId: editGameId, startedAt });
+    gameChanged.mockRestore();
   });
 
   // Input: games that can't start: closed, still open (free spots or unanswered match), or already in progress

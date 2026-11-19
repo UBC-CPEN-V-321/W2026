@@ -87,7 +87,7 @@ const tournamentDetails = (playerIds: string[]) =>
 // Opens a stream for a key and returns the client, so the test can see what it receives
 function watch(streams: typeof gameListStreams, key: string): FakeResponse {
   const res = new FakeResponse();
-  streams.open(key, res.asResponse(), []);
+  streams.open(key, res.asResponse(), [], key);
   return res;
 }
 
@@ -227,6 +227,75 @@ describe("Mocked: live updates", () => {
     await settle();
 
     expect(carolTab.receivedNames().sort()).toEqual(["feed", "mine"]);
+  });
+
+  describe("when a started game's playing window runs out", () => {
+    beforeEach(() => {
+      // setImmediate stays real, so settle() still lets the promise chains run
+      jest.useFakeTimers({ doNotFake: ["setImmediate"] });
+      mockedFetchFriends.mockImplementation((userId) =>
+        Promise.resolve(
+          userId === alice ? [{ id: carol, username: carol, name: carol, rating: 1500, friendsSince: new Date() }] : [],
+        ),
+      );
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const threeHours = 3 * 60 * 60 * 1000;
+
+    // Input: alice's game is started, carol (her friend) has her friends page open, then 3 hours pass
+    // Expected behavior: the window ran out with the game still in progress, so carol's page is sent again
+    // Expected output: friends and requests again, after the 3 hours and not before
+    test("sends the players' friends pages again for a game still in progress", async () => {
+      const carolFriends = watch(friendStreams, carol);
+      mockedFetchGameDetails.mockResolvedValue(gameDetails({ status: GameStatus.IN_PROGRESS }));
+
+      gameChanged({ gameId, startedAt: new Date() });
+      await settle();
+      carolFriends.written = [];
+
+      jest.advanceTimersByTime(threeHours - 1000);
+      await settle();
+      expect(carolFriends.receivedNames()).toEqual([]);
+
+      jest.advanceTimersByTime(1000);
+      await settle();
+      expect(carolFriends.receivedNames()).toEqual(["friends", "requests"]);
+    });
+
+    // Input: the same, but the game was scored (completed) before the 3 hours ran out
+    // Expected behavior: its end already updated the pages, so nothing more is sent
+    // Expected output: nothing new on carol's page
+    test("sends nothing for a game that already ended", async () => {
+      const carolFriends = watch(friendStreams, carol);
+      mockedFetchGameDetails.mockResolvedValue(gameDetails({ status: GameStatus.IN_PROGRESS }));
+      gameChanged({ gameId, startedAt: new Date() });
+      await settle();
+      carolFriends.written = [];
+
+      mockedFetchGameDetails.mockResolvedValue(gameDetails({ status: GameStatus.COMPLETED }));
+      jest.advanceTimersByTime(threeHours);
+      await settle();
+
+      expect(carolFriends.receivedNames()).toEqual([]);
+    });
+
+    // Input: a game is started while nobody has a friends page open, then 3 hours pass
+    // Expected behavior: nothing is looked up when the window runs out
+    // Expected output: no lookup of the game after the start
+    test("looks nothing up when nobody has a friends page open", async () => {
+      gameChanged({ gameId, startedAt: new Date() });
+      await settle();
+      mockedFetchGameDetails.mockClear();
+
+      jest.advanceTimersByTime(threeHours);
+      await settle();
+
+      expect(mockedFetchGameDetails).not.toHaveBeenCalled();
+    });
   });
 
   // Input: a game change whose lookup fails, while someone is on the Games tab
