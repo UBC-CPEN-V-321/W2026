@@ -2812,6 +2812,32 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
   });
 });
 
+describe("Mocked: moving a game in progress", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS, startsAt: new Date() }));
+    mockedIsUserInGame.mockResolvedValue(true);
+  });
+
+  // Input: a player tries to move a game that is being played to another time or court
+  // Expected status code: 409
+  // Expected behavior: the game keeps its time and court, as the app's hidden buttons say
+  // Expected output: { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
+  test.each([
+    ["PATCH /games/time", { startsAt: futureStartsAt() }, "/games/time"],
+    ["PATCH /games/location", { courtId: 2 }, "/games/location"],
+  ] as const)("%s rejects a game in progress", async (_route, change, path) => {
+    const response = await request(createApp())
+      .patch(path)
+      .set("Authorization", authHeader)
+      .send({ gameId: editGameId, ...change });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyStarted));
+    expect(mockedUpdateGame).not.toHaveBeenCalled();
+  });
+});
+
 describe("Mocked: POST /games/invite", () => {
   const inviteGameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
   const friendId = "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e";

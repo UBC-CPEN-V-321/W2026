@@ -515,6 +515,11 @@ async function checkCanEditGame(
   if (isMove && game.gameSource === GameSource.MATCHED) {
     throw new AppError(gameErrors.MatchedNotMovable);
   }
+
+  // A game being played can't move: a new start time would leave it in progress but starting later
+  if (isMove && game.status === GameStatus.IN_PROGRESS) {
+    throw new AppError(gameErrors.AlreadyStarted);
+  }
 }
 
 /**
