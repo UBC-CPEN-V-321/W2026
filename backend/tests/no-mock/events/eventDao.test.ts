@@ -47,11 +47,15 @@ function eventNorthOfUser(
 }
 
 async function storedExternalIds(): Promise<string[]> {
-  const documents = await database
+  const documents: { externalId: string }[] = await database
     .collection<{ externalId: string }>('liveevents')
     .find({})
     .toArray();
-  return documents.map((document) => document.externalId).sort();
+  const externalIds: string[] = [];
+  for (const document of documents) {
+    externalIds.push(document.externalId);
+  }
+  return externalIds.sort();
 }
 
 beforeAll(async () => {
