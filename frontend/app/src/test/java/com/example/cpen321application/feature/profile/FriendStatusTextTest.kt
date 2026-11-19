@@ -50,7 +50,7 @@ class FriendStatusTextTest {
     // Expected output: their rating, or nothing
     @Test
     fun friendNotPlayingShowsTheirRating() {
-        assertEquals("Rating 1520", friendStatusText(FriendDto("u2", "rally", elo = 1520, playing = null)))
+        assertEquals("Rating 1520", friendStatusText(FriendDto("u2", "rally", rating = 1519.6, playing = null)))
         assertNull(friendStatusText(FriendDto("u3", "lob")))
     }
 

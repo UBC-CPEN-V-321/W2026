@@ -42,6 +42,7 @@ import com.example.cpen321application.core.ui.components.LiveStatusText
 import com.example.cpen321application.core.ui.components.PersonRow
 import com.example.cpen321application.core.ui.components.SectionLabel
 import com.example.cpen321application.core.ui.components.SmallButtonHeight
+import kotlin.math.roundToInt
 
 // Dividers start where the name does: 20 dp gutter + 36 dp avatar + 12 dp
 private val DIVIDER_INSET = 68.dp
@@ -198,7 +199,7 @@ private fun FriendRequestRow(
  * The line under a friend's username: "Playing" while they are in a game (next to the live dot), otherwise their rating
  */
 internal fun friendStatusText(friend: FriendDto): String? =
-    if (friend.playing != null) "Playing" else friend.elo?.let { "Rating $it" }
+    if (friend.playing != null) "Playing" else friend.rating?.let { "Rating ${it.roundToInt()}" }
 
 // Under a person's name, like the profile header: "@username", then the row's own status line, if any
 @Composable
