@@ -276,17 +276,15 @@ export async function startBookedGame(
  * moves the winner on through the bracket, in one transaction, replacing any rounds saved during the game
  * @param gameId the game ID of the game to complete
  * @param rounds the [team 1 score, team 2 score] of each round, in order
- * @returns the completed game, its rounds and each player's rating change, or null if the game was already completed or cancelled
+ * @returns the completed game, its rounds and each player's rating change, or null if the game is not in progress
  * @throws IncompleteTeamsError if either team is missing players; nothing is saved
  */
 export async function completeGame(gameId: string, rounds: [number, number][]) {
   return await prisma.$transaction(async (tx) => {
-    // Only complete a game that is still open, so two reports at once can't both save rounds
+    // Only complete a game in progress, so two reports at once can't both save rounds, and a game cancelled
+    // since the caller checked it is left alone
     const { count } = await tx.game.updateMany({
-      where: {
-        id: gameId,
-        status: { notIn: [GameStatus.COMPLETED, GameStatus.CANCELLED] },
-      },
+      where: { id: gameId, status: GameStatus.IN_PROGRESS },
       data: { status: GameStatus.COMPLETED },
     });
 

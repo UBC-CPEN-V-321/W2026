@@ -2119,7 +2119,8 @@ describe("Mocked: PATCH /games/location", () => {
 describe("Mocked: POST /games/score", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedFetchGame.mockResolvedValue(existingGame());
+    // Only a game in progress can be scored
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
     mockedIsUserInGame.mockResolvedValue(true);
   });
 
@@ -2379,7 +2380,8 @@ describe("Mocked: changeGameLocation", () => {
 describe("Mocked: reportScore", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedFetchGame.mockResolvedValue(existingGame());
+    // Only a game in progress can be scored
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
     mockedIsUserInGame.mockResolvedValue(true);
   });
 
@@ -2387,6 +2389,19 @@ describe("Mocked: reportScore", () => {
     [6, 4],
     [6, 3],
   ];
+
+  // Input: games nobody started yet: an open one, and a booked one (even past its start time)
+  // Expected behavior: nothing is saved, since a game is scored only once a player started it
+  // Expected output: GAME_NOT_STARTED
+  test.each([
+    ["open", existingGame()],
+    ["booked", existingGame({ status: GameStatus.BOOKED, startsAt: new Date(Date.now() - 60 * 60 * 1000) })],
+  ])("Rejects a score for an %s game nobody started", async (_description, game) => {
+    mockedFetchGame.mockResolvedValue(game);
+
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.NotStarted);
+    expect(mockedCompleteGame).not.toHaveBeenCalled();
+  });
 
   test("Completes the game with the given rounds", async () => {
     const completed = {

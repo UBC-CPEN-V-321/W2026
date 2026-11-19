@@ -70,6 +70,7 @@ export const gameErrors = {
     message: "Only a booked game can start: every spot must be filled and every player must accept",
   },
   AlreadyStarted: { status: 409, code: "GAME_ALREADY_STARTED", message: "Game has already started" },
+  NotStarted: { status: 409, code: "GAME_NOT_STARTED", message: "Start the game before reporting its score" },
   NotFriends: { status: 403, code: "NOT_FRIENDS", message: "Users are not friends" },
   // Two games sharing a player finished at the same moment and Postgres aborted one of them
   ScoreConflict: { status: 409, code: "SCORE_CONFLICT", message: "The score could not be saved, please try again" },
@@ -455,13 +456,14 @@ async function fetchMatchAudience(gameId: string, userId: string) {
  * @param gameId the game ID of the game to edit
  * @param userId the user editing the game
  * @param isMove true when changing the time or court, which matched games don't allow
+ * @returns the game
  * @throws AppError with the reason the user cannot edit the game
  */
 async function checkCanEditGame(
   gameId: string,
   userId: string,
   isMove = false,
-): Promise<void> {
+): Promise<Game> {
   const game = await fetchGame(gameId);
   if (game === null) {
     throw new AppError(gameErrors.NotFound);
@@ -485,6 +487,8 @@ async function checkCanEditGame(
   if (isMove && game.status === GameStatus.IN_PROGRESS) {
     throw new AppError(gameErrors.AlreadyStarted);
   }
+
+  return game;
 }
 
 /**
@@ -595,7 +599,8 @@ export async function changeGameLocation(
 }
 
 /**
- * Reports the final score of a game: saves its rounds, marks it as completed and updates every player's rating
+ * Reports the final score of a game in progress: saves its rounds, marks it as completed and updates every
+ * player's rating
  * @param gameId the game ID of the game the score is for
  * @param userId the user reporting the score, who must be in the game
  * @param rounds the [team 1 score, team 2 score] of each round, in order
@@ -607,7 +612,12 @@ export async function reportScore(
   userId: string,
   rounds: ReportScoreInput["rounds"],
 ) {
-  await checkCanEditGame(gameId, userId);
+  const game = await checkCanEditGame(gameId, userId);
+
+  // Only a game a player started can be scored, like the app's Report score button
+  if (game.status !== GameStatus.IN_PROGRESS) {
+    throw new AppError(gameErrors.NotStarted);
+  }
 
   let completed;
   try {

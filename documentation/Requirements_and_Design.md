@@ -19,6 +19,7 @@
 | Nov 18, 2026 | 3.1, 4.1 | Added player stats: `GET /stats` and the stats screen with the ELO chart. |
 | Nov 18, 2026 | 3.4, 3.5 (Use Case 3), 4.1 | Added `POST /games/start` and the game screen's "Start now" button, so players of a booked game can start it before its start time and report the score. |
 | Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
+| Nov 19, 2026 | 4.1 | Live updates over Server-Sent Events for games, the Games tab, tournaments and friends. Games are `IN_PROGRESS` only once started with `POST /games/start`, and only then scored. Friends show the game they are playing. |
 
 ---
 
@@ -288,7 +289,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         3. `GET /games` with `gameId` → `{ game: GameDetails }` - E
             - **Purpose**: One game with its court, players (`{ id, username, name, rating, team, acceptedAt, ratingBefore, ratingAfter }`), rounds, `tournament` (`{ id, name, round }`, or `null`) and `forecast`, like a `FeedGame`'s (`null` for a `COMPLETED` or `CANCELLED` game). `404` if not found.
         4. `GET /games/me` → `{ games }` - E
-            - **Purpose**: The caller's `BOOKED` games and `OPEN` games that haven't started, soonest first, each with its `forecast` like a `FeedGame`.
+            - **Purpose**: The caller's `BOOKED` and `IN_PROGRESS` games and `OPEN` games that haven't started, soonest first, each with its `forecast` like a `FeedGame`.
         5. `GET /games/history` → `{ games }` - E
             - **Purpose**: The caller's `COMPLETED` games, most recent first, for the match history and summary.
         6. `DELETE /games` with `gameId` → `204` - E
@@ -302,11 +303,13 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         10. `PATCH /games/time` with `{ gameId, startsAt }`, `PATCH /games/location` with `{ gameId, courtId }` → `{ game }` - E
             - **Purpose**: Move a game to a future time or another court. The caller must be in it (`403`), and it must be open or booked and not a matched game (`409`).
         11. `POST /games/start` with `{ gameId }` → `{ game }` - E
-            - **Purpose**: Starts a game early for players who want to play before its start time: its `startsAt` moves to now, so the app lets every player report the score. Scheduled, matched and tournament games can start once they are `BOOKED`; a tournament's later rounds stay timed from the tournament's start. The update only applies to a booked game that hasn't started, so two players starting it at once can't both move it. `403` if the caller isn't in it, `404` if not found, `409` if it is completed or cancelled, still `OPEN` (free spots, or a match waiting for answers), or already started.
+            - **Purpose**: Starts a `BOOKED` game, early or late: it becomes `IN_PROGRESS` and its `startsAt` moves to now. Games never start on their own. A tournament's later rounds stay timed from the tournament's start. Only a booked game is updated, so two players starting it at once can't both start it. `403` if the caller isn't in it, `404` if not found, `409` if it is completed or cancelled, still `OPEN`, or already `IN_PROGRESS` (which also can't be moved).
         12. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }` → `{ game, rounds, ratingChanges }` - E
-            - **Purpose**: Reports the final score. In one transaction it saves the rounds, completes the game, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). `400` for an invalid score, `409` if already reported, a team isn't full, or Postgres aborts the transaction on a deadlock.
-        13. `POST /games/check-in` *(planned)*, live round updates and a Socket.IO `game-update` event *(planned)* - E
-            - **Purpose**: Check-in at the court, and the live score.
+            - **Purpose**: Reports the final score of an `IN_PROGRESS` game. In one transaction it saves the rounds, completes the game, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). `400` for an invalid score, `409` if not started (`GAME_NOT_STARTED`), already reported, a team isn't full, or Postgres aborts the transaction on a deadlock.
+        13. `GET /games/events` with `gameId`, `GET /games/feed/events` → Server-Sent Events - E
+            - **Purpose**: Live updates, pushed instead of polled. Each stream sends the current state when it opens, then again after every change, plus a heartbeat every 25 s. A game's stream sends `gameUpdated` (`{ game }`, like `GET /games`) or `gameDeleted`; the Games tab's sends `feed` (games and tournaments open to join, the same for everyone) and `mine` (the caller's), each `{ games, tournaments }`. Services announce changes (`events/changes.ts`) and `live/live.ts` pushes them, loading nothing when no one is watching. The app keeps a stream open only while its screen is visible.
+        14. `POST /games/check-in` *(planned)* - E
+            - **Purpose**: Check-in at the court.
 3. **Matchmaking**
     - **Purpose**: The matchmaking queue, the matching algorithm, and the jobs that run it every 10 seconds and cancel unanswered matches every minute.
     - **Rationale**: Matching creates games without a request, so it runs on a timer outside the request path, where join requests can't race each other.
@@ -338,7 +341,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         2. `GET /tournaments/feed` → `{ tournaments }`, `GET /tournaments/me` → `{ tournaments }` - E
             - **Purpose**: Tournaments open for registration, with forecasts; or the caller's tournaments in registration, in progress, or completed in the last 24 hours. Each includes its `capacity`, court, creator and players with their seeds.
         3. `GET /tournaments` with `tournamentId` → `{ tournament }` - E
-            - **Purpose**: One tournament with its bracket: `matches` of `{ round, position, team1, team2, winner, game }`. `404` if not found.
+            - **Purpose**: One tournament with its bracket: `matches` of `{ round, position, team1, team2, winner, game }`. `404` if not found. `GET /tournaments/events` with `tournamentId` streams it live (`tournamentUpdated`), like `GET /games/events`.
         4. `POST /tournaments/join`, `POST /tournaments/leave` with `{ tournamentId }` → `204` - E
             - **Purpose**: Register or leave during registration (`409` if not open, full or already registered; the creator can't leave). The registration that fills it draws the bracket in the same transaction, under the tournament's row lock.
         5. `DELETE /tournaments` with `tournamentId` → `204` - E
@@ -354,7 +357,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Rationale**: Friendships touch no game or rating data. One `friendships` row per pair, holding who asked and whether it was accepted, covers requests and friends without a second table.
     - **Interfaces**:
         1. `GET /friends` → `{ friends }`, `GET /friends/requests` → `{ incoming, outgoing }` - E
-            - **Purpose**: The caller's friends (`{ id, username, name, rating, friendsSince }`) and pending requests, most recent first.
+            - **Purpose**: The caller's friends (`{ id, username, name, rating, friendsSince, playing }`) and pending requests, most recent first. `playing` is the friend's `IN_PROGRESS` game started in the last 3 hours (`{ gameId, format, startedAt, courtName }`), or `null`. `GET /friends/events` streams both live (`friends`, `requests`), like `GET /games/events`.
         2. `POST /friends/requests` with `{ userId }` → `201 { status }` - E
             - **Purpose**: Sends a request, or accepts theirs if they already sent one. `400` for yourself, `409` if already friends or sent, `404` if the user doesn't exist.
         3. `POST /friends/requests/accept` with `{ userId }` → `204`, `DELETE /friends` with `userId` → `204` - E
@@ -409,7 +412,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
 12. **Credential Manager**: Google sign-in on Android.
 13. **Maps Compose, Places and Play Services Location**: the court map, address lookup and current location.
 14. **Firebase Messaging (Android)**: receives push notifications.
-15. **Socket.IO** *(planned)*: live score updates.
+15. **OkHttp (Android)**: reads the backend's Server-Sent Events streams for live updates (no library on the backend).
 
 ### **4.5. Dependencies Diagram**
 
@@ -439,8 +442,8 @@ An arrow from A to B means A calls an interface of B. Arrows touching the Backen
 ![Update game information sequence diagram](images/seq_update_game_info.png)
 
 ### **4.7. Design of Non-Functional Requirements**
-1. [**Live score sync latency**](#nfr1) *(planned)*
-    - **Implementation**: Each player with a game open joins its Socket.IO room, and a saved score is emitted to the room right after it is written, over connections already open.
+1. [**Live score sync latency**](#nfr1)
+    - **Implementation**: Each player with a game open keeps its Server-Sent Events stream (`GET /games/events`) open, and a saved score is pushed to it right after it is written, over the connection already open.
 2. [**API response time**](#nfr2)
     - **Implementation**: The columns we filter on most are indexed, the feed loads games, players and ratings in one query, forecasts are cached per court for 10 minutes with a 2-second timeout, and matchmaking runs outside the request path.
 3. [**Match found latency**](#nfr3)

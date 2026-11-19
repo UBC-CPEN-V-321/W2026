@@ -91,12 +91,14 @@ function authOfSeed(players: Player[], seed: number | null): string {
   return user.auth;
 }
 
-/** Reports the score of a bracket match as one of its own players */
+/**
+ * Starts a bracket match and reports its score, as one of its own players. Only a started game can be scored;
+ * a match started earlier answers the start with 409, which is fine here
+ */
 async function reportMatch(players: Player[], match: Match, rounds: [number, number][]) {
-  return await request(app)
-    .post("/games/score")
-    .set("Authorization", authOfSeed(players, match.team1))
-    .send({ gameId: match.game?.id, rounds });
+  const auth = authOfSeed(players, match.team1);
+  await request(app).post("/games/start").set("Authorization", auth).send({ gameId: match.game?.id });
+  return await request(app).post("/games/score").set("Authorization", auth).send({ gameId: match.game?.id, rounds });
 }
 
 const join = (user: TestUser | undefined, id = tournamentId) =>
@@ -330,7 +332,7 @@ describe("Unmocked: tournament flow", () => {
     const before = Date.now();
     const started = await startGame(playerAuth);
     expect(started.status).toBe(200);
-    expect(started.body.game).toMatchObject({ id: gameId, status: GameStatus.BOOKED });
+    expect(started.body.game).toMatchObject({ id: gameId, status: GameStatus.IN_PROGRESS });
     const { startsAt: startedAtIso } = started.body.game as { startsAt: string };
     const startedAt = new Date(startedAtIso).getTime();
     expect(startedAt).toBeGreaterThanOrEqual(before);
