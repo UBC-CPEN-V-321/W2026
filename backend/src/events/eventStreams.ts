@@ -162,16 +162,19 @@ export class EventStreams {
   // Runs a refresh after the previous one for the same key, logging its errors instead of throwing them
   private inOrder(key: string, task: () => Promise<void>): void {
     const previous = this.refreshes.get(key) ?? Promise.resolve();
-    const next = previous.then(task).catch((err: unknown) => {
-      console.error(`Could not send the update of ${key} to its watchers`, err);
-    });
+    const next: Promise<void> = previous
+      .then(task)
+      .catch((err: unknown) => {
+        console.error(`Could not send the update of ${key} to its watchers`, err);
+      })
+      // Forgets the chain once it is done, unless a newer refresh was queued after it
+      .finally(() => {
+        if (this.refreshes.get(key) === next) {
+          this.refreshes.delete(key);
+        }
+      });
 
     this.refreshes.set(key, next);
-    void next.then(() => {
-      if (this.refreshes.get(key) === next) {
-        this.refreshes.delete(key);
-      }
-    });
   }
 
   /**
