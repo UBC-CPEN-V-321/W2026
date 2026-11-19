@@ -4,7 +4,7 @@ import { registerLiveUpdates } from "../../src/live/live";
 import { gameListStreams, gameStreams } from "../../src/games/games.events";
 import { friendStreams } from "../../src/friends/friends.events";
 import { tournamentStreams } from "../../src/tournaments/tournaments.events";
-import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums";
+import { GameSource, GameStatus } from "../../src/generated/prisma/enums";
 import {
   fetchFeedGames,
   fetchGameDetails,
@@ -15,10 +15,16 @@ import {
   fetchFeedTournaments,
   fetchTournamentDetails,
   fetchUserTournaments,
-  type TournamentDetails,
 } from "../../src/tournaments/tournaments.repository";
 import { fetchFriendRequests, fetchFriends, fetchGamesInProgress } from "../../src/friends/friends.repository";
 import { getForecast } from "../../src/external/weather";
+import {
+  gameDetails as baseGameDetails,
+  testGameId as gameId,
+  testPlayer,
+  testTournamentId as tournamentId,
+  tournamentDetails,
+} from "../fixtures";
 
 jest.mock("../../src/games/games.repository", () => ({
   fetchFeedGames: jest.fn(),
@@ -51,38 +57,10 @@ const mockedFetchFriends = jest.mocked(fetchFriends);
 const alice = "0b6d3a52-6a8e-4c1f-9d2e-1f3a4b5c6d7e";
 const bob = "9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4";
 const carol = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
-const gameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
-const tournamentId = "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d";
 
-const player = (id: string, team: number) => ({
-  id,
-  username: id,
-  name: id,
-  rating: 1500,
-  team,
-  acceptedAt: new Date(),
-  ratingBefore: null,
-  ratingAfter: null,
-});
-
-const gameDetails = (overrides: Partial<GameDetails> = {}): GameDetails => ({
-  id: gameId,
-  format: Format.SINGLES,
-  startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-  courtId: 1,
-  gameSource: GameSource.SCHEDULED,
-  status: GameStatus.OPEN,
-  createdAt: new Date(),
-  court: { id: 1, name: "Kitsilano Beach Park", latitude: 49.27, longitude: -123.15 },
-  players: [player(alice, 1), player(bob, 2)],
-  rounds: [],
-  tournament: null,
-  ...overrides,
-});
-
-// Only the fields live.ts and getTournament pass on; the rest of the shape comes from the database
-const tournamentDetails = (playerIds: string[]) =>
-  ({ id: tournamentId, players: playerIds.map((id) => ({ id })) }) as unknown as TournamentDetails;
+// Alice against bob
+const gameDetails = (overrides: Partial<GameDetails> = {}) =>
+  baseGameDetails({ players: [testPlayer(alice, 1), testPlayer(bob, 2)], ...overrides });
 
 // Opens a stream for a key and returns the client, so the test can see what it receives
 function watch(streams: typeof gameListStreams, key: string): FakeResponse {

@@ -1,10 +1,6 @@
-import { once } from "node:events";
-import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import type { Game } from "../../src/generated/prisma/client";
-import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums";
+import { GameStatus } from "../../src/generated/prisma/enums";
 import {
   addPlayerToTeam,
   deleteGame,
@@ -15,14 +11,16 @@ import {
   startBookedGame,
 } from "../../src/games/games.repository";
 import { gameStreams } from "../../src/games/games.events";
-import { EventReader } from "./sseReader";
+import { gameErrors } from "../../src/games/games.service";
+import { errorBody } from "../../src/errors";
 import { getForecast } from "../../src/external/weather";
 import { signAccessToken } from "../../src/auth/tokens";
+import { gameDetails, gameRow, testGameId as gameId, testPlayer } from "../fixtures";
+import { StreamTestServer } from "../streamServer";
 
 process.env.JWT_SECRET = "test-jwt-secret";
 const userId = "user-123";
 const otherUserId = "user-456";
-const gameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
 
 jest.mock("../../src/games/games.repository", () => ({
   fetchGame: jest.fn(),
@@ -43,86 +41,32 @@ const mockedAddPlayerToTeam = jest.mocked(addPlayerToTeam);
 const mockedDeleteGame = jest.mocked(deleteGame);
 const mockedIsUserInGame = jest.mocked(isUserInGame);
 const mockedStartBookedGame = jest.mocked(startBookedGame);
-const mockedGetForecast = jest.mocked(getForecast);
 
-const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-const gameRow = (): Game => ({
-  id: gameId,
-  format: Format.SINGLES,
-  startsAt,
-  courtId: 1,
-  gameSource: GameSource.SCHEDULED,
-  status: GameStatus.OPEN,
-  createdAt: new Date(),
-});
-
-const player = (id: string, team: number) => ({
-  id,
-  username: id,
-  name: `Player ${id}`,
-  rating: 1500,
-  team,
-  acceptedAt: new Date(),
-  ratingBefore: null,
-  ratingAfter: null,
-});
-
-const gameDetails = (overrides: Partial<GameDetails> = {}): GameDetails => ({
-  ...gameRow(),
-  court: { id: 1, name: "Kitsilano Beach Park", latitude: 49.27, longitude: -123.15 },
-  players: [player(userId, 1)],
-  rounds: [],
-  tournament: null,
-  ...overrides,
-});
+// The game with the watcher on team 1
+const watchedGame = (overrides: Partial<GameDetails> = {}) =>
+  gameDetails({ players: [testPlayer(userId, 1)], ...overrides });
 
 interface StreamedGame {
   game: { id: string; status: string; players: { id: string }[] };
 }
 
 describe("Mocked: GET /games/events", () => {
-  let server: Server;
-  let baseUrl: string;
-  const aborts: AbortController[] = [];
+  const server = new StreamTestServer();
+  const watchGame = () => server.watch(`/games/events?gameId=${gameId}`, userId);
 
-  beforeAll(async () => {
-    server = createApp().listen(0);
-    await once(server, "listening");
-    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  });
-
-  afterEach(() => {
-    for (const abort of aborts.splice(0)) abort.abort();
-    gameStreams.closeAll();
-  });
-
-  afterAll(async () => {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => {
-      server.close(() => {
-        resolve();
-      });
-    });
-  });
+  beforeAll(() => server.start());
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedGetForecast.mockResolvedValue(null);
+    jest.mocked(getForecast).mockResolvedValue(null);
   });
 
-  async function watchGame(): Promise<EventReader> {
-    const abort = new AbortController();
-    aborts.push(abort);
-    const response = await fetch(`${baseUrl}/games/events?gameId=${gameId}`, {
-      headers: { Authorization: `Bearer ${signAccessToken(userId)}` },
-      signal: abort.signal,
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
-    if (!response.body) throw new Error("No response body");
-    return new EventReader(response.body.getReader());
-  }
+  afterEach(() => {
+    server.stopWatching();
+    gameStreams.closeAll();
+  });
+
+  afterAll(() => server.close());
 
   // Input: a request without an access token
   // Expected status code: 401
@@ -148,7 +92,7 @@ describe("Mocked: GET /games/events", () => {
       .set("Authorization", `Bearer ${signAccessToken(userId)}`);
 
     expect(res.status).toBe(404);
-    expect((res.body as { code: string }).code).toBe("GAME_NOT_FOUND");
+    expect(res.body).toEqual(errorBody(gameErrors.NotFound));
     expect(gameStreams.has(gameId)).toBe(false);
   });
 
@@ -157,7 +101,7 @@ describe("Mocked: GET /games/events", () => {
   // Expected behavior: the watcher gets the game with the new player without asking for it
   // Expected output: gameUpdated with the current game, then gameUpdated with both players
   it("sends the current game, then the game after another player joins", async () => {
-    mockedFetchGameDetails.mockResolvedValueOnce(gameDetails());
+    mockedFetchGameDetails.mockResolvedValueOnce(watchedGame());
     const events = await watchGame();
 
     const first = await events.next();
@@ -167,7 +111,7 @@ describe("Mocked: GET /games/events", () => {
     mockedFetchGame.mockResolvedValue(gameRow());
     mockedAddPlayerToTeam.mockResolvedValue("added");
     mockedFetchGameDetails.mockResolvedValue(
-      gameDetails({ status: GameStatus.BOOKED, players: [player(userId, 1), player(otherUserId, 2)] }),
+      watchedGame({ status: GameStatus.BOOKED, players: [testPlayer(userId, 1), testPlayer(otherUserId, 2)] }),
     );
 
     const join = await request(createApp())
@@ -188,7 +132,7 @@ describe("Mocked: GET /games/events", () => {
   // Expected behavior: the watcher learns the game is gone
   // Expected output: gameDeleted with the game ID
   it("sends gameDeleted once the game is deleted", async () => {
-    mockedFetchGameDetails.mockResolvedValueOnce(gameDetails());
+    mockedFetchGameDetails.mockResolvedValueOnce(watchedGame());
     const events = await watchGame();
     await events.next();
 
@@ -212,14 +156,14 @@ describe("Mocked: GET /games/events", () => {
   // Expected behavior: the watcher gets the game as in progress without asking for it
   // Expected output: gameUpdated with status IN_PROGRESS
   it("sends the game once another player starts it", async () => {
-    mockedFetchGameDetails.mockResolvedValueOnce(gameDetails({ status: GameStatus.BOOKED }));
+    mockedFetchGameDetails.mockResolvedValueOnce(watchedGame({ status: GameStatus.BOOKED }));
     const events = await watchGame();
     await events.next();
 
-    mockedFetchGame.mockResolvedValue({ ...gameRow(), status: GameStatus.BOOKED });
+    mockedFetchGame.mockResolvedValue(gameRow({ status: GameStatus.BOOKED }));
     mockedIsUserInGame.mockResolvedValue(true);
-    mockedStartBookedGame.mockResolvedValue({ ...gameRow(), status: GameStatus.IN_PROGRESS, startsAt: new Date() });
-    mockedFetchGameDetails.mockResolvedValue(gameDetails({ status: GameStatus.IN_PROGRESS }));
+    mockedStartBookedGame.mockResolvedValue(gameRow({ status: GameStatus.IN_PROGRESS, startsAt: new Date() }));
+    mockedFetchGameDetails.mockResolvedValue(watchedGame({ status: GameStatus.IN_PROGRESS }));
 
     const start = await request(createApp())
       .post("/games/start")
@@ -237,12 +181,12 @@ describe("Mocked: GET /games/events", () => {
   // Expected behavior: the server forgets the stream, and later changes load nothing for it
   // Expected output: gameStreams.has is false
   it("stops watching once the client disconnects", async () => {
-    mockedFetchGameDetails.mockResolvedValueOnce(gameDetails());
+    mockedFetchGameDetails.mockResolvedValueOnce(watchedGame());
     const events = await watchGame();
     await events.next();
     expect(gameStreams.has(gameId)).toBe(true);
 
-    for (const abort of aborts.splice(0)) abort.abort();
+    server.stopWatching();
     for (let tries = 0; tries < 50 && gameStreams.has(gameId); tries++) {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }

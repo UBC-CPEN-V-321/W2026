@@ -1,9 +1,5 @@
-import { once } from "node:events";
-import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import type { Game } from "../../src/generated/prisma/client";
 import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums";
 import {
   addPlayerToTeam,
@@ -22,19 +18,26 @@ import {
   fetchTournamentDetails,
   fetchUserTournaments,
   registerPlayer,
-  type TournamentDetails,
 } from "../../src/tournaments/tournaments.repository";
+import { tournamentErrors } from "../../src/tournaments/tournaments.service";
 import { gameListStreams } from "../../src/games/games.events";
 import { tournamentStreams } from "../../src/tournaments/tournaments.events";
+import { errorBody } from "../../src/errors";
 import { getForecast } from "../../src/external/weather";
 import { signAccessToken } from "../../src/auth/tokens";
-import { EventReader } from "./sseReader";
+import {
+  gameDetails as baseGameDetails,
+  gameRow,
+  testGameId as gameId,
+  testPlayer as player,
+  testTournamentId as tournamentId,
+  tournamentDetails,
+} from "../fixtures";
+import { StreamTestServer } from "../streamServer";
 
 process.env.JWT_SECRET = "test-jwt-secret";
 const watcherId = "0b6d3a52-6a8e-4c1f-9d2e-1f3a4b5c6d7e";
 const otherId = "9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4";
-const gameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
-const tournamentId = "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d";
 
 jest.mock("../../src/games/games.repository", () => ({
   addPlayerToTeam: jest.fn(),
@@ -73,48 +76,11 @@ const mockedFetchFeedTournaments = jest.mocked(fetchFeedTournaments);
 const mockedFetchUserTournaments = jest.mocked(fetchUserTournaments);
 const mockedRegisterPlayer = jest.mocked(registerPlayer);
 
-const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const startsAt = gameRow().startsAt;
 
-const gameRow = (overrides: Partial<Game> = {}): Game => ({
-  id: gameId,
-  format: Format.SINGLES,
-  startsAt,
-  courtId: 1,
-  gameSource: GameSource.SCHEDULED,
-  status: GameStatus.OPEN,
-  createdAt: new Date(),
-  ...overrides,
-});
-
-const player = (id: string, team: number) => ({
-  id,
-  username: id,
-  name: id,
-  rating: 1500,
-  team,
-  acceptedAt: new Date(),
-  ratingBefore: null,
-  ratingAfter: null,
-});
-
-const gameDetails = (overrides: Partial<GameDetails> = {}): GameDetails => ({
-  ...gameRow(),
-  court: { id: 1, name: "Kitsilano Beach Park", latitude: 49.27, longitude: -123.15 },
-  players: [player(otherId, 1)],
-  rounds: [],
-  tournament: null,
-  ...overrides,
-});
-
-// Only the fields the stream and these tests use; the rest of the shape comes from the database
-const tournamentDetails = (playerIds: string[]) =>
-  ({
-    id: tournamentId,
-    name: "Fall Cup",
-    status: "REGISTRATION",
-    players: playerIds.map((id) => ({ id, username: id, name: id, rating: 1500, team: null })),
-    matches: [],
-  }) as unknown as TournamentDetails;
+// The other player's game, with them on team 1
+const gameDetails = (overrides: Partial<GameDetails> = {}) =>
+  baseGameDetails({ players: [player(otherId, 1)], ...overrides });
 
 interface IdList {
   games: { id: string }[];
@@ -126,15 +92,10 @@ interface TournamentEventData {
 }
 
 describe("Mocked: live tournament and Games tab streams", () => {
-  let server: Server;
-  let baseUrl: string;
-  const aborts: AbortController[] = [];
+  const server = new StreamTestServer();
+  const watch = (path: string, userId = watcherId) => server.watch(path, userId);
 
-  beforeAll(async () => {
-    server = createApp().listen(0);
-    await once(server, "listening");
-    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  });
+  beforeAll(() => server.start());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -146,31 +107,12 @@ describe("Mocked: live tournament and Games tab streams", () => {
   });
 
   afterEach(() => {
-    for (const abort of aborts.splice(0)) abort.abort();
+    server.stopWatching();
     tournamentStreams.closeAll();
     gameListStreams.closeAll();
   });
 
-  afterAll(async () => {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => {
-      server.close(() => {
-        resolve();
-      });
-    });
-  });
-
-  async function watch(path: string, userId = watcherId): Promise<EventReader> {
-    const abort = new AbortController();
-    aborts.push(abort);
-    const response = await fetch(`${baseUrl}${path}`, {
-      headers: { Authorization: `Bearer ${signAccessToken(userId)}` },
-      signal: abort.signal,
-    });
-    expect(response.status).toBe(200);
-    if (!response.body) throw new Error("No response body");
-    return new EventReader(response.body.getReader());
-  }
+  afterAll(() => server.close());
 
   // Input: GET /tournaments/events for a tournament that does not exist
   // Expected status code: 404
@@ -185,6 +127,7 @@ describe("Mocked: live tournament and Games tab streams", () => {
       .set("Authorization", `Bearer ${signAccessToken(watcherId)}`);
 
     expect(res.status).toBe(404);
+    expect(res.body).toEqual(errorBody(tournamentErrors.NotFound));
     expect(tournamentStreams.isEmpty()).toBe(true);
   });
 

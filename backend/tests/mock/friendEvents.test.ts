@@ -1,10 +1,6 @@
-import { once } from "node:events";
-import type { Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import type { Game } from "../../src/generated/prisma/client";
-import { Format, FriendshipStatus, GameSource, GameStatus } from "../../src/generated/prisma/enums";
+import { Format, FriendshipStatus, GameStatus } from "../../src/generated/prisma/enums";
 import {
   createFriendRequest,
   fetchFriendRequests,
@@ -12,24 +8,18 @@ import {
   fetchFriendship,
   fetchGamesInProgress,
 } from "../../src/friends/friends.repository";
-import {
-  fetchGame,
-  fetchGameDetails,
-  type GameDetails,
-  isUserInGame,
-  startBookedGame,
-} from "../../src/games/games.repository";
+import { fetchGame, fetchGameDetails, isUserInGame, startBookedGame } from "../../src/games/games.repository";
 import { friendStreams } from "../../src/friends/friends.events";
 import { getForecast } from "../../src/external/weather";
 import { signAccessToken } from "../../src/auth/tokens";
-import { EventReader } from "./sseReader";
+import { gameDetails, gameRow, testGameId as gameId, testPlayer } from "../fixtures";
+import { StreamTestServer } from "../streamServer";
 
 process.env.JWT_SECRET = "test-jwt-secret";
 // The user watching their friends page, their friend, and someone who isn't their friend yet
 const watcherId = "0b6d3a52-6a8e-4c1f-9d2e-1f3a4b5c6d7e";
 const friendId = "9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4";
 const strangerId = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
-const gameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
 const friendsSince = new Date("2026-10-01T12:00:00.000Z");
 
 jest.mock("../../src/friends/friends.repository", () => ({
@@ -63,36 +53,13 @@ const mockedStartBookedGame = jest.mocked(startBookedGame);
 
 const user = (id: string, username: string) => ({ id, username, name: username, rating: 1500 });
 
-const bookedGame = (): Game => ({
-  id: gameId,
-  format: Format.SINGLES,
-  startsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-  courtId: 1,
-  gameSource: GameSource.SCHEDULED,
-  status: GameStatus.BOOKED,
-  createdAt: new Date(),
-});
-
-const player = (id: string, team: number) => ({
-  id,
-  username: id,
-  name: id,
-  rating: 1500,
-  team,
-  acceptedAt: new Date(),
-  ratingBefore: null,
-  ratingAfter: null,
-});
-
-const startedDetails = (): GameDetails => ({
-  ...bookedGame(),
-  status: GameStatus.IN_PROGRESS,
-  startsAt: new Date(),
-  court: { id: 1, name: "Kitsilano Beach Park", latitude: 49.27, longitude: -123.15 },
-  players: [player(friendId, 1), player(strangerId, 2)],
-  rounds: [],
-  tournament: null,
-});
+// The friend's game against the stranger, once started
+const startedDetails = () =>
+  gameDetails({
+    status: GameStatus.IN_PROGRESS,
+    startsAt: new Date(),
+    players: [testPlayer(friendId, 1), testPlayer(strangerId, 2)],
+  });
 
 interface FriendsEventData {
   friends: { id: string; playing: { gameId: string; courtName: string } | null }[];
@@ -104,15 +71,10 @@ interface RequestsEventData {
 }
 
 describe("Mocked: GET /friends/events", () => {
-  let server: Server;
-  let baseUrl: string;
-  const aborts: AbortController[] = [];
+  const server = new StreamTestServer();
+  const watchFriendsPage = () => server.watch("/friends/events", watcherId);
 
-  beforeAll(async () => {
-    server = createApp().listen(0);
-    await once(server, "listening");
-    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  });
+  beforeAll(() => server.start());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -130,31 +92,11 @@ describe("Mocked: GET /friends/events", () => {
   });
 
   afterEach(() => {
-    for (const abort of aborts.splice(0)) abort.abort();
+    server.stopWatching();
     friendStreams.closeAll();
   });
 
-  afterAll(async () => {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => {
-      server.close(() => {
-        resolve();
-      });
-    });
-  });
-
-  async function watchFriendsPage(): Promise<EventReader> {
-    const abort = new AbortController();
-    aborts.push(abort);
-    const response = await fetch(`${baseUrl}/friends/events`, {
-      headers: { Authorization: `Bearer ${signAccessToken(watcherId)}` },
-      signal: abort.signal,
-    });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/event-stream");
-    if (!response.body) throw new Error("No response body");
-    return new EventReader(response.body.getReader());
-  }
+  afterAll(() => server.close());
 
   // Input: a request without an access token
   // Expected status code: 401
@@ -191,9 +133,9 @@ describe("Mocked: GET /friends/events", () => {
     await events.next();
     await events.next();
 
-    mockedFetchGame.mockResolvedValue(bookedGame());
+    mockedFetchGame.mockResolvedValue(gameRow({ status: GameStatus.BOOKED }));
     mockedIsUserInGame.mockResolvedValue(true);
-    mockedStartBookedGame.mockResolvedValue({ ...bookedGame(), status: GameStatus.IN_PROGRESS });
+    mockedStartBookedGame.mockResolvedValue(gameRow({ status: GameStatus.IN_PROGRESS }));
     mockedFetchGameDetails.mockResolvedValue(startedDetails());
     mockedFetchGamesInProgress.mockResolvedValue([
       {
