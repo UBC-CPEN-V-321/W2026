@@ -77,4 +77,30 @@ class UserMeParsingTest {
         assertEquals(1519.6, friend.rating!!, 0.0)
         assertEquals("Rally Partner", friend.displayName)
     }
+
+    // Input: GET /friends/requests with one incoming and one outgoing request, shaped like the backend's
+    // Expected output: every field of both is read, including when the request was sent ("requestedAt")
+    // and the other user's rating, which used to be left empty
+    @Test
+    fun friendRequestsReadEveryField() = runBlocking {
+        val requests = """{
+            "incoming": [ { "id": "u3", "username": "lob@example.com", "name": "Lob Friend", "rating": 1480.25,
+                "requestedAt": "2026-11-19T20:39:51.000Z" } ],
+            "outgoing": [ { "id": "u4", "username": "ace@example.com", "name": "Ace Player", "rating": 1612.5,
+                "requestedAt": "2026-11-18T09:00:00.000Z" } ] }"""
+        server.enqueue(MockResponse().setBody(requests))
+        server.enqueue(MockResponse().setBody(requests))
+        val (repository, session) = repository()
+
+        val incoming = repository.getFriendRequests(session).getOrThrow().single()
+        val outgoing = repository.getOutgoingFriendRequests(session).getOrThrow().single()
+
+        assertEquals("u3", incoming.userId)
+        assertEquals("Lob Friend", incoming.displayName)
+        assertEquals("2026-11-19T20:39:51.000Z", incoming.requestedAt)
+        assertEquals(1480.25, incoming.rating!!, 0.0)
+        assertEquals("u4", outgoing.userId)
+        assertEquals("2026-11-18T09:00:00.000Z", outgoing.requestedAt)
+        assertEquals(1612.5, outgoing.rating!!, 0.0)
+    }
 }
