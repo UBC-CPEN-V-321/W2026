@@ -13,6 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.network.dto.EquipmentDto
@@ -52,6 +55,18 @@ fun ProfileRoute(
 
     LaunchedEffect(session) {
         viewModel.initSession(session)
+    }
+
+    // Live friends and requests only while the Friends tab is on screen: another tab, another screen or a
+    // backgrounded app keeps no connection open. Coming back reconnects, and the backend sends the current page first
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val onFriendsTab = uiState.selectedTab == ProfileTab.FRIENDS
+    LaunchedEffect(viewModel, session, lifecycleOwner, onFriendsTab) {
+        if (session != null && onFriendsTab) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.followFriendsPage(session)
+            }
+        }
     }
 
     val actions = ProfileActions(

@@ -163,6 +163,15 @@ private fun FriendRequestRow(
     }
 }
 
+/**
+ * The line under a friend's name: e.g. "Playing singles now at Kitsilano Beach Park" while they play,
+ * otherwise their rating
+ */
+internal fun friendStatusText(friend: FriendDto): String? {
+    val playing = friend.playing ?: return friend.elo?.let { "Rating $it" }
+    return "Playing ${playing.format.lowercase()} now at ${playing.courtName}"
+}
+
 @Composable
 private fun FriendRow(
     friend: FriendDto,
@@ -170,7 +179,7 @@ private fun FriendRow(
     onRemove: () -> Unit,
 ) {
     val error = MaterialTheme.colorScheme.error
-    PersonRow(name = friend.username, supporting = friend.elo?.let { "Rating $it" }) {
+    PersonRow(name = friend.username, supporting = friendStatusText(friend)) {
         OutlinedButton(
             onClick = onRemove,
             enabled = !isActionInProgress,

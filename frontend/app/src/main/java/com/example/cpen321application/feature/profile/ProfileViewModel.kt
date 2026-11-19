@@ -8,35 +8,103 @@ import com.example.cpen321application.core.data.repository.EquipmentRepository
 import com.example.cpen321application.core.data.repository.EquipmentRepositoryImpl
 import com.example.cpen321application.core.data.repository.FriendsRepository
 import com.example.cpen321application.core.data.repository.FriendsRepositoryImpl
+import com.example.cpen321application.core.data.repository.FriendsPageUpdate
+import com.example.cpen321application.core.data.repository.FriendsPageUpdates
+import com.example.cpen321application.core.data.repository.FriendsPageUpdatesImpl
 import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.network.dto.UpdateEquipmentRequestDto
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+
+// Wait before reconnecting to the friends page's event stream, so a backend that is down isn't hammered
+private const val RECONNECT_DELAY_MS = 3_000L
+
+// Only tennis rackets should have a next maintenance date, set to 1 month from now
+private fun nextMaintenanceFor(type: EquipmentType): String? {
+    if (type != EquipmentType.RACKET) return null
+    val nextMonth = Instant.now().plus(30, ChronoUnit.DAYS)
+    return DateTimeFormatter.ISO_INSTANT.format(nextMonth)
+}
 
 class ProfileViewModel(
     private val repository: FriendsRepository = FriendsRepositoryImpl(),
     private val equipmentRepository: EquipmentRepository = EquipmentRepositoryImpl(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val friendsPageUpdates: FriendsPageUpdates = FriendsPageUpdatesImpl(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
+    /**
+     * Shows the friends list and friend requests as the backend pushes them, e.g. when a friend starts or stops
+     * playing, until the caller stops collecting. The Friends tab calls it only while it is on screen, so nothing
+     * is fetched or kept open for friends elsewhere. Reconnects after the connection drops; the backend sends the
+     * current page on every connect, so changes made while disconnected aren't missed
+     * @param session the signed-in user, whose friends page it is
+     */
+    suspend fun followFriendsPage(session: AuthSession) {
+        friendsPageUpdates.updates(session)
+            .retryWhen { cause, _ ->
+                val reconnect = cause is IOException
+                if (reconnect) delay(RECONNECT_DELAY_MS)
+                reconnect
+            }
+            .catch { error ->
+                if (error !is HttpException) throw error
+                // The backend refused the stream: the page keeps what it last loaded
+                _uiState.update {
+                    it.copy(
+                        isLoadingFriends = false,
+                        isLoadingRequests = false,
+                        errorMessage = error.localizedMessage ?: "Failed to load friends",
+                    )
+                }
+            }
+            .flowOn(ioDispatcher)
+            .collect { update ->
+                when (update) {
+                    is FriendsPageUpdate.Friends -> _uiState.update {
+                        it.copy(friends = update.friends, isLoadingFriends = false)
+                    }
+                    is FriendsPageUpdate.Requests -> _uiState.update {
+                        it.copy(friendRequests = update.incoming, isLoadingRequests = false)
+                    }
+                }
+            }
+    }
+
     fun initSession(session: AuthSession?) {
         if (session == null) return
         val currentUsername = session.user?.username.orEmpty()
         _uiState.update { it.copy(username = currentUsername) }
-        loadAll(session)
+        fetchUserMe(session)
+        fetchMatchHistory(session)
+        fetchEquipment(session)
+        if (_uiState.value.selectedTab == ProfileTab.FRIENDS) {
+            // The Friends tab opens the friends page's event stream, which sends the friends and requests first,
+            // so loading them here too would fetch them twice
+            _uiState.update { it.copy(isLoadingFriends = true, isLoadingRequests = true) }
+        } else {
+            fetchFriends(session)
+            fetchFriendRequests(session)
+        }
     }
 
     fun selectTab(tab: ProfileTab) {
@@ -174,7 +242,7 @@ class ProfileViewModel(
                         successMessage = "Friend removed",
                     )
                 }
-                fetchFriends(session)
+                // No reload: the friends page's event stream pushes the new list
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
@@ -197,8 +265,7 @@ class ProfileViewModel(
                         successMessage = "Friend request accepted",
                     )
                 }
-                fetchFriends(session)
-                fetchFriendRequests(session)
+                // No reload: the friends page's event stream pushes the new friends and requests
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
@@ -293,13 +360,6 @@ class ProfileViewModel(
                 handleEquipmentSaveResult(session, result, "Equipment updated", "Failed to update equipment")
             }
         }
-    }
-
-    // Only tennis rackets should have a next maintenance date, set to 1 month from now
-    private fun nextMaintenanceFor(type: EquipmentType): String? {
-        if (type != EquipmentType.RACKET) return null
-        val nextMonth = Instant.now().plus(30, ChronoUnit.DAYS)
-        return DateTimeFormatter.ISO_INSTANT.format(nextMonth)
     }
 
     private fun handleEquipmentSaveResult(
