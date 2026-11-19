@@ -31,6 +31,7 @@ enum class ChipStyle {
     UP,          // rating went up
     DOWN,        // rating went down
     OUTLINE,     // a plain fact, like a matchmaking criterion
+    LIVE,        // happening right now: the live dot and green text, no fill
 }
 
 /**
@@ -59,11 +60,14 @@ fun StatusChip(
         border = border,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp),
+            // A live chip has no fill, so it lines up with the text around it, like the design's live label
+            modifier = Modifier.padding(horizontal = if (style == ChipStyle.LIVE) 0.dp else 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (icon != null) {
+            if (style == ChipStyle.LIVE) {
+                LiveDot(dotSize = 6.dp)
+            } else if (icon != null) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(14.dp))
             }
             Text(text = text, style = MaterialTheme.typography.labelMedium, maxLines = 1)
@@ -85,6 +89,7 @@ private fun chipColors(style: ChipStyle): Pair<Color, Color> {
         ChipStyle.UP -> donut.winContainer to donut.onWinContainer
         ChipStyle.DOWN -> donut.lossContainer to donut.onLossContainer
         ChipStyle.OUTLINE -> Color.Transparent to colors.onSurface
+        ChipStyle.LIVE -> Color.Transparent to colors.secondary
     }
 }
 
@@ -93,8 +98,8 @@ val GameStatus.chipStyle: ChipStyle
     get() = when (this) {
         GameStatus.OPEN -> ChipStyle.OPEN
         GameStatus.BOOKED -> ChipStyle.BOOKED
-        // Like a tournament in progress
-        GameStatus.IN_PROGRESS -> ChipStyle.BOOKED
+        // Being played right now: the live dot, like a friend who is playing
+        GameStatus.IN_PROGRESS -> ChipStyle.LIVE
         GameStatus.COMPLETED -> ChipStyle.DONE
         GameStatus.CANCELLED -> ChipStyle.CANCELLED
     }

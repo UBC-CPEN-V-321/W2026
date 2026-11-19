@@ -3,7 +3,6 @@ package com.example.cpen321application.feature.matchmaking
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,11 +37,11 @@ import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.ui.components.PlayerAvatar
 import com.example.cpen321application.core.ui.components.CourtMap
 import com.example.cpen321application.core.ui.components.LargeButtonHeight
+import com.example.cpen321application.core.ui.components.LiveLabel
 import com.example.cpen321application.core.ui.formatStartTime
 import com.example.cpen321application.core.ui.label
 import com.example.cpen321application.core.ui.relativeStartText
 import com.example.cpen321application.core.ui.theme.DonutTextStyles
-import com.example.cpen321application.core.ui.theme.DonutTheme
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -107,25 +106,6 @@ fun MatchSheet(
         }
     }
 }
-
-// A green dot with a soft halo, then the state in small caps, e.g. "MATCH FOUND"
-@Composable
-private fun LiveLabel(text: String) {
-    val live = DonutTheme.colors.live
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            modifier = Modifier
-                .size(16.dp)
-                .background(live.copy(alpha = HALO_ALPHA), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(modifier = Modifier.size(8.dp).background(live, CircleShape))
-        }
-        Text(text = text.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-    }
-}
-
-private const val HALO_ALPHA = 0.2f
 
 @Composable
 private fun CourtSection(match: Game, distanceKm: Double?) {
