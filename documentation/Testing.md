@@ -23,6 +23,7 @@
 | 2026-11-17 | 2, 3 | Added the interface tests of the Matching component, `GET /api/feed`, `GET /api/feed/listings` and `GET /api/feed/requests`, and why the two remaining branches in `matching/rank.ts` and `matching/satisfies.ts` cannot be reached. Added the NFR 1 test, feed ranking latency, with its verification and logs. |
 | 2026-11-18 | 3 | The NFR 2 test now also times a rate-limited, failing and unreachable routing service, and logs each response time, so the verification log shows the measured times rather than only the pass count. |
 | 2026-11-18 | 4 | Following TA feedback that only Create Post was described, added the test steps and logs of the Edit post and Delete post tests (`ManagePostsTest.kt`) and of the Deals end-to-end tests: Use Case 2: Rate a Deal, Edit a rating and View deals. |
+| 2026-11-19 | 3 | Following peer feedback that the NFR 2 test used only one candidate, NFR 2 now runs every routing failure with the NFR 1 workload of 1,000 candidates and checks that the feed keeps the same ranked order as with a working routing service. NFR 1 now also checks that all 1,000 candidates are ranked. Replaced both logs with a new run. |
 | 2026-11-18 | 2 | Added the interface tests of the auth routes, `POST /api/auth/google`, `POST /api/auth/refresh` and `POST /api/auth/logout`, and of the session token that every protected route checks. Writing them showed that an auth body over 4 KB returned 500, so it now returns 413. Replaced the `app.ts` and `sessions.ts` coverage row with the reasons for their remaining branches and for `googleAuth.ts`. |
 
 ---
@@ -190,21 +191,26 @@ Run the NFR tests with `./scripts/run-backend-nfr-tests.sh`.
 
 ### 3.2. Test Verification and Logs
 
-**NFR 1:** the test saves 1,000 of another user's open chair listings, all meeting the hard requirements of my chair request, with varied prices, conditions, places, brands and colours, so every one is scored on each request. The request has a hard maximum price and soft preferences for condition, brand and colour. Without an OpenRouteService key, as NFR 1 excludes the travel-time lookup, it sends one warm-up request and then 100 `GET /api/feed?postId=<id>` requests one after another through Supertest. It checks that each returns 20 matches and the next cursor, takes the 95th percentile of the 100 response times, and checks that it is under 1 second. It logs the measured times:
+**NFR 1:** the test saves 1,000 of another user's open chair listings, all meeting the hard requirements of my chair request, with varied prices, conditions, places, brands and colours, so every one is scored on each request. The request has a hard maximum price and soft preferences for condition, brand and colour. Without an OpenRouteService key, as NFR 1 excludes the travel-time lookup, it first asks for the last page (`cursor=980`) and checks that it holds 20 matches and no next cursor, which shows that all 1,000 candidates met the hard requirements and were ranked. It then sends one warm-up request and 100 `GET /api/feed?postId=<id>` requests one after another through Supertest, timing each from sending the request to receiving the whole response. It checks that each returns 20 matches and the next cursor, takes the 95th percentile of the 100 response times, and checks that it is under 1 second. It logs the measured times:
 
 ```
-NFR 1: 100 requests, 1000 candidates: p50 43.0 ms, p95 45.0 ms, max 65.4 ms, mean 41.5 ms (limit 1000 ms at p95)
-Tests:       1 passed, 1 total
+NFR 1: 100 requests, 1000 candidates: p50 40.9 ms, p95 51.5 ms, max 78.7 ms, mean 41.7 ms (limit 1000 ms at p95)
 ```
 
-**NFR 2:** the test replaces OpenRouteService with a mock for each way it can fail, and times one `GET /api/feed` request for my request, which one listing matches. For a service that never answers, it checks that the feed abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds), so the time is at least 2 seconds, and still answers in under 3 seconds. For a service that is rate-limited (429), fails (500) or refuses the connection, it checks that the feed answers in under 3 seconds without waiting for the timeout. In every case the routing service is called once and the feed returns the ranked match with `travelMinutes` null and `travelTimesAvailable` false, which the app shows as "Travel time unavailable".
+**NFR 2:** the test uses the same workload as NFR 1, 1,000 open listings that all match my request, so the feed does its full ranking work while the routing service is failing. For each way OpenRouteService can fail, it first gets the feed with a working routing service (mocked), then replaces it with the failure and times one `GET /api/feed` request. For a service that never answers, it checks that the feed abandons the routing request after `ROUTING_TIMEOUT_MS` (2 seconds), so the time is at least 2 seconds, and still answers in under 3 seconds. For a service that is rate-limited (429), fails (500) or refuses the connection, it checks that the feed answers in under 3 seconds without waiting for the timeout. In every case it checks that the feed returns the same 20 matches in the same ranked order as with a working routing service, in order of score, each with `travelMinutes` null, and with `travelTimesAvailable` false, which the app shows as "Travel time unavailable". It also checks that each feed asks the routing service once, for the 20 results on the first page only.
 
 ```
-NFR 2: routing service never answers: feed answered in 2023 ms (limit 3000 ms)
-NFR 2: routing service is rate-limited (429): feed answered in 8 ms (limit 3000 ms)
-NFR 2: routing service fails (500): feed answered in 6 ms (limit 3000 ms)
-NFR 2: routing service is unreachable: feed answered in 6 ms (limit 3000 ms)
-Tests:       4 passed, 4 total
+NFR 2: routing service never answers, 1000 candidates: feed answered in 2042 ms (limit 3000 ms)
+NFR 2: routing service is rate-limited (429), 1000 candidates: feed answered in 31 ms (limit 3000 ms)
+NFR 2: routing service fails (500), 1000 candidates: feed answered in 54 ms (limit 3000 ms)
+NFR 2: routing service is unreachable, 1000 candidates: feed answered in 34 ms (limit 3000 ms)
+```
+
+Output of `./scripts/run-backend-nfr-tests.sh`:
+
+```
+Test Suites: 2 passed, 2 total
+Tests:       5 passed, 5 total
 ```
 
 ---
