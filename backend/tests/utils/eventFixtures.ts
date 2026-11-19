@@ -4,6 +4,7 @@ import { ObjectId } from 'mongodb';
 
 import type { EventRepository } from '../../src/events/eventRepository';
 import type { LiveEvent } from '../../src/events/eventTypes';
+import type { MockedRepository } from './mockedRepository';
 
 /** Fixed system time for recommendation-score assertions (5 days before the core event). */
 export const FIXED_NOW = new Date('2026-11-05T20:00:00.000Z');
@@ -63,7 +64,7 @@ export function buildEvent(overrides: Partial<LiveEvent> = {}): LiveEvent {
  * @param interest Interest stored on the user (defaults to live_music).
  */
 export function buildUserDocument(
-  interest: string = 'live_music',
+  interest = 'live_music',
   id: ObjectId = new ObjectId(),
 ) {
   const now = new Date(FIXED_SYNCED_AT);
@@ -134,7 +135,7 @@ export function buildTicketmasterResponse(
 }
 
 /** Event repository whose every method is a jest mock. */
-export function createMockEventRepository(): jest.Mocked<EventRepository> {
+export function createMockEventRepository(): MockedRepository<EventRepository> {
   return {
     createIndexes: jest.fn(),
     upsertEvents: jest.fn(),

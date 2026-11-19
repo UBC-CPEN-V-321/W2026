@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from '../../../src/index';
 import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepository';
 import type { Itinerary } from '../../../src/itineraries/itineraryTypes';
+import type { MockedRepository } from '../../utils/mockedRepository';
 
 const USER_ID = '6705f0000000000000000001';
 const ITINERARY_ID = '6705f1000000000000000001';
@@ -75,7 +76,7 @@ function createMockRepository(withReplace = true) {
     updateEmbeddedTransportationSegment: jest.fn(),
     removeItinerary: jest.fn(),
     ...(withReplace ? { replaceEmbeddedItems: replace } : {}),
-  } as jest.Mocked<ItineraryRepository>;
+  } as MockedRepository<ItineraryRepository>;
   return { repository, replace };
 }
 

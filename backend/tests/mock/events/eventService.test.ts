@@ -2,6 +2,7 @@ import { EventService } from '../../../src/events/eventService';
 import type { LiveEventCandidate } from '../../../src/events/eventTypes';
 import { UserNotFoundError } from '../../../src/users/userErrors';
 import type { UserRepository } from '../../../src/users/userRepository';
+import type { MockedRepository } from '../../utils/mockedRepository';
 import {
   buildEvent,
   CORE_LATITUDE,
@@ -16,7 +17,7 @@ const MS_PER_DAY = 86_400_000;
 const OPTIONS = { longitude: CORE_LONGITUDE, latitude: CORE_LATITUDE, maxDistanceKm: 30 };
 
 function setUpService(interest: 'live_music' | 'outdoors' = 'live_music') {
-  const userRepository: jest.Mocked<UserRepository> = {
+  const userRepository: MockedRepository<UserRepository> = {
     findPreferences: jest.fn(),
     findUser: jest.fn(),
     updateUser: jest.fn(),

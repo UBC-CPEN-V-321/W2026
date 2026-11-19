@@ -42,11 +42,15 @@ export function mockTicketmasterFetch(
   ...steps: FetchStep[]
 ): jest.SpiedFunction<typeof fetch> {
   const remaining = [...steps];
-  return jest.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+  return jest.spyOn(globalThis, 'fetch').mockImplementation(() => {
     const step = remaining.shift();
     if (step === undefined) {
-      throw new Error('Unexpected Ticketmaster request: no scripted response left');
+      return Promise.reject(new Error('Unexpected Ticketmaster request: no scripted response left'));
     }
-    return toResponse(step);
+    try {
+      return Promise.resolve(toResponse(step));
+    } catch (error: unknown) {
+      return Promise.reject(error);
+    }
   });
 }

@@ -96,7 +96,10 @@ describe('Unmocked: EventDao', () => {
     await eventDao.createIndexes();
 
     const indexes = await database.collection('liveevents').indexes();
-    const byKey = new Map(indexes.map((index) => [JSON.stringify(index.key), index]));
+    const byKey = new Map<string, { unique?: boolean }>();
+    for (const index of indexes) {
+      byKey.set(JSON.stringify(index.key), index);
+    }
     expect(byKey.get(JSON.stringify({ externalId: 1 }))?.unique).toBe(true);
     expect(byKey.has(JSON.stringify({ startDateTime: 1 }))).toBe(true);
     expect(byKey.has(JSON.stringify({ category: 1, startDateTime: 1 }))).toBe(true);

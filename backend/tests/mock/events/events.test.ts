@@ -3,6 +3,7 @@ import request from 'supertest';
 import type { LiveEventCandidate } from '../../../src/events/eventTypes';
 import { createApp } from '../../../src/index';
 import type { UserRepository } from '../../../src/users/userRepository';
+import type { MockedRepository } from '../../utils/mockedRepository';
 import type {
   InterestPreference,
   UserPreferences,
@@ -21,7 +22,7 @@ const EVENTS_PATH = `/api/v1/users/${USER_ID}/events`;
 const VALID_QUERY = { latitude: CORE_LATITUDE, longitude: CORE_LONGITUDE };
 const MS_PER_DAY = 86_400_000;
 
-function createUserRepository(): jest.Mocked<UserRepository> {
+function createUserRepository(): MockedRepository<UserRepository> {
   return {
     findPreferences: jest.fn(),
     findUser: jest.fn(),

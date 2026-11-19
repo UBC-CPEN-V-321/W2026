@@ -86,7 +86,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   requestedUrls.length = 0;
-  handler = (_request, response) => respondWithJson(response, 200, buildTicketmasterResponse([]));
+  handler = (_request, response) => { respondWithJson(response, 200, buildTicketmasterResponse([])); };
   await database.collection('liveevents').deleteMany({});
 });
 
@@ -95,7 +95,7 @@ afterAll(async () => {
     await database.collection('liveevents').deleteMany({});
   } finally {
     await client.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => server.close(() => { resolve(); }));
   }
 });
 
@@ -105,12 +105,13 @@ describe('Unmocked: Ticketmaster client', () => {
   // Expected output: the mapped event and the page details.
   // Expected behavior: one request with the API key, search area, page size, page and sort order.
   test('requests the configured page and maps the response', async () => {
-    handler = (_request, response) =>
+    handler = (_request, response) => {
       respondWithJson(
         response,
         200,
         buildTicketmasterResponse([buildTicketmasterEvent()], { number: 2, totalPages: 7 }),
       );
+    };
 
     const result = await fetchLiveEventPage(2);
 
@@ -142,8 +143,9 @@ describe('Unmocked: Ticketmaster client', () => {
   // Expected output: an empty page with defaults, with the invalid event skipped.
   // Expected behavior: missing pagination falls back to the requested page and zero totals.
   test('uses defaults when Ticketmaster omits pagination and skips invalid events', async () => {
-    handler = (_request, response) =>
+    handler = (_request, response) => {
       respondWithJson(response, 200, { _embedded: { events: [{ id: 'incomplete' }] } });
+    };
 
     const result = await fetchLiveEventPage(3);
 
@@ -173,7 +175,7 @@ describe('Unmocked: Ticketmaster client', () => {
   // Expected output: a rejection with the original 503 failure.
   // Expected behavior: exactly three requests are made.
   test('rejects after three failed attempts', async () => {
-    handler = (_request, response) => respondWithJson(response, 503, {});
+    handler = (_request, response) => { respondWithJson(response, 503, {}); };
 
     await expect(fetchLiveEventPage(0)).rejects.toThrow(
       'Ticketmaster request failed with status 503',
@@ -184,7 +186,7 @@ describe('Unmocked: Ticketmaster client', () => {
   // Input: HTTP 400 (a client error that a retry cannot fix).
   // Expected behavior: rejected immediately with a single request.
   test('does not retry a client error', async () => {
-    handler = (_request, response) => respondWithJson(response, 400, {});
+    handler = (_request, response) => { respondWithJson(response, 400, {}); };
 
     await expect(fetchLiveEventPage(0)).rejects.toThrow(
       'Ticketmaster request failed with status 400',
@@ -246,12 +248,13 @@ describe('Unmocked: syncEvents', () => {
   // Expected output: the second run updates existing events instead of adding new ones.
   // Expected behavior: no duplicates are created.
   test('does not duplicate events when run twice', async () => {
-    handler = (_request, response) =>
+    handler = (_request, response) => {
       respondWithJson(
         response,
         200,
         buildTicketmasterResponse([upcomingTicketmasterEvent('a', 3)]),
       );
+    };
 
     await syncEvents(eventDao);
     const second = await syncEvents(eventDao);
@@ -273,8 +276,9 @@ describe('Unmocked: syncEvents', () => {
       }),
     ]);
 
-    handler = (_request, response) =>
+    handler = (_request, response) => {
       respondWithJson(response, 200, buildTicketmasterResponse([], { totalPages: 0 }));
+    };
 
     const result = await syncEvents(eventDao);
 
@@ -292,7 +296,7 @@ describe('Unmocked: syncEvents', () => {
         endDateTime: new Date(Date.now() + 5 * DAY_MS + 3_600_000),
       }),
     ]);
-    handler = (_request, response) => respondWithJson(response, 503, {});
+    handler = (_request, response) => { respondWithJson(response, 503, {}); };
 
     await expect(syncEvents(eventDao)).rejects.toThrow('status 503');
     expect(await database.collection('liveevents').countDocuments()).toBe(1);

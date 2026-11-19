@@ -37,8 +37,8 @@ function setUpRepository() {
 
 /** Serves `totalPages` pages of two events each, from page 0. */
 function serveCatalogue(totalPages: number) {
-  mockedFetchPage.mockImplementation(async (page) =>
-    pageOf(page, totalPages, eventsForPage(page)),
+  mockedFetchPage.mockImplementation((page) =>
+    Promise.resolve(pageOf(page, totalPages, eventsForPage(page))),
   );
 }
 
