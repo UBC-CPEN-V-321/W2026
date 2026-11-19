@@ -364,6 +364,7 @@ private fun SavedItinerarySearchControls(model: SavedItinerarySearchModel) {
         Checkbox(
             checked = model.popularPlacesEnabled,
             onCheckedChange = model.onPopularPlacesChange,
+            modifier = Modifier.testTag("map_popular_locations_checkbox"),
         )
         Text(stringResource(R.string.map_show_popular))
     }

@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| November 18, 2026 | 4.2                   | Added end-to-end specifications for viewing an itinerary on the map and browsing popular locations. |
 | November 18, 2026 | 2.1, 2.3–2.6         | Added mock and no-mock coverage for the itinerary map GET API and Google Maps integration. |
 | November 17, 2026 | 3.1, 3.2              | Added frontend and backend NFR coverage for secure authentication and session management. |
 | October 28, 2026  | 3.1, 3.2              | Added automated and manual verification details and results for the Accessibility NFR. |
@@ -183,6 +184,7 @@ The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot no
 ### 4.1. Location in Git of Front-end Test Suite:
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
+- Map scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt)
 - Recommendation scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt)
 - User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
 
@@ -306,6 +308,29 @@ The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot no
     | 1. The user opens an itinerary under the "Saved Itineraries" list| Open the Itinerary details <br> Check that the Itinerary details form is present and the `delete` button is present. |
     | 2. The user clicks the 'delete' button  | Check that a dialog with a message "Delete Itinerary?" is present.  |
     | 3. The user clicks the 'yes' button from the dialog | Check that Trip Screen is present <br> Check that the message "Itinerary deleted." is present <br> Check that the deleted itinerary is not present under "Saved itineraries".|
+
+- **Use Case: View Itinerary on Map** (Maps)
+
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user opens the Map tab. | Open the Map tab.<br>Check that the `Search saved itineraries` field and `Show popular locations` control are present. |
+    | 2. The user searches for the saved itinerary they want to visualize. | Input the saved itinerary name in the `Search saved itineraries` field.<br>Check that the matching itinerary is present in the search results. |
+    | 3. The user selects the saved itinerary. | Select the matching itinerary.<br>Check that the selected itinerary name, `Walk`, `Drive`, `Hide directions`, and `Visit itinerary` controls are present.<br>Check that the map displays the itinerary's activity pins in chronological order and draws the available routes between consecutive activities. |
+    | 4. The user selects a route leg. | Open the route-leg dropdown.<br>Check that the available route legs are listed in itinerary order.<br>Select a route leg.<br>Check that the selected leg's start and destination names, distance, duration, and turn-by-turn directions are present and that its route is highlighted on the map. |
+    | 5. The user changes the travel mode. | Click the `Walk` control and check that walking distance, duration, directions, and route are displayed for the selected leg.<br>Click the `Drive` control and check that driving distance, duration, directions, and route are displayed for the selected leg. |
+    | 6. The user opens the selected itinerary from the map. | Click the `Visit itinerary` button.<br>Check that the selected itinerary's details page is present. |
+
+- **Use Case: Browse Popular Locations** (Maps)
+
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user opens the Map tab without selecting an itinerary. | Open the Map tab.<br>Check that the `Show popular locations` control is selected.<br>Check that the map reports `Popular locations are pinned nearby`. |
+    | 2. The system displays popular locations near the current map area. | Check that popular-location pins are present around the displayed UBC map area.<br>Check that the pins are visually distinct from itinerary activity pins. |
+    | 3. The user selects a popular-location pin. | Select a popular-location pin.<br>Check that an information window containing the location's name, category, and address is present. |
+    | 4. The user hides popular locations. | Clear the `Show popular locations` control.<br>Check that the popular-location pins are removed and the map reports `Popular locations are hidden`. |
+    | 5. The user shows popular locations again. | Select the `Show popular locations` control.<br>Check that the popular-location pins return and the map reports `Popular locations are pinned nearby`. |
 
 - **Use Case: Generate a list of recommended itineraries** (Recommendation)
 
