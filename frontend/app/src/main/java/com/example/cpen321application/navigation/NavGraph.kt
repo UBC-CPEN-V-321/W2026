@@ -82,6 +82,7 @@ fun AppNavGraph(
                 onSignOut = args.onSignOut,
                 onOpenMatch = { gameId -> navController.navigate(Screen.MatchSummary.createRoute(gameId)) },
                 onOpenStats = { navController.navigate(Screen.PlayerStats.route) },
+                onOpenGame = { gameId -> navController.navigate(Screen.GameDetail.createRoute(gameId)) },
             )
         }
         playerStatsDestination(navController, session)

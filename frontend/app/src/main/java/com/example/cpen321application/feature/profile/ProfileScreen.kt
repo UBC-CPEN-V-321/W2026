@@ -40,6 +40,8 @@ data class ProfileActions(
     val onDeleteEquipment: (Int) -> Unit = {},
     val onOpenMatch: (gameId: String) -> Unit = {},
     val onOpenStats: () -> Unit = {},
+    // Opens a game, e.g. the one a friend is playing
+    val onOpenGame: (gameId: String) -> Unit = {},
 )
 
 @Composable
@@ -48,6 +50,7 @@ fun ProfileRoute(
     onSignOut: () -> Unit,
     onOpenMatch: (gameId: String) -> Unit,
     onOpenStats: () -> Unit,
+    onOpenGame: (gameId: String) -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val session = authViewModel.session
@@ -86,6 +89,7 @@ fun ProfileRoute(
         onDeleteEquipment = { equipmentId -> viewModel.deleteEquipment(session, equipmentId) },
         onOpenMatch = onOpenMatch,
         onOpenStats = onOpenStats,
+        onOpenGame = onOpenGame,
     )
 
     ProfileScreen(uiState = uiState, actions = actions)

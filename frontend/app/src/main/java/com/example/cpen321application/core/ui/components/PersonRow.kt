@@ -35,6 +35,7 @@ private val ROW_AVATAR = 36.dp
  * (a rating, a button). Rows are 56 dp tall and 20 dp in from the edge.
  * @param name shown as the title and used for the avatar's initials
  * @param supporting a second, muted line, e.g. "@mayac" or "Wants to be your friend"
+ * @param supportingContent a second line drawn by the caller instead, e.g. a live dot and "Playing"
  * @param trailing put at the end of the row
  */
 @Composable
@@ -43,6 +44,7 @@ fun PersonRow(
     modifier: Modifier = Modifier,
     supporting: String? = null,
     avatarSize: Dp = ROW_AVATAR,
+    supportingContent: (@Composable () -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
@@ -56,7 +58,9 @@ fun PersonRow(
         PlayerAvatar(name = name, size = avatarSize)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (supporting != null) {
+            if (supportingContent != null) {
+                supportingContent()
+            } else if (supporting != null) {
                 Text(
                     text = supporting,
                     style = MaterialTheme.typography.bodySmall,
