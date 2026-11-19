@@ -41,6 +41,8 @@
 
 Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is run by a script (`npm run sync:events`, in `backend/scripts/sync-events.ts`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite. The no-mock supporting tests ([`backend/tests/no-mock/events/eventSync.test.ts`](../backend/tests/no-mock/events/eventSync.test.ts)) run the real client and `syncEvents` over real HTTP against a small local server that stands in for Ticketmaster, with a real database. The mock supporting tests replace `fetch` and the repository to cover the failure cases.
 
+Itinerary time conflicts for activities (an added or edited activity that overlaps stored items, and the `replaceConflicts=true` option that replaces them) are covered in [`backend/tests/no-mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/no-mock/itineraries/itineraryConflicts.test.ts) (real database: the 409 conflict response, the touching-boundary and one-millisecond cases, replacing one or several items, validation before replacement, and the repository guards) and [`backend/tests/mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/mock/itineraries/itineraryConflicts.test.ts) (replacement write failures and a repository without replace support). Time conflicts for transportation segments are not yet covered by these tests.
+
 #### 2.1.2. Commit Hash Where Tests Run
 
 `e6ef990670878b6254742872eb9716887a76a2d7`
@@ -101,6 +103,8 @@ The main remaining branches are unreachable empty Express route parameters. Reco
 The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot non-interactively obtain a valid user Google ID token. The mocked suites cover verified identity claims, invalid claims, Google Maps response parsing, configuration failures, and transport failures.
 
 **Live Events:** `src/events/eventDao.ts`, `eventRouter.ts`, `eventService.ts`, `eventSync.ts`, and `ticketmaster.client.ts` reach 100% of lines in the combined run. The code that connects to the database and starts a sync from the command line (`npm run sync:events`) lives in [`backend/scripts/sync-events.ts`](../backend/scripts/sync-events.ts), outside `src/`, so it is not part of the coverage. It only connects to MongoDB and calls `syncEvents`, which is tested in `backend/tests/mock/events/eventSync.test.ts`. Event synchronization is not exposed through the API, and a scheduled job (GitHub Actions or an AWS cron job) will run that script instead of users.
+
+In the no-mock run, `ticketmaster.client.ts` is below 100% (about 91% of lines). The no-mock test calls the real client against a local stand-in server for Ticketmaster, so it covers the normal request, the mapping, a retry after a server error, three failed attempts, and a client error that is not retried. The remaining cases need a controlled failure or unusual data: retrying after a 429 or a dropped connection, a missing API key, an invalid page number, and the fallbacks for optional event fields (no 16:9 image, `pleaseNote` instead of `info`, no price, an invalid end time, invalid coordinates). The mock suite covers them in `backend/tests/mock/events/ticketmaster.client.test.ts`, so the combined run reaches 100% of the lines. The client is a background job that fills the database once a day. It does not run when a user opens the Events screen, which only reads stored events, so a Ticketmaster failure cannot break a user request.
 
 The only uncovered area is:
 
@@ -406,7 +410,22 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
   - **Omitted failure scenarios:** Failures 2a and 6a (network or server error while loading) can only be produced by replacing the frontend's backend connection with a mock, so they are not part of the required real-backend E2E suite.
   - **Test Logs:**
     ```
-    [Placeholder for E2E test execution logs]
+    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
+    ```
+    ==> Running the Live Events E2E tests
+    > Task :app:connectedDebugAndroidTest
+    Starting 12 tests on Pixel_9_3(AVD) - 16
+    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
+    Finished 13 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 3m 58s
+
+    ==> Re-seeding with no events and running the empty-state test
+    > Task :app:connectedDebugAndroidTest
+    Starting 1 tests on Pixel_9_3(AVD) - 16
+    Finished 1 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 10s
+    ```
+    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
     ```
 
 - **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) 
@@ -431,7 +450,22 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
   - **Omitted failure scenarios:** Failures that need the itinerary request to fail (itinerary loading error, creation error, activity insertion error, replacement error) can only be produced by mocking the frontend's backend connection, so they are not part of the required E2E suite.
   - **Test Logs:**
     ```
-    [Placeholder for E2E test execution logs]
+    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
+    ```
+    ==> Running the Live Events E2E tests
+    > Task :app:connectedDebugAndroidTest
+    Starting 12 tests on Pixel_9_3(AVD) - 16
+    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
+    Finished 13 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 3m 58s
+
+    ==> Re-seeding with no events and running the empty-state test
+    > Task :app:connectedDebugAndroidTest
+    Starting 1 tests on Pixel_9_3(AVD) - 16
+    Finished 1 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 10s
+    ```
+    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
     ```
 
 - **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) 
@@ -448,7 +482,22 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
 
   - **Test Logs:**
     ```
-    [Placeholder for E2E test execution logs]
+    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
+    ```
+    ==> Running the Live Events E2E tests
+    > Task :app:connectedDebugAndroidTest
+    Starting 12 tests on Pixel_9_3(AVD) - 16
+    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
+    Finished 13 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 3m 58s
+
+    ==> Re-seeding with no events and running the empty-state test
+    > Task :app:connectedDebugAndroidTest
+    Starting 1 tests on Pixel_9_3(AVD) - 16
+    Finished 1 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 10s
+    ```
+    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
     ```
 
 - **Use Case: Refresh Event Recommendations After a Location Change** (Live Events)
@@ -473,7 +522,22 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
 
   - **Test Logs:**
     ```
-    [Placeholder for E2E test execution logs]
+    Run on 2026-11-18 with `npm run e2e:events` (from `backend/`): real backend, local MongoDB seeded with the E2E data, emulator Pixel_9_3 (API 36). The same run covers every Live Events scenario above.
+    ```
+    ==> Running the Live Events E2E tests
+    > Task :app:connectedDebugAndroidTest
+    Starting 12 tests on Pixel_9_3(AVD) - 16
+    Pixel_9_3(AVD) - 16 Tests 12/12 completed. (1 skipped) (0 failed)
+    Finished 13 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 3m 58s
+
+    ==> Re-seeding with no events and running the empty-state test
+    > Task :app:connectedDebugAndroidTest
+    Starting 1 tests on Pixel_9_3(AVD) - 16
+    Finished 1 tests on Pixel_9_3(AVD) - 16
+    BUILD SUCCESSFUL in 10s
+    ```
+    The one skipped test is `LiveEventsEmptyStateE2ETest`, which skips itself when events exist; the second step runs it on a database with no events and it passes.
     ```
 
     <!-- | 3a. The user inputs an ill-formatted string. | Input "_^_^^OQ#$" in the text field. |
