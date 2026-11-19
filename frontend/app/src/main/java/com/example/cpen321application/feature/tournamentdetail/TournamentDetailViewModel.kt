@@ -2,7 +2,9 @@ package com.example.cpen321application.feature.tournamentdetail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.data.repository.TournamentsRepository
+import com.example.cpen321application.core.data.repository.reconnecting
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,9 +27,14 @@ class TournamentDetailViewModel(
     private val _uiState = MutableStateFlow(TournamentDetailUiState())
     val uiState: StateFlow<TournamentDetailUiState> = _uiState.asStateFlow()
 
+    init {
+        // The screen opens the tournament's event stream (followUpdates), which sends the tournament first,
+        // so it isn't loaded here too
+        _uiState.update { it.copy(isLoading = true) }
+    }
+
     /**
-     * Loads the tournament. Called every time the screen is shown,
-     * so the bracket is up to date after a score was reported on a match's screen.
+     * Loads the tournament again, for Retry after an error
      */
     fun load() {
         viewModelScope.launch {
@@ -71,12 +78,31 @@ class TournamentDetailViewModel(
         }
     }
 
+    /**
+     * Shows each change to the tournament as the backend pushes it (players joining or leaving, the bracket being
+     * drawn, matches started or scored), until the caller stops collecting. Reconnects after the connection drops;
+     * the backend sends the current tournament on every connect, so changes made while disconnected aren't missed
+     */
+    suspend fun followUpdates() {
+        tournamentsRepository.tournamentUpdates(tournamentId)
+            .reconnecting { error ->
+                // The backend refused the stream, e.g. the tournament is gone: the screen keeps what it showed
+                _uiState.update { it.copy(isLoading = false, errorMessage = error.toUserMessage()) }
+            }
+            .collect { tournament ->
+                showTournament(tournament)
+                _uiState.update { it.copy(isLoading = false) }
+            }
+    }
+
+    private fun showTournament(tournament: Tournament) {
+        val actions = tournamentActions(tournament, currentUsername(), Instant.now())
+        _uiState.update { it.copy(tournament = tournament, actions = actions) }
+    }
+
     private suspend fun reload() {
         tournamentsRepository.getTournament(tournamentId)
-            .onSuccess { tournament ->
-                val actions = tournamentActions(tournament, currentUsername(), Instant.now())
-                _uiState.update { it.copy(tournament = tournament, actions = actions) }
-            }
+            .onSuccess(::showTournament)
             .onFailure { error ->
                 _uiState.update { it.copy(errorMessage = error.toUserMessage()) }
             }

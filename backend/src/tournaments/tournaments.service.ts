@@ -1,5 +1,6 @@
 import { AppError, commonErrors, type ErrorDefinition, mapPrismaErrors } from "../errors";
 import { getForecast } from "../external/weather";
+import { tournamentChanged } from "../events/changes";
 import {
   type CancelResult,
   createTournament,
@@ -94,7 +95,10 @@ export async function newTournament(
   tournament: CreateTournamentInput,
   userId: string,
 ) {
-  return await mapPrismaErrors(createTournament(tournament, userId), { P2003: commonErrors.CourtNotFound });
+  const created = await mapPrismaErrors(createTournament(tournament, userId), { P2003: commonErrors.CourtNotFound });
+  // On the feed, and in the creator's tournaments
+  tournamentChanged({ tournamentId: created.id });
+  return created;
 }
 
 /**
@@ -150,7 +154,11 @@ export async function joinTournament(tournamentId: string, userId: string): Prom
   const result = await mapPrismaErrors(registerPlayer(tournamentId, userId, new Date()), {
     P2003: commonErrors.UserNotFound,
   });
-  if (result === "registered" || result === "drawn") return;
+  if (result === "registered" || result === "drawn") {
+    // A drawn bracket also books the quarterfinals, which go into every player's games
+    tournamentChanged({ tournamentId });
+    return;
+  }
   throw new AppError(toJoinError(result));
 }
 
@@ -162,7 +170,11 @@ export async function joinTournament(tournamentId: string, userId: string): Prom
  */
 export async function leaveTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await unregisterPlayer(tournamentId, userId);
-  if (result === "left") return;
+  if (result === "left") {
+    // The player is no longer in the tournament, so their lists are named
+    tournamentChanged({ tournamentId, playerIds: [userId] });
+    return;
+  }
   throw new AppError(toLeaveError(result));
 }
 
@@ -174,6 +186,9 @@ export async function leaveTournament(tournamentId: string, userId: string): Pro
  */
 export async function cancelTournament(tournamentId: string, userId: string): Promise<void> {
   const result = await markTournamentCancelled(tournamentId, userId);
-  if (result === "cancelled") return;
+  if (result === "cancelled") {
+    tournamentChanged({ tournamentId });
+    return;
+  }
   throw new AppError(toCancelError(result));
 }

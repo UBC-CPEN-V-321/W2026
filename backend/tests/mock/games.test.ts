@@ -48,6 +48,7 @@ import { signAccessToken } from "../../src/auth/tokens";
 import { authErrors } from "../../src/auth/requireAuth";
 import { commonErrors, errorBody } from "../../src/errors";
 import { IncompleteTeamsError } from "../../src/ranking/ranking.service";
+import * as changes from "../../src/events/changes";
 
 // Every /games route is behind requireAuth, so requests need a valid token
 process.env.JWT_SECRET = "test-jwt-secret";
@@ -1907,7 +1908,41 @@ describe("Mocked: POST /games/start", () => {
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
 
-  // Input: games that can't start: closed, still open (free spots or unanswered match), or already started
+  // Input: a booked game whose start time passed a minute ago, which nobody started
+  // Expected status code: 200
+  // Expected behavior: games never start on their own, so it can still be started, late
+  // Expected output: the started game
+  test("Starts a booked game whose start time has passed", async () => {
+    mockedFetchGame.mockResolvedValue(bookedGame({ startsAt: new Date(Date.now() - 60 * 1000) }));
+    mockedStartBookedGame.mockImplementation((_gameId, now) =>
+      Promise.resolve(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: now })),
+    );
+
+    const response = await start();
+
+    expect(response.status).toBe(200);
+    expect(response.body.game).toMatchObject({ id: editGameId, status: GameStatus.IN_PROGRESS });
+    expect(mockedStartBookedGame).toHaveBeenCalledTimes(1);
+  });
+
+  // Input: a player starts a booked game
+  // Expected behavior: the start is announced with when it started, so its players stop showing as playing to
+  // their friends once the playing window runs out
+  // Expected output: gameChanged with the game and its new start time
+  test("Announces when the game started", async () => {
+    const gameChanged = jest.spyOn(changes, "gameChanged");
+    mockedStartBookedGame.mockImplementation((_gameId, now) =>
+      Promise.resolve(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: now })),
+    );
+
+    await start();
+
+    const [startedAt] = mockedStartBookedGame.mock.calls.map(([, now]) => now);
+    expect(gameChanged).toHaveBeenCalledWith({ gameId: editGameId, startedAt });
+    gameChanged.mockRestore();
+  });
+
+  // Input: games that can't start: closed, still open (free spots or unanswered match), or already in progress
   // Expected status code: 409
   // Expected behavior: the start time is not changed
   // Expected output: the reason, e.g. { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
@@ -1920,11 +1955,7 @@ describe("Mocked: POST /games/start", () => {
       { status: GameStatus.OPEN, gameSource: GameSource.MATCHED },
       gameErrors.NotBooked,
     ],
-    [
-      "already started",
-      { startsAt: new Date(Date.now() - 60 * 1000) },
-      gameErrors.AlreadyStarted,
-    ],
+    ["in progress", { status: GameStatus.IN_PROGRESS }, gameErrors.AlreadyStarted],
   ] as const)("Returns 409 for a %s game", async (_description, overrides, error) => {
     mockedFetchGame.mockResolvedValue(bookedGame(overrides));
 
@@ -1942,7 +1973,7 @@ describe("Mocked: POST /games/start", () => {
     mockedStartBookedGame.mockResolvedValue(null);
     mockedFetchGame
       .mockResolvedValueOnce(bookedGame())
-      .mockResolvedValueOnce(bookedGame({ startsAt: new Date() }));
+      .mockResolvedValueOnce(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: new Date() }));
 
     const response = await start();
 
@@ -2106,7 +2137,8 @@ describe("Mocked: PATCH /games/location", () => {
 describe("Mocked: POST /games/score", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedFetchGame.mockResolvedValue(existingGame());
+    // Only a game in progress can be scored
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
     mockedIsUserInGame.mockResolvedValue(true);
   });
 
@@ -2366,7 +2398,8 @@ describe("Mocked: changeGameLocation", () => {
 describe("Mocked: reportScore", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedFetchGame.mockResolvedValue(existingGame());
+    // Only a game in progress can be scored
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
     mockedIsUserInGame.mockResolvedValue(true);
   });
 
@@ -2374,6 +2407,19 @@ describe("Mocked: reportScore", () => {
     [6, 4],
     [6, 3],
   ];
+
+  // Input: games nobody started yet: an open one, and a booked one (even past its start time)
+  // Expected behavior: nothing is saved, since a game is scored only once a player started it
+  // Expected output: GAME_NOT_STARTED
+  test.each([
+    ["open", existingGame()],
+    ["booked", existingGame({ status: GameStatus.BOOKED, startsAt: new Date(Date.now() - 60 * 60 * 1000) })],
+  ])("Rejects a score for an %s game nobody started", async (_description, game) => {
+    mockedFetchGame.mockResolvedValue(game);
+
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.NotStarted);
+    expect(mockedCompleteGame).not.toHaveBeenCalled();
+  });
 
   test("Completes the game with the given rounds", async () => {
     const completed = {
@@ -2795,6 +2841,32 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual(errorBody(gameErrors.MatchedNotMovable));
+    expect(mockedUpdateGame).not.toHaveBeenCalled();
+  });
+});
+
+describe("Mocked: moving a game in progress", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS, startsAt: new Date() }));
+    mockedIsUserInGame.mockResolvedValue(true);
+  });
+
+  // Input: a player tries to move a game that is being played to another time or court
+  // Expected status code: 409
+  // Expected behavior: the game keeps its time and court, as the app's hidden buttons say
+  // Expected output: { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
+  test.each([
+    ["PATCH /games/time", { startsAt: futureStartsAt() }, "/games/time"],
+    ["PATCH /games/location", { courtId: 2 }, "/games/location"],
+  ] as const)("%s rejects a game in progress", async (_route, change, path) => {
+    const response = await request(createApp())
+      .patch(path)
+      .set("Authorization", authHeader)
+      .send({ gameId: editGameId, ...change });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual(errorBody(gameErrors.AlreadyStarted));
     expect(mockedUpdateGame).not.toHaveBeenCalled();
   });
 });

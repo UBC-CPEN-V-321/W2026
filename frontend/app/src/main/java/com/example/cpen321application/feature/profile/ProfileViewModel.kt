@@ -8,7 +8,12 @@ import com.example.cpen321application.core.data.repository.EquipmentRepository
 import com.example.cpen321application.core.data.repository.EquipmentRepositoryImpl
 import com.example.cpen321application.core.data.repository.FriendsRepository
 import com.example.cpen321application.core.data.repository.FriendsRepositoryImpl
+import com.example.cpen321application.core.data.repository.FriendsPageUpdate
+import com.example.cpen321application.core.data.repository.FriendsPageUpdates
+import com.example.cpen321application.core.data.repository.FriendsPageUpdatesImpl
 import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
+import com.example.cpen321application.core.data.repository.reconnecting
+import com.example.cpen321application.core.network.toUserMessage
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.network.dto.UpdateEquipmentRequestDto
@@ -17,26 +22,77 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
+// Only tennis rackets should have a next maintenance date, set to 1 month from now
+private fun nextMaintenanceFor(type: EquipmentType): String? {
+    if (type != EquipmentType.RACKET) return null
+    val nextMonth = Instant.now().plus(30, ChronoUnit.DAYS)
+    return DateTimeFormatter.ISO_INSTANT.format(nextMonth)
+}
+
 class ProfileViewModel(
     private val repository: FriendsRepository = FriendsRepositoryImpl(),
     private val equipmentRepository: EquipmentRepository = EquipmentRepositoryImpl(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val friendsPageUpdates: FriendsPageUpdates = FriendsPageUpdatesImpl(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
+    /**
+     * Shows the friends list and friend requests as the backend pushes them, e.g. when a friend starts or stops
+     * playing, until the caller stops collecting. The Friends tab calls it only while it is on screen, so nothing
+     * is fetched or kept open for friends elsewhere. Reconnects after the connection drops; the backend sends the
+     * current page on every connect, so changes made while disconnected aren't missed
+     * @param session the signed-in user, whose friends page it is
+     */
+    suspend fun followFriendsPage(session: AuthSession) {
+        friendsPageUpdates.updates(session)
+            .reconnecting { error ->
+                // The backend refused the stream: the page keeps what it last loaded
+                _uiState.update {
+                    it.copy(
+                        isLoadingFriends = false,
+                        isLoadingRequests = false,
+                        errorMessage = error.toUserMessage(),
+                    )
+                }
+            }
+            .flowOn(ioDispatcher)
+            .collect { update ->
+                when (update) {
+                    is FriendsPageUpdate.Friends -> _uiState.update {
+                        it.copy(friends = update.friends, isLoadingFriends = false)
+                    }
+                    is FriendsPageUpdate.Requests -> _uiState.update {
+                        it.copy(friendRequests = update.incoming, isLoadingRequests = false)
+                    }
+                }
+            }
+    }
+
     fun initSession(session: AuthSession?) {
         if (session == null) return
         val currentUsername = session.user?.username.orEmpty()
         _uiState.update { it.copy(username = currentUsername) }
-        loadAll(session)
+        fetchUserMe(session)
+        fetchMatchHistory(session)
+        fetchEquipment(session)
+        if (_uiState.value.selectedTab == ProfileTab.FRIENDS) {
+            // The Friends tab opens the friends page's event stream, which sends the friends and requests first,
+            // so loading them here too would fetch them twice
+            _uiState.update { it.copy(isLoadingFriends = true, isLoadingRequests = true) }
+        } else {
+            fetchFriends(session)
+            fetchFriendRequests(session)
+        }
     }
 
     fun selectTab(tab: ProfileTab) {
@@ -66,9 +122,10 @@ class ProfileViewModel(
                         isLoadingUserMe = false,
                     )
                 }
-            }.onFailure {
+            }.onFailure { error ->
+                // Said, not swallowed: otherwise the rating card silently keeps an old or missing rating
                 _uiState.update { state ->
-                    state.copy(isLoadingUserMe = false)
+                    state.copy(isLoadingUserMe = false, errorMessage = error.toUserMessage())
                 }
             }
         }
@@ -89,7 +146,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingFriends = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load friends",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -111,7 +168,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingRequests = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load friend requests",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -130,11 +187,13 @@ class ProfileViewModel(
                         isLoadingMatches = false,
                     )
                 }
-            }.onFailure {
+            }.onFailure { error ->
+                // Keeps what was loaded and says why, instead of an empty history and a 0–0 record that look
+                // like the user has never played
                 _uiState.update {
                     it.copy(
                         isLoadingMatches = false,
-                        matchHistory = emptyList(),
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -156,7 +215,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingEquipment = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load equipment",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -174,12 +233,12 @@ class ProfileViewModel(
                         successMessage = "Friend removed",
                     )
                 }
-                fetchFriends(session)
+                // No reload: the friends page's event stream pushes the new list
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to remove friend",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -197,13 +256,12 @@ class ProfileViewModel(
                         successMessage = "Friend request accepted",
                     )
                 }
-                fetchFriends(session)
-                fetchFriendRequests(session)
+                // No reload: the friends page's event stream pushes the new friends and requests
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to accept friend request",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -281,7 +339,7 @@ class ProfileViewModel(
                     nextMaintenanceAt = nextMaintenanceAt,
                 )
                 val result = equipmentRepository.createEquipment(session, request)
-                handleEquipmentSaveResult(session, result, "Equipment added", "Failed to add equipment")
+                handleEquipmentSaveResult(session, result, "Equipment added")
             } else {
                 val request = UpdateEquipmentRequestDto(
                     type = type.name,
@@ -290,23 +348,15 @@ class ProfileViewModel(
                     nextMaintenanceAt = nextMaintenanceAt,
                 )
                 val result = equipmentRepository.updateEquipment(session, editing.id, request)
-                handleEquipmentSaveResult(session, result, "Equipment updated", "Failed to update equipment")
+                handleEquipmentSaveResult(session, result, "Equipment updated")
             }
         }
-    }
-
-    // Only tennis rackets should have a next maintenance date, set to 1 month from now
-    private fun nextMaintenanceFor(type: EquipmentType): String? {
-        if (type != EquipmentType.RACKET) return null
-        val nextMonth = Instant.now().plus(30, ChronoUnit.DAYS)
-        return DateTimeFormatter.ISO_INSTANT.format(nextMonth)
     }
 
     private fun handleEquipmentSaveResult(
         session: AuthSession,
         result: Result<*>,
         successMessage: String,
-        failureMessage: String,
     ) {
         result.onSuccess {
             _uiState.update {
@@ -321,7 +371,7 @@ class ProfileViewModel(
             _uiState.update {
                 it.copy(
                     isActionInProgress = false,
-                    errorMessage = error.localizedMessage ?: failureMessage,
+                    errorMessage = error.toUserMessage(),
                 )
             }
         }
@@ -343,7 +393,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to remove equipment",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }

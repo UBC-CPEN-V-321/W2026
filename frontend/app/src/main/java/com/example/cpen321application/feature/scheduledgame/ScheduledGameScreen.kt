@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.isRegistered
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.UnderlineTabs
 import com.example.cpen321application.core.ui.dayHeaderText
 import com.example.cpen321application.core.ui.startDay
@@ -54,10 +54,7 @@ fun ScheduledGameRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Runs each time the tab is shown, including coming back from a game's or tournament's screen
-    LaunchedEffect(Unit) {
-        viewModel.load()
-    }
+    FollowWhileVisible(viewModel) { viewModel.followLists() }
 
     ScheduledGameScreen(
         uiState = uiState,

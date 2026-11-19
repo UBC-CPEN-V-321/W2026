@@ -17,6 +17,7 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import retrofit2.HttpException
 import java.io.IOException
+import kotlin.math.roundToInt
 
 interface FriendsRepository {
     suspend fun getUserMe(session: AuthSession): Result<UserMeDto>
@@ -228,10 +229,10 @@ class FriendsRepositoryImpl(
         return parseEloElement(elem)
     }
 
+    // Rounded like the leaderboard and game screens (1584.6 → 1585). asInt would cut it to 1584
     private fun parseEloElement(elem: JsonElement): Int? =
-        runCatching { elem.asInt }.getOrNull()
-            ?: runCatching { elem.asDouble.toInt() }.getOrNull()
-            ?: runCatching { elem.asString.toDoubleOrNull()?.toInt() }.getOrNull()
+        runCatching { elem.asDouble.roundToInt() }.getOrNull()
+            ?: runCatching { elem.asString.toDoubleOrNull()?.roundToInt() }.getOrNull()
 
     private inline fun <reified T> parseFlexibleList(
         jsonElement: JsonElement?,

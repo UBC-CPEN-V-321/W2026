@@ -30,8 +30,8 @@ import org.junit.Test
 class FakeFriendsRepository : FriendsRepository {
     var userMe = UserMeDto(id = "u1", username = "Alice", elo = 1650)
     val friendsList = mutableListOf(
-        FriendDto("f1", "Bob", 1100),
-        FriendDto("f2", "Charlie", 1050)
+        FriendDto("f1", "Bob", 1100.0),
+        FriendDto("f2", "Charlie", 1050.0)
     )
     val requestsList = mutableListOf(
         FriendRequestDto("req1", "David")
@@ -60,7 +60,7 @@ class FakeFriendsRepository : FriendsRepository {
         val req = requestsList.find { it.userId == userId }
         if (req != null) {
             requestsList.remove(req)
-            friendsList.add(FriendDto(req.userId, req.username, 1000))
+            friendsList.add(FriendDto(req.userId, req.username, 1000.0))
         }
         return Result.success(Unit)
     }

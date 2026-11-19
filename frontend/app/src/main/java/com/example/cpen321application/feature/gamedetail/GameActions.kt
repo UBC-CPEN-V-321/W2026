@@ -25,7 +25,7 @@ data class GameActions(
     val leaveTooLate: Boolean,  // a player who can't leave because the game starts too soon
     val canChangeTimeOrCourt: Boolean,
     val canReportScore: Boolean,
-    val canStartNow: Boolean,  // a player of a booked game that hasn't started, who can start it early
+    val canStartNow: Boolean,  // a player of a booked game, which only starts when a player starts it
     val canCancel: Boolean,
     val canInvite: Boolean = false  // a player of a game that friends can still join
 )
@@ -41,6 +41,20 @@ fun invitableFriends(friends: List<FriendDto>, game: Game): List<FriendDto> {
 }
 
 /**
+ * When gameActions next gives a different answer just because time passed: the leave deadline, or the start
+ * time, when joining closes. The screen recomputes its actions then
+ * @param game the game on screen
+ * @param now the current time
+ * @return the next such moment, or null if there is none
+ */
+fun nextActionsChange(game: Game, now: Instant): Instant? {
+    if (game.isClosed || game.status == GameStatus.IN_PROGRESS) {
+        return null
+    }
+    return listOf(game.startsAt.minus(LEAVE_DEADLINE), game.startsAt).firstOrNull { it.isAfter(now) }
+}
+
+/**
  * Decides which actions the game screen shows
  * @param game the game on screen
  * @param username the signed-in user's username, null if signed out
@@ -48,13 +62,14 @@ fun invitableFriends(friends: List<FriendDto>, game: Game): List<FriendDto> {
  */
 fun gameActions(game: Game, username: String?, now: Instant): GameActions {
     val isPlayer = username != null && game.players.any { it.username == username }
-    val hasStarted = !game.startsAt.isAfter(now)
+    // A game only starts when a player taps Start, never on its own at its start time
+    val hasStarted = game.status == GameStatus.IN_PROGRESS
     val canEdit = isPlayer && !game.isClosed
 
-    // Matched games get their players from matchmaking, not by joining
+    // Matched games get their players from matchmaking, not by joining. Joining closes at the start time
     val isOpenToJoin = game.source == GameSource.SCHEDULED &&
         game.status == GameStatus.OPEN &&
-        !hasStarted
+        game.startsAt.isAfter(now)
     val joinableTeams = if (!isPlayer && isOpenToJoin) {
         TEAMS.filter { game.playersOnTeam(it).size < game.format.teamSize }
     } else {
@@ -74,10 +89,10 @@ fun gameActions(game: Game, username: String?, now: Instant): GameActions {
         leaveTooLate = canLeaveOrCancel && canLeaveOrMove && !beforeLeaveDeadline,
         // Moving a game that already started would not make sense
         canChangeTimeOrCourt = canLeaveOrMove && !hasStarted,
-        // The score is reported once the game is played
+        // The score is reported once the game was started and played
         canReportScore = canEdit && hasStarted,
-        // Players can start early once the game is booked: every spot is filled and every player accepted
-        canStartNow = canEdit && game.status == GameStatus.BOOKED && !hasStarted,
+        // Players can start a booked game, early or late: every spot is filled and every player accepted
+        canStartNow = canEdit && game.status == GameStatus.BOOKED,
         canCancel = canLeaveOrCancel,
         // An invited friend joins like anyone else, so only games they could join
         canInvite = isPlayer && isOpenToJoin

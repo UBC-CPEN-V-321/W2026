@@ -9,6 +9,9 @@ data class UserMeDto(
     // The player's real name, e.g. "Alex Rivera"
     val name: String? = null,
     val email: String? = null,
-    @SerializedName("elo", alternate = ["rating", "eloRating"])
+    // The rating, rounded. The backend sends a decimal ("rating": 1584.6), and read into an Int it came out
+    // cut short (1584) while the leaderboard and game screens round it (1585). So Gson skips this field
+    // (@Transient), and FriendsRepository reads and rounds the rating itself
+    @Transient
     val elo: Int? = null,
 )

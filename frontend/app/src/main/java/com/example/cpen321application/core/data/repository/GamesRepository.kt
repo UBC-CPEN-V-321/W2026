@@ -4,8 +4,14 @@ import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
+import com.example.cpen321application.core.network.EventStreamApi
 import com.example.cpen321application.core.network.GamesApi
 import com.example.cpen321application.core.network.RetrofitClient
+import com.example.cpen321application.core.network.ServerSentEvent
+import com.example.cpen321application.core.network.dto.GameResponseDto
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.transformWhile
 import com.example.cpen321application.core.network.dto.AcceptMatchRequestDto
 import com.example.cpen321application.core.network.dto.ChangeGameLocationRequestDto
 import com.example.cpen321application.core.network.dto.ChangeGameTimeRequestDto
@@ -56,12 +62,41 @@ interface GamesRepository {
 
     // Ends the game with its final score: the (team 1, team 2) score of each round, in order
     suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit>
+
+    // The game pushed by the backend each time anyone changes it, starting with its current state. Ends after
+    // Deleted, or right away if signed out. Throws IOException if the connection drops, HttpException if refused
+    fun gameUpdates(gameId: String): Flow<GameUpdate>
+}
+
+// What the backend pushes about a followed game
+sealed interface GameUpdate {
+    data class Changed(val game: Game) : GameUpdate
+
+    // The game was cancelled and deleted
+    data object Deleted : GameUpdate
 }
 
 class GamesRepositoryImpl(
     private val session: AuthSession,
-    private val gamesApi: GamesApi = RetrofitClient.gamesApi
+    private val gamesApi: GamesApi = RetrofitClient.gamesApi,
+    private val eventStreamApi: EventStreamApi = RetrofitClient.eventStreamApi
 ) : GamesRepository {
+    private val gson = Gson()
+
+    override fun gameUpdates(gameId: String): Flow<GameUpdate> =
+        session.liveEvents(eventStreamApi, "games/events", mapOf("gameId" to gameId), ::toGameUpdate)
+            .transformWhile { update ->
+                emit(update)
+                update !is GameUpdate.Deleted
+            }
+
+    // Null for events this version of the app doesn't know
+    private fun toGameUpdate(event: ServerSentEvent): GameUpdate? =
+        when (event.name) {
+            "gameUpdated" -> GameUpdate.Changed(gson.fromJson(event.data, GameResponseDto::class.java).game.toGame())
+            "gameDeleted" -> GameUpdate.Deleted
+            else -> null
+        }
 
     override suspend fun getFeed(): Result<List<Game>> =
         request { gamesApi.getGameFeed(it).games.map { game -> game.toGame() } }

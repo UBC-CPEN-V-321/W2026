@@ -71,12 +71,13 @@ beforeAll(async () => {
     users.push({ id: user.id, auth: `Bearer ${signAccessToken(user.id)}` });
   }
 
-  // Two booked singles games, player 1 on team 1 and player 2 on team 2, a day apart
+  // Two singles games in progress (only a started game can be scored), player 1 on team 1 and player 2 on
+  // team 2, a day apart
   for (let index = 0; index < 2; index++) {
     const game = await prisma.game.create({
       data: {
         format: Format.SINGLES,
-        status: GameStatus.BOOKED,
+        status: GameStatus.IN_PROGRESS,
         startsAt: new Date(Date.UTC(2026, 10, 10 + index, 17)),
         courtId: court.id,
         gameSource: GameSource.SCHEDULED,

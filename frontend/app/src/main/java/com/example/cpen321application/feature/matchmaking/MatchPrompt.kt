@@ -27,6 +27,6 @@ fun matchPrompt(game: Game, username: String?): MatchPrompt {
         opponents = others.filter { it.team != me?.team },
         hasAccepted = me?.acceptedAt != null,
         waitingFor = others.filter { it.acceptedAt == null },
-        isBooked = game.status == GameStatus.BOOKED
+        isBooked = game.status == GameStatus.BOOKED || game.status == GameStatus.IN_PROGRESS
     )
 }

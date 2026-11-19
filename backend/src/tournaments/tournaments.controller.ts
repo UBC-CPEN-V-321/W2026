@@ -15,6 +15,8 @@ import {
   leaveTournament,
   newTournament,
 } from "./tournaments.service";
+import { tournamentStreams } from "./tournaments.events";
+import { streamRoute } from "../events/streamRoute";
 
 export const tournamentsRouter = Router();
 
@@ -31,6 +33,17 @@ tournamentsRouter.get("/", async (req: Request, res: Response) => {
   const tournament = await getTournament(tournamentId);
   res.status(200).json({ tournament });
 });
+
+// Server-Sent Events stream of one tournament: its current state first, then the tournament each time it changes
+// (players join or leave, the bracket is drawn, a match is started or scored, it is cancelled)
+tournamentsRouter.get(
+  "/events",
+  streamRoute(tournamentStreams, async (req) => {
+    const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
+    const tournament = await getTournament(tournamentId);
+    return { key: tournamentId, firstEvents: [{ event: "tournamentUpdated", data: { tournament } }] };
+  }),
+);
 
 tournamentsRouter.get("/feed", async (_req: Request, res: Response) => {
   const tournaments = await getTournamentFeed();

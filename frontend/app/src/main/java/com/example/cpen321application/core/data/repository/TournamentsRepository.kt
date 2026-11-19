@@ -3,11 +3,15 @@ package com.example.cpen321application.core.data.repository
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Tournament
+import com.example.cpen321application.core.network.EventStreamApi
 import com.example.cpen321application.core.network.RetrofitClient
 import com.example.cpen321application.core.network.TournamentApi
 import com.example.cpen321application.core.network.dto.CreateTournamentRequestDto
 import com.example.cpen321application.core.network.dto.TournamentIdRequestDto
+import com.example.cpen321application.core.network.dto.TournamentResponseDto
 import com.example.cpen321application.core.network.dto.toTournament
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
 import retrofit2.HttpException
 import java.io.IOException
 import java.time.Instant
@@ -33,12 +37,27 @@ interface TournamentsRepository {
 
     // Cancels the tournament for every player. Only its creator can, while registration is open
     suspend fun cancelTournament(tournamentId: String): Result<Unit>
+
+    // The tournament pushed by the backend each time it changes (players join or leave, the bracket is drawn,
+    // a match is started or scored, it is cancelled), starting with its current state. Ends right away if
+    // signed out. Throws IOException if the connection drops, HttpException if the backend refuses
+    fun tournamentUpdates(tournamentId: String): Flow<Tournament>
 }
 
 class TournamentsRepositoryImpl(
     private val session: AuthSession,
-    private val api: TournamentApi = RetrofitClient.tournamentApi
+    private val api: TournamentApi = RetrofitClient.tournamentApi,
+    private val eventStreamApi: EventStreamApi = RetrofitClient.eventStreamApi
 ) : TournamentsRepository {
+    private val gson = Gson()
+
+    override fun tournamentUpdates(tournamentId: String): Flow<Tournament> =
+        session.liveEvents(eventStreamApi, "tournaments/events", mapOf("tournamentId" to tournamentId)) { event ->
+            // Null for events this version of the app doesn't know
+            event.takeIf { it.name == "tournamentUpdated" }?.let {
+                gson.fromJson(it.data, TournamentResponseDto::class.java).tournament.toTournament()
+            }
+        }
 
     override suspend fun getFeed(): Result<List<Tournament>> =
         request { api.getTournamentFeed(it).tournaments.map { tournament -> tournament.toTournament() } }

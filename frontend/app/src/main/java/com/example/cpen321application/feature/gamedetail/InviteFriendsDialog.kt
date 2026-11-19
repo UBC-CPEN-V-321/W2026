@@ -119,11 +119,19 @@ private fun FriendInviteRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        PlayerAvatar(name = friend.username, size = 36.dp)
+        PlayerAvatar(name = friend.displayName, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = friend.username,
+                text = friend.displayName,
                 style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            // The username under the name, like the friends list
+            Text(
+                text = "@${friend.username}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

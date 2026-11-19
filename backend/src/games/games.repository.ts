@@ -166,7 +166,7 @@ export async function fetchUserGames(
       players: { some: { userId } },
       // An open game past its start time can no longer fill or be accepted
       OR: [
-        { status: GameStatus.BOOKED },
+        { status: { in: [GameStatus.BOOKED, GameStatus.IN_PROGRESS] } },
         { status: GameStatus.OPEN, startsAt: { gt: now } },
       ],
     },
@@ -196,7 +196,7 @@ export async function fetchUserHistory(userId: string): Promise<GameDetails[]> {
 }
 
 /**
- * Deletes a game that is still open or booked, along with its players, rounds and equipment.
+ * Deletes a game that is still open, booked or in progress, along with its players, rounds and equipment.
  * Their foreign keys don't cascade, so they are deleted first, in the same transaction.
  * A completed game is kept, since its players' ratings already include its result
  * @param gameId the game ID of the game to be deleted
@@ -208,7 +208,7 @@ export async function deleteGame(gameId: string): Promise<boolean> {
     await lockGame(tx, gameId);
 
     const deletable = await tx.game.count({
-      where: { id: gameId, status: { in: [GameStatus.OPEN, GameStatus.BOOKED] } },
+      where: { id: gameId, status: { in: [GameStatus.OPEN, GameStatus.BOOKED, GameStatus.IN_PROGRESS] } },
     });
     if (deletable === 0) {
       return false;
@@ -225,14 +225,14 @@ export async function deleteGame(gameId: string): Promise<boolean> {
 /**
  * Marks a matched game as cancelled. The row stays, so its other players can see the match fell through
  * @param gameId the game ID of the matched game
- * @returns true if the game was open or booked and is now cancelled, false if it was already closed
+ * @returns true if the game was open, booked or in progress and is now cancelled, false if it was already closed
  */
 export async function cancelMatchedGame(gameId: string): Promise<boolean> {
   const { count } = await prisma.game.updateMany({
     where: {
       id: gameId,
       gameSource: GameSource.MATCHED,
-      status: { in: [GameStatus.OPEN, GameStatus.BOOKED] },
+      status: { in: [GameStatus.OPEN, GameStatus.BOOKED, GameStatus.IN_PROGRESS] },
     },
     data: { status: GameStatus.CANCELLED },
   });
@@ -253,20 +253,20 @@ export async function updateGame(
 }
 
 /**
- * Starts a booked game early by moving its start time to now, so it counts as started.
- * The status and start time are checked in the update itself, so two players starting the game at once
- * can't both move it, and a game completed or cancelled since the caller checked it is left alone
+ * Starts a booked game: it is in progress from now on, and its start time becomes now, when it really started.
+ * The status is checked in the update itself, so two players starting the game at once can't both start it,
+ * and a game completed or cancelled since the caller checked it is left alone
  * @param gameId the game ID of the game to start
  * @param now the current time, the game's new start time
- * @returns the started game, or null if the game is gone, not booked or already started
+ * @returns the started game, or null if the game is gone or not booked, e.g. already started
  */
 export async function startBookedGame(
   gameId: string,
   now: Date,
 ): Promise<Game | null> {
   const [game] = await prisma.game.updateManyAndReturn({
-    where: { id: gameId, status: GameStatus.BOOKED, startsAt: { gt: now } },
-    data: { startsAt: now },
+    where: { id: gameId, status: GameStatus.BOOKED },
+    data: { startsAt: now, status: GameStatus.IN_PROGRESS },
   });
   return game ?? null;
 }
@@ -276,17 +276,15 @@ export async function startBookedGame(
  * moves the winner on through the bracket, in one transaction, replacing any rounds saved during the game
  * @param gameId the game ID of the game to complete
  * @param rounds the [team 1 score, team 2 score] of each round, in order
- * @returns the completed game, its rounds and each player's rating change, or null if the game was already completed or cancelled
+ * @returns the completed game, its rounds and each player's rating change, or null if the game is not in progress
  * @throws IncompleteTeamsError if either team is missing players; nothing is saved
  */
 export async function completeGame(gameId: string, rounds: [number, number][]) {
   return await prisma.$transaction(async (tx) => {
-    // Only complete a game that is still open, so two reports at once can't both save rounds
+    // Only complete a game in progress, so two reports at once can't both save rounds, and a game cancelled
+    // since the caller checked it is left alone
     const { count } = await tx.game.updateMany({
-      where: {
-        id: gameId,
-        status: { notIn: [GameStatus.COMPLETED, GameStatus.CANCELLED] },
-      },
+      where: { id: gameId, status: GameStatus.IN_PROGRESS },
       data: { status: GameStatus.COMPLETED },
     });
 

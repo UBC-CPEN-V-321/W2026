@@ -260,7 +260,7 @@ describe("Mocked: fetchUserGames", () => {
         where: {
           players: { some: { userId } },
           OR: [
-            { status: GameStatus.BOOKED },
+            { status: { in: [GameStatus.BOOKED, GameStatus.IN_PROGRESS] } },
             { status: GameStatus.OPEN, startsAt: { gt: now } },
           ],
         },
@@ -462,7 +462,7 @@ describe("Mocked: deleteGame", () => {
 
     expect(lockQuery()).toMatch(/FOR UPDATE/);
     expect(db.game.count).toHaveBeenCalledWith({
-      where: { id: gameId, status: { in: [GameStatus.OPEN, GameStatus.BOOKED] } },
+      where: { id: gameId, status: { in: [GameStatus.OPEN, GameStatus.BOOKED, GameStatus.IN_PROGRESS] } },
     });
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(db.gameUser.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
@@ -639,7 +639,7 @@ describe("Mocked: cancelMatchedGame", () => {
   // Input: a matched game that is open or booked
   // Expected behavior: the game is marked cancelled, the row stays
   // Expected output: true
-  test("Cancels an open or booked matched game", async () => {
+  test("Cancels an open, booked or in-progress matched game", async () => {
     db.game.updateMany.mockResolvedValue({ count: 1 });
 
     await expect(cancelMatchedGame(gameId)).resolves.toBe(true);
@@ -647,7 +647,7 @@ describe("Mocked: cancelMatchedGame", () => {
       where: {
         id: gameId,
         gameSource: GameSource.MATCHED,
-        status: { in: [GameStatus.OPEN, GameStatus.BOOKED] },
+        status: { in: [GameStatus.OPEN, GameStatus.BOOKED, GameStatus.IN_PROGRESS] },
       },
       data: { status: GameStatus.CANCELLED },
     });
@@ -670,17 +670,17 @@ describe("Mocked: startBookedGame", () => {
     jest.clearAllMocks();
   });
 
-  // Input: a booked game that has not started
-  // Expected behavior: its start time moves to now, only if it is still booked and not started
+  // Input: a booked game that has not started, before or after its start time
+  // Expected behavior: it is in progress and its start time becomes now, only if it is still booked
   // Expected output: the started game
-  test("Moves a booked game's start time to now", async () => {
-    const started = { ...gameRow(), status: GameStatus.BOOKED, startsAt: now };
+  test("Marks a booked game in progress and moves its start time to now", async () => {
+    const started = { ...gameRow(), status: GameStatus.IN_PROGRESS, startsAt: now };
     db.game.updateManyAndReturn.mockResolvedValue([started]);
 
     await expect(startBookedGame(gameId, now)).resolves.toBe(started);
     expect(db.game.updateManyAndReturn).toHaveBeenCalledWith({
-      where: { id: gameId, status: GameStatus.BOOKED, startsAt: { gt: now } },
-      data: { startsAt: now },
+      where: { id: gameId, status: GameStatus.BOOKED },
+      data: { startsAt: now, status: GameStatus.IN_PROGRESS },
     });
   });
 

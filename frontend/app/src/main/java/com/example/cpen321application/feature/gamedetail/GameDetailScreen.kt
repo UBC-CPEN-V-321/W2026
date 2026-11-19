@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.Round
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ConfirmDialog
 import com.example.cpen321application.core.ui.components.CourtPickerDialog
@@ -106,6 +107,9 @@ fun GameDetailRoute(
     onOpenTournament: (tournamentId: String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    FollowWhileVisible(viewModel) { viewModel.followUpdates() }
+
     val callbacks = remember(viewModel, onBack, onOpenTournament) {
         GameDetailCallbacks(
             onJoin = viewModel::join,

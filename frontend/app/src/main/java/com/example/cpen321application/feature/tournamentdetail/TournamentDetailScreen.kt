@@ -26,7 +26,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +42,7 @@ import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
 import com.example.cpen321application.core.data.model.playersOnTeam
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ChipStyle
 import com.example.cpen321application.core.ui.components.ConfirmDialog
@@ -94,10 +94,8 @@ fun TournamentDetailRoute(
         )
     }
 
-    // Runs each time the screen is shown, so coming back from a match's screen shows its new score
-    LaunchedEffect(Unit) {
-        viewModel.load()
-    }
+    // Coming back from a match's screen reconnects, so a score reported there shows here
+    FollowWhileVisible(viewModel) { viewModel.followUpdates() }
 
     TournamentDetailScreen(
         uiState = uiState,

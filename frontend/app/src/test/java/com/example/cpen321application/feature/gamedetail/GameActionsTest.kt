@@ -100,12 +100,12 @@ class GameActionsTest {
         assertFalse(justInTime.leaveTooLate)
     }
 
-    // Input: player in a booked game that already started
+    // Input: player in a game a player started 45 minutes ago
     // Expected output: they can report the score, but can't move the game or leave
     @Test
     fun playerCanReportTheScoreOnceTheGameStarted() {
         val actions = gameActions(
-            game(players = listOf(alice, bob), status = GameStatus.BOOKED, startsIn = Duration.ofMinutes(-45)),
+            game(players = listOf(alice, bob), status = GameStatus.IN_PROGRESS, startsIn = Duration.ofMinutes(-45)),
             "bob",
             now
         )
@@ -132,12 +132,12 @@ class GameActionsTest {
         }
     }
 
-    // Input: the same booked game once it has started (as it shows after Start now moves its start time to now)
+    // Input: the same game once a player started it (as it shows after Start now)
     // Expected output: Report final score replaces Start now
     @Test
     fun startedGameOffersTheScoreInsteadOfStartNow() {
         val actions = gameActions(
-            game(players = listOf(alice, bob), status = GameStatus.BOOKED, startsIn = Duration.ZERO),
+            game(players = listOf(alice, bob), status = GameStatus.IN_PROGRESS, startsIn = Duration.ZERO),
             "alice",
             now
         )
@@ -206,14 +206,14 @@ class GameActionsTest {
         assertFalse(actions.canReportScore)
     }
 
-    // Input: player in a tournament game that started 45 minutes ago
+    // Input: player in a tournament game that was started 45 minutes ago
     // Expected output: they can report the score, which advances the bracket, but still can't leave or cancel
     @Test
     fun playerCanReportTheScoreOfAStartedTournamentGame() {
         val actions = gameActions(
             game(
                 players = listOf(alice, bob),
-                status = GameStatus.BOOKED,
+                status = GameStatus.IN_PROGRESS,
                 source = GameSource.TOURNAMENT,
                 startsIn = Duration.ofMinutes(-45)
             ),
@@ -268,6 +268,51 @@ class GameActionsTest {
         assertFalse(gameActions(game(source = GameSource.TOURNAMENT), "alice", now).canInvite)
         assertFalse(gameActions(game(startsIn = Duration.ZERO), "alice", now).canInvite)
         assertFalse(gameActions(game(status = GameStatus.COMPLETED), "alice", now).canInvite)
+    }
+
+    // Input: a booked game whose start time passed 10 minutes ago, which nobody started
+    // Expected output: it doesn't start on its own: Start now is still offered, the score isn't yet
+    @Test
+    fun bookedGameDoesNotStartOnItsOwn() {
+        val late = game(players = listOf(alice, bob), status = GameStatus.BOOKED, startsIn = Duration.ofMinutes(-10))
+
+        val actions = gameActions(late, "alice", now)
+
+        assertTrue(actions.canStartNow)
+        assertFalse(actions.canReportScore)
+    }
+
+    // Input: a game a player started, whose start time is still ahead by this device's clock
+    // (the clock is behind the backend's)
+    // Expected output: it counts as started: the score can be reported, it can't be started again,
+    // and there is no time left to wait for
+    @Test
+    fun inProgressGameHasStartedWhateverThisClockSays() {
+        val inProgress = game(
+            players = listOf(alice, bob),
+            status = GameStatus.IN_PROGRESS,
+            startsIn = Duration.ofMillis(500)
+        )
+
+        val actions = gameActions(inProgress, "alice", now)
+
+        assertTrue(actions.canReportScore)
+        assertFalse(actions.canStartNow)
+        assertFalse(actions.canChangeTimeOrCourt)
+        assertEquals(null, nextActionsChange(inProgress, now))
+    }
+
+    // Input: games two hours away, 10 minutes away, already started, and completed
+    // Expected output: the leave deadline, the start time, then nothing left to wait for
+    @Test
+    fun nextActionsChangeIsTheNextTimeRule() {
+        val later = game(startsIn = Duration.ofHours(2))
+        val soon = game(startsIn = Duration.ofMinutes(10))
+
+        assertEquals(later.startsAt.minus(Duration.ofMinutes(30)), nextActionsChange(later, now))
+        assertEquals(soon.startsAt, nextActionsChange(soon, now))
+        assertEquals(null, nextActionsChange(game(startsIn = Duration.ZERO), now))
+        assertEquals(null, nextActionsChange(game(status = GameStatus.COMPLETED, startsIn = Duration.ofHours(2)), now))
     }
 
     // Input: friends bob, who is already playing, and dave, who is not

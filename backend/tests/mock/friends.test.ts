@@ -1,7 +1,7 @@
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { Prisma } from "../../src/generated/prisma/client";
-import { FriendshipStatus } from "../../src/generated/prisma/enums";
+import { Format, FriendshipStatus } from "../../src/generated/prisma/enums";
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -9,6 +9,7 @@ import {
   fetchFriendRequests,
   fetchFriends,
   fetchFriendship,
+  fetchGamesInProgress,
 } from "../../src/friends/friends.repository";
 import { signAccessToken } from "../../src/auth/tokens";
 import { authErrors } from "../../src/auth/requireAuth";
@@ -28,6 +29,7 @@ jest.mock("../../src/friends/friends.repository", () => ({
   deleteFriendship: jest.fn(),
   fetchFriends: jest.fn(),
   fetchFriendRequests: jest.fn(),
+  fetchGamesInProgress: jest.fn(() => Promise.resolve([])),
 }));
 
 const mockedFetchFriendship = jest.mocked(fetchFriendship);
@@ -36,6 +38,7 @@ const mockedAcceptFriendRequest = jest.mocked(acceptFriendRequest);
 const mockedDeleteFriendship = jest.mocked(deleteFriendship);
 const mockedFetchFriends = jest.mocked(fetchFriends);
 const mockedFetchFriendRequests = jest.mocked(fetchFriendRequests);
+const mockedFetchGamesInProgress = jest.mocked(fetchGamesInProgress);
 
 const friendship = (
   requesterId: string,
@@ -132,10 +135,50 @@ describe("Mocked: GET /friends", () => {
           name: "Rally Partner",
           rating: 1520,
           friendsSince: friendsSince.toISOString(),
+          playing: null,
         },
       ],
     });
     expect(mockedFetchFriends).toHaveBeenCalledWith(userId);
+  });
+
+  // Input: two friends, one of them in a game in progress
+  // Expected status code: 200
+  // Expected behavior: games are looked up for both friends, only those started in the last 3 hours
+  // Expected output: the playing friend has their game's ID, format, start time and court; the other has null
+  test("Returns the game each friend is playing", async () => {
+    const thirdUserId = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
+    const friendsSince = new Date("2026-10-01T12:00:00.000Z");
+    const startedAt = new Date("2026-11-19T20:00:00.000Z");
+    mockedFetchFriends.mockResolvedValue([
+      { id: otherUserId, username: "rally", name: "Rally Partner", rating: 1520, friendsSince },
+      { id: thirdUserId, username: "lob", name: "Lob Friend", rating: 1480, friendsSince },
+    ]);
+    mockedFetchGamesInProgress.mockResolvedValue([
+      {
+        userId: otherUserId,
+        game: { id: "game-1", format: Format.SINGLES, startsAt: startedAt, court: { name: "Kitsilano Beach Park" } },
+      },
+    ]);
+
+    const before = Date.now();
+    const response = await request(createApp()).get("/friends").set("Authorization", authHeader);
+
+    expect(response.status).toBe(200);
+    const { friends } = response.body as { friends: { id: string; playing: unknown }[] };
+    expect(friends.map((friend) => [friend.id, friend.playing])).toEqual([
+      [
+        otherUserId,
+        { gameId: "game-1", format: "SINGLES", startedAt: startedAt.toISOString(), courtName: "Kitsilano Beach Park" },
+      ],
+      [thirdUserId, null],
+    ]);
+    const after = Date.now();
+    const threeHours = 3 * 60 * 60 * 1000;
+    const [ids, startedSince] = mockedFetchGamesInProgress.mock.calls[0] ?? [];
+    expect(ids).toEqual([otherUserId, thirdUserId]);
+    expect(startedSince?.getTime()).toBeGreaterThanOrEqual(before - threeHours);
+    expect(startedSince?.getTime()).toBeLessThanOrEqual(after - threeHours);
   });
 
   // Input: authenticated caller with no accepted friends

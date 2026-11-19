@@ -3,6 +3,9 @@ import { env } from './config/env';
 import { prisma } from './db';
 import { startMatchmakingJob } from './jobs/matchmaking.job';
 import { startMatchDeadlineJob } from './jobs/matchDeadline.job';
+import { gameListStreams, gameStreams } from './games/games.events';
+import { friendStreams } from './friends/friends.events';
+import { tournamentStreams } from './tournaments/tournaments.events';
 
 const app = createApp();
 
@@ -17,6 +20,11 @@ const matchDeadlineJob = startMatchDeadlineJob();
 async function shutdown(): Promise<void> {
   await matchmakingJob.stop();
   await matchDeadlineJob.stop();
+  // Open event streams would keep server.close waiting forever
+  gameStreams.closeAll();
+  friendStreams.closeAll();
+  gameListStreams.closeAll();
+  tournamentStreams.closeAll();
   await new Promise<void>((resolve, reject) => {
     server.close((err) => {
       if (err) {

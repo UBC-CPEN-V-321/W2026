@@ -2,8 +2,11 @@ package com.example.cpen321application.feature.scheduledgame
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cpen321application.core.data.repository.GameListUpdate
+import com.example.cpen321application.core.data.repository.GameListUpdates
 import com.example.cpen321application.core.data.repository.GamesRepository
 import com.example.cpen321application.core.data.repository.TournamentsRepository
+import com.example.cpen321application.core.data.repository.reconnecting
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -18,13 +21,15 @@ import kotlinx.coroutines.launch
  * @param gamesRepository the /games routes
  * @param tournamentsRepository the /tournaments routes
  * @param currentUsername the signed-in user's username, null if signed out
+ * @param gameListUpdates the /games/feed/events stream, which pushes both lists
  */
 class ScheduledGameViewModel(
     private val gamesRepository: GamesRepository,
     private val tournamentsRepository: TournamentsRepository,
-    private val currentUsername: () -> String?
+    private val currentUsername: () -> String?,
+    private val gameListUpdates: GameListUpdates
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(ScheduledGameUiState())
+    private val _uiState = MutableStateFlow(ScheduledGameUiState(isLoading = true))
     val uiState: StateFlow<ScheduledGameUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
@@ -34,8 +39,29 @@ class ScheduledGameViewModel(
     }
 
     /**
-     * Loads the feeds and the user's games and tournaments. Called every time the tab is shown,
-     * so a game or tournament joined, left or changed on its screen is up to date here.
+     * Shows the feed and the user's games and tournaments as the backend pushes them, until the caller stops
+     * collecting: anything anyone creates, joins, leaves, starts, scores or cancels shows up without a refresh.
+     * Reconnects after the connection drops; the backend sends both lists on every connect, so changes made
+     * while disconnected (or on another screen) aren't missed
+     */
+    suspend fun followLists() {
+        gameListUpdates.updates()
+            .reconnecting { error ->
+                // The backend refused the stream: the tab keeps the lists it last showed
+                _uiState.update { it.copy(isLoading = false, errorMessage = error.toUserMessage()) }
+            }
+            .collect { update ->
+                _uiState.update {
+                    when (update) {
+                        is GameListUpdate.Feed -> it.copy(feed = update.games, tournamentFeed = update.tournaments)
+                        is GameListUpdate.Mine -> it.copy(myGames = update.games, myTournaments = update.tournaments)
+                    }.copy(isLoading = false, errorMessage = null, username = currentUsername())
+                }
+            }
+    }
+
+    /**
+     * Loads the feeds and the user's games and tournaments once, for Refresh and Retry
      */
     fun load() {
         // Only the latest load updates the screen

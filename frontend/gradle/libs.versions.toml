@@ -27,6 +27,8 @@ activityCompose = "1.10.1"
 composeBom = "2025.06.01"
 navigationCompose = "2.8.8"
 retrofit = "2.11.0"
+# Streams GET /games/events. Retrofit 2.11 alone brings OkHttp 3.14; 4.12 matches mockwebserver below
+okhttp = "4.12.0"
 securityCrypto = "1.0.0"
 
 # Test
@@ -38,6 +40,8 @@ uiautomator = "2.3.0"
 orgJson = "20231013"
 # Fake backend for local unit tests
 mockwebserver = "4.12.0"
+# A test main dispatcher and virtual time for view model tests; the same version as the app's coroutines
+coroutinesTest = "1.10.2"
 googleid = "1.1.1"
 credentials = "1.5.0"
 playServicesLocation = "21.3.0"
@@ -53,6 +57,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
@@ -73,6 +78,7 @@ androidx-credentials = { group = "androidx.credentials", name = "credentials", v
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 places = { group = "com.google.android.libraries.places", name = "places", version.ref = "places" }

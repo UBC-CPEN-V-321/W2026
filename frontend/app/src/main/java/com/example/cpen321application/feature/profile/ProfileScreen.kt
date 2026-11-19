@@ -17,7 +17,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
-import com.example.cpen321application.core.ui.components.MessageBanner
+import com.example.cpen321application.core.ui.FollowWhileVisible
+import com.example.cpen321application.core.ui.components.FloatingMessage
 import com.example.cpen321application.core.ui.components.UnderlineTabs
 
 private val PROFILE_TABS = listOf(ProfileTab.MATCH_HISTORY, ProfileTab.FRIENDS, ProfileTab.EQUIPMENT)
@@ -37,6 +38,8 @@ data class ProfileActions(
     val onDeleteEquipment: (Int) -> Unit = {},
     val onOpenMatch: (gameId: String) -> Unit = {},
     val onOpenStats: () -> Unit = {},
+    // Opens a game, e.g. the one a friend is playing
+    val onOpenGame: (gameId: String) -> Unit = {},
 )
 
 @Composable
@@ -45,6 +48,7 @@ fun ProfileRoute(
     onSignOut: () -> Unit,
     onOpenMatch: (gameId: String) -> Unit,
     onOpenStats: () -> Unit,
+    onOpenGame: (gameId: String) -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val session = authViewModel.session
@@ -52,6 +56,11 @@ fun ProfileRoute(
 
     LaunchedEffect(session) {
         viewModel.initSession(session)
+    }
+
+    // Live friends and requests only while the Friends tab is on screen: another tab leaves this out, which stops it
+    if (session != null && uiState.selectedTab == ProfileTab.FRIENDS) {
+        FollowWhileVisible(session) { viewModel.followFriendsPage(session) }
     }
 
     val actions = ProfileActions(
@@ -71,6 +80,7 @@ fun ProfileRoute(
         onDeleteEquipment = { equipmentId -> viewModel.deleteEquipment(session, equipmentId) },
         onOpenMatch = onOpenMatch,
         onOpenStats = onOpenStats,
+        onOpenGame = onOpenGame,
     )
 
     ProfileScreen(uiState = uiState, actions = actions)
@@ -81,18 +91,33 @@ fun ProfileScreen(
     uiState: ProfileUiState,
     actions: ProfileActions = ProfileActions(),
 ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ProfileContent(uiState = uiState, actions = actions)
+
+        // Floats over the top of the page, so a message never moves the page under it
+        FloatingMessage(
+            message = uiState.errorMessage ?: uiState.successMessage,
+            isError = uiState.errorMessage != null,
+            onDismiss = actions.onClearMessages,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
+
+    if (uiState.showEquipmentDialog) {
+        EquipmentDialog(
+            uiState = uiState,
+            actions = actions,
+        )
+    }
+}
+
+// The page itself: the header, rating, stats, and the selected tab
+@Composable
+private fun ProfileContent(uiState: ProfileUiState, actions: ProfileActions) {
     Column(modifier = Modifier.fillMaxSize()) {
         ProfileTopBar(onSignOut = actions.onSignOut)
-
-        val message = uiState.errorMessage ?: uiState.successMessage
-        if (message != null) {
-            MessageBanner(
-                message = message,
-                isError = uiState.errorMessage != null,
-                onDismiss = actions.onClearMessages,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-            )
-        }
 
         ProfileIdentity(name = uiState.name, username = uiState.username)
         RatingCard(
@@ -122,13 +147,6 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-        )
-    }
-
-    if (uiState.showEquipmentDialog) {
-        EquipmentDialog(
-            uiState = uiState,
-            actions = actions,
         )
     }
 }

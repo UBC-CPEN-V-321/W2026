@@ -34,6 +34,8 @@ import {
   GameIdInput,
   ReportScoreInput,
 } from "./games.schemas";
+import { gameChanged } from "../events/changes";
+import { anyoneWatchingPlayers } from "../events/watchers";
 
 export const gameErrors = {
   NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
@@ -67,6 +69,7 @@ export const gameErrors = {
     message: "Only a booked game can start: every spot must be filled and every player must accept",
   },
   AlreadyStarted: { status: 409, code: "GAME_ALREADY_STARTED", message: "Game has already started" },
+  NotStarted: { status: 409, code: "GAME_NOT_STARTED", message: "Start the game before reporting its score" },
   NotFriends: { status: 403, code: "NOT_FRIENDS", message: "Users are not friends" },
   // Two games sharing a player finished at the same moment and Postgres aborted one of them
   ScoreConflict: { status: 409, code: "SCORE_CONFLICT", message: "The score could not be saved, please try again" },
@@ -88,9 +91,12 @@ const LEAVE_DEADLINE_MS = 30 * 60 * 1000;
  * @throws AppError if the court does not exist
  */
 export async function newGame(game: CreateGameInput, userId: string) {
-  return await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
+  const created = await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
     P2003: commonErrors.CourtNotFound,
   });
+  // On the feed, and in the creator's games
+  gameChanged({ gameId: created.id });
+  return created;
 }
 
 /**
@@ -99,7 +105,7 @@ export async function newGame(game: CreateGameInput, userId: string) {
  * @param game the game with its court
  * @returns the game with its forecast, which is null if the game is closed or the forecast cannot be loaded
  */
-async function withForecast(game: GameDetails) {
+export async function withForecast(game: GameDetails) {
   const isClosed =
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED;
@@ -129,6 +135,7 @@ export async function getGame(gameId: GameIdInput) {
   }
   return await withForecast(game);
 }
+
 
 /**
  * Gets the scheduled games that players can join, with the weather forecast at their court and start time
@@ -186,14 +193,23 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
     if (!matchCancelled) {
       throw new AppError(gameErrors.Closed);
     }
+    gameChanged({ gameId });
     await notifyMatchCancelled(gameId, userId);
     return;
   }
+
+  // Its players are deleted with it, so whoever must hear about it (their friends, their game lists) is found
+  // first. Only looked up when someone has one of those open
+  const playerIds =
+    anyoneWatchingPlayers()
+      ? ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? [])
+      : [];
 
   // A completed scheduled game is kept: its ratings were already applied
   if (!(await deleteGame(gameId))) {
     throw new AppError(gameErrors.Closed);
   }
+  gameChanged({ gameId, playerIds, onFeed: true });
 }
 
 /**
@@ -224,7 +240,10 @@ export async function joinGame(gameId: string, userId: string, team: number): Pr
     addPlayerToTeam(gameId, userId, team, teamSize[game.format], now),
     { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
-  if (result === "added") return;
+  if (result === "added") {
+    gameChanged({ gameId });
+    return;
+  }
   throw new AppError(result === "teamFull" ? gameErrors.TeamFull : gameErrors.NotJoinable);
 }
 
@@ -321,6 +340,7 @@ export async function leaveGame(gameId: string, userId: string): Promise<void> {
   }
 
   await mapPrismaErrors(deleteGameUser(gameId, userId), { P2025: gameErrors.PlayerNotFound });
+  gameChanged({ gameId });
 }
 
 /**
@@ -348,6 +368,7 @@ export async function acceptMatch(gameId: string, userId: string): Promise<void>
     throw new AppError(gameErrors.AlreadyAccepted);
   }
 
+  gameChanged({ gameId });
   await notifyMatchAccepted(gameId, userId, result === "booked");
 }
 
@@ -434,13 +455,14 @@ async function fetchMatchAudience(gameId: string, userId: string) {
  * @param gameId the game ID of the game to edit
  * @param userId the user editing the game
  * @param isMove true when changing the time or court, which matched games don't allow
+ * @returns the game
  * @throws AppError with the reason the user cannot edit the game
  */
 async function checkCanEditGame(
   gameId: string,
   userId: string,
   isMove = false,
-): Promise<void> {
+): Promise<Game> {
   const game = await fetchGame(gameId);
   if (game === null) {
     throw new AppError(gameErrors.NotFound);
@@ -459,6 +481,13 @@ async function checkCanEditGame(
   if (isMove && game.gameSource === GameSource.MATCHED) {
     throw new AppError(gameErrors.MatchedNotMovable);
   }
+
+  // A game being played can't move: a new start time would leave it in progress but starting later
+  if (isMove && game.status === GameStatus.IN_PROGRESS) {
+    throw new AppError(gameErrors.AlreadyStarted);
+  }
+
+  return game;
 }
 
 /**
@@ -475,17 +504,18 @@ export async function changeGameTime(
   startsAt: Date,
 ) {
   await checkCanEditGame(gameId, userId, true);
-  return await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
+  const game = await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
+  gameChanged({ gameId });
+  return game;
 }
 
 /**
- * Decides whether a game can start now: it must be booked, so its players are known and every one of them
- * has accepted it, and its start time must not have passed
+ * Decides whether a game can start: it must be booked, so its players are known and every one of them
+ * has accepted it, and not started yet
  * @param game the game to start
- * @param now the current time
  * @returns the reason the game cannot start, or null if it can
  */
-function whyGameCannotStart(game: Game, now: Date): ErrorDefinition | null {
+function whyGameCannotStart(game: Game): ErrorDefinition | null {
   if (
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED
@@ -493,23 +523,23 @@ function whyGameCannotStart(game: Game, now: Date): ErrorDefinition | null {
     return gameErrors.Closed;
   }
 
+  if (game.status === GameStatus.IN_PROGRESS) {
+    return gameErrors.AlreadyStarted;
+  }
+
   // An open game still has free spots, or is a match waiting for answers
   if (game.status !== GameStatus.BOOKED) {
     return gameErrors.NotBooked;
-  }
-
-  if (game.startsAt <= now) {
-    return gameErrors.AlreadyStarted;
   }
 
   return null;
 }
 
 /**
- * Starts a booked game before its start time, for players who want to play early: its start time moves to now,
- * so every player can report its score. Scheduled, matched and tournament games can all start early, since a
- * booked game's players are known and have accepted it. A tournament's later rounds are timed from the
- * tournament's start, so they don't move
+ * Starts a booked game when a player taps Start: it is in progress from now on, and its start time becomes now.
+ * Games never start on their own, so this works early or late. Scheduled, matched and tournament games can all
+ * start, since a booked game's players are known and have accepted it. A tournament's later rounds are timed from
+ * the tournament's start, so they don't move
  * @param gameId the game ID of the game to start
  * @param userId the user starting the game, who must be in it
  * @returns the started game
@@ -525,23 +555,24 @@ export async function startGame(gameId: string, userId: string) {
     throw new AppError(gameErrors.NotInGame);
   }
 
-  const now = new Date();
-  const error = whyGameCannotStart(game, now);
+  const error = whyGameCannotStart(game);
   if (error) {
     throw new AppError(error);
   }
 
-  const started = await startBookedGame(gameId, now);
+  const started = await startBookedGame(gameId, new Date());
   if (started === null) {
     // Another player started it, or it was completed, cancelled or deleted, after the check above
     const current = await fetchGame(gameId);
     const reason =
       current === null
         ? gameErrors.NotFound
-        : (whyGameCannotStart(current, now) ?? gameErrors.AlreadyStarted);
+        : (whyGameCannotStart(current) ?? gameErrors.AlreadyStarted);
     throw new AppError(reason);
   }
 
+  // startedAt: its players stop showing as playing to their friends a while after it
+  gameChanged({ gameId, startedAt: started.startsAt });
   return started;
 }
 
@@ -559,14 +590,17 @@ export async function changeGameLocation(
   courtId: number,
 ) {
   await checkCanEditGame(gameId, userId, true);
-  return await mapPrismaErrors(updateGame(gameId, { courtId }), {
+  const game = await mapPrismaErrors(updateGame(gameId, { courtId }), {
     P2003: commonErrors.CourtNotFound,
     P2025: gameErrors.NotFound,
   });
+  gameChanged({ gameId });
+  return game;
 }
 
 /**
- * Reports the final score of a game: saves its rounds, marks it as completed and updates every player's rating
+ * Reports the final score of a game in progress: saves its rounds, marks it as completed and updates every
+ * player's rating
  * @param gameId the game ID of the game the score is for
  * @param userId the user reporting the score, who must be in the game
  * @param rounds the [team 1 score, team 2 score] of each round, in order
@@ -578,7 +612,12 @@ export async function reportScore(
   userId: string,
   rounds: ReportScoreInput["rounds"],
 ) {
-  await checkCanEditGame(gameId, userId);
+  const game = await checkCanEditGame(gameId, userId);
+
+  // Only a game a player started can be scored, like the app's Report score button
+  if (game.status !== GameStatus.IN_PROGRESS) {
+    throw new AppError(gameErrors.NotStarted);
+  }
 
   let completed;
   try {
@@ -594,5 +633,6 @@ export async function reportScore(
     throw new AppError(gameErrors.Closed);
   }
 
+  gameChanged({ gameId });
   return completed;
 }

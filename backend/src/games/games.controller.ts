@@ -29,6 +29,9 @@ import {
   reportScore,
   startGame,
 } from "./games.service";
+import { gameListStreams, gameStreams } from "./games.events";
+import { getGameListEvents } from "../live/live";
+import { streamRoute } from "../events/streamRoute";
 
 export const gamesRouter = Router();
 
@@ -45,6 +48,25 @@ gamesRouter.get("/", async (req: Request, res: Response) => {
   const game = await getGame(gameId);
   res.status(200).json({ game });
 });
+
+// Server-Sent Events stream of one game: its current state first, then the game each time it changes
+gamesRouter.get(
+  "/events",
+  streamRoute(gameStreams, async (req) => {
+    const gameId = parseRequest(gameIdSchema, req.query.gameId);
+    return { key: gameId, firstEvents: [{ event: "gameUpdated", data: { game: await getGame(gameId) } }] };
+  }),
+);
+
+// Server-Sent Events stream of the caller's Games tab: "feed" (games and tournaments to join) and "mine" (their own
+// games and tournaments) first, then each again whenever it changes
+gamesRouter.get(
+  "/feed/events",
+  streamRoute(gameListStreams, async (req) => {
+    const userId = authedUserId(req);
+    return { key: userId, firstEvents: await getGameListEvents(userId) };
+  }),
+);
 
 gamesRouter.get("/feed", async (_req: Request, res: Response) => {
   const games = await getFeed();

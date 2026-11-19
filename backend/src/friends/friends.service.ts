@@ -1,5 +1,6 @@
-import { AppError, commonErrors, type ErrorDefinition, mapPrismaErrors } from "../errors";
-import { FriendshipStatus } from "../generated/prisma/enums";
+import { AppError, commonErrors, type ErrorDefinition, logFailure, mapPrismaErrors } from "../errors";
+import { FriendshipStatus, GameStatus } from "../generated/prisma/enums";
+import { fetchGameDetails } from "../games/games.repository";
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -7,7 +8,14 @@ import {
   fetchFriendRequests,
   fetchFriends,
   fetchFriendship,
+  fetchGamesInProgress,
 } from "./friends.repository";
+import { friendStreams } from "./friends.events";
+import type { StreamEvent } from "../events/eventStreams";
+
+// A game in progress counts as being played for this long after it started. A game nobody reports a score for
+// stays in progress, and its players shouldn't show as playing forever
+const PLAYING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 export const friendErrors = {
   SelfRequest: { status: 400, code: "SELF_REQUEST", message: "Cannot friend yourself" },
@@ -39,6 +47,7 @@ export async function sendFriendRequest(userId: string, otherUserId: string) {
       P2002: friendErrors.RequestAlreadyExists,
       P2003: commonErrors.UserNotFound,
     });
+    refreshFriendsPages([userId, otherUserId]);
     return FriendshipStatus.PENDING;
   }
 
@@ -51,6 +60,7 @@ export async function sendFriendRequest(userId: string, otherUserId: string) {
   }
 
   await acceptFriendRequest(otherUserId, userId);
+  refreshFriendsPages([userId, otherUserId]);
   return FriendshipStatus.ACCEPTED;
 }
 
@@ -63,6 +73,7 @@ export async function sendFriendRequest(userId: string, otherUserId: string) {
 export async function acceptRequest(userId: string, requesterId: string): Promise<void> {
   const accepted = await acceptFriendRequest(requesterId, userId);
   if (!accepted) throw new AppError(friendErrors.RequestNotFound);
+  refreshFriendsPages([userId, requesterId]);
 }
 
 /**
@@ -74,15 +85,30 @@ export async function acceptRequest(userId: string, requesterId: string): Promis
 export async function removeFriend(userId: string, otherUserId: string): Promise<void> {
   const removed = await deleteFriendship(userId, otherUserId);
   if (!removed) throw new AppError(friendErrors.FriendshipNotFound);
+  refreshFriendsPages([userId, otherUserId]);
 }
 
 /**
- * Gets the accepted friends of a user
+ * Gets the accepted friends of a user, with the game each one is playing right now
  * @param userId the user whose friends are requested
- * @returns the friends of the user
+ * @returns the friends of the user. A friend's `playing` is their game in progress, or null if they aren't playing
  */
 export async function getFriends(userId: string) {
-  return await fetchFriends(userId);
+  const friends = await fetchFriends(userId);
+  const startedSince = new Date(Date.now() - PLAYING_WINDOW_MS);
+  const games = await fetchGamesInProgress(
+    friends.map((friend) => friend.id),
+    startedSince,
+  );
+
+  const playingByUser = new Map(
+    games.map(({ userId: playerId, game }) => [
+      playerId,
+      { gameId: game.id, format: game.format, startedAt: game.startsAt, courtName: game.court.name },
+    ]),
+  );
+
+  return friends.map((friend) => ({ ...friend, playing: playingByUser.get(friend.id) ?? null }));
 }
 
 /**
@@ -92,4 +118,69 @@ export async function getFriends(userId: string) {
  */
 export async function getFriendRequests(userId: string) {
   return await fetchFriendRequests(userId);
+}
+
+/**
+ * The current state of a user's friends page, as events: "friends" with the friends list and "requests" with
+ * the pending requests, shaped like GET /friends and GET /friends/requests
+ * @param userId the user whose friends page it is
+ * @returns the two events
+ */
+export async function getFriendsPageEvents(userId: string): Promise<StreamEvent[]> {
+  const [friends, requests] = await Promise.all([getFriends(userId), getFriendRequests(userId)]);
+  return [
+    { event: "friends", data: { friends } },
+    { event: "requests", data: requests },
+  ];
+}
+
+/**
+ * Sends the current friends page to these users, if they have it open. Never throws
+ * @param userIds the users whose friends or requests changed
+ */
+export function refreshFriendsPages(userIds: Iterable<string>): void {
+  for (const userId of userIds) {
+    friendStreams.refresh(userId, () => getFriendsPageEvents(userId));
+  }
+}
+
+/**
+ * Sends the current friends page to the friends of these players, after their games started or ended
+ * @param playerIds the players whose friends see them as playing or not
+ */
+export async function refreshFriendsOfPlayers(playerIds: string[]): Promise<void> {
+  if (friendStreams.isEmpty()) {
+    return;
+  }
+
+  const friendLists = await Promise.all(playerIds.map((playerId) => fetchFriends(playerId)));
+  const friendIds = new Set(friendLists.flat().map((friend) => friend.id));
+  refreshFriendsPages(friendIds);
+}
+
+/**
+ * When a game starts, its players show as playing to their friends for PLAYING_WINDOW_MS. Nothing changes in
+ * the database when that runs out, so this sends the friends pages again then, unless nobody has one open or
+ * the game already ended (which sent them already). The timer doesn't keep the process alive; one lost to a
+ * restart only leaves a page stale until it reconnects, which loads it again
+ * @param gameId the game that started
+ * @param startedAt when it started
+ */
+export function refreshFriendsWhenPlayingEnds(gameId: string, startedAt: Date): void {
+  const endsIn = startedAt.getTime() + PLAYING_WINDOW_MS - Date.now();
+  const timer = setTimeout(() => {
+    logFailure(refreshFriendsIfStillPlaying(gameId), `push the end of game ${gameId}'s playing window`);
+  }, Math.max(endsIn, 0));
+  timer.unref();
+}
+
+// A game's playing window ran out: if it is still in progress, its players no longer show as playing
+async function refreshFriendsIfStillPlaying(gameId: string): Promise<void> {
+  if (friendStreams.isEmpty()) {
+    return;
+  }
+  const game = await fetchGameDetails(gameId);
+  if (game?.status === GameStatus.IN_PROGRESS) {
+    await refreshFriendsOfPlayers(game.players.map((player) => player.id));
+  }
 }
