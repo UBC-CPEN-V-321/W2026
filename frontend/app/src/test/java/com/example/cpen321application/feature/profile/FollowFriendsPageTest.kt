@@ -1,13 +1,12 @@
 package com.example.cpen321application.feature.profile
 
 import com.example.cpen321application.core.auth.AuthSession
-import com.example.cpen321application.core.auth.User
 import com.example.cpen321application.core.data.repository.FriendsPageUpdate
 import com.example.cpen321application.core.data.repository.FriendsPageUpdates
-import com.example.cpen321application.core.network.ApiService
 import com.example.cpen321application.core.network.dto.FriendDto
 import com.example.cpen321application.core.network.dto.FriendGameDto
 import com.example.cpen321application.core.network.dto.FriendRequestDto
+import com.example.cpen321application.testing.signedInSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -19,15 +18,10 @@ import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
 import java.io.IOException
-import java.lang.reflect.Proxy
 
 class FollowFriendsPageTest {
     // The stream connects through the fake, so the session's API is never called
-    private val unusedApi = Proxy.newProxyInstance(
-        ApiService::class.java.classLoader,
-        arrayOf(ApiService::class.java)
-    ) { _, _, _ -> error("unused") } as ApiService
-    private val session = AuthSession(unusedApi, User("alice", "access", "refresh")) {}
+    private val session = signedInSession()
 
     private val playingBob = FriendDto(
         "u2",

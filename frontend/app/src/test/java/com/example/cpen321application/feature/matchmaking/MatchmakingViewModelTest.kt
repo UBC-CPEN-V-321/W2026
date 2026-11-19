@@ -6,9 +6,7 @@ import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
 import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.Player
-import com.example.cpen321application.core.data.repository.GameUpdate
-import com.example.cpen321application.core.data.repository.GamesRepository
-import kotlinx.coroutines.flow.Flow
+import com.example.cpen321application.testing.UnusedGamesRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -50,7 +48,7 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
 /**
  * Stands in for the games backend: only the calls the Matchmaking screen makes return anything
  */
-private class FakeGamesRepository : GamesRepository {
+private class FakeGamesRepository : UnusedGamesRepository() {
     var myGamesResult: Result<List<Game>> = Result.success(emptyList())
     var gameResult: Result<Game> = Result.failure(IOException("not set"))
     var acceptResult: Result<Unit> = Result.success(Unit)
@@ -71,17 +69,6 @@ private class FakeGamesRepository : GamesRepository {
         cancelled.add(gameId)
         return cancelResult
     }
-
-    override suspend fun getFeed(): Result<List<Game>> = error("unused")
-    override suspend fun createGame(format: Format, startsAt: Instant, courtId: Int): Result<String> = error("unused")
-    override suspend fun joinGame(gameId: String, team: Int): Result<Unit> = error("unused")
-    override suspend fun leaveGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun inviteFriend(gameId: String, userId: String): Result<Boolean> = error("unused")
-    override suspend fun startGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
-    override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
-    override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
-    override fun gameUpdates(gameId: String): Flow<GameUpdate> = error("unused")
 }
 
 class MatchmakingViewModelTest {

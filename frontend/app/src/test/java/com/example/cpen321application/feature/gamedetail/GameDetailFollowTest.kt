@@ -1,7 +1,5 @@
 package com.example.cpen321application.feature.gamedetail
 
-import com.example.cpen321application.core.auth.AuthSession
-import com.example.cpen321application.core.auth.User
 import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Game
@@ -10,9 +8,9 @@ import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.repository.CourtsRepository
 import com.example.cpen321application.core.data.repository.GameUpdate
-import com.example.cpen321application.core.data.repository.GamesRepository
-import com.example.cpen321application.core.network.ApiService
 import com.example.cpen321application.feature.profile.FakeFriendsRepository
+import com.example.cpen321application.testing.UnusedGamesRepository
+import com.example.cpen321application.testing.signedInSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -36,27 +34,13 @@ import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
 import java.io.IOException
-import java.lang.reflect.Proxy
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.Executors
 
 // Only gameUpdates is used: the screen's live updates
-private class FakeGamesRepository(val updates: Flow<GameUpdate>) : GamesRepository {
+private class FakeGamesRepository(val updates: Flow<GameUpdate>) : UnusedGamesRepository() {
     override fun gameUpdates(gameId: String): Flow<GameUpdate> = updates
-    override suspend fun getFeed(): Result<List<Game>> = error("unused")
-    override suspend fun getMyGames(): Result<List<Game>> = error("unused")
-    override suspend fun getGame(gameId: String): Result<Game> = error("unused")
-    override suspend fun createGame(format: Format, startsAt: Instant, courtId: Int): Result<String> = error("unused")
-    override suspend fun cancelGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun joinGame(gameId: String, team: Int): Result<Unit> = error("unused")
-    override suspend fun leaveGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun acceptMatch(gameId: String): Result<Unit> = error("unused")
-    override suspend fun inviteFriend(gameId: String, userId: String): Result<Boolean> = error("unused")
-    override suspend fun startGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
-    override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
-    override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
 }
 
 private object UnusedCourts : CourtsRepository {
@@ -75,12 +59,7 @@ class GameDetailFollowTest {
     private val mainThread = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     // The stream connects through the fake, so the session's API is never called
-    private val session = AuthSession(
-        Proxy.newProxyInstance(ApiService::class.java.classLoader, arrayOf(ApiService::class.java)) { _, _, _ ->
-            error("unused")
-        } as ApiService,
-        User("bob", "access", "refresh")
-    ) {}
+    private val session = signedInSession("bob")
 
     private val alice = Player("u1", "alice", "Alice A", 1500.0, 1)
 

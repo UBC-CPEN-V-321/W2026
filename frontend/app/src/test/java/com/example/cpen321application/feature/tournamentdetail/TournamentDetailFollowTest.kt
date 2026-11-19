@@ -6,7 +6,7 @@ import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.data.model.TournamentCreator
 import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
-import com.example.cpen321application.core.data.repository.TournamentsRepository
+import com.example.cpen321application.testing.UnusedTournamentsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -23,21 +23,8 @@ import java.time.Duration
 import java.time.Instant
 
 // Only tournamentUpdates is used: the screen's live updates
-private class FakeTournamentsRepository(val updates: Flow<Tournament>) : TournamentsRepository {
+private class FakeTournamentsRepository(val updates: Flow<Tournament>) : UnusedTournamentsRepository() {
     override fun tournamentUpdates(tournamentId: String): Flow<Tournament> = updates
-    override suspend fun getFeed(): Result<List<Tournament>> = error("unused")
-    override suspend fun getMyTournaments(): Result<List<Tournament>> = error("unused")
-    override suspend fun getTournament(tournamentId: String): Result<Tournament> = error("unused")
-    override suspend fun createTournament(
-        name: String,
-        format: Format,
-        startsAt: Instant,
-        courtId: Int
-    ): Result<String> =
-        error("unused")
-    override suspend fun joinTournament(tournamentId: String): Result<Unit> = error("unused")
-    override suspend fun leaveTournament(tournamentId: String): Result<Unit> = error("unused")
-    override suspend fun cancelTournament(tournamentId: String): Result<Unit> = error("unused")
 }
 
 class TournamentDetailFollowTest {

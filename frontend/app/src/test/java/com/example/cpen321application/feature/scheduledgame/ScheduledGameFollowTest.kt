@@ -10,9 +10,8 @@ import com.example.cpen321application.core.data.model.TournamentCreator
 import com.example.cpen321application.core.data.model.TournamentStatus
 import com.example.cpen321application.core.data.repository.GameListUpdate
 import com.example.cpen321application.core.data.repository.GameListUpdates
-import com.example.cpen321application.core.data.repository.GameUpdate
-import com.example.cpen321application.core.data.repository.GamesRepository
-import com.example.cpen321application.core.data.repository.TournamentsRepository
+import com.example.cpen321application.testing.UnusedGamesRepository
+import com.example.cpen321application.testing.UnusedTournamentsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -28,41 +27,6 @@ import retrofit2.Response
 import java.io.IOException
 import java.time.Duration
 import java.time.Instant
-
-// The stream is the only source the tests follow; the one-off loads aren't used
-private object UnusedGames : GamesRepository {
-    override fun gameUpdates(gameId: String): Flow<GameUpdate> = error("unused")
-    override suspend fun getFeed(): Result<List<Game>> = error("unused")
-    override suspend fun getMyGames(): Result<List<Game>> = error("unused")
-    override suspend fun getGame(gameId: String): Result<Game> = error("unused")
-    override suspend fun createGame(format: Format, startsAt: Instant, courtId: Int): Result<String> = error("unused")
-    override suspend fun cancelGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun joinGame(gameId: String, team: Int): Result<Unit> = error("unused")
-    override suspend fun leaveGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun acceptMatch(gameId: String): Result<Unit> = error("unused")
-    override suspend fun inviteFriend(gameId: String, userId: String): Result<Boolean> = error("unused")
-    override suspend fun startGame(gameId: String): Result<Unit> = error("unused")
-    override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
-    override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
-    override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
-}
-
-private object UnusedTournaments : TournamentsRepository {
-    override fun tournamentUpdates(tournamentId: String): Flow<Tournament> = error("unused")
-    override suspend fun getFeed(): Result<List<Tournament>> = error("unused")
-    override suspend fun getMyTournaments(): Result<List<Tournament>> = error("unused")
-    override suspend fun getTournament(tournamentId: String): Result<Tournament> = error("unused")
-    override suspend fun createTournament(
-        name: String,
-        format: Format,
-        startsAt: Instant,
-        courtId: Int
-    ): Result<String> =
-        error("unused")
-    override suspend fun joinTournament(tournamentId: String): Result<Unit> = error("unused")
-    override suspend fun leaveTournament(tournamentId: String): Result<Unit> = error("unused")
-    override suspend fun cancelTournament(tournamentId: String): Result<Unit> = error("unused")
-}
 
 private class FakeGameListUpdates(private val stream: Flow<GameListUpdate>) : GameListUpdates {
     override fun updates(): Flow<GameListUpdate> = stream
@@ -95,7 +59,12 @@ class ScheduledGameFollowTest {
     )
 
     private fun viewModel(stream: Flow<GameListUpdate>) =
-        ScheduledGameViewModel(UnusedGames, UnusedTournaments, { "alice" }, FakeGameListUpdates(stream))
+        ScheduledGameViewModel(
+            UnusedGamesRepository(),
+            UnusedTournamentsRepository(),
+            { "alice" },
+            FakeGameListUpdates(stream)
+        )
 
     // Input: the tab opens (loading), then the backend pushes the feed, then the user's own lists, then a new feed
     // Expected output: each list is replaced by its latest push, the other kept; no longer loading; the user is known
