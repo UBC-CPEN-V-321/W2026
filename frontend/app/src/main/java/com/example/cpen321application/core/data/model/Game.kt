@@ -5,8 +5,9 @@ import java.time.Instant
 enum class Format { SINGLES, DOUBLES }
 
 // OPEN: a scheduled game with free spots, or a matched game waiting for every player to accept
-// BOOKED: every spot filled. COMPLETED: final score reported. CANCELLED: acceptance deadline missed
-enum class GameStatus { OPEN, BOOKED, COMPLETED, CANCELLED }
+// BOOKED: every spot filled. IN_PROGRESS: a booked game started early or that reached its start time.
+// COMPLETED: final score reported. CANCELLED: acceptance deadline missed
+enum class GameStatus { OPEN, BOOKED, IN_PROGRESS, COMPLETED, CANCELLED }
 
 // SCHEDULED: created by a player and shown on the feed. MATCHED: proposed by matchmaking.
 // TOURNAMENT: a match of a tournament bracket, created by the backend when both teams are known

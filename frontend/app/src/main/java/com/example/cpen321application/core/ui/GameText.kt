@@ -31,6 +31,7 @@ val GameStatus.label: String
     get() = when (this) {
         GameStatus.OPEN -> "Open"
         GameStatus.BOOKED -> "Booked"
+        GameStatus.IN_PROGRESS -> "In progress"
         GameStatus.COMPLETED -> "Completed"
         GameStatus.CANCELLED -> "Cancelled"
     }

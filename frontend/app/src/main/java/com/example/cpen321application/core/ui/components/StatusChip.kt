@@ -93,6 +93,8 @@ val GameStatus.chipStyle: ChipStyle
     get() = when (this) {
         GameStatus.OPEN -> ChipStyle.OPEN
         GameStatus.BOOKED -> ChipStyle.BOOKED
+        // Like a tournament in progress
+        GameStatus.IN_PROGRESS -> ChipStyle.BOOKED
         GameStatus.COMPLETED -> ChipStyle.DONE
         GameStatus.CANCELLED -> ChipStyle.CANCELLED
     }
