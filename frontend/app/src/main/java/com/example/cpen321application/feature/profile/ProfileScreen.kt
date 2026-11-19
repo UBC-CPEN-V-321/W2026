@@ -20,7 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
-import com.example.cpen321application.core.ui.components.MessageBanner
+import com.example.cpen321application.core.ui.components.FloatingMessage
 import com.example.cpen321application.core.ui.components.UnderlineTabs
 
 private val PROFILE_TABS = listOf(ProfileTab.MATCH_HISTORY, ProfileTab.FRIENDS, ProfileTab.EQUIPMENT)
@@ -100,18 +100,33 @@ fun ProfileScreen(
     uiState: ProfileUiState,
     actions: ProfileActions = ProfileActions(),
 ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ProfileContent(uiState = uiState, actions = actions)
+
+        // Floats over the top of the page, so a message never moves the page under it
+        FloatingMessage(
+            message = uiState.errorMessage ?: uiState.successMessage,
+            isError = uiState.errorMessage != null,
+            onDismiss = actions.onClearMessages,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
+
+    if (uiState.showEquipmentDialog) {
+        EquipmentDialog(
+            uiState = uiState,
+            actions = actions,
+        )
+    }
+}
+
+// The page itself: the header, rating, stats, and the selected tab
+@Composable
+private fun ProfileContent(uiState: ProfileUiState, actions: ProfileActions) {
     Column(modifier = Modifier.fillMaxSize()) {
         ProfileTopBar(onSignOut = actions.onSignOut)
-
-        val message = uiState.errorMessage ?: uiState.successMessage
-        if (message != null) {
-            MessageBanner(
-                message = message,
-                isError = uiState.errorMessage != null,
-                onDismiss = actions.onClearMessages,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-            )
-        }
 
         ProfileIdentity(name = uiState.name, username = uiState.username)
         RatingCard(
@@ -141,13 +156,6 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-        )
-    }
-
-    if (uiState.showEquipmentDialog) {
-        EquipmentDialog(
-            uiState = uiState,
-            actions = actions,
         )
     }
 }

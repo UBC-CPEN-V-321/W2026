@@ -1,12 +1,17 @@
 package com.example.cpen321application.core.ui.components
 
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -22,8 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -101,6 +108,31 @@ fun RingSpinner(modifier: Modifier = Modifier, size: Dp = 20.dp) {
 }
 
 /**
+ * A MessageBanner floating over the top of the screen: it slides down when a message arrives and back up when
+ * it is dismissed or times out, without moving anything under it. Put it last in a Box over the screen
+ * @param message what happened, or null to hide it
+ * @param isError leaves out the success check, and keeps the message up until dismissed
+ * @param onDismiss hides the message
+ */
+@Composable
+fun FloatingMessage(message: String?, isError: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    // The last message shown, so the banner keeps its text while it slides away after message becomes null
+    var shown by remember { mutableStateOf((message ?: "") to isError) }
+    if (message != null) {
+        shown = message to isError
+    }
+
+    AnimatedVisibility(
+        visible = message != null,
+        modifier = modifier,
+        enter = slideInVertically { height -> -height } + fadeIn(),
+        exit = slideOutVertically { height -> -height } + fadeOut(),
+    ) {
+        MessageBanner(message = shown.first, isError = shown.second, onDismiss = onDismiss)
+    }
+}
+
+/**
  * A dark snackbar-style message, e.g. "Friend request sent", with a close button. A success hides itself after
  * a few seconds, like a snackbar; an error stays until dismissed, so it isn't missed
  * @param message what happened
@@ -124,6 +156,8 @@ fun MessageBanner(message: String, isError: Boolean, onDismiss: () -> Unit, modi
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         color = colors.inverseSurface,
+        // Lifted off the screen, since it floats over it
+        shadowElevation = 6.dp,
         contentColor = colors.inverseOnSurface,
     ) {
         Row(
