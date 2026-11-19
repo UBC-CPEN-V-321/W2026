@@ -8,23 +8,17 @@ import com.example.cpen321application.core.data.repository.FriendsRepository
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.core.data.repository.GamesRepository
+import com.example.cpen321application.core.data.repository.reconnecting
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
-import java.io.IOException
 import java.time.Duration
 import java.time.Instant
-
-// Wait before reconnecting to the game's event stream, so a backend that is down isn't hammered
-private const val RECONNECT_DELAY_MS = 3_000L
 
 /**
  * One game's screen: its details, and joining, leaving, changing, starting early, scoring or cancelling it
@@ -191,13 +185,7 @@ class GameDetailViewModel(
      */
     suspend fun followUpdates() {
         gamesRepository.gameUpdates(gameId)
-            .retryWhen { cause, _ ->
-                val reconnect = cause is IOException
-                if (reconnect) delay(RECONNECT_DELAY_MS)
-                reconnect
-            }
-            .catch { error ->
-                if (error !is HttpException) throw error
+            .reconnecting { error ->
                 // The backend refused the stream, e.g. the game is gone: the screen keeps the last game it showed
                 _uiState.update { it.copy(isLoading = false, errorMessage = error.toUserMessage()) }
             }

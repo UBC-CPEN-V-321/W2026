@@ -11,11 +11,7 @@ import com.example.cpen321application.core.network.dto.TournamentDto
 import com.example.cpen321application.core.network.dto.toGame
 import com.example.cpen321application.core.network.dto.toTournament
 import com.google.gson.Gson
-import com.google.gson.JsonParseException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.mapNotNull
 
 // What the backend pushes about the Games tab
 sealed interface GameListUpdate {
@@ -44,25 +40,15 @@ class GameListUpdatesImpl(
     private val eventStreamApi: EventStreamApi = RetrofitClient.eventStreamApi,
     private val gson: Gson = Gson()
 ) : GameListUpdates {
-    override fun updates(): Flow<GameListUpdate> = flow {
-        // A 401 when connecting makes authorized refresh the token and connect again
-        session.authorized { authorization ->
-            emitAll(eventStreamApi.events(authorization, "games/feed/events").mapNotNull(::toUpdate))
-        }
-    }
+    override fun updates(): Flow<GameListUpdate> =
+        session.liveEvents(eventStreamApi, "games/feed/events", read = ::toUpdate)
 
-    // Null for events this version of the app doesn't know, or can't read
+    // Null for events this version of the app doesn't know
     private fun toUpdate(event: ServerSentEvent): GameListUpdate? =
-        try {
-            when (event.name) {
-                "feed" -> parse(event.data).let { (games, tournaments) -> GameListUpdate.Feed(games, tournaments) }
-                "mine" -> parse(event.data).let { (games, tournaments) -> GameListUpdate.Mine(games, tournaments) }
-                else -> null
-            }
-        } catch (e: JsonParseException) {
-            null
-        } catch (e: IllegalArgumentException) {
-            null  // An enum value this version of the app doesn't know
+        when (event.name) {
+            "feed" -> parse(event.data).let { (games, tournaments) -> GameListUpdate.Feed(games, tournaments) }
+            "mine" -> parse(event.data).let { (games, tournaments) -> GameListUpdate.Mine(games, tournaments) }
+            else -> null
         }
 
     private fun parse(json: String): Pair<List<Game>, List<Tournament>> {

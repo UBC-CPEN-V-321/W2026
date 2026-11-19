@@ -12,29 +12,22 @@ import com.example.cpen321application.core.data.repository.FriendsPageUpdate
 import com.example.cpen321application.core.data.repository.FriendsPageUpdates
 import com.example.cpen321application.core.data.repository.FriendsPageUpdatesImpl
 import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
+import com.example.cpen321application.core.data.repository.reconnecting
 import com.example.cpen321application.core.network.toUserMessage
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.network.dto.UpdateEquipmentRequestDto
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
-import java.io.IOException
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-
-// Wait before reconnecting to the friends page's event stream, so a backend that is down isn't hammered
-private const val RECONNECT_DELAY_MS = 3_000L
 
 // Only tennis rackets should have a next maintenance date, set to 1 month from now
 private fun nextMaintenanceFor(type: EquipmentType): String? {
@@ -62,13 +55,7 @@ class ProfileViewModel(
      */
     suspend fun followFriendsPage(session: AuthSession) {
         friendsPageUpdates.updates(session)
-            .retryWhen { cause, _ ->
-                val reconnect = cause is IOException
-                if (reconnect) delay(RECONNECT_DELAY_MS)
-                reconnect
-            }
-            .catch { error ->
-                if (error !is HttpException) throw error
+            .reconnecting { error ->
                 // The backend refused the stream: the page keeps what it last loaded
                 _uiState.update {
                     it.copy(

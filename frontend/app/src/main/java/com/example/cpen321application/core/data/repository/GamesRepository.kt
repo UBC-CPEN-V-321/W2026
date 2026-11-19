@@ -10,11 +10,7 @@ import com.example.cpen321application.core.network.RetrofitClient
 import com.example.cpen321application.core.network.ServerSentEvent
 import com.example.cpen321application.core.network.dto.GameResponseDto
 import com.google.gson.Gson
-import com.google.gson.JsonParseException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transformWhile
 import com.example.cpen321application.core.network.dto.AcceptMatchRequestDto
 import com.example.cpen321application.core.network.dto.ChangeGameLocationRequestDto
@@ -88,32 +84,18 @@ class GamesRepositoryImpl(
     private val gson = Gson()
 
     override fun gameUpdates(gameId: String): Flow<GameUpdate> =
-        flow {
-            // A 401 when connecting makes authorized refresh the token and connect again
-            session.authorized { authorization ->
-                val events = eventStreamApi.events(authorization, "games/events", mapOf("gameId" to gameId))
-                emitAll(events.mapNotNull(::toGameUpdate))
+        session.liveEvents(eventStreamApi, "games/events", mapOf("gameId" to gameId), ::toGameUpdate)
+            .transformWhile { update ->
+                emit(update)
+                update !is GameUpdate.Deleted
             }
-        }.transformWhile { update ->
-            emit(update)
-            update !is GameUpdate.Deleted
-        }
 
-    // Null for events this version of the app doesn't know, or can't read
+    // Null for events this version of the app doesn't know
     private fun toGameUpdate(event: ServerSentEvent): GameUpdate? =
-        try {
-            when (event.name) {
-                "gameUpdated" -> {
-                    val game = gson.fromJson(event.data, GameResponseDto::class.java).game
-                    GameUpdate.Changed(game.toGame())
-                }
-                "gameDeleted" -> GameUpdate.Deleted
-                else -> null
-            }
-        } catch (e: JsonParseException) {
-            null
-        } catch (e: IllegalArgumentException) {
-            null  // An enum value this version of the app doesn't know
+        when (event.name) {
+            "gameUpdated" -> GameUpdate.Changed(gson.fromJson(event.data, GameResponseDto::class.java).game.toGame())
+            "gameDeleted" -> GameUpdate.Deleted
+            else -> null
         }
 
     override suspend fun getFeed(): Result<List<Game>> =

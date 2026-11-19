@@ -7,13 +7,9 @@ import com.example.cpen321application.core.network.ServerSentEvent
 import com.example.cpen321application.core.network.dto.FriendDto
 import com.example.cpen321application.core.network.dto.FriendRequestDto
 import com.google.gson.Gson
-import com.google.gson.JsonParseException
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.mapNotNull
 
 // What the backend pushes about the signed-in user's friends page
 sealed interface FriendsPageUpdate {
@@ -35,25 +31,15 @@ class FriendsPageUpdatesImpl(
     private val eventStreamApi: EventStreamApi = RetrofitClient.eventStreamApi,
     private val gson: Gson = Gson()
 ) : FriendsPageUpdates {
-    override fun updates(session: AuthSession): Flow<FriendsPageUpdate> = flow {
-        // A 401 when connecting makes authorized refresh the token and connect again
-        session.authorized { authorization ->
-            emitAll(eventStreamApi.events(authorization, "friends/events").mapNotNull(::toUpdate))
-        }
-    }
+    override fun updates(session: AuthSession): Flow<FriendsPageUpdate> =
+        session.liveEvents(eventStreamApi, "friends/events", read = ::toUpdate)
 
-    // Null for events this version of the app doesn't know, or can't read
+    // Null for events this version of the app doesn't know
     private fun toUpdate(event: ServerSentEvent): FriendsPageUpdate? =
-        try {
-            when (event.name) {
-                "friends" -> FriendsPageUpdate.Friends(listIn(event.data, "friends"))
-                "requests" -> FriendsPageUpdate.Requests(listIn(event.data, "incoming"))
-                else -> null
-            }
-        } catch (e: JsonParseException) {
-            null
-        } catch (e: IllegalStateException) {
-            null  // Not a JSON object
+        when (event.name) {
+            "friends" -> FriendsPageUpdate.Friends(listIn(event.data, "friends"))
+            "requests" -> FriendsPageUpdate.Requests(listIn(event.data, "incoming"))
+            else -> null
         }
 
     // The list under a key of a JSON object, e.g. "friends" in { "friends": [...] }

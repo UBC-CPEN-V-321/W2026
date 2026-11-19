@@ -5,18 +5,13 @@ import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.network.EventStreamApi
 import com.example.cpen321application.core.network.RetrofitClient
-import com.example.cpen321application.core.network.ServerSentEvent
 import com.example.cpen321application.core.network.TournamentApi
 import com.example.cpen321application.core.network.dto.CreateTournamentRequestDto
 import com.example.cpen321application.core.network.dto.TournamentIdRequestDto
 import com.example.cpen321application.core.network.dto.TournamentResponseDto
 import com.example.cpen321application.core.network.dto.toTournament
 import com.google.gson.Gson
-import com.google.gson.JsonParseException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.mapNotNull
 import retrofit2.HttpException
 import java.io.IOException
 import java.time.Instant
@@ -56,26 +51,12 @@ class TournamentsRepositoryImpl(
 ) : TournamentsRepository {
     private val gson = Gson()
 
-    override fun tournamentUpdates(tournamentId: String): Flow<Tournament> = flow {
-        // A 401 when connecting makes authorized refresh the token and connect again
-        session.authorized { authorization ->
-            val query = mapOf("tournamentId" to tournamentId)
-            emitAll(eventStreamApi.events(authorization, "tournaments/events", query).mapNotNull(::toTournament))
-        }
-    }
-
-    // Null for events this version of the app doesn't know, or can't read
-    private fun toTournament(event: ServerSentEvent): Tournament? =
-        try {
-            if (event.name == "tournamentUpdated") {
-                gson.fromJson(event.data, TournamentResponseDto::class.java).tournament.toTournament()
-            } else {
-                null
+    override fun tournamentUpdates(tournamentId: String): Flow<Tournament> =
+        session.liveEvents(eventStreamApi, "tournaments/events", mapOf("tournamentId" to tournamentId)) { event ->
+            // Null for events this version of the app doesn't know
+            event.takeIf { it.name == "tournamentUpdated" }?.let {
+                gson.fromJson(it.data, TournamentResponseDto::class.java).tournament.toTournament()
             }
-        } catch (e: JsonParseException) {
-            null
-        } catch (e: IllegalArgumentException) {
-            null  // An enum value this version of the app doesn't know
         }
 
     override suspend fun getFeed(): Result<List<Tournament>> =
