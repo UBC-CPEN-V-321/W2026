@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.repository.CourtsRepositoryImpl
 import com.example.cpen321application.core.data.repository.FriendsRepositoryImpl
+import com.example.cpen321application.core.data.repository.GameListUpdatesImpl
 import com.example.cpen321application.core.data.repository.GamesRepositoryImpl
 import com.example.cpen321application.core.data.repository.TournamentsRepositoryImpl
 import com.example.cpen321application.feature.creategame.CreateGameRoute
@@ -51,7 +52,8 @@ private fun NavGraphBuilder.scheduledGameDestination(
                 ScheduledGameViewModel(
                     gamesRepository = GamesRepositoryImpl(session),
                     tournamentsRepository = TournamentsRepositoryImpl(session),
-                    currentUsername = currentUsername
+                    currentUsername = currentUsername,
+                    gameListUpdates = GameListUpdatesImpl(session)
                 )
             },
             onGameClick = { gameId -> navController.navigate(Screen.GameDetail.createRoute(gameId)) },

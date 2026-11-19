@@ -37,6 +37,9 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.isRegistered
 import com.example.cpen321application.core.ui.components.UnderlineTabs
@@ -54,9 +57,13 @@ fun ScheduledGameRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Runs each time the tab is shown, including coming back from a game's or tournament's screen
-    LaunchedEffect(Unit) {
-        viewModel.load()
+    // Live lists only while the tab is on screen: a game's or tournament's screen on top, another tab or a
+    // backgrounded app keeps no connection open. Coming back reconnects, and the backend sends both lists first
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.followLists()
+        }
     }
 
     ScheduledGameScreen(
