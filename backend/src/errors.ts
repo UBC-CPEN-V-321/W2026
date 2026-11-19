@@ -105,6 +105,18 @@ export async function mapPrismaErrors<T>(
   }
 }
 
+/**
+ * Lets work run in the background, logging its failure instead of throwing it, since whoever started it has
+ * moved on (e.g. pushing a change to the clients after the change was saved)
+ * @param work the background work
+ * @param what what it does, for the log, e.g. "push the change of game <id>"
+ */
+export function logFailure(work: Promise<unknown>, what: string): void {
+  work.catch((err: unknown) => {
+    console.error(`Could not ${what}`, err);
+  });
+}
+
 // body-parser's errors, e.g. malformed JSON (400) or a body that is too large (413)
 function isClientHttpError(e: unknown): e is { status: number; message: string } {
   if (typeof e !== "object" || e === null) {

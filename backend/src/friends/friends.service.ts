@@ -1,5 +1,6 @@
-import { AppError, commonErrors, type ErrorDefinition, mapPrismaErrors } from "../errors";
-import { FriendshipStatus } from "../generated/prisma/enums";
+import { AppError, commonErrors, type ErrorDefinition, logFailure, mapPrismaErrors } from "../errors";
+import { FriendshipStatus, GameStatus } from "../generated/prisma/enums";
+import { fetchGameDetails } from "../games/games.repository";
 import {
   acceptFriendRequest,
   createFriendRequest,
@@ -14,7 +15,7 @@ import type { StreamEvent } from "../events/eventStreams";
 
 // A game in progress counts as being played for this long after it started. A game nobody reports a score for
 // stays in progress, and its players shouldn't show as playing forever
-export const PLAYING_WINDOW_MS = 3 * 60 * 60 * 1000;
+const PLAYING_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 export const friendErrors = {
   SelfRequest: { status: 400, code: "SELF_REQUEST", message: "Cannot friend yourself" },
@@ -155,4 +156,31 @@ export async function refreshFriendsOfPlayers(playerIds: string[]): Promise<void
   const friendLists = await Promise.all(playerIds.map((playerId) => fetchFriends(playerId)));
   const friendIds = new Set(friendLists.flat().map((friend) => friend.id));
   refreshFriendsPages(friendIds);
+}
+
+/**
+ * When a game starts, its players show as playing to their friends for PLAYING_WINDOW_MS. Nothing changes in
+ * the database when that runs out, so this sends the friends pages again then, unless nobody has one open or
+ * the game already ended (which sent them already). The timer doesn't keep the process alive; one lost to a
+ * restart only leaves a page stale until it reconnects, which loads it again
+ * @param gameId the game that started
+ * @param startedAt when it started
+ */
+export function refreshFriendsWhenPlayingEnds(gameId: string, startedAt: Date): void {
+  const endsIn = startedAt.getTime() + PLAYING_WINDOW_MS - Date.now();
+  const timer = setTimeout(() => {
+    logFailure(refreshFriendsIfStillPlaying(gameId), `push the end of game ${gameId}'s playing window`);
+  }, Math.max(endsIn, 0));
+  timer.unref();
+}
+
+// A game's playing window ran out: if it is still in progress, its players no longer show as playing
+async function refreshFriendsIfStillPlaying(gameId: string): Promise<void> {
+  if (friendStreams.isEmpty()) {
+    return;
+  }
+  const game = await fetchGameDetails(gameId);
+  if (game?.status === GameStatus.IN_PROGRESS) {
+    await refreshFriendsOfPlayers(game.players.map((player) => player.id));
+  }
 }

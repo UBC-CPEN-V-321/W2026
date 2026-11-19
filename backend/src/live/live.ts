@@ -1,12 +1,13 @@
 // Live updates: turns the changes the services announce (events/changes.ts) into pushes to the clients watching,
 // over the Server-Sent Events streams. Every step does nothing when nobody is watching what it would update.
+import { logFailure } from "../errors";
 import { type GameChange, onGameChanged, onTournamentChanged, type TournamentChange, tournamentChanged } from "../events/changes";
 import type { StreamEvent } from "../events/eventStreams";
-import { friendStreams } from "../friends/friends.events";
-import { PLAYING_WINDOW_MS, refreshFriendsOfPlayers } from "../friends/friends.service";
-import { GameSource, GameStatus } from "../generated/prisma/enums";
+import { anyoneWatchingPlayers } from "../events/watchers";
+import { refreshFriendsOfPlayers, refreshFriendsWhenPlayingEnds } from "../friends/friends.service";
+import { GameSource } from "../generated/prisma/enums";
 import { gameListStreams, gameStreams } from "../games/games.events";
-import { fetchGameDetails } from "../games/games.repository";
+import { fetchGameDetails, type GameDetails } from "../games/games.repository";
 import { getFeed, getUserGames, withForecast } from "../games/games.service";
 import { tournamentStreams } from "../tournaments/tournaments.events";
 import { fetchTournamentDetails } from "../tournaments/tournaments.repository";
@@ -24,14 +25,10 @@ export function registerLiveUpdates(): void {
   registered = true;
 
   onGameChanged((change) => {
-    pushGameChange(change).catch((err: unknown) => {
-      console.error(`Could not push the change of game ${change.gameId}`, err);
-    });
+    logFailure(pushGameChange(change), `push the change of game ${change.gameId}`);
   });
   onTournamentChanged((change) => {
-    pushTournamentChange(change).catch((err: unknown) => {
-      console.error(`Could not push the change of tournament ${change.tournamentId}`, err);
-    });
+    logFailure(pushTournamentChange(change), `push the change of tournament ${change.tournamentId}`);
   });
 }
 
@@ -44,57 +41,17 @@ export async function getGameListEvents(userId: string): Promise<StreamEvent[]> 
   return await Promise.all([loadFeedEvent(), loadMineEvent(userId)]);
 }
 
-/**
- * When a game starts, its players show as playing to their friends for PLAYING_WINDOW_MS. Nothing changes in
- * the database when that runs out, so this pushes the friends pages again then, unless nobody has one open or
- * the game already ended (which pushed them already). The timer doesn't keep the process alive; one lost to a
- * restart only leaves a page stale until it reconnects, which loads it again
- * @param gameId the game that started
- * @param startedAt when it started
- */
-function schedulePlayingEnd(gameId: string, startedAt: Date): void {
-  const endsIn = startedAt.getTime() + PLAYING_WINDOW_MS - Date.now();
-  const timer = setTimeout(() => {
-    pushPlayingEnd(gameId).catch((err: unknown) => {
-      console.error(`Could not push the end of game ${gameId}'s playing window`, err);
-    });
-  }, Math.max(endsIn, 0));
-  timer.unref();
-}
-
-// The window of a game ran out: if it is still in progress, its players no longer show as playing
-async function pushPlayingEnd(gameId: string): Promise<void> {
-  if (friendStreams.isEmpty()) {
-    return;
-  }
-  const game = await fetchGameDetails(gameId);
-  if (game?.status === GameStatus.IN_PROGRESS) {
-    await refreshFriendsOfPlayers(game.players.map((player) => player.id));
-  }
-}
-
 // A game changed: its own screen, its players' friends, its tournament, and the Games tab lists it is on
-async function pushGameChange({ gameId, playerIds, onFeed, startedAt }: GameChange): Promise<void> {
-  if (startedAt) {
-    schedulePlayingEnd(gameId, startedAt);
+async function pushGameChange(change: GameChange): Promise<void> {
+  if (change.startedAt) {
+    refreshFriendsWhenPlayingEnds(change.gameId, change.startedAt);
   }
+  refreshGameScreen(change.gameId);
 
-  gameStreams.refresh(gameId, async () => {
-    const game = await fetchGameDetails(gameId);
-    if (game === null) {
-      return [{ event: "gameDeleted", data: { gameId } }];
-    }
-    return [{ event: "gameUpdated", data: { game: await withForecast(game) } }];
-  });
-
-  const othersWatching = !friendStreams.isEmpty() || !gameListStreams.isEmpty() || !tournamentStreams.isEmpty();
-  if (!othersWatching) {
+  if (!anyoneWatchingPlayers()) {
     return;
   }
-
-  // A deleted game's players are given, since they can't be looked up any more
-  const game = playerIds === undefined ? await fetchGameDetails(gameId) : null;
-  const players = playerIds ?? game?.players.map((player) => player.id) ?? [];
+  const { game, players } = await playersOf(change);
 
   // A friend starts or stops playing when one of their games starts, ends or is cancelled
   await refreshFriendsOfPlayers(players);
@@ -105,10 +62,30 @@ async function pushGameChange({ gameId, playerIds, onFeed, startedAt }: GameChan
     return;
   }
 
-  if (onFeed ?? game?.gameSource === GameSource.SCHEDULED) {
+  if (change.onFeed ?? game?.gameSource === GameSource.SCHEDULED) {
     refreshFeed();
   }
   refreshMine(players);
+}
+
+// The game's own screen: the game as it is now, or that it was deleted
+function refreshGameScreen(gameId: string): void {
+  gameStreams.refresh(gameId, async () => {
+    const game = await fetchGameDetails(gameId);
+    if (game === null) {
+      return [{ event: "gameDeleted", data: { gameId } }];
+    }
+    return [{ event: "gameUpdated", data: { game: await withForecast(game) } }];
+  });
+}
+
+// The changed game and its players. A deleted game's players are given, since they can't be looked up any more
+async function playersOf(change: GameChange): Promise<{ game: GameDetails | null; players: string[] }> {
+  if (change.playerIds !== undefined) {
+    return { game: null, players: change.playerIds };
+  }
+  const game = await fetchGameDetails(change.gameId);
+  return { game, players: game?.players.map((player) => player.id) ?? [] };
 }
 
 // A tournament changed: its screen, the feed (it may open, fill or close), and its players' lists

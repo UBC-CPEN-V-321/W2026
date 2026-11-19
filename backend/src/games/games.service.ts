@@ -34,9 +34,8 @@ import {
   GameIdInput,
   ReportScoreInput,
 } from "./games.schemas";
-import { gameListStreams } from "./games.events";
 import { gameChanged } from "../events/changes";
-import { friendStreams } from "../friends/friends.events";
+import { anyoneWatchingPlayers } from "../events/watchers";
 
 export const gameErrors = {
   NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
@@ -202,9 +201,9 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
   // Its players are deleted with it, so whoever must hear about it (their friends, their game lists) is found
   // first. Only looked up when someone has one of those open
   const playerIds =
-    friendStreams.isEmpty() && gameListStreams.isEmpty()
-      ? []
-      : ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? []);
+    anyoneWatchingPlayers()
+      ? ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? [])
+      : [];
 
   // A completed scheduled game is kept: its ratings were already applied
   if (!(await deleteGame(gameId))) {
