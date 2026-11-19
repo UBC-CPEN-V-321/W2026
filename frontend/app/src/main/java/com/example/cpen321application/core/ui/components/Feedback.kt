@@ -20,8 +20,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -37,8 +39,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.cpen321application.R
 import com.example.cpen321application.core.ui.theme.DonutTheme
+import kotlinx.coroutines.delay
 
 private const val SPIN_MS = 1100
+
+// How long a success message stays before hiding itself, like a snackbar
+private const val SUCCESS_MESSAGE_MS = 4_000L
 private const val FULL_TURN = 360f
 // The moving arc covers a quarter of the ring
 private const val ARC_SWEEP = 90f
@@ -95,13 +101,24 @@ fun RingSpinner(modifier: Modifier = Modifier, size: Dp = 20.dp) {
 }
 
 /**
- * A dark snackbar-style message, e.g. "Friend request sent", with a close button
+ * A dark snackbar-style message, e.g. "Friend request sent", with a close button. A success hides itself after
+ * a few seconds, like a snackbar; an error stays until dismissed, so it isn't missed
  * @param message what happened
- * @param isError leaves out the success check
+ * @param isError leaves out the success check, and keeps the message up
  * @param onDismiss hides the message
  */
 @Composable
 fun MessageBanner(message: String, isError: Boolean, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    // The latest onDismiss, without restarting the wait when the caller passes a new lambda
+    val dismiss by rememberUpdatedState(onDismiss)
+    // Keyed on the message, so a new success gets its full time on screen
+    LaunchedEffect(message, isError) {
+        if (!isError) {
+            delay(SUCCESS_MESSAGE_MS)
+            dismiss()
+        }
+    }
+
     val colors = MaterialTheme.colorScheme
     Surface(
         modifier = modifier.fillMaxWidth(),
