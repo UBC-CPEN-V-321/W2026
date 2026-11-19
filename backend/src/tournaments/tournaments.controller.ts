@@ -15,6 +15,7 @@ import {
   leaveTournament,
   newTournament,
 } from "./tournaments.service";
+import { tournamentStreams } from "./tournaments.events";
 
 export const tournamentsRouter = Router();
 
@@ -30,6 +31,15 @@ tournamentsRouter.get("/", async (req: Request, res: Response) => {
   const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
   const tournament = await getTournament(tournamentId);
   res.status(200).json({ tournament });
+});
+
+// Server-Sent Events stream of one tournament: its current state first, then the tournament each time it changes
+// (players join or leave, the bracket is drawn, a match is started or scored, it is cancelled)
+tournamentsRouter.get("/events", async (req: Request, res: Response) => {
+  const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
+  // Loaded before the stream opens, so a missing tournament is a normal 404
+  const tournament = await getTournament(tournamentId);
+  tournamentStreams.open(tournamentId, res, [{ event: "tournamentUpdated", data: { tournament } }]);
 });
 
 tournamentsRouter.get("/feed", async (_req: Request, res: Response) => {

@@ -1,0 +1,288 @@
+import { once } from "node:events";
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import request from "supertest";
+import { createApp } from "../../src/app";
+import type { Game } from "../../src/generated/prisma/client";
+import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums";
+import {
+  addPlayerToTeam,
+  createGame,
+  fetchFeedGames,
+  fetchGame,
+  fetchGameDetails,
+  fetchUserGames,
+  type GameDetails,
+  isUserInGame,
+  startBookedGame,
+} from "../../src/games/games.repository";
+import {
+  fetchFeedTournaments,
+  fetchTournamentDetails,
+  fetchUserTournaments,
+  registerPlayer,
+  type TournamentDetails,
+} from "../../src/tournaments/tournaments.repository";
+import { gameListStreams } from "../../src/games/games.events";
+import { tournamentStreams } from "../../src/tournaments/tournaments.events";
+import { getForecast } from "../../src/external/weather";
+import { signAccessToken } from "../../src/auth/tokens";
+import { EventReader } from "./sseReader";
+
+process.env.JWT_SECRET = "test-jwt-secret";
+const watcherId = "0b6d3a52-6a8e-4c1f-9d2e-1f3a4b5c6d7e";
+const otherId = "9e8d7c6b-5a49-4382-a1b0-c9d8e7f6a5b4";
+const gameId = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
+const tournamentId = "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d";
+
+jest.mock("../../src/games/games.repository", () => ({
+  addPlayerToTeam: jest.fn(),
+  createGame: jest.fn(),
+  fetchFeedGames: jest.fn(),
+  fetchGame: jest.fn(),
+  fetchGameDetails: jest.fn(),
+  fetchUserGames: jest.fn(),
+  isUserInGame: jest.fn(),
+  startBookedGame: jest.fn(),
+}));
+
+jest.mock("../../src/tournaments/tournaments.repository", () => ({
+  fetchFeedTournaments: jest.fn(),
+  fetchTournamentDetails: jest.fn(),
+  fetchUserTournaments: jest.fn(),
+  registerPlayer: jest.fn(),
+}));
+
+jest.mock("../../src/external/weather", () => ({
+  getForecast: jest.fn(),
+}));
+
+const mockedFetchGame = jest.mocked(fetchGame);
+const mockedFetchGameDetails = jest.mocked(fetchGameDetails);
+const mockedFetchFeedGames = jest.mocked(fetchFeedGames);
+const mockedFetchUserGames = jest.mocked(fetchUserGames);
+const mockedCreateGame = jest.mocked(createGame);
+const mockedAddPlayerToTeam = jest.mocked(addPlayerToTeam);
+const mockedIsUserInGame = jest.mocked(isUserInGame);
+const mockedStartBookedGame = jest.mocked(startBookedGame);
+const mockedFetchTournamentDetails = jest.mocked(fetchTournamentDetails);
+const mockedFetchFeedTournaments = jest.mocked(fetchFeedTournaments);
+const mockedFetchUserTournaments = jest.mocked(fetchUserTournaments);
+const mockedRegisterPlayer = jest.mocked(registerPlayer);
+
+const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+const gameRow = (overrides: Partial<Game> = {}): Game => ({
+  id: gameId,
+  format: Format.SINGLES,
+  startsAt,
+  courtId: 1,
+  gameSource: GameSource.SCHEDULED,
+  status: GameStatus.OPEN,
+  createdAt: new Date(),
+  ...overrides,
+});
+
+const player = (id: string, team: number) => ({
+  id,
+  username: id,
+  name: id,
+  rating: 1500,
+  team,
+  acceptedAt: new Date(),
+  ratingBefore: null,
+  ratingAfter: null,
+});
+
+const gameDetails = (overrides: Partial<GameDetails> = {}): GameDetails => ({
+  ...gameRow(),
+  court: { id: 1, name: "Kitsilano Beach Park", latitude: 49.27, longitude: -123.15 },
+  players: [player(otherId, 1)],
+  rounds: [],
+  tournament: null,
+  ...overrides,
+});
+
+// Only the fields the stream and these tests use; the rest of the shape comes from the database
+const tournamentDetails = (playerIds: string[]) =>
+  ({
+    id: tournamentId,
+    name: "Fall Cup",
+    status: "REGISTRATION",
+    players: playerIds.map((id) => ({ id, username: id, name: id, rating: 1500, team: null })),
+    matches: [],
+  }) as unknown as TournamentDetails;
+
+interface IdList {
+  games: { id: string }[];
+  tournaments: { id: string }[];
+}
+
+interface TournamentEventData {
+  tournament: { id: string; players: { id: string }[] };
+}
+
+describe("Mocked: live tournament and Games tab streams", () => {
+  let server: Server;
+  let baseUrl: string;
+  const aborts: AbortController[] = [];
+
+  beforeAll(async () => {
+    server = createApp().listen(0);
+    await once(server, "listening");
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(getForecast).mockResolvedValue(null);
+    mockedFetchFeedGames.mockResolvedValue([]);
+    mockedFetchUserGames.mockResolvedValue([]);
+    mockedFetchFeedTournaments.mockResolvedValue([]);
+    mockedFetchUserTournaments.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    for (const abort of aborts.splice(0)) abort.abort();
+    tournamentStreams.closeAll();
+    gameListStreams.closeAll();
+  });
+
+  afterAll(async () => {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  });
+
+  async function watch(path: string, userId = watcherId): Promise<EventReader> {
+    const abort = new AbortController();
+    aborts.push(abort);
+    const response = await fetch(`${baseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${signAccessToken(userId)}` },
+      signal: abort.signal,
+    });
+    expect(response.status).toBe(200);
+    if (!response.body) throw new Error("No response body");
+    return new EventReader(response.body.getReader());
+  }
+
+  // Input: GET /tournaments/events for a tournament that does not exist
+  // Expected status code: 404
+  // Expected behavior: no stream is opened
+  // Expected output: TOURNAMENT_NOT_FOUND
+  it("returns 404 for a missing tournament", async () => {
+    mockedFetchTournamentDetails.mockResolvedValue(null);
+
+    const res = await request(createApp())
+      .get("/tournaments/events")
+      .query({ tournamentId })
+      .set("Authorization", `Bearer ${signAccessToken(watcherId)}`);
+
+    expect(res.status).toBe(404);
+    expect(tournamentStreams.isEmpty()).toBe(true);
+  });
+
+  // Input: a watched tournament that another player joins
+  // Expected status code: 200, and 204 for the join
+  // Expected behavior: the watcher gets the tournament with the new player without asking for it
+  // Expected output: tournamentUpdated with one player, then with both
+  it("sends the tournament again once another player joins", async () => {
+    mockedFetchTournamentDetails.mockResolvedValueOnce(tournamentDetails([watcherId]));
+    const events = await watch(`/tournaments/events?tournamentId=${tournamentId}`);
+    const first = await events.next();
+    expect(first.event).toBe("tournamentUpdated");
+    expect((first.data as TournamentEventData).tournament.players.map((p) => p.id)).toEqual([watcherId]);
+
+    mockedRegisterPlayer.mockResolvedValue("registered");
+    mockedFetchTournamentDetails.mockResolvedValue(tournamentDetails([watcherId, otherId]));
+    const join = await request(createApp())
+      .post("/tournaments/join")
+      .set("Authorization", `Bearer ${signAccessToken(otherId)}`)
+      .send({ tournamentId });
+    expect(join.status).toBe(204);
+
+    const update = await events.next();
+    expect(update.event).toBe("tournamentUpdated");
+    expect((update.data as TournamentEventData).tournament.players.map((p) => p.id)).toEqual([watcherId, otherId]);
+  });
+
+  // Input: a watched tournament one of whose matches its players start
+  // Expected status code: 200 for the start
+  // Expected behavior: the bracket's game changed, so the tournament is sent again
+  // Expected output: a second tournamentUpdated
+  it("sends the tournament again once one of its games changes", async () => {
+    mockedFetchTournamentDetails.mockResolvedValue(tournamentDetails([watcherId, otherId]));
+    const events = await watch(`/tournaments/events?tournamentId=${tournamentId}`);
+    await events.next();
+
+    const tournamentGame = gameRow({ gameSource: GameSource.TOURNAMENT, status: GameStatus.BOOKED });
+    mockedFetchGame.mockResolvedValue(tournamentGame);
+    mockedIsUserInGame.mockResolvedValue(true);
+    mockedStartBookedGame.mockResolvedValue({ ...tournamentGame, status: GameStatus.IN_PROGRESS });
+    mockedFetchGameDetails.mockResolvedValue(
+      gameDetails({
+        gameSource: GameSource.TOURNAMENT,
+        status: GameStatus.IN_PROGRESS,
+        tournament: { id: tournamentId, name: "Fall Cup", round: 1 },
+      }),
+    );
+
+    const start = await request(createApp())
+      .post("/games/start")
+      .set("Authorization", `Bearer ${signAccessToken(otherId)}`)
+      .send({ gameId });
+    expect(start.status).toBe(200);
+
+    expect((await events.next()).event).toBe("tournamentUpdated");
+  });
+
+  // Input: the Games tab is open, then another player creates a game
+  // Expected status code: 200, and 201 for the new game
+  // Expected behavior: the feed is sent first with "mine", then the feed again with the new game
+  // Expected output: feed (empty), mine (empty), then feed with the game
+  it("sends the feed again once another player creates a game", async () => {
+    const events = await watch("/games/feed/events");
+    expect((await events.next()).event).toBe("feed");
+    expect((await events.next()).event).toBe("mine");
+
+    mockedCreateGame.mockResolvedValue(gameRow());
+    mockedFetchGameDetails.mockResolvedValue(gameDetails());
+    mockedFetchFeedGames.mockResolvedValue([gameDetails()]);
+    const create = await request(createApp())
+      .post("/games")
+      .set("Authorization", `Bearer ${signAccessToken(otherId)}`)
+      .send({ format: Format.SINGLES, startsAt: startsAt.toISOString(), courtId: 1, gameSource: GameSource.SCHEDULED });
+    expect(create.status).toBe(201);
+
+    const feed = await events.next();
+    expect(feed.event).toBe("feed");
+    expect((feed.data as IdList).games.map((g) => g.id)).toEqual([gameId]);
+  });
+
+  // Input: the Games tab is open, then the watcher joins a game from another device
+  // Expected status code: 204 for the join
+  // Expected behavior: the game is now in the watcher's games, so "mine" is sent again (after the feed)
+  // Expected output: feed, then mine with the game
+  it("sends the user's games again once they join a game", async () => {
+    const events = await watch("/games/feed/events");
+    await events.next();
+    await events.next();
+
+    mockedFetchGame.mockResolvedValue(gameRow());
+    mockedAddPlayerToTeam.mockResolvedValue("added");
+    const joined = gameDetails({ players: [player(otherId, 1), player(watcherId, 2)], status: GameStatus.BOOKED });
+    mockedFetchGameDetails.mockResolvedValue(joined);
+    mockedFetchUserGames.mockResolvedValue([joined]);
+    const join = await request(createApp())
+      .post("/games/join")
+      .set("Authorization", `Bearer ${signAccessToken(watcherId)}`)
+      .send({ gameId, team: 2 });
+    expect(join.status).toBe(204);
+
+    const received = [await events.next(), await events.next()];
+    const mine = received.find((e) => e.event === "mine");
+    expect(received.map((e) => e.event).sort()).toEqual(["feed", "mine"]);
+    expect((mine?.data as IdList).games.map((g) => g.id)).toEqual([gameId]);
+  });
+});

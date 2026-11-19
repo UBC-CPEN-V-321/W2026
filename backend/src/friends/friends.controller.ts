@@ -30,7 +30,7 @@ friendsRouter.get("/events", async (req: Request, res: Response) => {
   friendStreams.open(userId, res, firstEvents);
 });
 
-friendsRouter.delete("/",async (req: Request, res: Response) => {
+friendsRouter.delete("/", async (req: Request, res: Response) => {
   const otherUserId = parseRequest(friendUserIdSchema, req.query.userId);
   await removeFriend(authedUserId(req), otherUserId);
   res.sendStatus(204);

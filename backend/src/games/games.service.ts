@@ -34,9 +34,9 @@ import {
   GameIdInput,
   ReportScoreInput,
 } from "./games.schemas";
-import { gameStreams } from "./games.events";
+import { gameListStreams } from "./games.events";
+import { gameChanged } from "../events/changes";
 import { friendStreams } from "../friends/friends.events";
-import { refreshFriendsOfPlayers } from "../friends/friends.service";
 
 export const gameErrors = {
   NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
@@ -91,9 +91,12 @@ const LEAVE_DEADLINE_MS = 30 * 60 * 1000;
  * @throws AppError if the court does not exist
  */
 export async function newGame(game: CreateGameInput, userId: string) {
-  return await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
+  const created = await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
     P2003: commonErrors.CourtNotFound,
   });
+  // On the feed, and in the creator's games
+  gameChanged({ gameId: created.id });
+  return created;
 }
 
 /**
@@ -102,7 +105,7 @@ export async function newGame(game: CreateGameInput, userId: string) {
  * @param game the game with its court
  * @returns the game with its forecast, which is null if the game is closed or the forecast cannot be loaded
  */
-async function withForecast(game: GameDetails) {
+export async function withForecast(game: GameDetails) {
   const isClosed =
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED;
@@ -133,39 +136,6 @@ export async function getGame(gameId: GameIdInput) {
   return await withForecast(game);
 }
 
-/**
- * Sends a game's current state to every client watching it, after it changed: "gameUpdated" with the game,
- * or "gameDeleted" once it is gone. Does nothing if nobody is watching, and never throws
- * @param gameId the game that changed
- */
-export function broadcastGameChange(gameId: string): void {
-  gameStreams.refresh(gameId, async () => {
-    const game = await fetchGameDetails(gameId);
-    if (game === null) {
-      return [{ event: "gameDeleted", data: { gameId } }];
-    }
-    return [{ event: "gameUpdated", data: { game: await withForecast(game) } }];
-  });
-}
-
-/**
- * Tells the friends of a game's players that the game started or ended, so their friends lists show who is
- * playing. Does nothing if nobody has a friends list open, and never throws
- * @param gameId the game that started or ended
- * @param playerIds its players, for a game that is already deleted. Looked up when not given
- */
-function announcePlayingChange(gameId: string, playerIds?: string[]): void {
-  if (friendStreams.isEmpty()) {
-    return;
-  }
-
-  const players = playerIds
-    ? Promise.resolve(playerIds)
-    : fetchGameDetails(gameId).then((game) => game?.players.map((player) => player.id) ?? []);
-  players.then(refreshFriendsOfPlayers).catch((err: unknown) => {
-    console.error(`Could not tell the friends of game ${gameId}'s players that it started or ended`, err);
-  });
-}
 
 /**
  * Gets the scheduled games that players can join, with the weather forecast at their court and start time
@@ -223,28 +193,23 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
     if (!matchCancelled) {
       throw new AppError(gameErrors.Closed);
     }
-    broadcastGameChange(gameId);
-    if (game.status === GameStatus.IN_PROGRESS) {
-      announcePlayingChange(gameId);
-    }
+    gameChanged({ gameId });
     await notifyMatchCancelled(gameId, userId);
     return;
   }
 
-  // Its players are deleted with it, so the friends to tell are found first
+  // Its players are deleted with it, so whoever must hear about it (their friends, their game lists) is found
+  // first. Only looked up when someone has one of those open
   const playerIds =
-    game.status === GameStatus.IN_PROGRESS
-      ? ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? [])
-      : null;
+    friendStreams.isEmpty() && gameListStreams.isEmpty()
+      ? []
+      : ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? []);
 
   // A completed scheduled game is kept: its ratings were already applied
   if (!(await deleteGame(gameId))) {
     throw new AppError(gameErrors.Closed);
   }
-  broadcastGameChange(gameId);
-  if (playerIds !== null) {
-    announcePlayingChange(gameId, playerIds);
-  }
+  gameChanged({ gameId, playerIds, onFeed: true });
 }
 
 /**
@@ -276,7 +241,7 @@ export async function joinGame(gameId: string, userId: string, team: number): Pr
     { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
   if (result === "added") {
-    broadcastGameChange(gameId);
+    gameChanged({ gameId });
     return;
   }
   throw new AppError(result === "teamFull" ? gameErrors.TeamFull : gameErrors.NotJoinable);
@@ -375,7 +340,7 @@ export async function leaveGame(gameId: string, userId: string): Promise<void> {
   }
 
   await mapPrismaErrors(deleteGameUser(gameId, userId), { P2025: gameErrors.PlayerNotFound });
-  broadcastGameChange(gameId);
+  gameChanged({ gameId });
 }
 
 /**
@@ -403,7 +368,7 @@ export async function acceptMatch(gameId: string, userId: string): Promise<void>
     throw new AppError(gameErrors.AlreadyAccepted);
   }
 
-  broadcastGameChange(gameId);
+  gameChanged({ gameId });
   await notifyMatchAccepted(gameId, userId, result === "booked");
 }
 
@@ -537,7 +502,7 @@ export async function changeGameTime(
 ) {
   await checkCanEditGame(gameId, userId, true);
   const game = await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
-  broadcastGameChange(gameId);
+  gameChanged({ gameId });
   return game;
 }
 
@@ -603,8 +568,7 @@ export async function startGame(gameId: string, userId: string) {
     throw new AppError(reason);
   }
 
-  broadcastGameChange(gameId);
-  announcePlayingChange(gameId);
+  gameChanged({ gameId });
   return started;
 }
 
@@ -626,7 +590,7 @@ export async function changeGameLocation(
     P2003: commonErrors.CourtNotFound,
     P2025: gameErrors.NotFound,
   });
-  broadcastGameChange(gameId);
+  gameChanged({ gameId });
   return game;
 }
 
@@ -659,8 +623,6 @@ export async function reportScore(
     throw new AppError(gameErrors.Closed);
   }
 
-  broadcastGameChange(gameId);
-  // A game scored without being started was never in progress, and the friends lists show no change
-  announcePlayingChange(gameId);
+  gameChanged({ gameId });
   return completed;
 }

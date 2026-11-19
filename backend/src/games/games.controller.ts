@@ -29,7 +29,8 @@ import {
   reportScore,
   startGame,
 } from "./games.service";
-import { gameStreams } from "./games.events";
+import { gameListStreams, gameStreams } from "./games.events";
+import { getGameListEvents } from "../live/live";
 
 export const gamesRouter = Router();
 
@@ -55,7 +56,16 @@ gamesRouter.get("/events", async (req: Request, res: Response) => {
   gameStreams.open(gameId, res, [{ event: "gameUpdated", data: { game } }]);
 });
 
-gamesRouter.get("/feed",async (_req: Request, res: Response) => {
+// Server-Sent Events stream of the caller's Games tab: "feed" (games and tournaments to join) and "mine" (their own
+// games and tournaments) first, then each again whenever it changes
+gamesRouter.get("/feed/events", async (req: Request, res: Response) => {
+  const userId = authedUserId(req);
+  // Loaded before the stream opens, so a database error is a normal 500
+  const firstEvents = await getGameListEvents(userId);
+  gameListStreams.open(userId, res, firstEvents);
+});
+
+gamesRouter.get("/feed", async (_req: Request, res: Response) => {
   const games = await getFeed();
   res.status(200).json({ games });
 });

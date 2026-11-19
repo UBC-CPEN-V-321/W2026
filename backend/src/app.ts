@@ -7,8 +7,12 @@ import { matchmakingRouter } from "./matchmaking/matchmaking.controller";
 import { leaderboardRouter, statsRouter } from "./ranking/ranking.controller";
 import { tournamentsRouter } from "./tournaments/tournaments.controller";
 import { AppError, commonErrors, errorHandler } from "./errors";
+import { registerLiveUpdates } from "./live/live";
 
 export function createApp(): Express {
+  // Pushes announced changes to the clients watching them
+  registerLiveUpdates();
+
   const app = express();
 
   app.use(express.json());

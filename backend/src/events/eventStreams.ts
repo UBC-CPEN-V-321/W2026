@@ -5,6 +5,9 @@ import type { Response } from "express";
 // A comment line every 25 s keeps idle proxies from closing a stream and lets clients notice a dead connection
 const HEARTBEAT_MS = 25_000;
 
+// The ordering key of refreshEveryone; not a real key, since IDs are UUIDs
+const EVERYONE = "*";
+
 export interface StreamEvent {
   event: string;
   data: unknown;
@@ -91,19 +94,45 @@ export class EventStreams {
       return;
     }
 
-    const previous = this.refreshes.get(key) ?? Promise.resolve();
-    const next = previous
-      .then(async () => {
-        const events = await load();
-        for (const res of this.streams.get(key) ?? []) {
+    this.inOrder(key, async () => {
+      const events = await load();
+      for (const res of this.streams.get(key) ?? []) {
+        for (const event of events) {
+          writeEvent(res, event);
+        }
+      }
+    });
+  }
+
+  /**
+   * Loads one state and sends it to every open stream, whatever its key, e.g. a feed that is the same for
+   * everyone: it is loaded once, not once per client. Does nothing if nobody is watching, never throws, and
+   * keeps these refreshes in order like refresh does
+   * @param load the events to send, read when the refresh runs
+   */
+  refreshEveryone(load: () => Promise<StreamEvent[]>): void {
+    if (this.isEmpty()) {
+      return;
+    }
+
+    this.inOrder(EVERYONE, async () => {
+      const events = await load();
+      for (const keyStreams of this.streams.values()) {
+        for (const res of keyStreams) {
           for (const event of events) {
             writeEvent(res, event);
           }
         }
-      })
-      .catch((err: unknown) => {
-        console.error(`Could not send the update of ${key} to its watchers`, err);
-      });
+      }
+    });
+  }
+
+  // Runs a refresh after the previous one for the same key, logging its errors instead of throwing them
+  private inOrder(key: string, task: () => Promise<void>): void {
+    const previous = this.refreshes.get(key) ?? Promise.resolve();
+    const next = previous.then(task).catch((err: unknown) => {
+      console.error(`Could not send the update of ${key} to its watchers`, err);
+    });
 
     this.refreshes.set(key, next);
     void next.then(() => {

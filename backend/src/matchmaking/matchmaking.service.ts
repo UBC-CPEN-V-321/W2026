@@ -15,6 +15,7 @@ import {
 import type { JoinQueueInput } from './matchmaking.schemas';
 import { distanceKm, midpoint, type Location } from './geo';
 import { pushToUsers } from '../users/users.service';
+import { gameChanged } from '../events/changes';
 import { MATCH_ANSWER_DEADLINE_MS } from '../games/games.repository';
 
 const MATCH_START_DELAY_MS = 60 * 60 * 1000;
@@ -250,6 +251,8 @@ export async function runMatchmaking(): Promise<Match[]> {
     const claimedGame = await claimMatch(match.userIds, game);
     if (!claimedGame) continue;
     claimedMatches.push(match);
+    // In its players' games right away, without waiting for them to open the app
+    gameChanged({ gameId: claimedGame.id });
     await notifyMatch(match, claimedGame);
   }
 
@@ -283,6 +286,10 @@ async function notifyMatch(match: Match, game: ClaimedGame): Promise<void> {
 export async function cancelUnansweredMatches(now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() + MATCH_ANSWER_DEADLINE_MS);
   const cancelledGames = await cancelMatchesStartingBefore(cutoff);
+  for (const match of cancelledGames) {
+    // Shows as cancelled on its screen and in its players' games
+    gameChanged({ gameId: match.id });
+  }
   await Promise.all(cancelledGames.map((match) => notifyMatchExpired(match)));
   return cancelledGames.length;
 }
