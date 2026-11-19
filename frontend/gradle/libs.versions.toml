@@ -40,6 +40,8 @@ uiautomator = "2.3.0"
 orgJson = "20231013"
 # Fake backend for local unit tests
 mockwebserver = "4.12.0"
+# A test main dispatcher and virtual time for view model tests; the same version as the app's coroutines
+coroutinesTest = "1.10.2"
 googleid = "1.1.1"
 credentials = "1.5.0"
 playServicesLocation = "21.3.0"
@@ -55,6 +57,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }

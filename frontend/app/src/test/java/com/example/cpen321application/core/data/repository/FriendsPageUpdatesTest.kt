@@ -57,10 +57,11 @@ class FriendsPageUpdatesTest {
     fun updates_readsFriendsAndRequestsEvents() = runBlocking {
         val playing = """{ "gameId": "game-1", "format": "SINGLES", "startedAt": "2026-11-19T20:00:00.000Z",
             "courtName": "Kitsilano Beach Park" }""".replace("\n", "")
+        val carol = """{ "id": "u3", "username": "carol" }"""
         server.enqueue(
             MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
                 "event: friends\ndata: {\"friends\":[{\"id\":\"u2\",\"username\":\"bob\",\"playing\":$playing}]}\n\n" +
-                    "event: requests\ndata: {\"incoming\":[{\"id\":\"u3\",\"username\":\"carol\"}],\"outgoing\":[]}\n\n" +
+                    "event: requests\ndata: {\"incoming\":[$carol],\"outgoing\":[]}\n\n" +
                     "event: somethingNew\ndata: {}\n\n" +
                     "event: friends\ndata: {\"friends\":[{\"id\":\"u2\",\"username\":\"bob\",\"playing\":null}]}\n\n"
             )
