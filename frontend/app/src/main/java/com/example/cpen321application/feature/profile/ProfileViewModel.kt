@@ -12,6 +12,7 @@ import com.example.cpen321application.core.data.repository.FriendsPageUpdate
 import com.example.cpen321application.core.data.repository.FriendsPageUpdates
 import com.example.cpen321application.core.data.repository.FriendsPageUpdatesImpl
 import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
+import com.example.cpen321application.core.network.toUserMessage
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.network.dto.UpdateEquipmentRequestDto
@@ -73,7 +74,7 @@ class ProfileViewModel(
                     it.copy(
                         isLoadingFriends = false,
                         isLoadingRequests = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load friends",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -134,9 +135,10 @@ class ProfileViewModel(
                         isLoadingUserMe = false,
                     )
                 }
-            }.onFailure {
+            }.onFailure { error ->
+                // Said, not swallowed: otherwise the rating card silently keeps an old or missing rating
                 _uiState.update { state ->
-                    state.copy(isLoadingUserMe = false)
+                    state.copy(isLoadingUserMe = false, errorMessage = error.toUserMessage())
                 }
             }
         }
@@ -157,7 +159,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingFriends = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load friends",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -179,7 +181,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingRequests = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load friend requests",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -198,11 +200,13 @@ class ProfileViewModel(
                         isLoadingMatches = false,
                     )
                 }
-            }.onFailure {
+            }.onFailure { error ->
+                // Keeps what was loaded and says why, instead of an empty history and a 0–0 record that look
+                // like the user has never played
                 _uiState.update {
                     it.copy(
                         isLoadingMatches = false,
-                        matchHistory = emptyList(),
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -224,7 +228,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isLoadingEquipment = false,
-                        errorMessage = error.localizedMessage ?: "Failed to load equipment",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -247,7 +251,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to remove friend",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -270,7 +274,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to accept friend request",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
@@ -348,7 +352,7 @@ class ProfileViewModel(
                     nextMaintenanceAt = nextMaintenanceAt,
                 )
                 val result = equipmentRepository.createEquipment(session, request)
-                handleEquipmentSaveResult(session, result, "Equipment added", "Failed to add equipment")
+                handleEquipmentSaveResult(session, result, "Equipment added")
             } else {
                 val request = UpdateEquipmentRequestDto(
                     type = type.name,
@@ -357,7 +361,7 @@ class ProfileViewModel(
                     nextMaintenanceAt = nextMaintenanceAt,
                 )
                 val result = equipmentRepository.updateEquipment(session, editing.id, request)
-                handleEquipmentSaveResult(session, result, "Equipment updated", "Failed to update equipment")
+                handleEquipmentSaveResult(session, result, "Equipment updated")
             }
         }
     }
@@ -366,7 +370,6 @@ class ProfileViewModel(
         session: AuthSession,
         result: Result<*>,
         successMessage: String,
-        failureMessage: String,
     ) {
         result.onSuccess {
             _uiState.update {
@@ -381,7 +384,7 @@ class ProfileViewModel(
             _uiState.update {
                 it.copy(
                     isActionInProgress = false,
-                    errorMessage = error.localizedMessage ?: failureMessage,
+                    errorMessage = error.toUserMessage(),
                 )
             }
         }
@@ -403,7 +406,7 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         isActionInProgress = false,
-                        errorMessage = error.localizedMessage ?: "Failed to remove equipment",
+                        errorMessage = error.toUserMessage(),
                     )
                 }
             }
