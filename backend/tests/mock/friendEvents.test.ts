@@ -137,7 +137,9 @@ describe("Mocked: GET /friends/events", () => {
   afterAll(async () => {
     server.closeAllConnections();
     await new Promise<void>((resolve) => {
-      server.close(() => resolve());
+      server.close(() => {
+        resolve();
+      });
     });
   });
 

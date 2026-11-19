@@ -8,6 +8,7 @@ import { Format, GameSource, GameStatus } from "../../src/generated/prisma/enums
 import {
   addPlayerToTeam,
   createGame,
+  deleteGame,
   fetchFeedGames,
   fetchGame,
   fetchGameDetails,
@@ -38,6 +39,7 @@ const tournamentId = "2a3b4c5d-6e7f-4a8b-9c0d-1e2f3a4b5c6d";
 jest.mock("../../src/games/games.repository", () => ({
   addPlayerToTeam: jest.fn(),
   createGame: jest.fn(),
+  deleteGame: jest.fn(),
   fetchFeedGames: jest.fn(),
   fetchGame: jest.fn(),
   fetchGameDetails: jest.fn(),
@@ -62,6 +64,7 @@ const mockedFetchGameDetails = jest.mocked(fetchGameDetails);
 const mockedFetchFeedGames = jest.mocked(fetchFeedGames);
 const mockedFetchUserGames = jest.mocked(fetchUserGames);
 const mockedCreateGame = jest.mocked(createGame);
+const mockedDeleteGame = jest.mocked(deleteGame);
 const mockedAddPlayerToTeam = jest.mocked(addPlayerToTeam);
 const mockedIsUserInGame = jest.mocked(isUserInGame);
 const mockedStartBookedGame = jest.mocked(startBookedGame);
@@ -151,7 +154,9 @@ describe("Mocked: live tournament and Games tab streams", () => {
   afterAll(async () => {
     server.closeAllConnections();
     await new Promise<void>((resolve) => {
-      server.close(() => resolve());
+      server.close(() => {
+        resolve();
+      });
     });
   });
 
@@ -284,5 +289,37 @@ describe("Mocked: live tournament and Games tab streams", () => {
     const mine = received.find((e) => e.event === "mine");
     expect(received.map((e) => e.event).sort()).toEqual(["feed", "mine"]);
     expect((mine?.data as IdList).games.map((g) => g.id)).toEqual([gameId]);
+  });
+
+  // Input: the Games tab is open, then the other player cancels (deletes) a scheduled game the watcher is in
+  // Expected status code: 204 for the cancel
+  // Expected behavior: its players are found before it is deleted, so the watcher's games are sent again
+  // Expected output: feed and mine, the game gone from both
+  it("sends the lists again once a game the user is in is cancelled", async () => {
+    const inGame = gameDetails({ players: [player(otherId, 1), player(watcherId, 2)], status: GameStatus.BOOKED });
+    mockedFetchUserGames.mockResolvedValue([inGame]);
+    const events = await watch("/games/feed/events");
+    await events.next();
+    await events.next();
+
+    mockedFetchGame.mockResolvedValue(gameRow({ status: GameStatus.BOOKED }));
+    mockedIsUserInGame.mockResolvedValue(true);
+    mockedFetchGameDetails.mockResolvedValue(inGame);
+    mockedDeleteGame.mockImplementation(() => {
+      // Gone from here on
+      mockedFetchGameDetails.mockResolvedValue(null);
+      mockedFetchUserGames.mockResolvedValue([]);
+      return Promise.resolve(true);
+    });
+    const cancel = await request(createApp())
+      .delete("/games")
+      .query({ gameId })
+      .set("Authorization", `Bearer ${signAccessToken(otherId)}`);
+    expect(cancel.status).toBe(204);
+
+    const received = [await events.next(), await events.next()];
+    expect(received.map((e) => e.event).sort()).toEqual(["feed", "mine"]);
+    const mine = received.find((e) => e.event === "mine");
+    expect((mine?.data as IdList).games).toEqual([]);
   });
 });

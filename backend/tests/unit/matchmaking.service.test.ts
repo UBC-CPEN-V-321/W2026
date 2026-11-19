@@ -22,6 +22,7 @@ import {
 } from '../../src/matchmaking/matchmaking.service';
 import type { Location } from '../../src/matchmaking/geo';
 import { pushToUsers } from '../../src/users/users.service';
+import { gameChanged } from '../../src/events/changes';
 
 jest.mock('../../src/matchmaking/matchmaking.repository', () => ({
   getCandidates: jest.fn(),
@@ -29,6 +30,10 @@ jest.mock('../../src/matchmaking/matchmaking.repository', () => ({
   getCourts: jest.fn(),
   claimMatch: jest.fn(),
   cancelMatchesStartingBefore: jest.fn(),
+}));
+
+jest.mock('../../src/events/changes', () => ({
+  gameChanged: jest.fn(),
 }));
 
 jest.mock('../../src/users/users.service', () => ({
@@ -306,6 +311,25 @@ describe('runMatchmaking', () => {
     expect(pushToUsers).toHaveBeenCalledWith(['c', 'd'], expect.anything());
   });
 
+  // Input: two matches found; the first claim fails
+  // Expected behavior: only the claimed match's game is announced, so its players' screens update live
+  // Expected output: gameChanged called once, with the claimed game
+  test('Announces only the claimed match', async () => {
+    jest.mocked(gameChanged).mockClear();
+    jest.mocked(getCandidates).mockResolvedValue([
+      playerStub('a', { createdAt: new Date(1) }),
+      playerStub('b', { createdAt: new Date(2) }),
+      playerStub('c', { rating: 2000, createdAt: new Date(3) }),
+      playerStub('d', { rating: 2000, createdAt: new Date(4) }),
+    ]);
+    jest.mocked(claimMatch).mockResolvedValueOnce(null).mockResolvedValueOnce(claimedGame);
+
+    await runMatchmaking();
+
+    expect(gameChanged).toHaveBeenCalledTimes(1);
+    expect(gameChanged).toHaveBeenCalledWith({ gameId: 'game-1' });
+  });
+
   // Input: repository returns candidates that cannot be matched
   // Expected behavior: everyone stays in the queue
   // Expected output: []; claimMatch not called
@@ -521,6 +545,18 @@ describe('Mocked: cancelUnansweredMatches', () => {
       body: 'Not everyone accepted your doubles game at UBC Tennis Centre in time.',
       data: { gameId: 'g2' },
     });
+  });
+
+  // Input: a singles and a doubles match are cancelled
+  // Expected behavior: each cancelled game is announced, so its screen and its players' games update live
+  // Expected output: gameChanged called with each game
+  test('Announces each cancelled match', async () => {
+    jest.mocked(gameChanged).mockClear();
+    jest.mocked(cancelMatchesStartingBefore).mockResolvedValue([singles, doubles]);
+
+    await cancelUnansweredMatches(new Date('2026-11-02T12:00:00Z'));
+
+    expect(jest.mocked(gameChanged).mock.calls).toEqual([[{ gameId: 'g1' }], [{ gameId: 'g2' }]]);
   });
 
   // Input: no match is due
