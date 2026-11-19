@@ -51,6 +51,7 @@
 | 2026-11-18 | 4.1 | Following TA feedback, each route is listed under the component that serves it: `GET /api/users/:id/reputation` moved from Users and Auth to Deals, which keeps the reputations, and `GET /api/feed/listings/:id` and `/requests/:id` moved from Deals to Matching, which serves them. The option and custom field routes are listed one by one, with their parameters, results and errors. |
 | 2026-11-18 | 4.2, 5 | Following TA feedback that Section 5 is not part of the template, the collections and data rules moved to Section 4.2, Databases, and Section 5 was removed. |
 | 2026-11-18 | 3.5 | Following peer-review feedback, Use Case 1 says which failures apply to requests and which to listings. The use case links now use `id` anchors, which more Markdown viewers support. |
+| 2026-11-19 | 4.7 | Following peer feedback that the NFR 2 test used only one candidate post, NFR 2 is now measured with the NFR 1 workload of 1,000 candidates, and checks that the feed keeps its ranked order without travel times. Updated the measured times of both NFRs. |
 
 ---
 
@@ -863,10 +864,10 @@ sequenceDiagram
 1. **Feed ranking latency**
     - **Implementation**: The design filters out ineligible candidates before calculating ranking scores. It then ranks the qualifying candidates and paginates the results. This supports the feed-ranking latency requirement in Section 3.7.
 
-      Performance will be measured using this candidate workload and environment:
-        - Candidate workload: 1,000 open posts in the same category as the user's post.
+      Performance is measured using this candidate workload and environment:
+        - Candidate workload: 1,000 open posts in the same category as the user's post, all meeting its hard requirements, so every one is ranked.
         - Target ranking latency: 1 second at the 95th percentile, not counting the travel-time lookup.
         - Measurement environment: a backend Jest NFR test in `backend/tests/nfr/`, run with `scripts/run-backend-nfr-tests.sh`, that sends 100 `GET /api/feed?postId=<id>` requests through Supertest. It measures the backend's response time only, without the phone's network.
 2. **Graceful degradation without the routing service**
     - **Implementation**: The feed requests travel times only for the first page of recommendations, in one OpenRouteService matrix request with a timeout of 2 seconds (`ROUTING_TIMEOUT_MS` in `matching/travelTime.ts`). If the service fails, times out or is rate-limited, the feed returns the ranked recommendations with `travelTimesAvailable: false`, and the app shows "Travel time unavailable". The timeout lets the feed meet the 3-second response target in Section 3.7.
-    - **Implementation status**: Matching on main filters candidates and ranks them before pagination. `backend/tests/nfr/routingFallback.test.ts` checks NFR 2: with a routing service that never answers, the feed returns its ranked recommendations in about 2 seconds, and with one that is rate-limited, fails or is unreachable, in under 10 ms, all under the 3-second limit. `backend/tests/nfr/feedLatency.test.ts` checks NFR 1: with 1,000 candidate posts, 95% of 100 feed requests return within 45 ms, well under the 1-second target.
+    - **Implementation status**: Matching on main filters candidates and ranks them before pagination. `backend/tests/nfr/routingFallback.test.ts` checks NFR 2 with the same 1,000 candidate posts as NFR 1: with a routing service that never answers, the feed returns the same ranked recommendations as with a working one in about 2 seconds, and with one that is rate-limited, fails or is unreachable, in under 100 ms, all under the 3-second limit. `backend/tests/nfr/feedLatency.test.ts` checks NFR 1: with 1,000 candidate posts, 95% of 100 feed requests return within about 50 ms, well under the 1-second target.
