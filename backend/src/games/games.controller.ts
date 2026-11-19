@@ -29,6 +29,7 @@ import {
   reportScore,
   startGame,
 } from "./games.service";
+import { gameStreams } from "./games.events";
 
 export const gamesRouter = Router();
 
@@ -46,7 +47,15 @@ gamesRouter.get("/", async (req: Request, res: Response) => {
   res.status(200).json({ game });
 });
 
-gamesRouter.get("/feed", async (_req: Request, res: Response) => {
+// Server-Sent Events stream of one game: its current state first, then the game each time it changes
+gamesRouter.get("/events", async (req: Request, res: Response) => {
+  const gameId = parseRequest(gameIdSchema, req.query.gameId);
+  // Loaded before the stream opens, so a missing game is a normal 404
+  const game = await getGame(gameId);
+  gameStreams.open(gameId, res, [{ event: "gameUpdated", data: { game } }]);
+});
+
+gamesRouter.get("/feed",async (_req: Request, res: Response) => {
   const games = await getFeed();
   res.status(200).json({ games });
 });

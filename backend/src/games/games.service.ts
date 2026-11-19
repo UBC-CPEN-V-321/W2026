@@ -34,6 +34,7 @@ import {
   GameIdInput,
   ReportScoreInput,
 } from "./games.schemas";
+import { gameStreams } from "./games.events";
 
 export const gameErrors = {
   NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
@@ -131,6 +132,21 @@ export async function getGame(gameId: GameIdInput) {
 }
 
 /**
+ * Sends a game's current state to every client watching it, after it changed: "gameUpdated" with the game,
+ * or "gameDeleted" once it is gone. Does nothing if nobody is watching, and never throws
+ * @param gameId the game that changed
+ */
+export function broadcastGameChange(gameId: string): void {
+  gameStreams.refresh(gameId, async () => {
+    const game = await fetchGameDetails(gameId);
+    if (game === null) {
+      return [{ event: "gameDeleted", data: { gameId } }];
+    }
+    return [{ event: "gameUpdated", data: { game: await withForecast(game) } }];
+  });
+}
+
+/**
  * Gets the scheduled games that players can join, with the weather forecast at their court and start time
  * @returns the feed's games, soonest first. A game's forecast is null if it cannot be loaded
  */
@@ -186,6 +202,7 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
     if (!matchCancelled) {
       throw new AppError(gameErrors.Closed);
     }
+    broadcastGameChange(gameId);
     await notifyMatchCancelled(gameId, userId);
     return;
   }
@@ -194,6 +211,7 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
   if (!(await deleteGame(gameId))) {
     throw new AppError(gameErrors.Closed);
   }
+  broadcastGameChange(gameId);
 }
 
 /**
@@ -224,7 +242,10 @@ export async function joinGame(gameId: string, userId: string, team: number): Pr
     addPlayerToTeam(gameId, userId, team, teamSize[game.format], now),
     { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
-  if (result === "added") return;
+  if (result === "added") {
+    broadcastGameChange(gameId);
+    return;
+  }
   throw new AppError(result === "teamFull" ? gameErrors.TeamFull : gameErrors.NotJoinable);
 }
 
@@ -321,6 +342,7 @@ export async function leaveGame(gameId: string, userId: string): Promise<void> {
   }
 
   await mapPrismaErrors(deleteGameUser(gameId, userId), { P2025: gameErrors.PlayerNotFound });
+  broadcastGameChange(gameId);
 }
 
 /**
@@ -348,6 +370,7 @@ export async function acceptMatch(gameId: string, userId: string): Promise<void>
     throw new AppError(gameErrors.AlreadyAccepted);
   }
 
+  broadcastGameChange(gameId);
   await notifyMatchAccepted(gameId, userId, result === "booked");
 }
 
@@ -475,7 +498,9 @@ export async function changeGameTime(
   startsAt: Date,
 ) {
   await checkCanEditGame(gameId, userId, true);
-  return await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
+  const game = await mapPrismaErrors(updateGame(gameId, { startsAt }), { P2025: gameErrors.NotFound });
+  broadcastGameChange(gameId);
+  return game;
 }
 
 /**
@@ -542,6 +567,7 @@ export async function startGame(gameId: string, userId: string) {
     throw new AppError(reason);
   }
 
+  broadcastGameChange(gameId);
   return started;
 }
 
@@ -559,10 +585,12 @@ export async function changeGameLocation(
   courtId: number,
 ) {
   await checkCanEditGame(gameId, userId, true);
-  return await mapPrismaErrors(updateGame(gameId, { courtId }), {
+  const game = await mapPrismaErrors(updateGame(gameId, { courtId }), {
     P2003: commonErrors.CourtNotFound,
     P2025: gameErrors.NotFound,
   });
+  broadcastGameChange(gameId);
+  return game;
 }
 
 /**
@@ -594,5 +622,6 @@ export async function reportScore(
     throw new AppError(gameErrors.Closed);
   }
 
+  broadcastGameChange(gameId);
   return completed;
 }
