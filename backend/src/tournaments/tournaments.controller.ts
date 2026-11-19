@@ -16,6 +16,7 @@ import {
   newTournament,
 } from "./tournaments.service";
 import { tournamentStreams } from "./tournaments.events";
+import { streamRoute } from "../events/streamRoute";
 
 export const tournamentsRouter = Router();
 
@@ -35,13 +36,14 @@ tournamentsRouter.get("/", async (req: Request, res: Response) => {
 
 // Server-Sent Events stream of one tournament: its current state first, then the tournament each time it changes
 // (players join or leave, the bracket is drawn, a match is started or scored, it is cancelled)
-tournamentsRouter.get("/events", async (req: Request, res: Response) => {
-  const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
-  // Loaded before the stream opens, so a missing tournament is a normal 404
-  const tournament = await getTournament(tournamentId);
-  const firstEvents = [{ event: "tournamentUpdated", data: { tournament } }];
-  tournamentStreams.open(tournamentId, res, firstEvents, authedUserId(req));
-});
+tournamentsRouter.get(
+  "/events",
+  streamRoute(tournamentStreams, async (req) => {
+    const tournamentId = parseRequest(tournamentIdSchema, req.query.tournamentId);
+    const tournament = await getTournament(tournamentId);
+    return { key: tournamentId, firstEvents: [{ event: "tournamentUpdated", data: { tournament } }] };
+  }),
+);
 
 tournamentsRouter.get("/feed", async (_req: Request, res: Response) => {
   const tournaments = await getTournamentFeed();

@@ -31,6 +31,7 @@ import {
 } from "./games.service";
 import { gameListStreams, gameStreams } from "./games.events";
 import { getGameListEvents } from "../live/live";
+import { streamRoute } from "../events/streamRoute";
 
 export const gamesRouter = Router();
 
@@ -49,21 +50,23 @@ gamesRouter.get("/", async (req: Request, res: Response) => {
 });
 
 // Server-Sent Events stream of one game: its current state first, then the game each time it changes
-gamesRouter.get("/events", async (req: Request, res: Response) => {
-  const gameId = parseRequest(gameIdSchema, req.query.gameId);
-  // Loaded before the stream opens, so a missing game is a normal 404
-  const game = await getGame(gameId);
-  gameStreams.open(gameId, res, [{ event: "gameUpdated", data: { game } }], authedUserId(req));
-});
+gamesRouter.get(
+  "/events",
+  streamRoute(gameStreams, async (req) => {
+    const gameId = parseRequest(gameIdSchema, req.query.gameId);
+    return { key: gameId, firstEvents: [{ event: "gameUpdated", data: { game: await getGame(gameId) } }] };
+  }),
+);
 
 // Server-Sent Events stream of the caller's Games tab: "feed" (games and tournaments to join) and "mine" (their own
 // games and tournaments) first, then each again whenever it changes
-gamesRouter.get("/feed/events", async (req: Request, res: Response) => {
-  const userId = authedUserId(req);
-  // Loaded before the stream opens, so a database error is a normal 500
-  const firstEvents = await getGameListEvents(userId);
-  gameListStreams.open(userId, res, firstEvents, userId);
-});
+gamesRouter.get(
+  "/feed/events",
+  streamRoute(gameListStreams, async (req) => {
+    const userId = authedUserId(req);
+    return { key: userId, firstEvents: await getGameListEvents(userId) };
+  }),
+);
 
 gamesRouter.get("/feed", async (_req: Request, res: Response) => {
   const games = await getFeed();

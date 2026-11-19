@@ -11,6 +11,7 @@ import {
   sendFriendRequest,
 } from "./friends.service";
 import { friendStreams } from "./friends.events";
+import { streamRoute } from "../events/streamRoute";
 
 export const friendsRouter = Router();
 
@@ -23,12 +24,13 @@ friendsRouter.get("/", async (req: Request, res: Response) => {
 
 // Server-Sent Events stream of the caller's friends page: its current state first, then again each time the
 // friends list, a friend's game in progress, or the pending requests change
-friendsRouter.get("/events", async (req: Request, res: Response) => {
-  const userId = authedUserId(req);
-  // Loaded before the stream opens, so a database error is a normal 500
-  const firstEvents = await getFriendsPageEvents(userId);
-  friendStreams.open(userId, res, firstEvents, userId);
-});
+friendsRouter.get(
+  "/events",
+  streamRoute(friendStreams, async (req) => {
+    const userId = authedUserId(req);
+    return { key: userId, firstEvents: await getFriendsPageEvents(userId) };
+  }),
+);
 
 friendsRouter.delete("/", async (req: Request, res: Response) => {
   const otherUserId = parseRequest(friendUserIdSchema, req.query.userId);
