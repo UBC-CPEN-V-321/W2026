@@ -1,0 +1,139 @@
+package com.example.cpen321application.core.network
+
+import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.HttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import java.io.IOException
+
+/**
+ * One Server-Sent Event
+ * @property name the event's name, e.g. "gameUpdated"
+ * @property data the event's data, JSON for the backend's streams
+ */
+data class ServerSentEvent(val name: String, val data: String)
+
+/**
+ * The backend's event streams, e.g. GET /games/events and GET /friends/events: the backend pushes what changed
+ * over one long-lived Server-Sent Events response. Retrofit can't stream a response, so this uses OkHttp directly.
+ * @param client its read timeout must be longer than the backend's 25 s heartbeat
+ * @param baseUrl the backend's base URL
+ */
+class EventStreamApi(private val client: OkHttpClient, private val baseUrl: HttpUrl) {
+    /**
+     * Opens a stream and emits each event the backend sends, until the backend ends the stream or the collector
+     * stops, which closes the connection
+     * @param authorization the `Authorization` header value ("Bearer <token>")
+     * @param path the stream's route, e.g. "games/events"
+     * @param query the route's query parameters, e.g. the game ID
+     * @throws HttpException if the backend rejects the stream, e.g. 401 or 404
+     * @throws IOException if the connection fails or drops
+     */
+    fun events(
+        authorization: String,
+        path: String,
+        query: Map<String, String> = emptyMap()
+    ): Flow<ServerSentEvent> = callbackFlow {
+        val url = baseUrl.newBuilder()
+            .addPathSegments(path)
+            .apply { query.forEach { (name, value) -> addQueryParameter(name, value) } }
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", authorization)
+            .header("Accept", "text/event-stream")
+            .build()
+
+        val call = client.newCall(request)
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                close(e)
+            }
+
+            // Runs on an OkHttp thread for as long as the stream stays open
+            override fun onResponse(call: Call, response: Response) {
+                response.use { close(readEvents(it)) }
+            }
+        })
+
+        // Cancelling the call makes the blocked read in readEvents throw, which ends its thread
+        awaitClose { call.cancel() }
+    }
+
+    // Sends each event to the collector. Returns why the stream ended: null if the backend ended it
+    private fun ProducerScope<ServerSentEvent>.readEvents(response: Response): Throwable? {
+        val body = response.body ?: return null
+        if (!response.isSuccessful) {
+            val errorBody = body.string().toResponseBody(body.contentType())
+            return HttpException(retrofit2.Response.error<Unit>(response.code, errorBody))
+        }
+
+        val parser = ServerSentEventParser()
+        return try {
+            val source = body.source()
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                parser.feed(line)?.let { event -> trySendBlocking(event) }
+            }
+            null
+        } catch (e: IOException) {
+            e
+        }
+    }
+}
+
+/**
+ * Turns the lines of a text/event-stream into events. Comment lines, like the backend's heartbeat, are skipped
+ */
+class ServerSentEventParser {
+    private var name = DEFAULT_EVENT_NAME
+    private val data = StringBuilder()
+    private var hasData = false
+
+    /**
+     * @param line one line of the stream, without its line break
+     * @return the finished event if this blank line ends one, otherwise null
+     */
+    fun feed(line: String): ServerSentEvent? {
+        if (line.isEmpty()) {
+            return finishEvent()
+        }
+
+        if (line.startsWith(":")) {
+            return null
+        }
+
+        val field = line.substringBefore(':')
+        val value = line.substringAfter(':', "").removePrefix(" ")
+        when (field) {
+            "event" -> name = value
+            "data" -> {
+                if (hasData) data.append('\n')
+                data.append(value)
+                hasData = true
+            }
+        }
+        return null
+    }
+
+    private fun finishEvent(): ServerSentEvent? {
+        val event = if (hasData) ServerSentEvent(name, data.toString()) else null
+        name = DEFAULT_EVENT_NAME
+        data.clear()
+        hasData = false
+        return event
+    }
+
+    private companion object {
+        const val DEFAULT_EVENT_NAME = "message"
+    }
+}

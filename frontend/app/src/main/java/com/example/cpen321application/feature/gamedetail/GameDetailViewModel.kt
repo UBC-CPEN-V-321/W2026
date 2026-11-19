@@ -5,14 +5,24 @@ import androidx.lifecycle.viewModelScope
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.repository.CourtsRepository
 import com.example.cpen321application.core.data.repository.FriendsRepository
+import com.example.cpen321application.core.data.model.Game
+import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.core.data.repository.GamesRepository
 import com.example.cpen321application.core.network.toUserMessage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 import java.time.Instant
+
+// Wait before reconnecting to the game's event stream, so a backend that is down isn't hammered
+private const val RECONNECT_DELAY_MS = 3_000L
 
 /**
  * One game's screen: its details, and joining, leaving, changing, starting early, scoring or cancelling it
@@ -35,7 +45,9 @@ class GameDetailViewModel(
     val uiState: StateFlow<GameDetailUiState> = _uiState.asStateFlow()
 
     init {
-        load()
+        // The screen opens the game's event stream (followUpdates), which sends the game first, so it isn't
+        // loaded here too
+        _uiState.update { it.copy(isLoading = true) }
     }
 
     fun load() {
@@ -167,12 +179,44 @@ class GameDetailViewModel(
         }
     }
 
+    /**
+     * Shows each change other players make to the game as the backend pushes it, until the caller stops
+     * collecting. Reconnects after the connection drops; the backend sends the current game on every connect,
+     * so changes made while disconnected aren't missed
+     */
+    suspend fun followUpdates() {
+        gamesRepository.gameUpdates(gameId)
+            .retryWhen { cause, _ ->
+                val reconnect = cause is IOException
+                if (reconnect) delay(RECONNECT_DELAY_MS)
+                reconnect
+            }
+            .catch { error ->
+                if (error !is HttpException) throw error
+                // The backend refused the stream, e.g. the game is gone: the screen keeps the last game it showed
+                _uiState.update { it.copy(isLoading = false, errorMessage = error.toUserMessage()) }
+            }
+            .collect { update ->
+                when (update) {
+                    is GameUpdate.Changed -> {
+                        showGame(update.game)
+                        _uiState.update { it.copy(isLoading = false) }
+                    }
+                    GameUpdate.Deleted -> _uiState.update {
+                        it.copy(game = null, actions = null, errorMessage = "This game was cancelled.")
+                    }
+                }
+            }
+    }
+
+    private fun showGame(game: Game) {
+        val actions = gameActions(game, currentUsername(), Instant.now())
+        _uiState.update { it.copy(game = game, actions = actions) }
+    }
+
     private suspend fun reload() {
         gamesRepository.getGame(gameId)
-            .onSuccess { game ->
-                val actions = gameActions(game, currentUsername(), Instant.now())
-                _uiState.update { it.copy(game = game, actions = actions) }
-            }
+            .onSuccess(::showGame)
             .onFailure { error ->
                 _uiState.update { it.copy(errorMessage = error.toUserMessage()) }
             }

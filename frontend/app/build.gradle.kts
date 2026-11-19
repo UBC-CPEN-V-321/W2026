@@ -94,6 +94,7 @@ dependencies {
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
     implementation(libs.androidx.security.crypto)
     implementation(libs.play.services.location)
     implementation(libs.places)

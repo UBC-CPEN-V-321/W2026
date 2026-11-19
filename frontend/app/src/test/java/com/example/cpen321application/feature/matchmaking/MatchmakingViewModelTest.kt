@@ -6,7 +6,9 @@ import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
 import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.Player
+import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.core.data.repository.GamesRepository
+import kotlinx.coroutines.flow.Flow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -79,6 +81,7 @@ private class FakeGamesRepository : GamesRepository {
     override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
     override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
     override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
+    override fun gameUpdates(gameId: String): Flow<GameUpdate> = error("unused")
 }
 
 class MatchmakingViewModelTest {
