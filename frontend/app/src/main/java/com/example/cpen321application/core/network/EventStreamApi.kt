@@ -34,13 +34,14 @@ private const val HTTP_ERROR = 400
  */
 class EventStreamApi(private val client: OkHttpClient, private val baseUrl: HttpUrl) {
     /**
-     * Opens a stream and emits each event the backend sends, until the backend ends the stream or the collector
-     * stops, which closes the connection
+     * Opens a stream and emits each event the backend sends, until the connection ends or the collector stops,
+     * which closes the connection. The streams never end on purpose, so any end is reported as an IOException,
+     * which the screens reconnect from
      * @param authorization the `Authorization` header value ("Bearer <token>")
      * @param path the stream's route, e.g. "games/events"
      * @param query the route's query parameters, e.g. the game ID
      * @throws HttpException if the backend rejects the stream, e.g. 401 or 404
-     * @throws IOException if the connection fails or drops
+     * @throws IOException if the connection fails, drops, or is ended by the backend (e.g. restarting)
      */
     fun events(
         authorization: String,
@@ -73,11 +74,11 @@ class EventStreamApi(private val client: OkHttpClient, private val baseUrl: Http
         awaitClose { streamCall.cancel() }
     }
 
-    // Why the stream ended: null if the backend ended it, the backend's refusal, or the dropped connection
-    private fun ProducerScope<ServerSentEvent>.endOfStream(response: Response): Throwable? {
+    // Why the stream ended: the backend's refusal, or an IOException to reconnect from
+    private fun ProducerScope<ServerSentEvent>.endOfStream(response: Response): Throwable {
         val body = response.body
         return when {
-            body == null -> null
+            body == null -> IOException("Empty response for an event stream")
             response.code >= HTTP_ERROR -> {
                 val errorBody = body.string().toResponseBody(body.contentType())
                 HttpException(retrofit2.Response.error<Unit>(response.code, errorBody))
@@ -88,8 +89,9 @@ class EventStreamApi(private val client: OkHttpClient, private val baseUrl: Http
         }
     }
 
-    // Sends each event to the collector until the backend ends the stream. Returns the error if the read fails
-    private fun ProducerScope<ServerSentEvent>.readEvents(source: BufferedSource): IOException? {
+    // Sends each event to the collector until the stream ends, and returns why it ended: the backend ended it
+    // (e.g. restarting, or closing a user's extra streams) or the connection dropped
+    private fun ProducerScope<ServerSentEvent>.readEvents(source: BufferedSource): IOException {
         val parser = ServerSentEventParser()
         return try {
             var line = source.readUtf8Line()
@@ -97,7 +99,7 @@ class EventStreamApi(private val client: OkHttpClient, private val baseUrl: Http
                 parser.feed(line)?.let { event -> trySendBlocking(event) }
                 line = source.readUtf8Line()
             }
-            null
+            IOException("The backend ended the event stream")
         } catch (e: IOException) {
             e
         }

@@ -133,6 +133,23 @@ class GameUpdatesTest {
         assertEquals("Bearer access2", server.takeRequest(1, TimeUnit.SECONDS)!!.getHeader("Authorization"))
     }
 
+    // Input: the backend sends the game, then ends the stream (restarting, or closing a user's extra streams)
+    // Expected behavior: the game is delivered, then the end fails like a dropped connection, so the screen
+    // reconnects instead of silently stopping
+    // Expected output: one Changed, then IOException
+    @Test
+    fun gameUpdates_failsLikeADroppedConnectionWhenTheBackendEndsTheStream() = runBlocking {
+        stream("event: gameUpdated\ndata: ${gameJson("OPEN", listOf("u1"))}\n\n")
+        val received = mutableListOf<GameUpdate>()
+
+        val error = runCatching {
+            withTimeout(5_000) { repository().gameUpdates(gameId).collect { received.add(it) } }
+        }.exceptionOrNull()
+
+        assertEquals(1, received.size)
+        assertTrue(error is IOException)
+    }
+
     // Input: a response that is neither the stream nor an error: a redirect with nowhere to go
     // Expected behavior: it fails like a dropped connection, so the screen reconnects, instead of hanging
     // Expected output: IOException
