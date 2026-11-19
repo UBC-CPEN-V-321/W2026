@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
-import { FriendshipStatus } from "../generated/prisma/enums";
+import { FriendshipStatus, GameStatus } from "../generated/prisma/enums";
 
 // The user fields that are safe to show to other players.
 const friendUserSelect = {
@@ -106,6 +106,29 @@ export async function fetchFriends(userId: string) {
     ...(requester.id === userId ? addressee : requester),
     friendsSince: acceptedAt,
   }));
+}
+
+/**
+ * Fetches the games in progress that some users are playing
+ * @param userIds the users to look up
+ * @param startedSince only games that started at or after this time, so a game nobody scored isn't "playing" forever
+ * @returns one row per user in such a game, with the game's ID, format, start time and court name
+ */
+export async function fetchGamesInProgress(userIds: string[], startedSince: Date) {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  return await prisma.gameUser.findMany({
+    where: {
+      userId: { in: userIds },
+      game: { status: GameStatus.IN_PROGRESS, startsAt: { gte: startedSince } },
+    },
+    select: {
+      userId: true,
+      game: { select: { id: true, format: true, startsAt: true, court: { select: { name: true } } } },
+    },
+  });
 }
 
 /**

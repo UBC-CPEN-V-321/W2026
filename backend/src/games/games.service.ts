@@ -35,6 +35,8 @@ import {
   ReportScoreInput,
 } from "./games.schemas";
 import { gameStreams } from "./games.events";
+import { friendStreams } from "../friends/friends.events";
+import { refreshFriendsOfPlayers } from "../friends/friends.service";
 
 export const gameErrors = {
   NotFound: { status: 404, code: "GAME_NOT_FOUND", message: "Game not found" },
@@ -147,6 +149,25 @@ export function broadcastGameChange(gameId: string): void {
 }
 
 /**
+ * Tells the friends of a game's players that the game started or ended, so their friends lists show who is
+ * playing. Does nothing if nobody has a friends list open, and never throws
+ * @param gameId the game that started or ended
+ * @param playerIds its players, for a game that is already deleted. Looked up when not given
+ */
+function announcePlayingChange(gameId: string, playerIds?: string[]): void {
+  if (friendStreams.isEmpty()) {
+    return;
+  }
+
+  const players = playerIds
+    ? Promise.resolve(playerIds)
+    : fetchGameDetails(gameId).then((game) => game?.players.map((player) => player.id) ?? []);
+  players.then(refreshFriendsOfPlayers).catch((err: unknown) => {
+    console.error(`Could not tell the friends of game ${gameId}'s players that it started or ended`, err);
+  });
+}
+
+/**
  * Gets the scheduled games that players can join, with the weather forecast at their court and start time
  * @returns the feed's games, soonest first. A game's forecast is null if it cannot be loaded
  */
@@ -203,15 +224,27 @@ export async function cancelGame(gameId: GameIdInput, userId: string): Promise<v
       throw new AppError(gameErrors.Closed);
     }
     broadcastGameChange(gameId);
+    if (game.status === GameStatus.IN_PROGRESS) {
+      announcePlayingChange(gameId);
+    }
     await notifyMatchCancelled(gameId, userId);
     return;
   }
+
+  // Its players are deleted with it, so the friends to tell are found first
+  const playerIds =
+    game.status === GameStatus.IN_PROGRESS
+      ? ((await fetchGameDetails(gameId))?.players.map((player) => player.id) ?? [])
+      : null;
 
   // A completed scheduled game is kept: its ratings were already applied
   if (!(await deleteGame(gameId))) {
     throw new AppError(gameErrors.Closed);
   }
   broadcastGameChange(gameId);
+  if (playerIds !== null) {
+    announcePlayingChange(gameId, playerIds);
+  }
 }
 
 /**
@@ -566,6 +599,7 @@ export async function startGame(gameId: string, userId: string) {
   }
 
   broadcastGameChange(gameId);
+  announcePlayingChange(gameId);
   return started;
 }
 
@@ -621,5 +655,7 @@ export async function reportScore(
   }
 
   broadcastGameChange(gameId);
+  // A game scored without being started was never in progress, and the friends lists show no change
+  announcePlayingChange(gameId);
   return completed;
 }
