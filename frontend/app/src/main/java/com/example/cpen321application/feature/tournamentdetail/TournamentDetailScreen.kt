@@ -26,7 +26,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,9 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Tournament
@@ -97,15 +94,8 @@ fun TournamentDetailRoute(
         )
     }
 
-    // Live updates only while the screen is visible: a match's screen on top or a backgrounded app keeps no
-    // connection open. Coming back reconnects, and the backend sends the current tournament first, so a score
-    // reported on a match's screen shows here
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(viewModel, lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.followUpdates()
-        }
-    }
+    // Coming back from a match's screen reconnects, so a score reported there shows here
+    FollowWhileVisible(viewModel) { viewModel.followUpdates() }
 
     TournamentDetailScreen(
         uiState = uiState,

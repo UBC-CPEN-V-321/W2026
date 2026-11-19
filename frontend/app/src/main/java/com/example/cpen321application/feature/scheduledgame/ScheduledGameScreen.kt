@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,9 +36,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.isRegistered
 import com.example.cpen321application.core.ui.components.UnderlineTabs
@@ -57,14 +54,7 @@ fun ScheduledGameRoute(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Live lists only while the tab is on screen: a game's or tournament's screen on top, another tab or a
-    // backgrounded app keeps no connection open. Coming back reconnects, and the backend sends both lists first
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(viewModel, lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.followLists()
-        }
-    }
+    FollowWhileVisible(viewModel) { viewModel.followLists() }
 
     ScheduledGameScreen(
         uiState = uiState,
