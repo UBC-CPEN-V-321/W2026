@@ -33,12 +33,11 @@ import org.junit.rules.TestRule
 /** User the app signs in as; seeded, together with its session, by backend `npm run e2e:seed`. */
 internal const val REAL_BACKEND_USER_ID = "6acd519c76376cefc61e97f1"
 
-/** Token of the session that `npm run e2e:seed` stores for the seeded user (see seed-e2e.js). */
-private const val REAL_BACKEND_SESSION_TOKEN = "e2e-live-events-session-token"
+private const val SEEDED_USER_SESSION_TOKEN = "e2e-live-events-session-token"
 private const val SESSION_VALID_FOR_MILLIS = 24L * 60 * 60 * 1000
 
 private fun realBackendSession() = AuthenticatedSession(
-    token = REAL_BACKEND_SESSION_TOKEN,
+    token = SEEDED_USER_SESSION_TOKEN,
     userId = REAL_BACKEND_USER_ID,
     expiresAtEpochMillis = System.currentTimeMillis() + SESSION_VALID_FOR_MILLIS,
 )

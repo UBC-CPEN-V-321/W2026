@@ -70,8 +70,7 @@ class EventsApiTest {
     private fun eventsBody(vararg events: String) =
         """{"page":1,"limit":20,"count":${events.size},"events":[${events.joinToString(",")}]}"""
 
-    /** Fetches page 1 from an [EventsApi] whose backend client answers every request with [body]. */
-    private fun fetch(body: String): List<Event> = runBlocking {
+    private fun fetchPageOneAnsweredWith(body: String): List<Event> = runBlocking {
         EventsApi(BackendClient { body }).getEvents("user-1", 49.2606, -123.246, 1, 20)
     }
 
@@ -98,7 +97,7 @@ class EventsApiTest {
                 venueName = "Venue", city = "Vancouver", category = "Music", ticketUrl = "https://x/t",
                 priceMin = 30.0, priceMax = 60.5, currency = "CAD", distanceKm = 2.5,
             ),
-            fetch(eventsBody(fullEvent)).single(),
+            fetchPageOneAnsweredWith(eventsBody(fullEvent)).single(),
         )
     }
 
@@ -108,7 +107,7 @@ class EventsApiTest {
         val absent = """{"id":"a","title":"T","imageUrl":"i","startDateTime":"s","venueName":"v","city":"c","category":"k","ticketUrl":"t","distanceKm":1}"""
         val jsonNull = """{"id":"b","title":"T","description":null,"imageUrl":"i","startDateTime":"s","endDateTime":null,"venueName":"v","city":"c","category":"k","ticketUrl":"t","priceMin":null,"priceMax":null,"currency":null,"distanceKm":1}"""
 
-        val events = fetch(eventsBody(absent, jsonNull))
+        val events = fetchPageOneAnsweredWith(eventsBody(absent, jsonNull))
 
         assertEquals(2, events.size)
         events.forEach {
@@ -122,7 +121,7 @@ class EventsApiTest {
     @Test
     // AND-API-2: an empty event list parses to an empty list.
     fun emptyEventListParsesToEmptyList() {
-        assertTrue(fetch(eventsBody()).isEmpty())
+        assertTrue(fetchPageOneAnsweredWith(eventsBody()).isEmpty())
     }
 
     @Test
@@ -145,7 +144,7 @@ class EventsApiTest {
     // AND-API-4: malformed JSON throws JSONException.
     fun malformedJsonThrowsJsonException() {
         try {
-            fetch("not json")
+            fetchPageOneAnsweredWith("not json")
             fail("Expected JSONException")
         } catch (_: JSONException) {
         }
@@ -155,7 +154,7 @@ class EventsApiTest {
     // AND-API-4: an event missing a required field throws JSONException and no partial event is returned.
     fun eventMissingRequiredFieldThrowsJsonException() {
         try {
-            fetch(eventsBody(fullEvent.replace("\"title\":\"Concert\",", "")))
+            fetchPageOneAnsweredWith(eventsBody(fullEvent.replace("\"title\":\"Concert\",", "")))
             fail("Expected JSONException")
         } catch (_: JSONException) {
         }
@@ -165,7 +164,7 @@ class EventsApiTest {
     // AND-API-4: a response without the events array throws JSONException.
     fun missingEventsArrayThrowsJsonException() {
         try {
-            fetch("""{"page":1}""")
+            fetchPageOneAnsweredWith("""{"page":1}""")
             fail("Expected JSONException")
         } catch (_: JSONException) {
         }
