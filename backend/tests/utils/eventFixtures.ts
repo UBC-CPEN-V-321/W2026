@@ -121,7 +121,7 @@ export function buildTicketmasterEvent(
 
 /** Raw Ticketmaster response body for one page of events. */
 export function buildTicketmasterResponse(
-  events: Array<Record<string, unknown>>,
+  events: Record<string, unknown>[],
   page: { number?: number; totalPages?: number; totalElements?: number } = {},
 ): Record<string, unknown> {
   return {

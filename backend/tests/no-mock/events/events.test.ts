@@ -63,7 +63,7 @@ async function seedEvents(events: LiveEvent[]): Promise<void> {
   await database.collection('liveevents').insertMany(events);
 }
 
-function getEvents(query: Record<string, string | undefined> = {}) {
+function getEvents(query: Record<string, string | undefined> = {}): request.Test {
   const merged = { ...VALID_QUERY, ...query };
   const definedQuery = Object.fromEntries(
     Object.entries(merged).filter(([, value]) => value !== undefined),
@@ -72,7 +72,7 @@ function getEvents(query: Record<string, string | undefined> = {}) {
 }
 
 function eventIds(response: request.Response): string[] {
-  return (response.body.events as Array<{ id: string }>).map((event) => event.id);
+  return (response.body.events as { id: string }[]).map((event) => event.id);
 }
 
 beforeAll(async () => {
@@ -414,11 +414,9 @@ describe('Unmocked: GET /api/v1/users/:userId/events', () => {
 
     const response = await getEvents();
 
+    const body = response.body as { events: { id: string; distanceKm: number }[] };
     const distances = new Map<string, number>(
-      response.body.events.map((event: { id: string; distanceKm: number }) => [
-        event.id,
-        event.distanceKm,
-      ]),
+      body.events.map((event): [string, number] => [event.id, event.distanceKm]),
     );
     expect([...distances.keys()].sort()).toEqual(['edge', 'midway', 'near']);
     expect(distances.get('near')).toBeCloseTo(1, 2);

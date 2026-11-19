@@ -83,9 +83,9 @@ let database: Db;
 let app: Express;
 let itineraryDao: ItineraryDao;
 
-async function storedItems(): Promise<Array<Record<string, unknown>>> {
+async function storedItems(): Promise<Record<string, unknown>[]> {
   const document = await database.collection('itineraries').findOne({ _id: ITINERARY_ID });
-  return (document?.items ?? []) as Array<Record<string, unknown>>;
+  return (document?.items ?? []) as Record<string, unknown>[];
 }
 
 async function storedItemIds(): Promise<string[]> {
@@ -198,7 +198,9 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities?replace
     const newId = response.body.activity.id as string;
     expect(await storedItemIds()).toEqual([SEGMENT_ID, newId]);
     const after = await database.collection('itineraries').findOne({ _id: ITINERARY_ID });
-    expect(after?.updatedAt.getTime()).toBeGreaterThan(before?.updatedAt.getTime());
+    const updatedBefore = (before?.updatedAt as Date).getTime();
+    const updatedAfter = (after?.updatedAt as Date).getTime();
+    expect(updatedAfter).toBeGreaterThan(updatedBefore);
   });
 
   // Input: an activity from 17:30 to 18:15, overlapping both stored items.
@@ -339,15 +341,15 @@ describe('Itinerary repository replacement guards — no mocks', () => {
   // Expected output: false, and nothing is written.
   test('returns false for malformed ids and for an absent itinerary', async () => {
     await expect(
-      itineraryDao.replaceEmbeddedItems('invalid-owner', ITINERARY_ID.toHexString(), [ACTIVITY_ID], replacement),
+      itineraryDao.replaceEmbeddedItems('invalid-owner', String(ITINERARY_ID), [ACTIVITY_ID], replacement),
     ).resolves.toBe(false);
     await expect(
-      itineraryDao.replaceEmbeddedItems(USER_ID.toHexString(), 'invalid-itinerary', [ACTIVITY_ID], replacement),
+      itineraryDao.replaceEmbeddedItems(String(USER_ID), 'invalid-itinerary', [ACTIVITY_ID], replacement),
     ).resolves.toBe(false);
     await expect(
       itineraryDao.replaceEmbeddedItems(
-        USER_ID.toHexString(),
-        MISSING_ITINERARY_ID.toHexString(),
+        String(USER_ID),
+        String(MISSING_ITINERARY_ID),
         [ACTIVITY_ID],
         replacement,
       ),

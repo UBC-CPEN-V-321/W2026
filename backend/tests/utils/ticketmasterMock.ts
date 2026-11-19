@@ -50,7 +50,7 @@ export function mockTicketmasterFetch(
     try {
       return Promise.resolve(toResponse(step));
     } catch (error: unknown) {
-      return Promise.reject(error);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 }

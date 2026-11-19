@@ -32,6 +32,7 @@ internal class FakeEventsRepository(
     }
 }
 
+@Suppress("LongParameterList")
 internal fun testEvent(
     id: String,
     title: String = "Event $id",

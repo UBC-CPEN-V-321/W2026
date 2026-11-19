@@ -196,7 +196,7 @@ describe('Mocked: GET /api/v1/users/:userId/events', () => {
     ['markets', 'Miscellaneous'],
     ['live_music', 'Music'],
     ['gaming', 'Sports'],
-  ] as Array<[InterestPreference, string]>)(
+  ] as [InterestPreference, string][])(
     'maps the %s interest to the %s category',
     async (interest, category) => {
       const { app, userRepository, eventRepository } = createMockedApp();
@@ -249,7 +249,8 @@ describe('Mocked: GET /api/v1/users/:userId/events', () => {
 
     const response = await request(app).get(EVENTS_PATH).query(VALID_QUERY);
 
-    expect(Object.keys(response.body.events[0]).sort()).toEqual([
+    const [firstEvent] = (response.body as { events: object[] }).events;
+    expect(Object.keys(firstEvent ?? {}).sort()).toEqual([
       'category',
       'city',
       'currency',

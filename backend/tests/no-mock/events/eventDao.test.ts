@@ -46,12 +46,12 @@ function eventNorthOfUser(
   });
 }
 
-function storedExternalIds(): Promise<string[]> {
-  return database
-    .collection('liveevents')
+async function storedExternalIds(): Promise<string[]> {
+  const documents = await database
+    .collection<{ externalId: string }>('liveevents')
     .find({})
-    .toArray()
-    .then((docs) => docs.map((doc) => doc.externalId as string).sort());
+    .toArray();
+  return documents.map((document) => document.externalId).sort();
 }
 
 beforeAll(async () => {
@@ -96,14 +96,14 @@ describe('Unmocked: EventDao', () => {
     await eventDao.createIndexes();
 
     const indexes = await database.collection('liveevents').indexes();
-    const byKey = new Map<string, { unique?: boolean }>();
+    const isUniqueByKey = new Map<string, boolean>();
     for (const index of indexes) {
-      byKey.set(JSON.stringify(index.key), index);
+      isUniqueByKey.set(JSON.stringify(index.key), index.unique === true);
     }
-    expect(byKey.get(JSON.stringify({ externalId: 1 }))?.unique).toBe(true);
-    expect(byKey.has(JSON.stringify({ startDateTime: 1 }))).toBe(true);
-    expect(byKey.has(JSON.stringify({ category: 1, startDateTime: 1 }))).toBe(true);
-    expect(byKey.has(JSON.stringify({ location: '2dsphere' }))).toBe(true);
+    expect(isUniqueByKey.get(JSON.stringify({ externalId: 1 }))).toBe(true);
+    expect(isUniqueByKey.has(JSON.stringify({ startDateTime: 1 }))).toBe(true);
+    expect(isUniqueByKey.has(JSON.stringify({ category: 1, startDateTime: 1 }))).toBe(true);
+    expect(isUniqueByKey.has(JSON.stringify({ location: '2dsphere' }))).toBe(true);
   });
 
   // Input: two events with new external IDs.

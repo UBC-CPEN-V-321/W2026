@@ -44,7 +44,7 @@ function embeddedVenue(venue: Record<string, unknown> = {}): Record<string, unkn
   };
 }
 
-function successBody(...events: Array<Record<string, unknown>>) {
+function successBody(...events: Record<string, unknown>[]) {
   return jsonStep(buildTicketmasterResponse(events));
 }
 

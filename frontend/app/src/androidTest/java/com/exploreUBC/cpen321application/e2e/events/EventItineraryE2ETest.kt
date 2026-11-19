@@ -49,8 +49,7 @@ class EventItineraryE2ETest {
         )
         .around(composeRule)
 
-    /** Opens the "Add to itinerary" dialog of the event card at [position] (0 = "E2E Event 01"). */
-    private fun openAddDialog(position: Int, eventTitle: String) {
+    private fun openAddToItineraryDialogOfEventCard(position: Int, eventTitle: String) {
         composeRule.waitForText(eventTitle)
         composeRule.onAllNodesWithText("Add to itinerary")[position].performScrollTo().performClick()
         composeRule.waitForText("Add $eventTitle")
@@ -59,7 +58,7 @@ class EventItineraryE2ETest {
     @Test
     // Section 4.2 — Add an Event to an Itinerary: steps 1–4.
     fun addsNonOverlappingEventToExistingItinerary() {
-        openAddDialog(position = 1, eventTitle = "E2E Event 02")
+        openAddToItineraryDialogOfEventCard(position = 1, eventTitle = "E2E Event 02")
 
         composeRule.onNodeWithText("Starts:", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("event_end_time").assertIsDisplayed()
@@ -79,7 +78,7 @@ class EventItineraryE2ETest {
     // Section 4.2 — Add an Event to an Itinerary: failure 2a–2a1.
     fun createsItineraryWhenUserHasNone() {
         resetItineraries(withOverlap = false)
-        openAddDialog(position = 0, eventTitle = "E2E Event 01")
+        openAddToItineraryDialogOfEventCard(position = 0, eventTitle = "E2E Event 01")
 
         composeRule.waitForText("You do not have an itinerary yet.")
         composeRule.onNodeWithText("Create and add").assertIsNotEnabled()
@@ -95,7 +94,7 @@ class EventItineraryE2ETest {
     @Test
     // Section 4.2 — Add an Event to an Itinerary: failure 3a–3a1.
     fun rejectsEndTimeNotAfterEventStart() {
-        openAddDialog(position = 0, eventTitle = "E2E Event 01")
+        openAddToItineraryDialogOfEventCard(position = 0, eventTitle = "E2E Event 01")
         composeRule.waitForText(BASELINE_ITINERARY_NAME)
 
         // The default end time is 8 or 9 PM; switching it to AM moves it before the evening start.
@@ -112,7 +111,7 @@ class EventItineraryE2ETest {
     @Test
     // Section 4.2 — Add an Event to an Itinerary: steps 3b–3b2 (keep existing schedule).
     fun keepsExistingScheduleOnTimeConflict() {
-        openAddDialog(position = 0, eventTitle = "E2E Event 01")
+        openAddToItineraryDialogOfEventCard(position = 0, eventTitle = "E2E Event 01")
         composeRule.waitForText(BASELINE_ITINERARY_NAME)
         composeRule.onNodeWithText(BASELINE_ITINERARY_NAME).performClick()
 
@@ -131,7 +130,7 @@ class EventItineraryE2ETest {
     @Test
     // Section 4.2 — Add an Event to an Itinerary: steps 3b–3b3 (replace conflicting items).
     fun replacesConflictingItemOnTimeConflict() {
-        openAddDialog(position = 0, eventTitle = "E2E Event 01")
+        openAddToItineraryDialogOfEventCard(position = 0, eventTitle = "E2E Event 01")
         composeRule.waitForText(BASELINE_ITINERARY_NAME)
         composeRule.onNodeWithText(BASELINE_ITINERARY_NAME).performClick()
 

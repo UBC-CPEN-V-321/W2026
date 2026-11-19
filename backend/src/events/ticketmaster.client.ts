@@ -18,32 +18,32 @@ interface TicketmasterEvent {
   info?: string;
   pleaseNote?: string;
   url?: string;
-  images?: Array<{
+  images?: {
     ratio?: string;
     url?: string;
-  }>;
+  }[];
   dates?: {
     start?: { dateTime?: string };
     end?: { dateTime?: string };
   };
-  classifications?: Array<{
+  classifications?: {
     primary?: boolean;
     segment?: { name?: string };
-  }>;
-  priceRanges?: Array<{
+  }[];
+  priceRanges?: {
     min?: number;
     max?: number;
     currency?: string;
-  }>;
+  }[];
   _embedded?: {
-    venues?: Array<{
+    venues?: {
       name?: string;
       city?: { name?: string };
       location?: {
         longitude?: string;
         latitude?: string;
       };
-    }>;
+    }[];
   };
 }
 
@@ -100,6 +100,31 @@ function isRetryableRequestError(error: unknown): boolean {
 }
 
 /**
+ * Makes one request for a page of raw events.
+ * @param url Request URL, including the query string.
+ * @param page Zero-based page number, used when the response omits it.
+ * @returns Raw events and pagination details.
+ * @throws If the request fails or Ticketmaster answers with an error status.
+ */
+async function requestTicketmasterEventPage(
+  url: string,
+  page: number,
+): Promise<TicketmasterEventPage> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new TicketmasterRequestError(response.status);
+  }
+
+  const body = (await response.json()) as TicketmasterResponse;
+  return {
+    events: body._embedded?.events ?? [],
+    page: body.page?.number ?? page,
+    totalPages: body.page?.totalPages ?? 0,
+    totalElements: body.page?.totalElements ?? 0,
+  };
+}
+
+/**
  * Fetches one page of raw events from Ticketmaster.
  * @param page Zero-based page number.
  * @returns Raw events and pagination details.
@@ -125,34 +150,22 @@ async function fetchTicketmasterEventPage(
     page: String(page),
     sort: "date,asc",
   });
+  const url = `${env.ticketmaster.baseUrl}/events.json?${query.toString()}`;
 
-  // The last attempt always returns or throws, so the loop needs no code after it.
-  for (let attempt = 1; ; attempt += 1) {
+  // Every attempt except the last is retried after a delay when the failure is retryable.
+  for (let attempt = 1; attempt < MAX_REQUEST_ATTEMPTS; attempt += 1) {
     try {
-      const response = await fetch(
-        `${env.ticketmaster.baseUrl}/events.json?${query.toString()}`,
-      );
-      if (!response.ok) {
-        throw new TicketmasterRequestError(response.status);
-      }
-
-      const body = (await response.json()) as TicketmasterResponse;
-      return {
-        events: body._embedded?.events ?? [],
-        page: body.page?.number ?? page,
-        totalPages: body.page?.totalPages ?? 0,
-        totalElements: body.page?.totalElements ?? 0,
-      };
+      return await requestTicketmasterEventPage(url, page);
     } catch (error: unknown) {
-      if (
-        attempt === MAX_REQUEST_ATTEMPTS ||
-        !isRetryableRequestError(error)
-      ) {
+      if (!isRetryableRequestError(error)) {
         throw error;
       }
-      await wait(attempt * 1000);
     }
+    await wait(attempt * 1000);
   }
+
+  // The last attempt is not caught, so its failure reaches the caller unchanged.
+  return requestTicketmasterEventPage(url, page);
 }
 
 /**

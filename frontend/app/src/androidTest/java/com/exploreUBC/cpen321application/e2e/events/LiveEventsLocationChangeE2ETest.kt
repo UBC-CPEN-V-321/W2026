@@ -15,8 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 
-/** How long to wait for the location provider to deliver a moved location (it updates about once a minute). */
-private const val LOCATION_CHANGE_TIMEOUT_MS = 120_000L
+private const val MOVED_LOCATION_DELIVERY_TIMEOUT_MS = 120_000L
 
 /**
  * Refresh After a Location Change against the real backend. The test sets the device location
@@ -39,10 +38,10 @@ class LiveEventsLocationChangeE2ETest {
         composeRule.waitForText("E2E Event 01")
         composeRule.onAllNodesWithText("E2E Far Event 01").assertCountEquals(0)
 
-        waitForTextWhileAt(ABBOTSFORD_LATITUDE, ABBOTSFORD_LONGITUDE, "E2E Far Event 01")
+        waitForTextWhileResendingDeviceLocation(ABBOTSFORD_LATITUDE, ABBOTSFORD_LONGITUDE, "E2E Far Event 01")
         composeRule.onAllNodesWithText("E2E Event 01").assertCountEquals(0)
 
-        waitForTextWhileAt(UBC_LATITUDE, UBC_LONGITUDE, "E2E Event 01")
+        waitForTextWhileResendingDeviceLocation(UBC_LATITUDE, UBC_LONGITUDE, "E2E Event 01")
         composeRule.onAllNodesWithText("E2E Far Event 01").assertCountEquals(0)
     }
 
@@ -65,9 +64,8 @@ class LiveEventsLocationChangeE2ETest {
         composeRule.onAllNodesWithText("0.1 km away").onFirst().assertIsDisplayed()
     }
 
-    /** Keeps the device at the given place, re-sending it every few seconds, until [text] is shown. */
-    private fun waitForTextWhileAt(latitude: Double, longitude: Double, text: String) {
-        val deadline = System.currentTimeMillis() + LOCATION_CHANGE_TIMEOUT_MS
+    private fun waitForTextWhileResendingDeviceLocation(latitude: Double, longitude: Double, text: String) {
+        val deadline = System.currentTimeMillis() + MOVED_LOCATION_DELIVERY_TIMEOUT_MS
         while (true) {
             mockLocation.moveTo(latitude, longitude)
             val shown = runCatching { composeRule.waitForText(text, RESEND_INTERVAL_MS) }.isSuccess

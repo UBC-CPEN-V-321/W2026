@@ -67,11 +67,15 @@ beforeAll(async () => {
   // The env module reads these when it is first loaded, so set them before loading the sources.
   process.env.TICKETMASTER_API_KEY = 'test-key';
   process.env.TICKETMASTER_BASE_URL = `http://127.0.0.1:${port}/discovery/v2`;
-  /* eslint-disable @typescript-eslint/no-require-imports */
-  ({ fetchLiveEventPage } = require('../../../src/events/ticketmaster.client'));
-  ({ syncEvents } = require('../../../src/events/eventSync'));
-  const { EventDao } = require('../../../src/events/eventDao');
-  /* eslint-enable @typescript-eslint/no-require-imports */
+  ({ fetchLiveEventPage } = jest.requireActual<typeof import('../../../src/events/ticketmaster.client')>(
+    '../../../src/events/ticketmaster.client',
+  ));
+  ({ syncEvents } = jest.requireActual<typeof import('../../../src/events/eventSync')>(
+    '../../../src/events/eventSync',
+  ));
+  const { EventDao } = jest.requireActual<typeof import('../../../src/events/eventDao')>(
+    '../../../src/events/eventDao',
+  );
 
   const uri = process.env.MONGODB_URI;
   if (uri === undefined || uri.trim() === '') {
