@@ -18,6 +18,7 @@ import com.exploreUBC.cpen321application.testutil.OVERLAPPING_ACTIVITY_NAME
 import com.exploreUBC.cpen321application.testutil.activities
 import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
+import com.exploreUBC.cpen321application.testutil.signedInTestUserRule
 import com.exploreUBC.cpen321application.testutil.loadItineraries
 import com.exploreUBC.cpen321application.testutil.resetItineraries
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
@@ -41,6 +42,7 @@ class EventItineraryE2ETest {
     @get:Rule
     val rules: RuleChain = RuleChain
         .outerRule(permissions)
+        .around(signedInTestUserRule())
         .around(
             beforeActivityRule {
                 resetUserInterest()

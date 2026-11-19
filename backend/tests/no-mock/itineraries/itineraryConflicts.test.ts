@@ -4,11 +4,11 @@ import * as os from 'node:os';
 
 import type { Express } from 'express';
 import { Db, MongoClient, ObjectId } from 'mongodb';
-import request from 'supertest';
 
-import { createApp } from '../../../src/index';
+import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import { ItineraryDao } from '../../../src/itineraries/itineraryDao';
 import type { ActivityItem } from '../../../src/itineraries/itineraryTypes';
+import { authenticatedAgent, MongoTestSessions } from '../../support/authTestUtils';
 
 jest.setTimeout(30_000);
 
@@ -81,6 +81,7 @@ function seededItinerary() {
 let client: MongoClient;
 let database: Db;
 let app: Express;
+let testSessions: MongoTestSessions;
 let itineraryDao: ItineraryDao;
 
 async function storedItems(): Promise<Record<string, unknown>[]> {
@@ -92,6 +93,15 @@ async function storedItemIds(): Promise<string[]> {
   return (await storedItems()).map((item) => item.id as string);
 }
 
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: testSessions.service });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(
+  expressApp,
+  (userId) => testSessions.tokenFor(userId),
+);
+
 beforeAll(async () => {
   const uri = process.env.MONGODB_URI;
   if (uri === undefined || uri.trim() === '') {
@@ -99,6 +109,7 @@ beforeAll(async () => {
   }
   client = new MongoClient(uri, { runtimeAdapters: { os }, serverSelectionTimeoutMS: 10_000 });
   database = client.db(DATABASE_NAME);
+  testSessions = new MongoTestSessions(database);
   itineraryDao = new ItineraryDao(database);
   app = createApp({ itineraryRepository: itineraryDao });
   await client.connect();
@@ -107,11 +118,13 @@ beforeAll(async () => {
 beforeEach(async () => {
   await database.collection('itineraries').deleteMany({});
   await database.collection('itineraries').insertOne(seededItinerary());
+  await testSessions.reset([USER_ID.toHexString()]);
 });
 
 afterAll(async () => {
   try {
     await database.collection('itineraries').deleteMany({});
+    await database.collection('sessions').deleteMany({});
   } finally {
     await client.close();
   }

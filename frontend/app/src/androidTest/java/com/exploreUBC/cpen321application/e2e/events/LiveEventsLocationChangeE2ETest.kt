@@ -9,6 +9,7 @@ import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.testutil.MockLocationRule
 import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
+import com.exploreUBC.cpen321application.testutil.signedInTestUserRule
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
 import com.exploreUBC.cpen321application.testutil.waitForText
 import org.junit.Rule
@@ -28,6 +29,7 @@ class LiveEventsLocationChangeE2ETest {
     @get:Rule
     val rules: RuleChain = RuleChain
         .outerRule(grantLocationPermissionRule())
+        .around(signedInTestUserRule())
         .around(mockLocation)
         .around(beforeActivityRule { resetUserInterest() })
         .around(composeRule)

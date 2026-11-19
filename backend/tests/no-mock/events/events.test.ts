@@ -4,12 +4,13 @@ import * as os from 'node:os';
 
 import type { Express } from 'express';
 import { Db, MongoClient, ObjectId } from 'mongodb';
-import request from 'supertest';
+import type { Response, Test } from 'supertest';
 
 import { EventDao } from '../../../src/events/eventDao';
 import type { LiveEvent } from '../../../src/events/eventTypes';
-import { createApp } from '../../../src/index';
+import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import { UserDao } from '../../../src/users/userDao';
+import { authenticatedAgent, MongoTestSessions } from '../../support/authTestUtils';
 import {
   buildEvent,
   buildUserDocument,
@@ -38,6 +39,7 @@ const VALID_QUERY: Record<string, string> = {
 let client: MongoClient;
 let database: Db;
 let app: Express;
+let testSessions: MongoTestSessions;
 
 function daysFromNow(days: number): Date {
   return new Date(FIXED_NOW.getTime() + days * MS_PER_DAY);
@@ -63,7 +65,17 @@ async function seedEvents(events: LiveEvent[]): Promise<void> {
   await database.collection('liveevents').insertMany(events);
 }
 
-function getEvents(query: Record<string, string | undefined> = {}): request.Test {
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: testSessions.service });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(
+  expressApp,
+  (userId) =>
+    testSessions.tokenFor(userId) ?? testSessions.tokenFor(USER_ID.toHexString()),
+);
+
+function getEvents(query: Record<string, string | undefined> = {}): Test {
   const merged = { ...VALID_QUERY, ...query };
   const definedQuery = Object.fromEntries(
     Object.entries(merged).filter(([, value]) => value !== undefined),
@@ -71,7 +83,7 @@ function getEvents(query: Record<string, string | undefined> = {}): request.Test
   return request(app).get(EVENTS_PATH).query(definedQuery);
 }
 
-function eventIds(response: request.Response): string[] {
+function eventIds(response: Response): string[] {
   return (response.body.events as { id: string }[]).map((event) => event.id);
 }
 
@@ -86,6 +98,7 @@ beforeAll(async () => {
     serverSelectionTimeoutMS: 10_000,
   });
   database = client.db(DATABASE_NAME);
+  testSessions = new MongoTestSessions(database);
   const eventDao = new EventDao(database);
   app = createApp({
     eventRepository: eventDao,
@@ -99,6 +112,7 @@ beforeEach(async () => {
   await database.collection('liveevents').deleteMany({});
   await database.collection('users').deleteMany({});
   await database.collection('users').insertOne(buildUserDocument('live_music', USER_ID));
+  await testSessions.reset([USER_ID.toHexString(), MISSING_USER_ID.toHexString()]);
   jest.useFakeTimers({ now: FIXED_NOW, doNotFake: KEEP_REAL_TIMERS as never });
 });
 
@@ -110,6 +124,7 @@ afterAll(async () => {
   try {
     await database.collection('liveevents').deleteMany({});
     await database.collection('users').deleteMany({});
+    await database.collection('sessions').deleteMany({});
   } finally {
     await client.close();
   }
@@ -327,18 +342,16 @@ describe('Unmocked: GET /api/v1/users/:userId/events', () => {
   });
 
   // Input: a user ID that is not a valid ObjectId.
-  // Expected status code: 404
-  // Expected output: { error: "User 'not-an-object-id' was not found." }
-  // Expected behavior: the real UserDao rejects the malformed ID as a missing user.
-  test('returns 404 for a malformed user ID', async () => {
+  // Expected status code: 403 FORBIDDEN
+  // Expected behavior: no session can belong to a malformed user ID, so the ownership check rejects it
+  // before the events route runs.
+  test('returns 403 for a malformed user ID', async () => {
     const response = await request(app)
       .get('/api/v1/users/not-an-object-id/events')
       .query(VALID_QUERY);
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({
-      error: "User 'not-an-object-id' was not found.",
-    });
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('FORBIDDEN');
   });
 
   // Input: live_music user; a Music event at the user's location starting in 5 days.

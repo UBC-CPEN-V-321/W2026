@@ -1,8 +1,9 @@
-import request from 'supertest';
+import type { Express } from 'express';
 
 import type { LiveEventCandidate } from '../../../src/events/eventTypes';
-import { createApp } from '../../../src/index';
+import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import type { UserRepository } from '../../../src/users/userRepository';
+import { authenticatedAgent, createPathSessionValidator } from '../../support/authTestUtils';
 import type { MockedRepository } from '../../utils/mockedRepository';
 import type {
   InterestPreference,
@@ -18,6 +19,12 @@ import {
 } from '../../utils/eventFixtures';
 
 const USER_ID = '6705f0000000000000000001';
+
+function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
+  return createBackendApp({ ...dependencies, sessionService: createPathSessionValidator() });
+}
+
+const request = (expressApp: Express) => authenticatedAgent(expressApp);
 const EVENTS_PATH = `/api/v1/users/${USER_ID}/events`;
 const VALID_QUERY = { latitude: CORE_LATITUDE, longitude: CORE_LONGITUDE };
 const MS_PER_DAY = 86_400_000;
@@ -27,6 +34,8 @@ function createUserRepository(): MockedRepository<UserRepository> {
     findPreferences: jest.fn(),
     findUser: jest.fn(),
     updateUser: jest.fn(),
+    findOrCreateByGoogleIdentity: jest.fn(),
+    completeOnboarding: jest.fn(),
   };
 }
 

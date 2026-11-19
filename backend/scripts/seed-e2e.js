@@ -4,6 +4,7 @@
 //   node scripts/seed-e2e.js clean   remove the seeded events and itinerary
 // Refuses to run against Atlas. The target is E2E_MONGODB_URI (default: local Docker DB).
 const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
 const path = require('node:path');
 const { MongoClient, ObjectId } = require('mongodb');
 
@@ -12,6 +13,9 @@ const DATABASE_NAME = 'cpen321';
 const TEST_USER_ID = new ObjectId('6acd519c76376cefc61e97f1');
 const BASELINE_ITINERARY_ID = new ObjectId('6705f1000000000000000001');
 const EVENT_ID_PREFIX = 'e2e-';
+// Session of the seeded user. The E2E tests install this token in the app, so no Google sign-in is needed.
+const E2E_SESSION_TOKEN = 'e2e-live-events-session-token';
+const E2E_SESSION_DAYS = 30;
 
 // UBC, the app's default location.
 const UBC_LONGITUDE = -123.246;
@@ -132,6 +136,14 @@ async function seed(database, { withEvents = true } = {}) {
       { $set: { 'preferences.interest': 'outdoors', updated_at: base } },
     );
 
+  await database.collection('sessions').deleteMany({ userId: TEST_USER_ID });
+  await database.collection('sessions').insertOne({
+    userId: TEST_USER_ID,
+    tokenHash: createHash('sha256').update(E2E_SESSION_TOKEN, 'utf8').digest('hex'),
+    createdAt: base,
+    expiresAt: new Date(base.getTime() + E2E_SESSION_DAYS * DAY_MS),
+  });
+
   console.log(
     withEvents
       ? `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, ${FAR_EVENT_COUNT} far-away Sports events, 1 itinerary.`
@@ -146,8 +158,9 @@ async function clean(database) {
   const itineraries = await database
     .collection('itineraries')
     .deleteMany({ ownerId: TEST_USER_ID });
+  const sessions = await database.collection('sessions').deleteMany({ userId: TEST_USER_ID });
   console.log(
-    `E2E data removed: ${events.deletedCount} events, ${itineraries.deletedCount} itineraries.`,
+    `E2E data removed: ${events.deletedCount} events, ${itineraries.deletedCount} itineraries, ${sessions.deletedCount} sessions.`,
   );
 }
 

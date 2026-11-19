@@ -9,6 +9,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.exploreUBC.cpen321application.BuildConfig
+import com.exploreUBC.cpen321application.data.auth.AuthenticatedSession
+import com.exploreUBC.cpen321application.data.auth.SessionManager
+import com.exploreUBC.cpen321application.data.auth.SessionStore
+import com.exploreUBC.cpen321application.data.network.ApiClient
 import com.exploreUBC.cpen321application.data.events.EventsApi
 import com.exploreUBC.cpen321application.data.itineraries.ActivityItem
 import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
@@ -26,8 +30,38 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import org.junit.rules.TestRule
 
-/** User the app signs in as (hardcoded in MainActivity2); seeded by backend `npm run e2e:seed`. */
+/** User the app signs in as; seeded, together with its session, by backend `npm run e2e:seed`. */
 internal const val REAL_BACKEND_USER_ID = "6acd519c76376cefc61e97f1"
+
+/** Token of the session that `npm run e2e:seed` stores for the seeded user (see seed-e2e.js). */
+private const val REAL_BACKEND_SESSION_TOKEN = "e2e-live-events-session-token"
+private const val SESSION_VALID_FOR_MILLIS = 24L * 60 * 60 * 1000
+
+private fun realBackendSession() = AuthenticatedSession(
+    token = REAL_BACKEND_SESSION_TOKEN,
+    userId = REAL_BACKEND_USER_ID,
+    expiresAtEpochMillis = System.currentTimeMillis() + SESSION_VALID_FOR_MILLIS,
+)
+
+/** Client that calls the real backend as the seeded user, for resetting and reading test data. */
+internal fun realBackendClient(): ApiClient = ApiClient(
+    apiBaseUrl = BuildConfig.API_BASE_URL,
+    sessionManager = SessionManager(realBackendSession()),
+)
+
+/**
+ * Stores the seeded user's session in the app before the activity starts, so the app opens signed in
+ * without the Google sign-in screen. The backend accepts it because the seed script created it.
+ */
+internal fun signedInTestUserRule(): TestRule = TestRule { base, _ ->
+    object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            SessionStore(context).save(realBackendSession())
+            base.evaluate()
+        }
+    }
+}
 
 /** How long a test waits for a response from the real backend before failing. */
 internal const val REAL_BACKEND_TIMEOUT_MS = 20_000L
@@ -74,7 +108,7 @@ internal fun ComposeTestRule.scrollToText(
 /** Sets the seeded user's interest through the real backend, so every test starts from the same state. */
 internal fun resetUserInterest(interest: InterestPreference = InterestPreference.OUTDOORS) {
     runBlocking {
-        UsersApi(BuildConfig.API_BASE_URL).updateUser(
+        UsersApi(realBackendClient()).updateUser(
             REAL_BACKEND_USER_ID,
             UserUpdate(
                 preferences = UserPreferences(
@@ -98,12 +132,12 @@ private const val UBC_LONGITUDE = -123.246
  */
 internal fun resetItineraries(withOverlap: Boolean = true) {
     runBlocking {
-        val itineraries = ItinerariesApi(BuildConfig.API_BASE_URL)
+        val itineraries = ItinerariesApi(realBackendClient())
         itineraries.getItineraries(REAL_BACKEND_USER_ID).forEach {
             itineraries.deleteItinerary(REAL_BACKEND_USER_ID, it.id)
         }
         if (withOverlap) {
-            val firstEvent = EventsApi(BuildConfig.API_BASE_URL)
+            val firstEvent = EventsApi(realBackendClient())
                 .getEvents(REAL_BACKEND_USER_ID, UBC_LATITUDE, UBC_LONGITUDE, 1, 20)
                 .first { it.title == "E2E Event 01" }
             val start = Instant.parse(firstEvent.startDateTime)
@@ -129,7 +163,7 @@ internal fun resetItineraries(withOverlap: Boolean = true) {
 
 /** Reads the seeded user's itineraries from the real backend, to check what the app saved. */
 internal fun loadItineraries(): List<Itinerary> = runBlocking {
-    ItinerariesApi(BuildConfig.API_BASE_URL).getItineraries(REAL_BACKEND_USER_ID)
+    ItinerariesApi(realBackendClient()).getItineraries(REAL_BACKEND_USER_ID)
 }
 
 internal fun Itinerary.activities(): List<ActivityItem> = items.filterIsInstance<ActivityItem>()

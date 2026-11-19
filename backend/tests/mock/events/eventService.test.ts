@@ -21,6 +21,8 @@ function setUpService(interest: 'live_music' | 'outdoors' = 'live_music') {
     findPreferences: jest.fn(),
     findUser: jest.fn(),
     updateUser: jest.fn(),
+    findOrCreateByGoogleIdentity: jest.fn(),
+    completeOnboarding: jest.fn(),
   };
   const eventRepository = createMockEventRepository();
   userRepository.findPreferences.mockResolvedValue({

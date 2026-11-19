@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performScrollTo
 import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
+import com.exploreUBC.cpen321application.testutil.signedInTestUserRule
 import com.exploreUBC.cpen321application.testutil.resetUserInterest
 import com.exploreUBC.cpen321application.testutil.scrollToText
 import com.exploreUBC.cpen321application.testutil.waitForText
@@ -31,6 +32,7 @@ class LiveEventsE2ETest {
     @get:Rule
     val rules: RuleChain = RuleChain
         .outerRule(permissions)
+        .around(signedInTestUserRule())
         .around(beforeActivityRule { resetUserInterest() })
         .around(composeRule)
 
