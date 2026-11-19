@@ -12,6 +12,7 @@ import {
   fetchGameDetails,
   type GameDetails,
   isUserInGame,
+  startBookedGame,
 } from "../../src/games/games.repository";
 import { gameStreams } from "../../src/games/games.events";
 import { EventReader } from "./sseReader";
@@ -29,6 +30,7 @@ jest.mock("../../src/games/games.repository", () => ({
   addPlayerToTeam: jest.fn(),
   deleteGame: jest.fn(),
   isUserInGame: jest.fn(),
+  startBookedGame: jest.fn(),
 }));
 
 jest.mock("../../src/external/weather", () => ({
@@ -40,6 +42,7 @@ const mockedFetchGameDetails = jest.mocked(fetchGameDetails);
 const mockedAddPlayerToTeam = jest.mocked(addPlayerToTeam);
 const mockedDeleteGame = jest.mocked(deleteGame);
 const mockedIsUserInGame = jest.mocked(isUserInGame);
+const mockedStartBookedGame = jest.mocked(startBookedGame);
 const mockedGetForecast = jest.mocked(getForecast);
 
 const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -200,6 +203,31 @@ describe("Mocked: GET /games/events", () => {
 
     const update = await events.next();
     expect(update).toEqual({ event: "gameDeleted", data: { gameId } });
+  });
+
+  // Input: a watched booked game that the other player starts with Start now
+  // Expected status code: 200 for the start
+  // Expected behavior: the watcher gets the game as in progress without asking for it
+  // Expected output: gameUpdated with status IN_PROGRESS
+  it("sends the game once another player starts it", async () => {
+    mockedFetchGameDetails.mockResolvedValueOnce(gameDetails({ status: GameStatus.BOOKED }));
+    const events = await watchGame();
+    await events.next();
+
+    mockedFetchGame.mockResolvedValue({ ...gameRow(), status: GameStatus.BOOKED });
+    mockedIsUserInGame.mockResolvedValue(true);
+    mockedStartBookedGame.mockResolvedValue({ ...gameRow(), status: GameStatus.IN_PROGRESS, startsAt: new Date() });
+    mockedFetchGameDetails.mockResolvedValue(gameDetails({ status: GameStatus.IN_PROGRESS }));
+
+    const start = await request(createApp())
+      .post("/games/start")
+      .set("Authorization", `Bearer ${signAccessToken(otherUserId)}`)
+      .send({ gameId });
+    expect(start.status).toBe(200);
+
+    const update = await events.next();
+    expect(update.event).toBe("gameUpdated");
+    expect((update.data as StreamedGame).game.status).toBe(GameStatus.IN_PROGRESS);
   });
 
   // Input: a watcher that disconnects

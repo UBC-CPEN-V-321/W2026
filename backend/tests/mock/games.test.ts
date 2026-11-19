@@ -1907,7 +1907,24 @@ describe("Mocked: POST /games/start", () => {
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
   });
 
-  // Input: games that can't start: closed, still open (free spots or unanswered match), or already started
+  // Input: a booked game whose start time passed a minute ago, which nobody started
+  // Expected status code: 200
+  // Expected behavior: games never start on their own, so it can still be started, late
+  // Expected output: the started game
+  test("Starts a booked game whose start time has passed", async () => {
+    mockedFetchGame.mockResolvedValue(bookedGame({ startsAt: new Date(Date.now() - 60 * 1000) }));
+    mockedStartBookedGame.mockImplementation((_gameId, now) =>
+      Promise.resolve(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: now })),
+    );
+
+    const response = await start();
+
+    expect(response.status).toBe(200);
+    expect(response.body.game).toMatchObject({ id: editGameId, status: GameStatus.IN_PROGRESS });
+    expect(mockedStartBookedGame).toHaveBeenCalledTimes(1);
+  });
+
+  // Input: games that can't start: closed, still open (free spots or unanswered match), or already in progress
   // Expected status code: 409
   // Expected behavior: the start time is not changed
   // Expected output: the reason, e.g. { error: "Game has already started", code: "GAME_ALREADY_STARTED" }
@@ -1920,11 +1937,7 @@ describe("Mocked: POST /games/start", () => {
       { status: GameStatus.OPEN, gameSource: GameSource.MATCHED },
       gameErrors.NotBooked,
     ],
-    [
-      "already started",
-      { startsAt: new Date(Date.now() - 60 * 1000) },
-      gameErrors.AlreadyStarted,
-    ],
+    ["in progress", { status: GameStatus.IN_PROGRESS }, gameErrors.AlreadyStarted],
   ] as const)("Returns 409 for a %s game", async (_description, overrides, error) => {
     mockedFetchGame.mockResolvedValue(bookedGame(overrides));
 
@@ -1942,7 +1955,7 @@ describe("Mocked: POST /games/start", () => {
     mockedStartBookedGame.mockResolvedValue(null);
     mockedFetchGame
       .mockResolvedValueOnce(bookedGame())
-      .mockResolvedValueOnce(bookedGame({ startsAt: new Date() }));
+      .mockResolvedValueOnce(bookedGame({ status: GameStatus.IN_PROGRESS, startsAt: new Date() }));
 
     const response = await start();
 

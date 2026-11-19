@@ -504,13 +504,12 @@ export async function changeGameTime(
 }
 
 /**
- * Decides whether a game can start now: it must be booked, so its players are known and every one of them
- * has accepted it, and its start time must not have passed
+ * Decides whether a game can start: it must be booked, so its players are known and every one of them
+ * has accepted it, and not started yet
  * @param game the game to start
- * @param now the current time
  * @returns the reason the game cannot start, or null if it can
  */
-function whyGameCannotStart(game: Game, now: Date): ErrorDefinition | null {
+function whyGameCannotStart(game: Game): ErrorDefinition | null {
   if (
     game.status === GameStatus.COMPLETED ||
     game.status === GameStatus.CANCELLED
@@ -518,23 +517,23 @@ function whyGameCannotStart(game: Game, now: Date): ErrorDefinition | null {
     return gameErrors.Closed;
   }
 
+  if (game.status === GameStatus.IN_PROGRESS) {
+    return gameErrors.AlreadyStarted;
+  }
+
   // An open game still has free spots, or is a match waiting for answers
   if (game.status !== GameStatus.BOOKED) {
     return gameErrors.NotBooked;
-  }
-
-  if (game.startsAt <= now) {
-    return gameErrors.AlreadyStarted;
   }
 
   return null;
 }
 
 /**
- * Starts a booked game before its start time, for players who want to play early: its start time moves to now,
- * so every player can report its score. Scheduled, matched and tournament games can all start early, since a
- * booked game's players are known and have accepted it. A tournament's later rounds are timed from the
- * tournament's start, so they don't move
+ * Starts a booked game when a player taps Start: it is in progress from now on, and its start time becomes now.
+ * Games never start on their own, so this works early or late. Scheduled, matched and tournament games can all
+ * start, since a booked game's players are known and have accepted it. A tournament's later rounds are timed from
+ * the tournament's start, so they don't move
  * @param gameId the game ID of the game to start
  * @param userId the user starting the game, who must be in it
  * @returns the started game
@@ -550,20 +549,19 @@ export async function startGame(gameId: string, userId: string) {
     throw new AppError(gameErrors.NotInGame);
   }
 
-  const now = new Date();
-  const error = whyGameCannotStart(game, now);
+  const error = whyGameCannotStart(game);
   if (error) {
     throw new AppError(error);
   }
 
-  const started = await startBookedGame(gameId, now);
+  const started = await startBookedGame(gameId, new Date());
   if (started === null) {
     // Another player started it, or it was completed, cancelled or deleted, after the check above
     const current = await fetchGame(gameId);
     const reason =
       current === null
         ? gameErrors.NotFound
-        : (whyGameCannotStart(current, now) ?? gameErrors.AlreadyStarted);
+        : (whyGameCannotStart(current) ?? gameErrors.AlreadyStarted);
     throw new AppError(reason);
   }
 

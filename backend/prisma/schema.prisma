@@ -28,6 +28,8 @@ enum FormatPreference {
 enum GameStatus {
   OPEN
   BOOKED
+  // Being played: a booked game a player started, until its score is reported
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }
