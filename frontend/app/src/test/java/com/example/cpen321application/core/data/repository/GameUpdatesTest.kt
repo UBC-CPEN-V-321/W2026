@@ -23,6 +23,7 @@ import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -130,6 +131,18 @@ class GameUpdatesTest {
         server.takeRequest(1, TimeUnit.SECONDS)
         assertEquals("/user/refresh", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
         assertEquals("Bearer access2", server.takeRequest(1, TimeUnit.SECONDS)!!.getHeader("Authorization"))
+    }
+
+    // Input: a response that is neither the stream nor an error: a redirect with nowhere to go
+    // Expected behavior: it fails like a dropped connection, so the screen reconnects, instead of hanging
+    // Expected output: IOException
+    @Test
+    fun gameUpdates_failsLikeADroppedConnectionOnAnUnexpectedResponse() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(302))
+
+        val error = runCatching { withTimeout(5_000) { repository().gameUpdates(gameId).toList() } }.exceptionOrNull()
+
+        assertTrue(error is IOException)
     }
 
     // Input: the stream is refused with 404 because the game does not exist

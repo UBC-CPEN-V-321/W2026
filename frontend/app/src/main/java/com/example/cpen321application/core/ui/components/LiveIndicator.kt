@@ -45,8 +45,9 @@ fun LiveDot(modifier: Modifier = Modifier, dotSize: Dp = 8.dp) {
         modifier = modifier
             .size(dotSize * 2)
             .drawBehind {
-                // From the dot's edge (half the box) out to the box's edge, fading to nothing
-                val radius = size.minDimension / 4 * (1 + pulse)
+                // From the dot's edge out to the box's edge (twice as far), fading to nothing
+                val dotRadius = size.minDimension / 2 / 2
+                val radius = dotRadius * (1 + pulse)
                 drawCircle(color = live.copy(alpha = HALO_START_ALPHA * (1 - pulse)), radius = radius)
             },
         contentAlignment = Alignment.Center,
@@ -66,7 +67,11 @@ fun LiveLabel(text: String, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         LiveDot()
-        Text(text = text.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+        Text(
+            text = text.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.secondary,
+        )
     }
 }
 

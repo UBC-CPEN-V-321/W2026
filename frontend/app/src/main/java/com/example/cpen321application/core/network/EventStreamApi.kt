@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.BufferedSource
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -21,6 +22,9 @@ import java.io.IOException
  * @property data the event's data, JSON for the backend's streams
  */
 data class ServerSentEvent(val name: String, val data: String)
+
+// Status codes from here up are errors, which Retrofit's HttpException can carry
+private const val HTTP_ERROR = 400
 
 /**
  * The backend's event streams, e.g. GET /games/events and GET /friends/events: the backend pushes what changed
@@ -53,36 +57,45 @@ class EventStreamApi(private val client: OkHttpClient, private val baseUrl: Http
             .header("Accept", "text/event-stream")
             .build()
 
-        val call = client.newCall(request)
-        call.enqueue(object : Callback {
+        val streamCall = client.newCall(request)
+        streamCall.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 close(e)
             }
 
             // Runs on an OkHttp thread for as long as the stream stays open
             override fun onResponse(call: Call, response: Response) {
-                response.use { close(readEvents(it)) }
+                response.use { close(endOfStream(it)) }
             }
         })
 
         // Cancelling the call makes the blocked read in readEvents throw, which ends its thread
-        awaitClose { call.cancel() }
+        awaitClose { streamCall.cancel() }
     }
 
-    // Sends each event to the collector. Returns why the stream ended: null if the backend ended it
-    private fun ProducerScope<ServerSentEvent>.readEvents(response: Response): Throwable? {
-        val body = response.body ?: return null
-        if (!response.isSuccessful) {
-            val errorBody = body.string().toResponseBody(body.contentType())
-            return HttpException(retrofit2.Response.error<Unit>(response.code, errorBody))
+    // Why the stream ended: null if the backend ended it, the backend's refusal, or the dropped connection
+    private fun ProducerScope<ServerSentEvent>.endOfStream(response: Response): Throwable? {
+        val body = response.body
+        return when {
+            body == null -> null
+            response.code >= HTTP_ERROR -> {
+                val errorBody = body.string().toResponseBody(body.contentType())
+                HttpException(retrofit2.Response.error<Unit>(response.code, errorBody))
+            }
+            // Not an error, but not the stream either (Retrofit can't wrap it): reconnecting is the best bet
+            !response.isSuccessful -> IOException("Unexpected response ${response.code} for an event stream")
+            else -> readEvents(body.source())
         }
+    }
 
+    // Sends each event to the collector until the backend ends the stream. Returns the error if the read fails
+    private fun ProducerScope<ServerSentEvent>.readEvents(source: BufferedSource): IOException? {
         val parser = ServerSentEventParser()
         return try {
-            val source = body.source()
-            while (true) {
-                val line = source.readUtf8Line() ?: break
+            var line = source.readUtf8Line()
+            while (line != null) {
                 parser.feed(line)?.let { event -> trySendBlocking(event) }
+                line = source.readUtf8Line()
             }
             null
         } catch (e: IOException) {
@@ -103,18 +116,20 @@ class ServerSentEventParser {
      * @param line one line of the stream, without its line break
      * @return the finished event if this blank line ends one, otherwise null
      */
-    fun feed(line: String): ServerSentEvent? {
-        if (line.isEmpty()) {
-            return finishEvent()
+    fun feed(line: String): ServerSentEvent? =
+        when {
+            line.isEmpty() -> finishEvent()
+            line.startsWith(":") -> null  // A comment, e.g. the heartbeat
+            else -> {
+                readField(line)
+                null
+            }
         }
 
-        if (line.startsWith(":")) {
-            return null
-        }
-
-        val field = line.substringBefore(':')
+    // e.g. "event: gameUpdated" or "data: {...}"; other fields (id, retry) aren't used
+    private fun readField(line: String) {
         val value = line.substringAfter(':', "").removePrefix(" ")
-        when (field) {
+        when (line.substringBefore(':')) {
             "event" -> name = value
             "data" -> {
                 if (hasData) data.append('\n')
@@ -122,7 +137,6 @@ class ServerSentEventParser {
                 hasData = true
             }
         }
-        return null
     }
 
     private fun finishEvent(): ServerSentEvent? {

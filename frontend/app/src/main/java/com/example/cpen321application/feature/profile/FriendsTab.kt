@@ -222,11 +222,8 @@ private fun MutedLine(text: String) {
     )
 }
 
-/**
- * A friend: their name, "@username", then the live dot and "Playing" while they play (tapping the row then
- * shows their game) or their rating, with Remove at the end
- * @param onOpenPlaying opens the dialog with their game, for a playing friend
- */
+// A friend: their name, "@username", then the live dot and "Playing" while they play (tapping the row then
+// shows their game) or their rating, with Remove at the end. onOpenPlaying opens the dialog with their game
 @Composable
 private fun FriendRow(
     friend: FriendDto,

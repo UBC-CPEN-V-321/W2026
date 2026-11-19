@@ -103,7 +103,10 @@ class GamesRepositoryImpl(
     private fun toGameUpdate(event: ServerSentEvent): GameUpdate? =
         try {
             when (event.name) {
-                "gameUpdated" -> GameUpdate.Changed(gson.fromJson(event.data, GameResponseDto::class.java).game.toGame())
+                "gameUpdated" -> {
+                    val game = gson.fromJson(event.data, GameResponseDto::class.java).game
+                    GameUpdate.Changed(game.toGame())
+                }
                 "gameDeleted" -> GameUpdate.Deleted
                 else -> null
             }
