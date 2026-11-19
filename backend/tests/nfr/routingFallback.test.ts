@@ -141,7 +141,9 @@ describe('NFR 2: GET /api/feed without the routing service', () => {
   ])('Routing Service $label', async ({ failure, install }: { label: string; failure: string; install: (spy: jest.SpyInstance) => void }) => {
     const fetchSpy = jest.spyOn(global, 'fetch');
 
-    const timed = await timeFeed(fetchSpy, () => install(fetchSpy));
+    const timed = await timeFeed(fetchSpy, () => {
+      install(fetchSpy);
+    });
     logTime(failure, timed.elapsedMs);
 
     expectRankedWithoutTravelTimes(timed, fetchSpy);
