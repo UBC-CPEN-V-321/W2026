@@ -31,7 +31,7 @@ import org.junit.Test
 import org.junit.rules.RuleChain
 
 /**
- * Adding a Live Event to an itinerary, against the real backend. Run after `npm run e2e:seed`, with
+ * Adding a Live Event to an itinerary, against the real backend. Run with `npm run test:e2e` from `backend/`, with
  * the backend on the E2E database and the emulator location set to UBC (see Testing.md, Section 4).
  * "E2E Event 01" overlaps the seeded itinerary activity; "E2E Event 02" does not.
  */

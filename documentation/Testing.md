@@ -39,12 +39,9 @@
 | **PATCH /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
 | **DELETE /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
 | **GET /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | `RecommendationRepository`; `SessionService` path-validator test double |
-| **POST /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | `ItineraryGenerator` (SoCLaaS); `ItineraryRanker`; `RecommendationRepository`; `UserRepository`; `SessionService` path-validator test double |
+| **POST /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | `ItineraryGenerator` (configured SoCLaaS or Qwen provider); `ItineraryRanker`; `RecommendationRepository`; `UserRepository`; `SessionService` path-validator test double |
 | **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) | `UserRepository`; `EventRepository`; `SessionService` path-validator test double |
 
-Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is run by a script (`npm run sync:events`, in `backend/scripts/sync-events.ts`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite. The no-mock supporting tests ([`backend/tests/no-mock/events/eventSync.test.ts`](../backend/tests/no-mock/events/eventSync.test.ts)) run the real client and `syncEvents` over real HTTP against a small local server that stands in for Ticketmaster, with a real database. The mock supporting tests replace `fetch` and the repository to cover the failure cases.
-
-Itinerary time conflicts for activities (an added or edited activity that overlaps stored items, and the `replaceConflicts=true` option that replaces them) are covered in [`backend/tests/no-mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/no-mock/itineraries/itineraryConflicts.test.ts) (real database: the 409 conflict response, the touching-boundary and one-millisecond cases, replacing one or several items, validation before replacement, and the repository guards) and [`backend/tests/mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/mock/itineraries/itineraryConflicts.test.ts) (replacement write failures and a repository without replace support). Time conflicts for transportation segments are not yet covered by these tests.
 
 #### 2.1.2. Commit Hash Where Tests Run
 
@@ -52,9 +49,9 @@ Itinerary time conflicts for activities (an added or edited activity that overla
 
 #### 2.1.3. Explanation on How to Run the Tests
 
-1. Add a reachable `MONGODB_URI` and valid `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, `SOCLAAS_MODEL`, `GEOCODING_API_KEY`, and `ROUTES_API_KEY` values to `backend/.env`. The no-mock suites create uniquely named temporary databases and drop them after the run.
+1. Add a reachable `MONGODB_URI`, `GEOCODING_API_KEY`, and `ROUTES_API_KEY` to `backend/.env`. Set `RECOMMENDATION_CLIENT` to `soclaas` and provide `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, and `SOCLAAS_MODEL`; or set it to `qwen` and provide `QWEN_ENDPOINT`, `QWEN_API_KEY`, and `QWEN_MODEL`. The no-mock suites create uniquely named temporary databases and drop them after the run.
 2. From `backend`, install dependencies with `npm install`.
-3. Run the user, itinerary, recommendation, Live Events, and no-mock authentication/session suites with coverage. A live recommendation POST can take up to one minute. The test retries one transient generation failure and allows up to three and a half minutes for both attempts, ranking, and persistence:
+3. Run the user, itinerary, recommendation, Live Events, and no-mock authentication/session suites with coverage. The live recommendation POST uses the configured provider and retries one transient generation failure. Its timeout allows two provider requests at the configured timeout, plus one minute for ranking and persistence:
    ```sh
    npm run test:no-mock
    ```
@@ -67,7 +64,6 @@ Itinerary time conflicts for activities (an added or edited activity that overla
    npm run test:combined
    ```
 
-The Live Events suites do not need a `TICKETMASTER_API_KEY` because no test calls Ticketmaster. The `jest.no-mock`, `jest.mock`, and `jest.combined` configurations include `tests/*/events/` and collect coverage for `src/events/`. Supporting suites for the Ticketmaster client, synchronization, `EventDao`, and `EventService` are in the same `tests/mock/events/` and `tests/no-mock/events/` folders.
 
 ### 2.2. GitHub Actions Configuration Location
 
@@ -105,9 +101,7 @@ The no-mock run is intentionally below 100% because database/network failure bra
 The main remaining branches are unreachable empty Express route parameters. Recommendation interface tests run in both suites; the no-mock suite covers live generation, real persistence, parsing, configuration, profile validation, and ranking, while the mock suite covers provider failures and database publication races. `*Types.ts` and `*Repository.ts` files contain only TypeScript types and interfaces that are erased at runtime, so both focused coverage configurations exclude them.
 The no-mock configuration excludes `googleTokenVerifier.ts` because CI cannot non-interactively obtain a valid user Google ID token. The mocked suites cover verified identity claims, invalid claims, Google Maps response parsing, configuration failures, and transport failures.
 
-**Live Events:** `src/events/eventDao.ts`, `eventRouter.ts`, `eventService.ts`, `eventSync.ts`, and `ticketmaster.client.ts` reach 100% of lines in the combined run. The code that connects to the database and starts a sync from the command line (`npm run sync:events`) lives in [`backend/scripts/sync-events.ts`](../backend/scripts/sync-events.ts), outside `src/`, so it is not part of the coverage. It only connects to MongoDB and calls `syncEvents`, which is tested in `backend/tests/mock/events/eventSync.test.ts`. Event synchronization is not exposed through the API, and a scheduled job (GitHub Actions or an AWS cron job) will run that script instead of users.
-
-In the no-mock run, `ticketmaster.client.ts` is below 100% (about 91% of lines). The no-mock test calls the real client against a local stand-in server for Ticketmaster, so it covers the normal request, the mapping, a retry after a server error, three failed attempts, and a client error that is not retried. The remaining cases need a controlled failure or unusual data: retrying after a 429 or a dropped connection, a missing API key, an invalid page number, and the fallbacks for optional event fields (no 16:9 image, `pleaseNote` instead of `info`, no price, an invalid end time, invalid coordinates). The mock suite covers them in `backend/tests/mock/events/ticketmaster.client.test.ts`, so the combined run reaches 100% of the lines. The client is a background job that fills the database once a day. It does not run when a user opens the Events screen, which only reads stored events, so a Ticketmaster failure cannot break a user request.
+For Live Events, the code that connects to the database and starts a sync from the command line (`npm run sync:events`) lives in [`backend/scripts/sync-events.ts`](../backend/scripts/sync-events.ts), outside `src/`, so it is not part of the coverage. Event synchronization is not exposed through the API, and a scheduled job (GitHub Actions or an AWS cron job) will run that script instead of users. The mock suite covers controlled failure or unusual data: retrying after a 429 or a dropped connection, a missing API key, an invalid page number, and the fallbacks for optional event fields (no 16:9 image, `pleaseNote` instead of `info`, no price, an invalid end time, invalid coordinates).
 
 The only uncovered area is:
 
@@ -216,23 +210,8 @@ The only uncovered area is:
 - User profile scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
 - First-login profile scenario: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/CreateProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/CreateProfileE2ETest.kt)
 - Live Events scenarios: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt) (location change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
-
 - Live Events component tests (fake repositories or a fake backend client, no real backend; they cover loading, error, retry, pagination, refresh and notification behaviour that the real-backend E2E tests cannot produce): [`LiveEventsScreenTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/LiveEventsScreenTest.kt), [`EventRecommendationRefreshTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/EventRecommendationRefreshTest.kt), [`EventsApiTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/data/events/EventsApiTest.kt)
 
-#### Running the real-backend E2E tests
-
-**One command:** with an emulator (API 36 or lower) already running, run `npm run e2e:frontend` from `backend/`. It starts and seeds the disposable database, starts the non-mocked backend, runs every class under the frontend `e2e` package from the real authenticated app, reruns the Live Events empty-state case with an empty event catalogue, and discards the database when finished.
-
-The recommendation and map journeys also require valid `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, `SOCLAAS_MODEL`, `GEOCODING_API_KEY`, and `ROUTES_API_KEY` values in `backend/.env` because those E2E requests deliberately use the real configured providers.
-
-All frontend E2E tests launch the real authenticated app and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. The seed creates the completed-profile test user, two incomplete-profile users, and their backend sessions. The test rules install the matching session before launching the activity; no E2E test mounts an individual route or injects an in-memory repository.
-
-1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, 3 Sports events about 70 km away (for the location-change test), and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
-2. Start the backend on that database (from `backend/`): `npm run e2e:backend`.
-3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`. (`LiveEventsLocationChangeE2ETest` sets its own location, so it does not need this.)
-4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.exploreUBC.cpen321application.e2e` from `frontend/`). Each suite prepares and verifies its fixtures through the real backend API.
-5. Empty state: run `npm run e2e:seed -- empty` (no events), restart nothing, and run `LiveEventsEmptyStateE2ETest`. With events seeded, that test is skipped.
-6. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
 
 ### 4.2. Tests
 
@@ -428,16 +407,6 @@ All frontend E2E tests launch the real authenticated app and talk to the real, n
     | 2b1. The system informs the user that no matching events are currently available. | Check that the message `No events found` and the `Refresh` button are present. |
 
   - **Omitted failure scenarios:** Failures 2a and 6a (network or server error while loading) can only be produced by replacing the frontend's backend connection with a mock, so they are not part of the required real-backend E2E suite.
-  - **Test Logs:**
-    ```
-    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
-
-    PASSED  LiveEventsSmokeE2ETest > appLaunchesOnEventsScreenAndShowsSeededEventFromBackend  (1.3 s)
-    PASSED  LiveEventsE2ETest > viewEventRecommendationsShowsRankedSeededEvents  (1.4 s)
-    PASSED  LiveEventsE2ETest > loadMoreAppendsTheLastEventAndHidesTheButton  (2.7 s)
-    PASSED  LiveEventsEmptyStateE2ETest > showsNoEventsMessageWhenNothingMatches  (2.3 s, run on a database with no events)
-    ```
-
 - **Use Case 3.4.6.3: Add an Event to an Itinerary** (Live Events to Itineraries)
 
   - **Setup:** The test starts on the main screen with a known user already logged in, one seeded upcoming event, and one seeded saved itinerary. Before each test, the test deletes the user's itineraries and recreates one saved itinerary whose activity overlaps the first seeded event (it creates none for the no-itinerary scenario). Results are checked on screen and by reading the itinerary back from the real backend.
@@ -458,17 +427,6 @@ All frontend E2E tests launch the real authenticated app and talk to the real, n
     | 3b3. The user replaces the conflicting items with the event. | Click the `Replace with new item` button.<br>Check that `Added to <itinerary name>.` is present.<br>Open the itinerary and check that the event is present and the conflicting item is not. |
 
   - **Omitted failure scenarios:** Failures that need the itinerary request to fail (itinerary loading error, creation error, activity insertion error, replacement error) can only be produced by mocking the frontend's backend connection, so they are not part of the required E2E suite.
-  - **Test Logs:**
-    ```
-    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
-
-    PASSED  EventItineraryE2ETest > addsNonOverlappingEventToExistingItinerary  (3.4 s)
-    PASSED  EventItineraryE2ETest > createsItineraryWhenUserHasNone  (3.3 s)
-    PASSED  EventItineraryE2ETest > rejectsEndTimeNotAfterEventStart  (3.9 s)
-    PASSED  EventItineraryE2ETest > keepsExistingScheduleOnTimeConflict  (2.5 s)
-    PASSED  EventItineraryE2ETest > replacesConflictingItemOnTimeConflict  (2.6 s)
-    ```
-
 - **Use Case 3.4.6.4: Refresh Event Recommendations After a Preference Change** (Live Events)
 
   - **Setup:** The test starts on the main screen (the app opens on Events) with a known user already logged in whose interest is `outdoors`. The backend is seeded with Sports events and Music events, so changing the interest to `live_music` adds Music events to the user's first page of recommendations. The seeded data is removed after the test.
@@ -480,13 +438,6 @@ All frontend E2E tests launch the real authenticated app and talk to the real, n
     | 3. The system refreshes recommendations in the background and compares them with the previous recommendations. It notifies the user while they remain on another screen. | Without leaving the Profile screen, check that the in-app notification `<count> new events near you` is present with a `View` action. |
     | 3a. The new recommendations contain no new events. | Seed so the changed interest produces no event that was not already recommended. Save the changed preference. |
     | 3a1. The system displays no notification. | Check that no `new event` notification is present. |
-
-  - **Test Logs:**
-    ```
-    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
-
-    PASSED  LiveEventsE2ETest > changingInterestShowsSnackbarAndLinksToNewEvents  (3.6 s)
-    ```
 
 - **Use Case 3.4.6.4: Refresh Event Recommendations After a Location Change** (Live Events)
 
@@ -508,23 +459,9 @@ All frontend E2E tests launch the real authenticated app and talk to the real, n
 
   - **Test file:** [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt). The 10 km threshold itself (REFRESH-7) is verified through this test rather than a separate unit test.
 
-  - **Test Logs:**
-    ```
-    Run 2026-11-18 via `npm run e2e:events`: real backend, seeded local MongoDB, Pixel_9_3 (API 36).
-
-    PASSED  LiveEventsLocationChangeE2ETest > movingFarAwayReplacesTheEventsAndMovingBackRestoresThem  (112.8 s)
-    PASSED  LiveEventsLocationChangeE2ETest > movingLessThanTenKilometresDoesNotRefresh  (76.8 s)
-    ```
-
     <!-- | 3a. The user inputs an ill-formatted string. | Input "_^_^^OQ#$" in the text field. |
     | 3a1. The app displays an error message prompting the user for the expected format. | Check that a dialog is opened with the text: "Please use only alphanumeric characters ". |
     | 4. The user presses the "Add" button. | Click the button labelled "add ". |
     | 5. The screen refreshes and the new item is at the bottom of the todo list. | Check that a text box with the text "buy milk" is present on screen.<br>Input "buy chocolate" in the text field.<br>Click the button labelled "add".<br>Check that two text boxes are present on the screen with "buy milk" on top and "buy chocolate" at the bottom. |
     | 5a. The list exceeds the maximum todo-list size. | Repeat steps 3 to 5 ten times.<br>Check that a dialog is opened with the text: "You have too many items, try completing one first". | -->
 
-  - **Test Logs:**
-    ```
-    Starting 9 tests on Medium_Phone_API_36.0(AVD) - 16
-    Finished 9 tests on Medium_Phone_API_36.0(AVD) - 16
-    BUILD SUCCESSFUL
-    ```

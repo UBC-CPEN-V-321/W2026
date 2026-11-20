@@ -10,7 +10,7 @@ import { EventDao } from '../../../src/events/eventDao';
 import type { LiveEvent } from '../../../src/events/eventTypes';
 import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import { UserDao } from '../../../src/users/userDao';
-import { authenticatedAgent, MongoTestSessions } from '../../support/authTestUtils';
+import { authenticatedAgent, MongoTestSessions } from '../../utils/authTestUtils';
 import {
   buildEvent,
   buildUserDocument,
@@ -24,8 +24,8 @@ jest.setTimeout(30_000);
 
 const USER_ID = new ObjectId();
 const MISSING_USER_ID = new ObjectId();
-// A fixed name, reused every run, so test databases never pile up on the shared cluster.
-const DATABASE_NAME = 'eubc_events_api';
+// Give concurrent test runs separate collections and remove the database afterward.
+const DATABASE_NAME = `eubc_events_api_${USER_ID.toHexString()}`;
 const EVENTS_PATH = `/api/v1/users/${USER_ID.toHexString()}/events`;
 
 // MongoDB's spherical queries use an Earth radius of 6378.1 km.
@@ -122,9 +122,7 @@ afterEach(() => {
 
 afterAll(async () => {
   try {
-    await database.collection('liveevents').deleteMany({});
-    await database.collection('users').deleteMany({});
-    await database.collection('sessions').deleteMany({});
+    await database.dropDatabase();
   } finally {
     await client.close();
   }
@@ -463,8 +461,10 @@ describe('Unmocked: GET /api/v1/users/:userId/events', () => {
   test('returns an empty page when there are no events', async () => {
     const response = await getEvents();
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ page: 1, limit: 20, count: 0, events: [] });
+    expect({ status: response.status, body: response.body }).toEqual({
+      status: 200,
+      body: { page: 1, limit: 20, count: 0, events: [] },
+    });
   });
 
   // Input: 3 stored matching events.

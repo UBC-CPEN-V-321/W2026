@@ -8,7 +8,7 @@ import { Db, MongoClient, ObjectId } from 'mongodb';
 import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import { ItineraryDao } from '../../../src/itineraries/itineraryDao';
 import type { ActivityItem } from '../../../src/itineraries/itineraryTypes';
-import { authenticatedAgent, MongoTestSessions } from '../../support/authTestUtils';
+import { authenticatedAgent, MongoTestSessions } from '../../utils/authTestUtils';
 
 jest.setTimeout(30_000);
 

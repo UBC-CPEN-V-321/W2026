@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Looper
 import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -76,7 +77,7 @@ class CampusMapController(
     private var popularPlacesJob: Job? = null
     private var onMapClick: () -> Unit = {}
 
-    fun start() {
+    fun start() = onMainThread {
         MapsInitializer.initialize(context.applicationContext)
 
         binding.checkboxPopular.visibility = View.GONE
@@ -108,15 +109,15 @@ class CampusMapController(
         binding.map.getMapAsync(::onMapReady)
     }
 
-    fun setMyLocationEnabled(enabled: Boolean) {
+    fun setMyLocationEnabled(enabled: Boolean) = onMainThread {
         showMyLocation = enabled
         if (::map.isInitialized && enabled) {
             map.isMyLocationEnabled = true
         }
     }
 
-    fun showItineraryMap(itineraryMap: ItineraryMap, title: String) {
-        if (mode != MapLayerMode.TRIP_ROUTES) return
+    fun showItineraryMap(itineraryMap: ItineraryMap, title: String) = onMainThread {
+        if (mode != MapLayerMode.TRIP_ROUTES) return@onMainThread
         pendingItineraryMap = itineraryMap
         pendingOverlayTitle = title
         if (::map.isInitialized) {
@@ -124,10 +125,10 @@ class CampusMapController(
         }
     }
 
-    fun setPopularPlacesEnabled(enabled: Boolean) {
-        if (popularPlacesEnabled == enabled) return
+    fun setPopularPlacesEnabled(enabled: Boolean) = onMainThread {
+        if (popularPlacesEnabled == enabled) return@onMainThread
         popularPlacesEnabled = enabled
-        if (!::map.isInitialized) return
+        if (!::map.isInitialized) return@onMainThread
         if (enabled) {
             popularPlacesJob = scope.launch { loadPopularPlaces() }
         } else {
@@ -140,22 +141,22 @@ class CampusMapController(
         }
     }
 
-    fun setControlBottomInset(bottomPx: Int) {
+    fun setControlBottomInset(bottomPx: Int) = onMainThread {
         controlBottomInsetPx = bottomPx.coerceAtLeast(0)
         if (::map.isInitialized) {
             map.setPadding(0, 0, 0, controlBottomInsetPx)
         }
     }
 
-    fun setOnMapClickListener(listener: () -> Unit) {
+    fun setOnMapClickListener(listener: () -> Unit) = onMainThread {
         onMapClick = listener
         if (::map.isInitialized) {
             map.setOnMapClickListener { onMapClick() }
         }
     }
 
-    fun setTravelMode(tripMode: TripTravelMode) {
-        if (mode != MapLayerMode.TRIP_ROUTES) return
+    fun setTravelMode(tripMode: TripTravelMode) = onMainThread {
+        if (mode != MapLayerMode.TRIP_ROUTES) return@onMainThread
         val shouldRedraw = travelMode != tripMode && ::map.isInitialized
         travelMode = tripMode
         if (shouldRedraw) {
@@ -164,7 +165,7 @@ class CampusMapController(
         }
     }
 
-    fun setSelectedRoute(routeKey: String?) {
+    fun setSelectedRoute(routeKey: String?) = onMainThread {
         val shouldRedraw = selectedRouteKey != routeKey && ::map.isInitialized
         selectedRouteKey = routeKey
         if (shouldRedraw) {
@@ -172,7 +173,7 @@ class CampusMapController(
         }
     }
 
-    private fun onMapReady(googleMap: GoogleMap) {
+    private fun onMapReady(googleMap: GoogleMap) = onMainThread {
         map = googleMap
         map.setPadding(0, 0, 0, controlBottomInsetPx)
         map.uiSettings.isZoomControlsEnabled = true
@@ -316,36 +317,41 @@ class CampusMapController(
     }
 
     private suspend fun loadPopularPlaces() {
-        popularMarkers.forEach { it.remove() }
-        popularMarkers.clear()
+        withContext(Dispatchers.Main.immediate) {
+            popularMarkers.forEach { it.remove() }
+            popularMarkers.clear()
+        }
 
         val center = SampleMapData.ubcCampus
         val remotePlaces = withContext(Dispatchers.IO) { mapsApi.fetchPopularPlaces(center) }
         val places = remotePlaces.takeUnless { it.isNullOrEmpty() } ?: SampleMapData.fallbackPopularPlaces
+        withContext(Dispatchers.Main.immediate) {
+            places.forEach { place ->
+                val marker = map.addMarker(
+                    MarkerOptions()
+                        .position(place.location)
+                        .title(place.name)
+                        .snippet("${place.category} · ${place.address}")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)),
+                )
+                marker?.tag = place
+                if (marker != null) popularMarkers.add(marker)
+            }
 
-        places.forEach { place ->
-            val marker = map.addMarker(
-                MarkerOptions()
-                    .position(place.location)
-                    .title(place.name)
-                    .snippet("${place.category} · ${place.address}")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
-            )
-            marker?.tag = place
-            if (marker != null) popularMarkers.add(marker)
+            if (renderedPoints.isEmpty()) {
+                fitMapCamera(map, places.map { it.location }, binding.map)
+            }
+            binding.textMapStatus.setText(R.string.map_popular_ready)
         }
-
-        if (renderedPoints.isEmpty()) {
-            fitMapCamera(map, places.map { it.location }, binding.map)
-        }
-        binding.textMapStatus.setText(R.string.map_popular_ready)
     }
 
     private suspend fun showStaticMapFallback(points: List<LatLng>) {
         val key = BuildConfig.MAPS_API_KEY
         if (key.isBlank() || key == "YOUR_API_KEY") {
-            binding.textMapStatus.text =
-                "Map tiles did not load. Add MAPS_API_KEY and enable Maps SDK for Android."
+            withContext(Dispatchers.Main.immediate) {
+                binding.textMapStatus.text =
+                    "Map tiles did not load. Add MAPS_API_KEY and enable Maps SDK for Android."
+            }
             return
         }
 
@@ -373,13 +379,15 @@ class CampusMapController(
             }
         }
 
-        if (bitmap != null) {
-            binding.mapFallback.setImageBitmap(bitmap)
-            binding.mapFallback.visibility = View.VISIBLE
-            binding.textMapStatus.text =
-                "Showing a static campus map. Enable Maps SDK for Android on this API key for the interactive map."
-        } else {
-            binding.textMapStatus.text = "Map tiles did not load. Enable Maps SDK for Android."
+        withContext(Dispatchers.Main.immediate) {
+            if (bitmap != null) {
+                binding.mapFallback.setImageBitmap(bitmap)
+                binding.mapFallback.visibility = View.VISIBLE
+                binding.textMapStatus.text =
+                    "Showing a static campus map. Enable Maps SDK for Android on this API key for the interactive map."
+            } else {
+                binding.textMapStatus.text = "Map tiles did not load. Enable Maps SDK for Android."
+            }
         }
     }
 
@@ -387,5 +395,13 @@ class CampusMapController(
         val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
         val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
         return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun onMainThread(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            binding.root.post(action)
+        }
     }
 }

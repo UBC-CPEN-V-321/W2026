@@ -3,51 +3,26 @@ import type { Express } from 'express';
 import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepository';
 import type { Itinerary } from '../../../src/itineraries/itineraryTypes';
-import { authenticatedAgent, createPathSessionValidator } from '../../support/authTestUtils';
+import { authenticatedAgent, createPathSessionValidator } from '../../utils/authTestUtils';
 import type { MockedRepository } from '../../utils/mockedRepository';
+import {
+  ACTIVITY_FIXTURE_ID,
+  ITINERARY_FIXTURE_ID,
+  ITINERARY_FIXTURE_USER_ID,
+  STORED_ITINERARY,
+  TRANSPORTATION_FIXTURE_ID,
+} from '../../utils/itineraryFixtures';
 
-const USER_ID = '6705f0000000000000000001';
+const USER_ID = ITINERARY_FIXTURE_USER_ID;
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({ ...dependencies, sessionService: createPathSessionValidator() });
 }
 
 const request = (expressApp: Express) => authenticatedAgent(expressApp);
-const ITINERARY_ID = '6705f1000000000000000001';
-const ACTIVITY_ID = 'activity-1';
-const SEGMENT_ID = 'transportation-1';
-
-const STORED_ITINERARY: Itinerary = {
-  id: ITINERARY_ID,
-  ownerId: USER_ID,
-  name: 'Stored itinerary',
-  items: [
-    {
-      id: ACTIVITY_ID,
-      type: 'activity',
-      name: 'Museum of Anthropology',
-      category: 'art',
-      location: '6393 NW Marine Drive, Vancouver, BC',
-      startTime: '2027-11-30T17:00:00.000Z',
-      endTime: '2027-11-30T18:00:00.000Z',
-    },
-    {
-      id: SEGMENT_ID,
-      type: 'transportation',
-      mode: 'walking',
-      startLocation: 'Museum of Anthropology',
-      endLocation: 'UBC Nest',
-      distanceMeters: 1200,
-      startTime: '2027-11-30T18:00:00.000Z',
-      endTime: '2027-11-30T18:30:00.000Z',
-    },
-  ],
-  createdAt: '2026-10-12T12:00:00.000Z',
-  updatedAt: '2026-10-12T12:00:00.000Z',
-  saved: true,
-  inRecommendation: false,
-  score: {},
-};
+const ITINERARY_ID = ITINERARY_FIXTURE_ID;
+const ACTIVITY_ID = ACTIVITY_FIXTURE_ID;
+const SEGMENT_ID = TRANSPORTATION_FIXTURE_ID;
 
 /** A new activity that overlaps both stored items (17:30-18:15). */
 const CONFLICTING_ACTIVITY = {

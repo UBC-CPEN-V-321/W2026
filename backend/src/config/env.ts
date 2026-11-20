@@ -54,15 +54,11 @@ if (
   throw new Error(`Invalid EVENT_SEARCH_PAGE_SIZE: ${rawEventSearchPageSize}`);
 }
 
-const eventSearchStateCode = process.env.EVENT_SEARCH_STATE_CODE?.trim();
-if (eventSearchStateCode === undefined || eventSearchStateCode === "") {
-  throw new Error("EVENT_SEARCH_STATE_CODE is required.");
-}
+const eventSearchStateCode =
+  process.env.EVENT_SEARCH_STATE_CODE?.trim() || "BC";
 
-const eventSearchCountryCode = process.env.EVENT_SEARCH_COUNTRY_CODE?.trim();
-if (eventSearchCountryCode === undefined || eventSearchCountryCode === "") {
-  throw new Error("EVENT_SEARCH_COUNTRY_CODE is required.");
-}
+const eventSearchCountryCode =
+  process.env.EVENT_SEARCH_COUNTRY_CODE?.trim() || "CA";
 
 const rawSoclaasMaxOutputTokens = process.env.SOCLAAS_MAX_OUTPUT_TOKENS;
 const soclaasMaxOutputTokens =

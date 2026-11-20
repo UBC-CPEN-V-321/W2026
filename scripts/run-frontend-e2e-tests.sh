@@ -9,6 +9,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export FRONTEND_DIR="${FRONTEND_DIR:-$ROOT/frontend}"
+# Compose injects this into the backend container; E2E sessions live only in e2e-mongo.
+export MONGODB_URI="mongodb://e2e-mongo:27017/cpen321"
+export SKIP_EVENT_SYNC=1
 
 source "$ROOT/scripts/lib/frontend-instrumented-test-common.sh"
 run_instrumented_tests e2e

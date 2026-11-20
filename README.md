@@ -71,16 +71,14 @@ From the project root:
 cp backend/.env.example backend/.env
 ```
 
-Set at least:
-- `JWT_SECRET`: a long random string used to sign auth tokens.
-- `MONGODB_URI`: for local development, use `mongodb://localhost:27017/cpen321` to connect to the local MongoDB container. Docker Compose configures its own connection when running the full stack.
-- `PORT` (optional): defaults to `3000` if unset.
-- `TICKETMASTER_API_KEY`: API key for searching and syncing live events.
-- `EVENT_SEARCH_STATE_CODE`: province or state searched during event synchronization, such as `BC`.
-- `EVENT_SEARCH_COUNTRY_CODE`: country searched during event synchronization, such as `CA`.
-- `GEOCODING_API_KEY`: Google Geocoding API key used to convert addresses into coordinates.
-- `ROUTES_API_KEY`: Google Routes API key used to calculate travel routes.
-- `PLACES_API_KEY`: Google Places API key used for address autocomplete and popular-place pins.
+Configure the corresponding values in `backend/.env` as needed:
+- **Required to start the backend:** `MONGODB_URI` (local Compose MongoDB: `mongodb://localhost:27017/cpen321`) and `GOOGLE_CLIENT_ID` (Google OAuth web client ID).
+- **Server and sessions:** `PORT` defaults to `3000`; `NODE_ENV` defaults to `development`; `SESSION_TTL_DAYS` defaults to `1`.
+- **Live events:** `TICKETMASTER_API_KEY` is needed to sync or search events. `TICKETMASTER_BASE_URL` defaults to `https://app.ticketmaster.com/discovery/v2`; `EVENT_SEARCH_STATE_CODE`, `EVENT_SEARCH_COUNTRY_CODE`, and `EVENT_SEARCH_PAGE_SIZE` default to `BC`, `CA`, and `200`.
+- **Google Maps Platform:** set `MAPS_API_KEY`, `GEOCODING_API_KEY`, `ROUTES_API_KEY`, and `PLACES_API_KEY` for the corresponding map, geocoding, directions, and places features.
+- **Itinerary generation:** `RECOMMENDATION_CLIENT` selects `soclaas` (default) or `qwen`. Configure the selected provider with `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, `SOCLAAS_MODEL` or `QWEN_ENDPOINT`, `QWEN_API_KEY`, `QWEN_MODEL`; the example defaults are SoCLaaS (`https://soclaas-api.comp.nus.edu.sg/v1`, `qwen3.6:35b`) and Qwen (`https://us-east-1.maas.qwencloudapi.com/compatible-mode/v1`, `qwen3.6-flash`). `SOCLAAS_TIMEOUT_MS` and `QWEN_TIMEOUT_MS` default to `120000` ms; `SOCLAAS_MAX_OUTPUT_TOKENS` defaults to `16384`.
+
+The example includes placeholder values for optional feature credentials. Replace them with valid credentials to use those features. Do not commit `backend/.env`.
 
 ### Option 1: Run locally
 
@@ -117,7 +115,7 @@ Set at least:
    npm run sync:events
    ```
 
-   This requires `MONGODB_URI`, `TICKETMASTER_API_KEY`, `EVENT_SEARCH_STATE_CODE`, and `EVENT_SEARCH_COUNTRY_CODE` to be set in `backend/.env`. Run the sync again whenever you want to refresh the event catalog.
+   This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Event searches default to British Columbia, Canada; set `EVENT_SEARCH_STATE_CODE` or `EVENT_SEARCH_COUNTRY_CODE` to override either value. Run the sync again whenever you want to refresh the event catalog.
 
 5. **Development** (TypeScript with auto-reload):
 

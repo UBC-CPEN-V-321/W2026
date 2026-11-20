@@ -50,6 +50,7 @@ function sendError(response: Response, error: unknown): void {
     });
     return;
   }
+  console.error('Recommendation request failed', error);
   response.status(500).json({
     error: {
       code: 'INTERNAL_SERVER_ERROR',

@@ -18,7 +18,7 @@ import { ItineraryMapService } from '../../../src/maps/itineraryMapService';
 import {
   authenticatedAgent,
   MongoTestSessions,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
 
 jest.setTimeout(60_000);
 

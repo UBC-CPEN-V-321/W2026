@@ -30,7 +30,7 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import org.junit.rules.TestRule
 
-/** User the app signs in as; seeded, together with its session, by backend `npm run e2e:seed`. */
+/** User the app signs in as; seeded with its session when the isolated E2E MongoDB initializes. */
 internal const val REAL_BACKEND_USER_ID = "6acd519c76376cefc61e97f1"
 internal const val CREATE_PROFILE_USER_ID = "6acd519c76376cefc61e97f2"
 internal const val LOGOUT_PROFILE_USER_ID = "6acd519c76376cefc61e97f3"
@@ -63,7 +63,7 @@ internal fun realBackendClient(
 
 /**
  * Stores the seeded user's session in the app before the activity starts, so the app opens signed in
- * without the Google sign-in screen. The backend accepts it because the seed script created it.
+ * without the Google sign-in screen. The backend accepts it because the E2E DB init script created it.
  */
 internal fun signedInTestUserRule(): TestRule = TestRule { base, _ ->
     object : org.junit.runners.model.Statement() {

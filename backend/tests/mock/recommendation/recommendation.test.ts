@@ -35,9 +35,10 @@ import type {
 import {
   authenticatedAgent,
   createPathSessionValidator,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
+import { USER_FIXTURE_ID } from '../../utils/userFixtures';
 
-const USER_ID = '6705f0000000000000000001';
+const USER_ID = USER_FIXTURE_ID;
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({

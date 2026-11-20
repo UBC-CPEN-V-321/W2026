@@ -57,7 +57,6 @@ class MapE2ETest {
                 CreateItineraryInput(
                     name = fixtureName,
                     description = "Created by the non-mocked map E2E test.",
-                    startingLocation = "UBC Bookstore, Vancouver, BC",
                 ),
             )
             fixtureId = itinerary.id
@@ -81,6 +80,17 @@ class MapE2ETest {
                     location = "Museum of Anthropology at UBC, Vancouver, BC",
                     startTime = "2027-11-30T20:00:00.000Z",
                     endTime = "2027-11-30T21:00:00.000Z",
+                ),
+            )
+            itinerariesApi.addActivity(
+                REAL_BACKEND_USER_ID,
+                itinerary.id,
+                CreateActivityInput(
+                    name = THIRD_ACTIVITY,
+                    category = "park",
+                    location = "Rose Garden, Vancouver, BC",
+                    startTime = "2027-11-30T22:00:00.000Z",
+                    endTime = "2027-11-30T23:00:00.000Z",
                 ),
             )
         }
@@ -115,19 +125,20 @@ class MapE2ETest {
         composeRule.onNodeWithTag("map_directions_visibility").assertIsDisplayed()
         composeRule.onNodeWithTag("map_visit_itinerary").assertIsDisplayed()
         onView(withId(R.id.map)).check(matches(isDisplayed()))
-        waitForMapStatus("Walk")
 
         composeRule.onNodeWithTag("map_route_dropdown").performClick()
         waitForTag("map_route_1")
         composeRule.onNodeWithTag("map_route_1").performClick()
-        composeRule.onNodeWithText("$FIRST_ACTIVITY → $SECOND_ACTIVITY").assertIsDisplayed()
+        composeRule.onNodeWithText("$SECOND_ACTIVITY → $THIRD_ACTIVITY").assertIsDisplayed()
 
         composeRule.onNodeWithTag("map_travel_walk").performClick()
-        composeRule.onNodeWithTag("map_travel_summary").assertTextContains("Walk")
+        composeRule.onNodeWithTag("map_travel_summary")
+            .assertTextContains("Walk", substring = true)
         composeRule.onNodeWithTag("map_direction_step_0").assertIsDisplayed()
 
         composeRule.onNodeWithTag("map_travel_drive").performClick()
-        composeRule.onNodeWithTag("map_travel_summary").assertTextContains("Drive")
+        composeRule.onNodeWithTag("map_travel_summary")
+            .assertTextContains("Drive", substring = true)
         composeRule.onNodeWithTag("map_direction_step_0").assertIsDisplayed()
 
         composeRule.onNodeWithTag("map_visit_itinerary").performClick()
@@ -171,6 +182,7 @@ class MapE2ETest {
     private companion object {
         const val FIRST_ACTIVITY = "E2E Nest Lunch"
         const val SECOND_ACTIVITY = "E2E Museum Visit"
+        const val THIRD_ACTIVITY = "E2E Rose Garden Walk"
         const val DEFAULT_TIMEOUT_MILLIS = 20_000L
         const val MAP_TIMEOUT_MILLIS = 90_000L
     }

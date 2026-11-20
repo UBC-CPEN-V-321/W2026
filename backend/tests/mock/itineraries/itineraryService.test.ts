@@ -3,47 +3,27 @@ import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepo
 import { ItineraryService } from '../../../src/itineraries/itineraryService';
 import type {
   ActivityItem,
-  Itinerary,
-  ItineraryDetails,
   TransportationItem,
 } from '../../../src/itineraries/itineraryTypes';
+import {
+  BASE_ITINERARY as ITINERARY,
+  ITINERARY_DETAILS as DETAILS,
+  ACTIVITY_INPUT,
+  TRANSPORTATION_INPUT,
+  ITINERARY_FIXTURE_ID,
+  ITINERARY_FIXTURE_USER_ID,
+  ACTIVITY_FIXTURE_ID,
+  TRANSPORTATION_FIXTURE_ID,
+} from '../../utils/itineraryFixtures';
 
-const USER_ID = 'user-1';
-const ITINERARY_ID = 'itinerary-1';
+const USER_ID = ITINERARY_FIXTURE_USER_ID;
+const ITINERARY_ID = ITINERARY_FIXTURE_ID;
 
-const ACTIVITY: ActivityItem = {
-  id: 'activity-1',
-  type: 'activity',
-  name: 'Museum of Anthropology',
-  location: 'UBC',
-  startTime: '2027-11-30T17:00:00.000Z',
-  endTime: '2027-11-30T18:00:00.000Z',
-};
-
+const ACTIVITY: ActivityItem = { ...ACTIVITY_INPUT, id: ACTIVITY_FIXTURE_ID };
 const TRANSPORTATION: TransportationItem = {
-  id: 'transportation-1',
-  type: 'transportation',
-  mode: 'walking',
-  startLocation: 'Museum',
-  endLocation: 'UBC Nest',
-  distanceMeters: 1200,
-  startTime: '2027-11-30T18:00:00.000Z',
-  endTime: '2027-11-30T18:30:00.000Z',
+  ...TRANSPORTATION_INPUT,
+  id: TRANSPORTATION_FIXTURE_ID,
 };
-
-const ITINERARY: Itinerary = {
-  id: ITINERARY_ID,
-  ownerId: USER_ID,
-  name: 'UBC afternoon',
-  items: [ACTIVITY, TRANSPORTATION],
-  createdAt: '2026-10-12T12:00:00.000Z',
-  updatedAt: '2026-10-12T12:00:00.000Z',
-  saved: true,
-  inRecommendation: false,
-  score: {},
-};
-
-const DETAILS: ItineraryDetails = { name: ITINERARY.name };
 
 function createRepository(): jest.Mocked<ItineraryRepository> {
   return {

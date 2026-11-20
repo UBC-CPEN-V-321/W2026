@@ -3,7 +3,7 @@ import type { Express } from 'express';
 import type { LiveEventCandidate } from '../../../src/events/eventTypes';
 import { createApp as createBackendApp, type AppDependencies } from '../../../src/index';
 import type { UserRepository } from '../../../src/users/userRepository';
-import { authenticatedAgent, createPathSessionValidator } from '../../support/authTestUtils';
+import { authenticatedAgent, createPathSessionValidator } from '../../utils/authTestUtils';
 import type { MockedRepository } from '../../utils/mockedRepository';
 import type {
   InterestPreference,
@@ -17,8 +17,9 @@ import {
   FIXED_NOW,
   KEEP_REAL_TIMERS,
 } from '../../utils/eventFixtures';
+import { USER_FIXTURE_ID } from '../../utils/userFixtures';
 
-const USER_ID = '6705f0000000000000000001';
+const USER_ID = USER_FIXTURE_ID;
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({ ...dependencies, sessionService: createPathSessionValidator() });
@@ -35,7 +36,6 @@ function createUserRepository(): MockedRepository<UserRepository> {
     findUser: jest.fn(),
     updateUser: jest.fn(),
     findOrCreateByGoogleIdentity: jest.fn(),
-    completeOnboarding: jest.fn(),
   };
 }
 

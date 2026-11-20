@@ -11,8 +11,9 @@ import {
   FIXED_NOW,
   KEEP_REAL_TIMERS,
 } from '../../utils/eventFixtures';
+import { USER_FIXTURE_ID } from '../../utils/userFixtures';
 
-const USER_ID = '6705f0000000000000000001';
+const USER_ID = USER_FIXTURE_ID;
 const MS_PER_DAY = 86_400_000;
 const OPTIONS = { longitude: CORE_LONGITUDE, latitude: CORE_LATITUDE, maxDistanceKm: 30 };
 
@@ -22,7 +23,6 @@ function setUpService(interest: 'live_music' | 'outdoors' = 'live_music') {
     findUser: jest.fn(),
     updateUser: jest.fn(),
     findOrCreateByGoogleIdentity: jest.fn(),
-    completeOnboarding: jest.fn(),
   };
   const eventRepository = createMockEventRepository();
   userRepository.findPreferences.mockResolvedValue({
