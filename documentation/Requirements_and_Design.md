@@ -20,7 +20,7 @@
 | Nov 18, 2026 | 3.4, 3.5 (Use Case 3), 4.1 | Added `POST /games/start` and the game screen's "Start now" button, so players of a booked game can start it before its start time and report the score. |
 | Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
 | Nov 19, 2026 | 4.1 | Live updates over Server-Sent Events for games, the Games tab, tournaments and friends. Games are `IN_PROGRESS` only once started with `POST /games/start`, and only then scored. Friends show the game they are playing. |
-| Nov 20, 2026 | 3.5 (Use Case 1) | A match no longer depends on its push reaching the app: while searching or answering a match, the app follows the player's live games stream, and the queue card's check finds the match once the player is out of the queue. |
+| Nov 20, 2026 | 3.5 (Use Case 1), 4.1 | A match no longer depends on its push reaching the app: while searching or answering a match, the app follows the player's live games stream. The queue card's map follows the new `GET /matchmaking/events` stream instead of polling `GET /matchmaking/nearby`, so the app polls nothing during matchmaking. |
 
 ---
 
@@ -133,7 +133,7 @@ External services are drawn with plain lines because they support use cases but 
 - 3c. The server can't be reached: the app shows an error and the user can retry.
 - 4a. No compatible players are queued: the user stays in the queue and the system tries again every 10 seconds.
 - 4b. The user leaves the queue first: they are removed and no game is proposed.
-- 6a. A player's device can't receive the notification, or it arrives late: the app still shows the match from the live stream, or from the queue card's next check (`GET /matchmaking/nearby` answering `404` once the player is out of the queue), and the game is in "My games".
+- 6a. A player's device can't receive the notification, or it arrives late: the app still shows the match from the live games stream, and the game is in "My games".
 
 <a name="uc2"></a>
 
@@ -317,9 +317,11 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Interfaces**:
         1. `POST /matchmaking` with `{ format, latitude, longitude }` → `201 { request }`, `GET /matchmaking` → `{ request }`, `DELETE /matchmaking` → `204`, `GET /matchmaking/nearby` → `{ center, players }` (other queued players within 10 km, rounded to ~100 m, no ids) - E
             - **Purpose**: Join, check or leave the queue. Joining is `409` if already queued and `403` if the caller has a matched game waiting or booked. `GET` is `404` once the caller is matched or left.
-        2. `Match[] runMatchmaking()` - In
+        2. `GET /matchmaking/events` → Server-Sent Events - E
+            - **Purpose**: The caller's queue, pushed instead of polled, for the queue card's map: `nearby` (like `GET /matchmaking/nearby`) or `notQueued` when the stream opens, then again whenever anyone joins or leaves the queue or a run claims a match. Each watcher gets their own nearby players, loaded only while someone is watching. Streams like `GET /games/events`.
+        3. `Match[] runMatchmaking()` - In
             - **Purpose**: Called by the matchmaking job: finds matches (`findMatches`), picks a court (`chooseCourt`, else `nearestCourt`) and teams (`assignTeams`), creates each game in its own transaction and notifies its players.
-        3. `number cancelUnansweredMatches(now)` - In
+        4. `number cancelUnansweredMatches(now)` - In
             - **Purpose**: Called every minute: cancels matched games not accepted by everyone 30 minutes before the start.
 4. **Ranking**
     - **Purpose**: Ratings, the ELO calculation and the leaderboard.
