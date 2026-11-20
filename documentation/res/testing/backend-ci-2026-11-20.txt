@@ -1,0 +1,43 @@
+GitHub Actions backend verification: 2026-11-20
+Source SHA: f3dfa900e507eb333eacc7755b08786902dd8598
+Run: https://github.com/WYJ529/Ledger/actions/runs/44835505893
+Workflow: .github/workflows/backend-tests.yml
+Environment: Ubuntu 24.04, Node 22.23.5, npm 10.9.9.
+All four jobs passed and uploaded artifacts (30-day retention).
+Below are verbatim summary lines from each job log, not complete logs.
+
+Backend (no-mock)
+Job: https://github.com/WYJ529/Ledger/actions/runs/44835505893/job/136630767142
+2026-11-20T23:17:46.3275748Z Statements   : 70.72% ( 1812/2562 )
+2026-11-20T23:17:46.3276400Z Branches     : 62.47% ( 1222/1956 )
+2026-11-20T23:17:46.3276780Z Functions    : 79.45% ( 294/370 )
+2026-11-20T23:17:46.3277152Z Lines        : 71.07% ( 1718/2417 )
+2026-11-20T23:17:46.3283946Z Test Suites: 12 passed, 12 total
+2026-11-20T23:17:46.3284357Z Tests:       334 passed, 334 total
+
+Backend (mock)
+Job: https://github.com/WYJ529/Ledger/actions/runs/44835505893/job/136630767176
+2026-11-20T23:17:53.2411398Z Statements   : 66.7% ( 1709/2562 )
+2026-11-20T23:17:53.2411978Z Branches     : 54.9% ( 1074/1956 )
+2026-11-20T23:17:53.2412512Z Functions    : 72.43% ( 268/370 )
+2026-11-20T23:17:53.2413033Z Lines        : 67.1% ( 1622/2417 )
+2026-11-20T23:17:53.2418095Z Test Suites: 12 passed, 12 total
+2026-11-20T23:17:53.2418664Z Tests:       233 passed, 233 total
+
+Backend (interface)
+Job: https://github.com/WYJ529/Ledger/actions/runs/44835505893/job/136630767277
+2026-11-20T23:17:54.3755904Z Statements   : 80.36% ( 2059/2562 )
+2026-11-20T23:17:54.3756430Z Branches     : 74.28% ( 1453/1956 )
+2026-11-20T23:17:54.3756776Z Functions    : 85.67% ( 317/370 )
+2026-11-20T23:17:54.3757180Z Lines        : 80.8% ( 1953/2417 )
+2026-11-20T23:17:54.3780040Z Test Suites: 24 passed, 24 total
+2026-11-20T23:17:54.3780428Z Tests:       567 passed, 567 total
+
+Backend (all)
+Job: https://github.com/WYJ529/Ledger/actions/runs/44835505893/job/136630770831
+2026-11-20T23:17:57.7934049Z Statements   : 87.47% ( 2241/2562 )
+2026-11-20T23:17:57.7934698Z Branches     : 83.43% ( 1632/1956 )
+2026-11-20T23:17:57.7935006Z Functions    : 89.18% ( 330/370 )
+2026-11-20T23:17:57.7935320Z Lines        : 88.12% ( 2130/2417 )
+2026-11-20T23:17:57.7936413Z Test Suites: 32 passed, 32 total
+2026-11-20T23:17:57.7936700Z Tests:       707 passed, 707 total

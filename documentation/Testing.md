@@ -90,7 +90,7 @@ The Ubuntu 24.04 / Node 22 matrix installs locked dependencies with `npm ci`, ty
 
 Tests create disposable MongoDB instances; no production database, `.env`, or API secrets are supplied. MongoDB binary downloads and Google certificate retrieval require network access. Each job uploads its console output, Jest JSON results, source SHA/runtime versions, and HTML/LCOV coverage as `backend-<suite>-<SHA>` artifacts (30-day retention), including available results from failing tests. A failing test fails its job; the other matrix jobs still run. Download the artifacts before expiry for submission evidence. An empty NFR directory is not evidence of NFR coverage.
 
-Execution status: workflow added; first GitHub run pending verification. The local Android results below do not establish a passing backend CI run.
+Verified on 2026-11-20: [GitHub Actions run 44835505893](https://github.com/WYJ529/Ledger/actions/runs/44835505893), source commit `f3dfa900e507eb333eacc7755b08786902dd8598`, passed all four jobs on Node 22.23.5 / npm 10.9.9. Full suite: **32 suites / 707 tests passed**; no mocks: **12 / 334**; mocks: **12 / 233**; combined interfaces: **24 / 567**. These counts overlap and must not be added together. All four report artifacts were uploaded successfully. See the [saved CI summary](res/testing/backend-ci-2026-11-20.txt); full logs and downloadable reports are on the run page. The Android evidence below is a separate run.
 
 ## Front-end test suite location
 
@@ -181,11 +181,14 @@ To be done within CP3. Not covered yet.
 
 The current Jest configuration collects coverage from all `src/**/*.ts` backend files. The combined **interface** run excludes `tests/unit/` and NFR tests.
 
-| Run | Evidence at the baseline commit |
+| Run | Evidence at CI commit `f3dfa900e507eb333eacc7755b08786902dd8598` |
 | --- | --- |
-| No mocks | Historical image `res/testing/bill-import/no-mock.png` is missing; no current separate-run result is asserted. |
-| Mocks | Historical image `res/testing/bill-import/mock.png` is missing; no current separate-run result is asserted. |
-| Combined interfaces | 24 suites / 567 tests passed; statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. See the [saved console summary](res/testing/backend-interface-summary.txt). Historical image `res/testing/bill-import/combined.png` is missing. |
+| No mocks | 12 suites / 334 tests passed; statements 70.72%, branches 62.47%, functions 79.45%, lines 71.07%. Artifact: `backend-no-mock-<SHA>`. |
+| Mocks | 12 suites / 233 tests passed; statements 66.70%, branches 54.90%, functions 72.43%, lines 67.10%. Artifact: `backend-mock-<SHA>`. |
+| Combined interfaces | 24 suites / 567 tests passed; statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. Artifact: `backend-interface-<SHA>`. |
+| All backend tests (including unit suites) | 32 suites / 707 tests passed; statements 87.47%, branches 83.43%, functions 89.18%, lines 88.12%. Artifact: `backend-all-<SHA>`. |
+
+The [CI summary](res/testing/backend-ci-2026-11-20.txt) preserves the coverage totals. Download the per-file HTML/LCOV reports from [the verified run](https://github.com/WYJ529/Ledger/actions/runs/44835505893). The three old `res/testing/bill-import/*.png` screenshots remain absent; these new reports do not recreate historical screenshots. Capture the required screenshots from the new reports for submission.
 
 Coverage is below 100%: interface tests do not launch the production entry point or seed script; several parser/domain cases are tested only in the separate unit suite, and additional error branches remain uncovered. These are coverage gaps, not a claim that every uncovered branch is unreachable. Before submission, capture the separate and combined whole-backend reports and explain remaining uncovered paths.
 
