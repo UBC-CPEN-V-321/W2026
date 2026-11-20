@@ -144,7 +144,8 @@ private fun NavGraphBuilder.tournamentDetailDestination(
                 TournamentDetailViewModel(
                     tournamentId = tournamentId,
                     tournamentsRepository = TournamentsRepositoryImpl(session),
-                    currentUsername = currentUsername
+                    currentUsername = currentUsername,
+                    session = session
                 )
             },
             onBack = { navController.popBackStack() },

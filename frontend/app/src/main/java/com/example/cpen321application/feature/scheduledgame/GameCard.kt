@@ -77,7 +77,11 @@ fun GameCard(
                 .padding(top = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PlayerSlots(names = game.players.map { it.name }, capacity = game.format.teamSize * 2)
+            PlayerSlots(
+                names = game.players.map { it.name },
+                capacity = game.format.teamSize * 2,
+                avatarUrls = game.players.map { it.photoUrl },
+            )
             Spacer(modifier = Modifier.weight(1f))
             GameStateChip(game = game, isPlaying = isPlaying)
         }

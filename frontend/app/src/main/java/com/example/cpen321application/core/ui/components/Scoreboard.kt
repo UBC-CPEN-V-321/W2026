@@ -37,6 +37,7 @@ data class ScoreboardSide(
     val avatarName: String,
     val setScores: List<Int>,
     val otherSetScores: List<Int>,
+    val avatarUrl: String? = null,
 )
 
 /**
@@ -107,7 +108,7 @@ private fun ScoreboardRow(side: ScoreboardSide) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        PlayerAvatar(name = side.avatarName, size = ROW_AVATAR)
+        PlayerAvatar(name = side.avatarName, avatarUrl = side.avatarUrl, size = ROW_AVATAR)
         Text(
             text = side.name,
             style = MaterialTheme.typography.titleSmall,

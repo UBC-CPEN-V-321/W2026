@@ -3,7 +3,10 @@ package com.example.cpen321application.feature.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cpen321application.core.auth.AuthSession
+import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.data.model.resultFor
+import com.example.cpen321application.core.data.repository.CourtsRepository
+import com.example.cpen321application.core.data.repository.CourtsRepositoryImpl
 import com.example.cpen321application.core.data.repository.EquipmentRepository
 import com.example.cpen321application.core.data.repository.EquipmentRepositoryImpl
 import com.example.cpen321application.core.data.repository.FriendsRepository
@@ -39,6 +42,7 @@ private fun nextMaintenanceFor(type: EquipmentType): String? {
 class ProfileViewModel(
     private val repository: FriendsRepository = FriendsRepositoryImpl(),
     private val equipmentRepository: EquipmentRepository = EquipmentRepositoryImpl(),
+    private val courtsRepository: CourtsRepository = CourtsRepositoryImpl(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val friendsPageUpdates: FriendsPageUpdates = FriendsPageUpdatesImpl(),
 ) : ViewModel() {
@@ -85,6 +89,8 @@ class ProfileViewModel(
         fetchUserMe(session)
         fetchMatchHistory(session)
         fetchEquipment(session)
+        fetchPreferredCourts(session)
+        fetchAllCourts(session)
         if (_uiState.value.selectedTab == ProfileTab.FRIENDS) {
             // The Friends tab opens the friends page's event stream, which sends the friends and requests first,
             // so loading them here too would fetch them twice
@@ -105,6 +111,8 @@ class ProfileViewModel(
         fetchFriendRequests(session)
         fetchMatchHistory(session)
         fetchEquipment(session)
+        fetchPreferredCourts(session)
+        fetchAllCourts(session)
     }
 
     fun fetchUserMe(session: AuthSession) {
@@ -119,13 +127,29 @@ class ProfileViewModel(
                         elo = newElo,
                         username = newUsername,
                         name = userMe.name.orEmpty().ifBlank { state.name },
+                        avatarUrl = userMe.avatarUrl ?: state.avatarUrl,
                         isLoadingUserMe = false,
                     )
+                }
+                val userId = userMe.id
+                if (!userId.isNullOrBlank()) {
+                    fetchUserPhoto(session, userId)
                 }
             }.onFailure { error ->
                 // Said, not swallowed: otherwise the rating card silently keeps an old or missing rating
                 _uiState.update { state ->
                     state.copy(isLoadingUserMe = false, errorMessage = error.toUserMessage())
+                }
+            }
+        }
+    }
+
+    fun fetchUserPhoto(session: AuthSession, userId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            val result = repository.getUserPhoto(session, userId)
+            result.onSuccess { photoUrl ->
+                if (!photoUrl.isNullOrBlank()) {
+                    _uiState.update { it.copy(avatarUrl = photoUrl) }
                 }
             }
         }
@@ -222,6 +246,45 @@ class ProfileViewModel(
         }
     }
 
+    fun fetchPreferredCourts(session: AuthSession) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isLoadingPreferredCourts = true) }
+            val result = courtsRepository.getPreferredCourts(session)
+            result.onSuccess { courts ->
+                _uiState.update {
+                    it.copy(
+                        preferredCourts = courts,
+                        isLoadingPreferredCourts = false,
+                    )
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingPreferredCourts = false,
+                        errorMessage = error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun fetchAllCourts(session: AuthSession) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isLoadingAllCourts = true) }
+            val result = courtsRepository.getCourts(session)
+            result.onSuccess { courts ->
+                _uiState.update {
+                    it.copy(
+                        allCourts = courts,
+                        isLoadingAllCourts = false,
+                    )
+                }
+            }.onFailure {
+                _uiState.update { it.copy(isLoadingAllCourts = false) }
+            }
+        }
+    }
+
     fun removeFriend(session: AuthSession, userId: String) {
         viewModelScope.launch(ioDispatcher) {
             _uiState.update { it.copy(isActionInProgress = true, errorMessage = null) }
@@ -302,6 +365,15 @@ class ProfileViewModel(
                 equipmentNameInput = "",
             )
         }
+    }
+
+    fun openAddPreferredCourtDialog(session: AuthSession) {
+        _uiState.update { it.copy(showAddCourtDialog = true) }
+        fetchAllCourts(session)
+    }
+
+    fun closeAddPreferredCourtDialog() {
+        _uiState.update { it.copy(showAddCourtDialog = false) }
     }
 
     fun updateEquipmentInputs(name: String, type: EquipmentType, isDefault: Boolean) {
@@ -389,6 +461,53 @@ class ProfileViewModel(
                     )
                 }
                 fetchEquipment(session)
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isActionInProgress = false,
+                        errorMessage = error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun addPreferredCourt(session: AuthSession, court: Court) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isActionInProgress = true, errorMessage = null) }
+            val result = courtsRepository.addPreferredCourt(session, court.id)
+            result.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isActionInProgress = false,
+                        showAddCourtDialog = false,
+                        successMessage = "Preferred court added",
+                    )
+                }
+                fetchPreferredCourts(session)
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isActionInProgress = false,
+                        errorMessage = error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun deletePreferredCourt(session: AuthSession, courtId: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isActionInProgress = true, errorMessage = null) }
+            val result = courtsRepository.removePreferredCourt(session, courtId)
+            result.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isActionInProgress = false,
+                        successMessage = "Preferred court removed",
+                    )
+                }
+                fetchPreferredCourts(session)
             }.onFailure { error ->
                 _uiState.update {
                     it.copy(

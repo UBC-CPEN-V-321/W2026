@@ -1,6 +1,7 @@
 package com.example.cpen321application.feature.leaderboard
 
 import com.example.cpen321application.core.network.dto.LeaderboardEntryDto
+import com.google.gson.Gson
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -9,6 +10,16 @@ class LeaderboardUiStateTest {
         LeaderboardEntryDto(id = id, username = id, name = id, rating = 1500.0, rank = rank)
 
     private val top = listOf(entry("a", 1), entry("b", 2), entry("c", 3))
+
+    @Test
+    fun backendPhotoUrlMapsToAvatarUrl() {
+        val parsed = Gson().fromJson(
+            """{"id":"a","username":"alice","name":"Alice","rating":1500.0,"rank":1,"photoUrl":"https://example.com/alice.jpg"}""",
+            LeaderboardEntryDto::class.java,
+        )
+
+        assertEquals("https://example.com/alice.jpg", parsed.avatarUrl)
+    }
 
     @Test
     fun myIndex_userInTopPlayers_isTheirPosition() {

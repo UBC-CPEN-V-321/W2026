@@ -13,6 +13,8 @@ export const fcmTokenSchema = z.object({
   token: z.string().min(1),
 });
 
+export const courtIdSchema = z.coerce.number().int().positive();
+export const userIdSchema = z.uuid();
 export const equipmentIdSchema = z.coerce.number().int().positive();
 const nextMaintenanceAtSchema = z.iso.datetime({ offset: true }).transform((value) => new Date(value)).nullable();
 

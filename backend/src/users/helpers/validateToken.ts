@@ -5,6 +5,7 @@ export interface GoogleProfile {
   sub: string;
   email?: string | undefined;
   name?: string | undefined;
+  picture?: string | undefined;
 }
 
 /**
@@ -32,7 +33,12 @@ export async function validateToken(idToken: string): Promise<GoogleProfile | nu
     if (!payload) {
       return null;
     }
-    const profile: GoogleProfile = { sub: payload.sub, email: payload.email, name: payload.name };
+    const profile: GoogleProfile = {
+      sub: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      picture: payload.picture,
+    };
     return profile;
   } catch (e)
   {

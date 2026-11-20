@@ -1,5 +1,6 @@
 package com.example.cpen321application.core.data.repository
 
+import android.util.Log
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.network.ApiService
@@ -17,6 +18,7 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import retrofit2.HttpException
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 interface FriendsRepository {
@@ -34,6 +36,33 @@ interface FriendsRepository {
 
     // The signed-in user's completed games, most recent first
     suspend fun getMatchHistory(session: AuthSession): Result<List<Game>>
+
+    // Fetches the user's profile photo URL from GET users/:userId/photo
+    suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?>
+}
+
+fun safeLog(tag: String, msg: String) {
+    try {
+        Log.d(tag, msg)
+    } catch (_: Throwable) {
+        println("[$tag] $msg")
+    }
+}
+
+object UserPhotoCache {
+    private val cache = ConcurrentHashMap<String, String>()
+
+    fun get(userId: String): String? = cache[userId]
+
+    fun put(userId: String, photoUrl: String?) {
+        if (!photoUrl.isNullOrBlank()) {
+            cache[userId] = photoUrl
+        }
+    }
+
+    fun clear() {
+        cache.clear()
+    }
 }
 
 class FriendsRepositoryImpl(
@@ -49,6 +78,7 @@ class FriendsRepositoryImpl(
             }
             val userMe = parseUserMe(jsonElement)
             if (userMe != null) {
+                userMe.id?.let { id -> UserPhotoCache.put(id, userMe.avatarUrl) }
                 Result.success(userMe)
             } else {
                 Result.failure(Exception("Failed to parse user profile"))
@@ -66,6 +96,9 @@ class FriendsRepositoryImpl(
                 apiService.getFriends(auth)
             }
             val friends = parseFlexibleList<FriendDto>(jsonElement, "friends")
+            friends.forEach { friend ->
+                UserPhotoCache.put(friend.userId, friend.avatarUrl)
+            }
             Result.success(friends)
         } catch (e: HttpException) {
             Result.failure(e)
@@ -186,38 +219,81 @@ class FriendsRepositoryImpl(
         }
     }
 
+    override suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?> {
+        UserPhotoCache.get(userId)?.let { cachedUrl ->
+            return Result.success(cachedUrl)
+        }
+        return try {
+            val jsonElement = session.authorized { auth ->
+                apiService.getUserPhoto(auth, userId)
+            }
+            val photoUrl = parsePhotoUrl(jsonElement)
+            if (!photoUrl.isNullOrBlank()) {
+                UserPhotoCache.put(userId, photoUrl)
+            }
+            Result.success(photoUrl)
+        } catch (e: HttpException) {
+            Result.failure(e)
+        } catch (e: IOException) {
+            Result.failure(e)
+        }
+    }
+
+    private val USER_WRAPPER_KEYS = listOf("user", "me", "data")
+    private val USER_ID_KEYS = listOf("id", "userId", "_id")
+    private val USERNAME_KEYS = listOf("username", "name")
+
+    private fun JsonObject.stringOrNull(key: String): String? =
+        get(key)?.takeUnless { it.isJsonNull }?.asString
+
     private fun parseUserMe(jsonElement: JsonElement?): UserMeDto? {
-        if (jsonElement == null || jsonElement.isJsonNull) return null
+        if (jsonElement == null || !jsonElement.isJsonObject) return null
 
-        if (jsonElement.isJsonObject) {
-            val obj = jsonElement.asJsonObject
+        val obj = jsonElement.asJsonObject
+        val target = USER_WRAPPER_KEYS.firstNotNullOfOrNull { key ->
+            obj.get(key)?.takeIf { it.isJsonObject }?.asJsonObject
+        } ?: obj
 
-            val targetObj = when {
-                obj.has("user") && obj.get("user").isJsonObject -> obj.getAsJsonObject("user")
-                obj.has("me") && obj.get("me").isJsonObject -> obj.getAsJsonObject("me")
-                obj.has("data") && obj.get("data").isJsonObject -> obj.getAsJsonObject("data")
-                else -> obj
-            }
-
-            val directDto = try {
-                gson.fromJson(targetObj, UserMeDto::class.java)
-            } catch (_: Exception) {
-                null
-            }
-
-            val eloVal = directDto?.elo ?: extractElo(targetObj)
-            val idVal = directDto?.id ?: listOf("id", "userId", "_id").firstNotNullOfOrNull { key ->
-                if (targetObj.has(key) && !targetObj.get(key).isJsonNull) targetObj.get(key).asString else null
-            }
-            val usernameVal = directDto?.username ?: listOf("username", "name").firstNotNullOfOrNull { key ->
-                if (targetObj.has(key) && !targetObj.get(key).isJsonNull) targetObj.get(key).asString else null
-            }
-            val emailVal = directDto?.email ?: if (targetObj.has("email") && !targetObj.get("email").isJsonNull) targetObj.get("email").asString else null
-
-            return UserMeDto(id = idVal, username = usernameVal, name = directDto?.name, email = emailVal, elo = eloVal)
+        val directDto = try {
+            gson.fromJson(target, UserMeDto::class.java)
+        } catch (_: Exception) {
+            null
         }
 
-        return null
+        return UserMeDto(
+            id = directDto?.id ?: USER_ID_KEYS.firstNotNullOfOrNull { target.stringOrNull(it) },
+            username = directDto?.username ?: USERNAME_KEYS.firstNotNullOfOrNull { target.stringOrNull(it) },
+            name = directDto?.name,
+            email = directDto?.email ?: target.stringOrNull("email"),
+            elo = directDto?.elo ?: extractElo(target),
+            avatarUrl = directDto?.avatarUrl ?: parsePhotoUrl(target),
+        )
+    }
+
+    private val PHOTO_WRAPPER_KEYS = listOf("data", "user", "photo")
+    private val PHOTO_URL_KEYS =
+        listOf("photoUrl", "url", "photo", "picture", "avatarUrl", "imageUrl", "googleImage", "link")
+
+    private fun parsePhotoUrl(jsonElement: JsonElement?): String? {
+        return when {
+            jsonElement == null || jsonElement.isJsonNull -> null
+            jsonElement.isJsonPrimitive -> asHttpUrl(jsonElement)
+            jsonElement.isJsonObject -> {
+                val obj = jsonElement.asJsonObject
+                val target = PHOTO_WRAPPER_KEYS.firstNotNullOfOrNull { key ->
+                    obj.get(key)?.takeIf { it.isJsonObject }?.asJsonObject
+                } ?: obj
+                PHOTO_URL_KEYS.firstNotNullOfOrNull { key -> asHttpUrl(target.get(key)) }
+            }
+            else -> null
+        }
+    }
+
+    // Returns the trimmed string if the element is a primitive holding an http(s) URL
+    private fun asHttpUrl(element: JsonElement?): String? {
+        if (element == null || !element.isJsonPrimitive) return null
+        val str = element.asString.trim()
+        return if (str.startsWith("http://") || str.startsWith("https://")) str else null
     }
 
     private val ELO_KEYS = listOf("elo", "rating", "eloRating", "rankRating")

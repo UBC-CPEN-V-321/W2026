@@ -119,7 +119,7 @@ private fun FriendInviteRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        PlayerAvatar(name = friend.displayName, size = 36.dp)
+        PlayerAvatar(name = friend.displayName, avatarUrl = friend.avatarUrl, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = friend.displayName,

@@ -121,7 +121,7 @@ describe("Mocked: GET /friends", () => {
   test("Returns the caller's friends", async () => {
     const friendsSince = new Date("2026-10-01T12:00:00.000Z");
     mockedFetchFriends.mockResolvedValue([
-      { id: otherUserId, username: "rally", name: "Rally Partner", rating: 1520, friendsSince },
+      { id: otherUserId, username: "rally", name: "Rally Partner", photoUrl: null, rating: 1520, friendsSince },
     ]);
 
     const response = await request(createApp()).get("/friends").set("Authorization", authHeader);
@@ -133,6 +133,7 @@ describe("Mocked: GET /friends", () => {
           id: otherUserId,
           username: "rally",
           name: "Rally Partner",
+          photoUrl: null,
           rating: 1520,
           friendsSince: friendsSince.toISOString(),
           playing: null,
@@ -151,8 +152,8 @@ describe("Mocked: GET /friends", () => {
     const friendsSince = new Date("2026-10-01T12:00:00.000Z");
     const startedAt = new Date("2026-11-19T20:00:00.000Z");
     mockedFetchFriends.mockResolvedValue([
-      { id: otherUserId, username: "rally", name: "Rally Partner", rating: 1520, friendsSince },
-      { id: thirdUserId, username: "lob", name: "Lob Friend", rating: 1480, friendsSince },
+      { id: otherUserId, username: "rally", name: "Rally Partner", photoUrl: null, rating: 1520, friendsSince },
+      { id: thirdUserId, username: "lob", name: "Lob Friend", photoUrl: null, rating: 1480, friendsSince },
     ]);
     mockedFetchGamesInProgress.mockResolvedValue([
       {
@@ -221,8 +222,8 @@ describe("Mocked: GET /friends/requests", () => {
     const requestedAt = new Date("2026-10-20T08:30:00.000Z");
     const thirdUserId = "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f";
     mockedFetchFriendRequests.mockResolvedValue({
-      incoming: [{ id: otherUserId, username: "rally", name: "Rally Partner", rating: 1520, requestedAt }],
-      outgoing: [{ id: thirdUserId, username: "lob", name: "Lob Master", rating: 1480, requestedAt }],
+      incoming: [{ id: otherUserId, username: "rally", name: "Rally Partner", photoUrl: null, rating: 1520, requestedAt }],
+      outgoing: [{ id: thirdUserId, username: "lob", name: "Lob Master", photoUrl: null, rating: 1480, requestedAt }],
     });
 
     const response = await request(createApp()).get("/friends/requests").set("Authorization", authHeader);
@@ -230,10 +231,10 @@ describe("Mocked: GET /friends/requests", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       incoming: [
-        { id: otherUserId, username: "rally", name: "Rally Partner", rating: 1520, requestedAt: requestedAt.toISOString() },
+        { id: otherUserId, username: "rally", name: "Rally Partner", photoUrl: null, rating: 1520, requestedAt: requestedAt.toISOString() },
       ],
       outgoing: [
-        { id: thirdUserId, username: "lob", name: "Lob Master", rating: 1480, requestedAt: requestedAt.toISOString() },
+        { id: thirdUserId, username: "lob", name: "Lob Master", photoUrl: null, rating: 1480, requestedAt: requestedAt.toISOString() },
       ],
     });
     expect(mockedFetchFriendRequests).toHaveBeenCalledWith(userId);

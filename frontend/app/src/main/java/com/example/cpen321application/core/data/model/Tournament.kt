@@ -15,14 +15,16 @@ data class TournamentPlayer(
     val username: String,
     val name: String,
     val rating: Double,
-    val team: Int?  // the team's seed from 1 to 8, null until the bracket is drawn. Doubles partners share it
+    val team: Int?,  // the team's seed from 1 to 8, null until the bracket is drawn. Doubles partners share it
+    val photoUrl: String? = null
 )
 
 data class TournamentCreator(
     val id: String,
     val username: String,
     val name: String,
-    val rating: Double
+    val rating: Double,
+    val photoUrl: String? = null
 )
 
 // The game of a bracket match. Its team 1 is the match's team1, so team1Score belongs to team1

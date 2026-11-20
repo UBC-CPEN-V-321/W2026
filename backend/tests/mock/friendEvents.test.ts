@@ -51,7 +51,7 @@ const mockedFetchGameDetails = jest.mocked(fetchGameDetails);
 const mockedIsUserInGame = jest.mocked(isUserInGame);
 const mockedStartBookedGame = jest.mocked(startBookedGame);
 
-const user = (id: string, username: string) => ({ id, username, name: username, rating: 1500 });
+const user = (id: string, username: string) => ({ id, username, name: username, photoUrl: null, rating: 1500 });
 
 // The friend's game against the stranger, once started
 const startedDetails = () =>

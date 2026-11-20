@@ -18,6 +18,7 @@ data class FriendRequestDto(
     // Their rating, a decimal like 1520.37
     @SerializedName("rating", alternate = ["elo"])
     val rating: Double? = null,
+    val avatarUrl: String? = null,
 ) {
     // The name to show, or the username if they have no name
     val displayName: String get() = name?.takeIf { it.isNotBlank() } ?: username

@@ -15,13 +15,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cpen321application.core.auth.AuthViewModel
+import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.ui.FollowWhileVisible
+import com.example.cpen321application.core.ui.components.CourtPickerDialog
 import com.example.cpen321application.core.ui.components.FloatingMessage
 import com.example.cpen321application.core.ui.components.UnderlineTabs
 
-private val PROFILE_TABS = listOf(ProfileTab.MATCH_HISTORY, ProfileTab.FRIENDS, ProfileTab.EQUIPMENT)
+private val PROFILE_TABS = listOf(
+    ProfileTab.MATCH_HISTORY,
+    ProfileTab.FRIENDS,
+    ProfileTab.EQUIPMENT,
+    ProfileTab.PREFERRED_COURTS,
+)
 
 data class ProfileActions(
     val onSignOut: () -> Unit = {},
@@ -36,6 +43,10 @@ data class ProfileActions(
     val onUpdateEquipmentInputs: (String, EquipmentType, Boolean) -> Unit = { _, _, _ -> },
     val onSaveEquipment: () -> Unit = {},
     val onDeleteEquipment: (Int) -> Unit = {},
+    val onOpenAddPreferredCourt: () -> Unit = {},
+    val onCloseAddPreferredCourtDialog: () -> Unit = {},
+    val onAddPreferredCourt: (Court) -> Unit = {},
+    val onDeletePreferredCourt: (Int) -> Unit = {},
     val onOpenMatch: (gameId: String) -> Unit = {},
     val onOpenStats: () -> Unit = {},
     // Opens a game, e.g. the one a friend is playing
@@ -66,9 +77,9 @@ fun ProfileRoute(
     val actions = ProfileActions(
         onSignOut = onSignOut,
         onSelectTab = { viewModel.selectTab(it) },
-        onRemoveFriend = { userId -> viewModel.removeFriend(session, userId) },
-        onAcceptRequest = { userId -> viewModel.acceptFriendRequest(session, userId) },
-        onRefresh = { viewModel.loadAll(session) },
+        onRemoveFriend = { userId -> session?.let { viewModel.removeFriend(it, userId) } },
+        onAcceptRequest = { userId -> session?.let { viewModel.acceptFriendRequest(it, userId) } },
+        onRefresh = { session?.let { viewModel.loadAll(it) } },
         onClearMessages = { viewModel.clearMessages() },
         onOpenAddEquipment = { viewModel.openAddEquipmentDialog() },
         onOpenEditEquipment = { equipment -> viewModel.openEditEquipmentDialog(equipment) },
@@ -76,8 +87,12 @@ fun ProfileRoute(
         onUpdateEquipmentInputs = { name, type, isDefault ->
             viewModel.updateEquipmentInputs(name, type, isDefault)
         },
-        onSaveEquipment = { viewModel.saveEquipment(session) },
-        onDeleteEquipment = { equipmentId -> viewModel.deleteEquipment(session, equipmentId) },
+        onSaveEquipment = { session?.let { viewModel.saveEquipment(it) } },
+        onDeleteEquipment = { equipmentId -> session?.let { viewModel.deleteEquipment(it, equipmentId) } },
+        onOpenAddPreferredCourt = { session?.let { viewModel.openAddPreferredCourtDialog(it) } },
+        onCloseAddPreferredCourtDialog = { viewModel.closeAddPreferredCourtDialog() },
+        onAddPreferredCourt = { court -> session?.let { viewModel.addPreferredCourt(it, court) } },
+        onDeletePreferredCourt = { courtId -> session?.let { viewModel.deletePreferredCourt(it, courtId) } },
         onOpenMatch = onOpenMatch,
         onOpenStats = onOpenStats,
         onOpenGame = onOpenGame,
@@ -111,6 +126,21 @@ fun ProfileScreen(
             actions = actions,
         )
     }
+
+    if (uiState.showAddCourtDialog) {
+        val availableCourts = uiState.allCourts.filter { court ->
+            uiState.preferredCourts.none { it.id == court.id }
+        }
+        CourtPickerDialog(
+            courts = availableCourts,
+            selectedCourtId = null,
+            isLoading = uiState.isLoadingAllCourts,
+            errorMessage = null,
+            onRetry = actions.onRefresh,
+            onDismiss = actions.onCloseAddPreferredCourtDialog,
+            onSelect = actions.onAddPreferredCourt,
+        )
+    }
 }
 
 // The page itself: the header, rating, stats, and the selected tab
@@ -119,7 +149,7 @@ private fun ProfileContent(uiState: ProfileUiState, actions: ProfileActions) {
     Column(modifier = Modifier.fillMaxSize()) {
         ProfileTopBar(onSignOut = actions.onSignOut)
 
-        ProfileIdentity(name = uiState.name, username = uiState.username)
+        ProfileIdentity(name = uiState.name, username = uiState.username, avatarUrl = uiState.avatarUrl)
         RatingCard(
             rating = uiState.elo,
             lastChange = uiState.matchHistory.firstOrNull()?.ratingChange,
@@ -135,7 +165,7 @@ private fun ProfileContent(uiState: ProfileUiState, actions: ProfileActions) {
         )
 
         UnderlineTabs(
-            titles = listOf("History", "Friends", "Equipment"),
+            titles = listOf("History", "Friends", "Equipment", "Courts"),
             selectedIndex = PROFILE_TABS.indexOf(uiState.selectedTab),
             onSelect = { actions.onSelectTab(PROFILE_TABS[it]) },
             badges = mapOf(PROFILE_TABS.indexOf(ProfileTab.FRIENDS) to uiState.friendRequests.size),
@@ -170,6 +200,10 @@ private fun ProfileTabBody(
                 actions = actions,
             )
             ProfileTab.EQUIPMENT -> EquipmentTabContent(
+                uiState = uiState,
+                actions = actions,
+            )
+            ProfileTab.PREFERRED_COURTS -> PreferredCourtsTabContent(
                 uiState = uiState,
                 actions = actions,
             )
