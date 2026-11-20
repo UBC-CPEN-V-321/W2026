@@ -26,6 +26,9 @@ import com.example.cpen321application.MainActivity
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
+import org.junit.rules.ExternalResource
+import org.junit.rules.RuleChain
+import com.example.cpen321application.SessionStorage
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType
@@ -121,7 +124,18 @@ internal fun objects(array: JSONArray): List<JSONObject> = List(array.length()) 
 
 /** Base for the full-stack tests: the real app, a backend client and the shared UI steps. */
 internal abstract class FullStackE2eTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    // Reset only authentication before Activity launch; no previous test's session may leak in.
+    private val sessionIsolation = object : ExternalResource() {
+        override fun before() {
+            FullStackBackend.assumeEnabled()
+            SessionStorage(InstrumentationRegistry.getInstrumentation().targetContext).clear()
+        }
+        override fun after() {
+            SessionStorage(InstrumentationRegistry.getInstrumentation().targetContext).clear()
+        }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(sessionIsolation).around(compose)
     protected lateinit var backend: FullStackBackend
     protected val ui = FullStackUi(compose)
 

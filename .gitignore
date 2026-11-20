@@ -60,4 +60,12 @@ Project_Description.pdf
 Submission_Guidelines.pdf
 requirement_and_design/
 output/
-/documentation/res/
+# Keep generated evidence ignored; allow the reviewed test-run summary.
+/documentation/res/*
+!/documentation/res/testing/
+/documentation/res/testing/*
+!/documentation/res/testing/backend-interface-summary.txt
+!/documentation/res/testing/android-historical-summary.txt
+!/documentation/res/testing/android-e2e-2026-11-19.txt
+!/documentation/res/testing/android-e2e-2026-11-20.txt
+!/documentation/res/testing/android-e2e-diagnostics-2026-11-20.txt

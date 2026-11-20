@@ -22,7 +22,10 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.espresso.Espresso
+import android.view.KeyEvent
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -50,6 +53,8 @@ class LedgerUiTest {
 
     @Before fun openMyExpenses() {
         awaitDashboard()
+        // Surface a blocked emulator (for example a System UI ANR) before sending platform keys.
+        compose.waitUntil(20_000) { compose.activity.hasWindowFocus() }
     }
 
     @Test fun myExpensesIsHomeAndTabsCanBeReopened() {
@@ -57,18 +62,19 @@ class LedgerUiTest {
         compose.onNodeWithTag("section-Groups").assertIsDisplayed()
         compose.onNodeWithTag("section-Me").assertIsDisplayed().performClick()
         compose.onNodeWithTag("section-Me").assertIsSelected()
-        Espresso.pressBack()
+        pressSystemBack()
         awaitDashboard()
         compose.onNodeWithTag("section-Expenses").assertIsSelected()
         compose.onNodeWithTag("section-Groups").performClick()
-        Espresso.pressBack()
+        compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        pressSystemBack()
         awaitDashboard()
     }
 
     @Test fun expensesTabReturnsToDashboardAndReselectionResetsEditor() {
         openManualEntry()
         editorField("Amount").performTextInput("42")
-        Espresso.closeSoftKeyboard()
+        closeKeyboard()
         compose.onNodeWithTag("section-Me").performClick()
         compose.onNodeWithTag("section-Expenses").performClick()
         awaitDashboard()
@@ -183,7 +189,8 @@ class LedgerUiTest {
         compose.onNodeWithText(currency, substring = false).performClick()
         compose.onNodeWithText("✓").assertIsDisplayed()
         captureIfRequested("ledger-currency-menu")
-        Espresso.pressBack()
+        pressSystemBack()
+        compose.onNodeWithText("✓").assertDoesNotExist()
     }
 
     @Test fun newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting() {
@@ -260,7 +267,7 @@ class LedgerUiTest {
     private fun scrollEditorTo(label: String) {
         // Let the platform IME finish closing before LazyColumn moves a different text field.
         // Otherwise its inset animation can detach the matched semantics node between lookup and focus.
-        Espresso.closeSoftKeyboard()
+        closeKeyboard()
         compose.waitForIdle()
         compose.onNodeWithTag("ledger-editor").performScrollToNode(hasText(label))
         compose.waitForIdle()
@@ -268,6 +275,29 @@ class LedgerUiTest {
     private fun openManualEntry() {
         compose.onNodeWithText("+ Add a bill").performClick()
         compose.onNodeWithText("Enter manually").performClick()
+    }
+    // Send a real system Back key without Espresso's focused-root selection (also works for popups).
+    private fun pressSystemBack() {
+        // Navigation installs BackHandler in a composition side effect; settle it before the key.
+        compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+    }
+
+    private fun closeKeyboard() {
+        compose.runOnIdle {
+            val window = compose.activity.window
+            WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
+        }
+        compose.waitUntil(10_000) {
+            var hidden = false
+            compose.runOnIdle {
+                hidden = ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                    ?.isVisible(WindowInsetsCompat.Type.ime()) != true
+            }
+            hidden
+        }
+        compose.waitForIdle()
     }
     private fun awaitDashboard() {
         compose.waitUntil(10_000) { compose.onAllNodes(hasText("+ Add a bill") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }

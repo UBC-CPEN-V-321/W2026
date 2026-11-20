@@ -1,0 +1,17 @@
+Recorded local backend run: 2026-11-19
+Code subsequently committed as: 6a9dfdfeaf16e1bf006741138cffc6e114e19993
+Command: npm run test:interface -- --silent
+Environment: Node 24.11.1 / npm 11.6.2 (project specifies Node 22.x)
+Excerpt from the existing run; not a new execution or full log.
+
+=============================== Coverage summary ===============================
+Statements   : 80.36% ( 2059/2562 )
+Branches     : 74.28% ( 1453/1956 )
+Functions    : 85.67% ( 317/370 )
+Lines        : 80.8% ( 1953/2417 )
+================================================================================
+
+Test Suites: 24 passed, 24 total
+Tests:       567 passed, 567 total
+Snapshots:   0 total
+Time:        235.011 s

@@ -5,13 +5,14 @@
 | Date | Description |
 | --- | --- |
 | 11/02/2026 | Creation of this file. Reporting E2E testing results for Feature 1 and backend testing results for Bill Import component. |
+| 11/19/2026 | Reconciled paths, test inventory, execution prerequisites and evidence status with the repository; marked missing historical artifacts explicitly. |
 | 11/19/2026 | Checked the CP2 backend structure against Project Description section 9 and Testing II slides 58-61; moved registration/login input-validation, password-confirmation and rate-limit cases to real MongoDB tests; added mocked dependency-isolation checks for public endpoints. |
 | 11/18/2026 | Backend tests restructured to one unmocked and one mocked `describe` per interface with Input/Expected comments; added mocked tests for every interface with a mockable component; added full-stack E2E tests that run the app against the Node backend. |
 
 
 ## Locations of Backend Tests
 
-Local structure-fix verification (2026-11-19): based on main `f4deaf3`, with uncommitted changes on `fix/backend-test-course-compliance`. `npm run typecheck` passed; `npm run test:interface -- --silent` passed **24 suites / 567 tests**. Combined coverage: statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. This run used Node 24.11.1 / npm 11.6.2; the supported project environment remains Node 22.x. These local results are not a replacement for the final tested main-branch submission SHA.
+Local structure-fix verification (2026-11-19): executed on the working-tree code subsequently committed and merged to main as `6a9dfdfeaf16e1bf006741138cffc6e114e19993`. `npm run typecheck` passed; `npm run test:interface -- --silent` passed **24 suites / 567 tests**. Combined coverage: statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. This run used Node 24.11.1 / npm 11.6.2; the supported project environment remains Node 22.x. This is the backend validation baseline only; Android tests were not rerun in that validation. The console summary is preserved in [backend-interface-summary.txt](res/testing/backend-interface-summary.txt).
 
 Backend test conventions (Project Description, section 9):
 
@@ -74,13 +75,55 @@ Each interface has one `describe` without mocks (`backend/tests/no-mock/`) and o
 | `POST /api/split-sessions/:sessionId/finalize` | [splitSessions.test.ts:377](../backend/tests/no-mock/splitSessions.test.ts#L377) | [splitSessions.test.ts:139](../backend/tests/mock/splitSessions.test.ts#L139) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
 | `GET /api/operations/:operationKey` | [splitSessions.test.ts:517](../backend/tests/no-mock/splitSessions.test.ts#L517) | [splitSessions.test.ts:174](../backend/tests/mock/splitSessions.test.ts#L174) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
 
-Unknown routes are covered by `Unmocked: GET /does-not-exist` in [health.test.ts](../backend/tests/no-mock/health.test.ts) (404 fallback).
+Unknown routes are covered by `Unmocked: GET /does-not-exist` in [health.test.ts](../backend/tests/no-mock/health.test.ts#L20) and `Mocked: GET /does-not-exist` in [publicEndpoints.test.ts](../backend/tests/mock/publicEndpoints.test.ts#L56) (404 fallback).
 
 ## Location of .yml files
 
-[.github/workflows/backend-tests.yml](../.github/workflows/backend-tests.yml)
+**Missing:** `.github/workflows/` contains only `.gitkeep`; `backend-tests.yml` is not present. No GitHub Actions run is claimed here. Implementing and verifying the workflow remains a separate outstanding item.
 
 ## Front-end test suite location
+
+### Course requirements and existing implementation
+
+Project Description section 9 requires GUI end-to-end tests for the three main features, their formal-use-case success/failure scenarios, independent test setup, and real backend interactions where applicable. Section 12 (Testing document) requires test locations, use-case-step-to-test-step mappings, and execution logs showing passed/failed status. Submission Guidelines scope CP2 to one end-to-end feature and all interfaces of one backend component; the full project scope is broader. Neither document mandates particular test-class names or TXT/XML filenames.
+
+| Feature | Existing implementation | What remains to verify |
+| --- | --- | --- |
+| Personal ledger | LedgerUiTest: 7 tests for navigation, manual entry/edit/delete, draft recreation, CSV review, reload and filtered deletion | Existing local flows are implemented. Live receipt/PDF recognition, FX and cloud-save GUI flows are not demonstrated by this class. |
+| Group expenses | GroupBillFullStackE2eTest: 1 app + Node + MongoDB flow | Existing create/join/add-bill success flow is implemented. The success flow passed again on 2026-11-20; remaining formal-use-case failure scenarios still need coverage review. |
+| Let's Go Dutch | LetsGoDutchFullStackE2eTest: 1 app + Node + MongoDB + Socket.IO flow | Existing claim/live-update/finalize success flow is implemented. The repaired 2026-11-20 run passed the full flow; remaining failure/recovery scenarios still need coverage review. |
+
+The full-stack harness creates disposable accounts and signs in through the UI; the second user acts through real backend requests, not a second automated GUI. The course default assumes a tester already signed in and allows manual second-user steps. Document this setup difference for review rather than claiming that API-side actions test the second user's GUI.
+
+**Located historical execution evidence:** the [Android runner excerpt](res/testing/android-historical-summary.txt) records **18 tests passed** for GroupMembershipUiTest, GroupMembershipIntegrationTest and GroupExpensesUiTest. These were historically under the e2e package and are now categorized as UI/integration tests. The log does not establish its commit/date and is not evidence of a fresh run of the three current E2E classes.
+
+### Initial Android execution record (before repairs)
+
+- Date: 2026-11-19; source commit `2e9fcdd6cb5dd9149226f44068046f8766d64226`. Only documentation/evidence changes were uncommitted.
+- Environment: Pixel 9 emulator, Android 16/API 36, x86_64, fresh isolated userdata; real local backend and disposable MongoDB. No online backend was used.
+- Build: `:app:assembleDebug :app:assembleDebugAndroidTest` succeeded. The test APK used `http://10.0.2.2:3000`; original local configuration was restored afterwards.
+- Runner: all three existing E2E classes selected with `ledgerFullStack=true`. Exact command and original output: [execution log](res/testing/android-e2e-2026-11-19.txt).
+- Result: **9 executed, 3 passed, 6 failed, 0 skipped**. Five LedgerUiTest failures report `RootViewWithoutFocusException` during Espresso back/keyboard actions. LetsGoDutchFullStackE2eTest failed to reach its expected sign-in state before its core flow. These are the initial observed failures; see the repaired run below for subsequent diagnosis and verification.
+- Passed: filtered bulk deletion, loading historical personal records, and the group-bill full-stack flow. This run is evidence of execution, not a passing suite or complete course coverage.
+- Backend ran on Node 24.11.1; the project-supported Node 22.x environment remains unverified for this run.
+
+### Manual follow-up (2026-11-20)
+
+Joy Tao reported that all six manual checks corresponding to the failed automated scenarios behaved normally on an emulator using the "latest version": dismissing the currency menu, returning from Me/Groups, leaving the editor through tabs, creating/editing/deleting a personal entry, checking an unsaved draft, and signing out then signing in again. This is a tester-reported manual result. The exact APK/source commit, emulator model/API level, and activity-recreation mechanism were not independently verified; no screenshots or execution logs were supplied for this follow-up.
+
+This did not reproduce the reported symptoms manually, but does not establish equivalence to the automated run at `2e9fcdd6cb5dd9149226f44068046f8766d64226`. At the time of this manual follow-up, the recorded automated result was **3 passed / 6 failed**. The later repaired run is recorded below. In particular, the manual sign-in check does not establish that the full Let's Go Dutch flow passed.
+
+### Repaired Android execution record (2026-11-20)
+
+- **9 executed, 9 passed, 0 failed, 0 skipped**, in 205.496 seconds: [final execution log](res/testing/android-e2e-2026-11-20.txt). All three existing E2E classes ran together with `ledgerFullStack=true`, including both real-backend flows.
+- Source base: latest fetched main `1626ab9f0ac44f74645e29de3a35957c15d0ea66`, with uncommitted repairs in `LedgerUiTest.kt` and `FullStackHarness.kt`. The log records SHA-256 hashes of those files; application source was unchanged.
+- During diagnosis, a **System UI isn't responding** dialog owned window focus. It was closed before the final run. Tests now check initial Activity focus, wait for navigation/BackHandler setup before sending system Back, and await IME dismissal through window insets instead of Espresso's focused-root lookup. The currency-menu test additionally asserts dismissal.
+- Full-stack tests now clear only their stored authentication before Activity launch and after teardown, so the next test does not depend on logging out the previous test's account. Each test still signs in through the real UI. This establishes test isolation; it is not a separate automated verification of logout behavior.
+- [Intermediate diagnostic logs](res/testing/android-e2e-diagnostics-2026-11-20.txt) retain the six-test run (4 pass / 2 fail), the focus-restored recheck (1 pass / 1 fail), and the final navigation-only recheck (1 pass). The initial 2026-11-19 failure log is also retained above.
+- Environment: separate Pixel 9 userdata, Android 16/API 36 x86_64, local Node backend and disposable MongoDB. Build succeeded; original API configuration was restored. Node 24.11.1 was used; project-supported Node 22.x remains unverified here.
+- These nine passing tests establish the existing scenarios only; they do not close the remaining coverage gaps noted in the feature table.
+
+### Current suites and scenario mappings
 
 Suite: [frontend/app/src/androidTest/java/com/example/cpen321application/e2e/](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/).
 
@@ -93,33 +136,23 @@ Use-case steps below refer to the formal specifications in Requirements_and_Desi
 - UC-F1-06: currency conversion;
 - UC-F1-07: cloud saves.
 
-Execution logs see Gradle log (res/testing/cp2/android-e2e.txt) and per-test JUnit results(res/testing/cp2/android-e2e.xml) on GitHub.
+**Evidence status:** `res/testing/cp2/android-e2e.txt` and `res/testing/cp2/android-e2e.xml` are absent from this repository. Current per-test results below refer to the 2026-11-19 run at `2e9fcdd6cb5dd9149226f44068046f8766d64226`, linked in the execution record; the old filenames are not required.
 
-**Feature1E2eTest.kt — 9 tests**
+Current tracked Android E2E source contains 7 tests in `LedgerUiTest`, 1 in `GroupBillFullStackE2eTest`, and 1 in `LetsGoDutchFullStackE2eTest`. `FullStackHarness` is a helper, not a test suite.
 
-| Test name | Formal use-case steps → test steps and expected behavior | Recorded status |
-| --- | --- | --- |
-| invalidManualEntryDoesNotPersistAndDeleteCanBeCancelled | **UC-F1-04 1–2, 2a:** Add → Save with no amount; “Check transaction” appears and record IDs are unchanged.<br>**UC-F1-04 2–4:** Enter 8 and a merchant → Save; “Transaction added” appears and one record exists.<br>**UC-F1-05 2a:** Edit amount to `invalid` → Save; validation appears and the saved record is unchanged.<br>**UC-F1-05 3a:** Delete → Keep transaction; the record remains. | PASS |
-| csvSystemPickerCorrectInvalidRowSkipDuplicateAndCommitOnce | **UC-F1-03 1–3:** Pick a CSV through DocumentsUI → Preview CSV; review appears and confirmation is disabled.<br>**UC-02 1–3; UC-F1-03 4:** See the duplicate warning → deselect that row → change the invalid amount to 12; confirmation enables and no preview row has been saved.<br>**UC-02 4–8:** Confirm one row; “1 transaction imported,” one CSV record, and a total of 19 are verified.<br>**UC-F1-05 1, 4:** Recreate the activity → search the merchant; saved IDs persist and the filtered expense total is −19. | PASS |
-| cancelPickerAndDiscardReviewLeaveLedgerUnchanged | **UC-F1-03 1a:** Open the system picker → Back; Import shows “Choose a file.”<br>**UC-F1-03 1–3:** Pick a CSV → Preview CSV; review appears.<br>**UC-F1-03 3a:** Start a different import → Keep reviewing; the review remains. Repeat → Discard review; file selection returns and the complete ledger equals its initial state. | PASS |
-| csvSystemPickerKeepsDuplicateOnlyAfterExplicitAcknowledgement | **UC-F1-03 1–3; UC-02 1–2:** Pick/preview a CSV matching an existing entry; a duplicate warning appears, confirmation is disabled, and only the original record exists.<br>**UC-02 3, 3a:** Choose “Keep transaction 1 despite possible duplicates”; confirmation enables.<br>**UC-02 4–8:** Confirm; one CSV row is imported, both purchases remain, and their amounts total 14. | PASS |
-| unsupportedPdfFailsWithoutSavingThenRealChasePdfImportsViaBackend | **UC-F1-03 1, 2b:** Pick an unsupported PDF → Preview statement; the supported-bank error appears and no fixture record is saved.<br>**UC-F1-03 1–3:** Replace it with a real Chase PDF → Preview statement through the backend; review appears before any save.<br>**UC-F1-03 4; UC-02 4–8:** Confirm; one USD 10.00 record dated 2025-01-03 retains its source filename. If conversion is needed, the saved FX source is Frankfurter/ECB with a positive converted amount. | PASS |
-| explicitAiReceiptPreviewAndCommitUseRealBackend | **UC-01 1–2:** With a session, pick the synthetic receipt PDF → Send to OpenAI & extract.<br>**UC-01 3–8:** Wait for the real backend/OpenAI review; no fixture record is saved before confirmation. This case uses a valid PDF and requires no field correction.<br>**UC-02 4–8:** Confirm the single candidate; verify amount 10, original currency, date 2025-01-03, and source filename. | PASS |
-| cloudSaveRenameCancelLoadRestoreAndDeleteUseRealAccountBackend | **UC-F1-07 1:** Me → Cloud saves; a free slot is available.<br>**2, 2a:** Empty name disables Save; enter a name → Cancel leaves the slot empty; repeat → Save persists its name on the backend.<br>**3:** Rename → Save; the backend name changes.<br>**3a:** Another API client changes the revision while the editor is open; submit the stale rename → conflict message and refreshed remote name, without overwriting it.<br>**4, 4a:** After removing the local fixture, cancel Load → it stays absent; confirm Load → it is restored.<br>**5, 5a:** Cancel Delete → server slot remains; confirm Delete → server slot is absent. | PASS |
-| reportingCurrencyUsesHistoricalFxAndUiFiltersSelectOnlyExpenses | **UC-F1-06 1–4:** With USD expense/income fixtures, choose CAD; reporting currency becomes CAD, USD 10 remains the original amount, its converted value is CAD 14.41, and the effective rate date is Friday 2025-01-03.<br>**UC-F1-05 1, 3:** Search the merchant → Expenses → Select all shown; only one expense is selected.<br>**UC-F1-05 3a:** Cancel deletion; both records remain.<br>**UC-F1-05 3–4:** Confirm deletion; “1 transactions deleted” appears and only the income remains. | PASS |
-| malformedCsvAndEmptyFileAreRejectedWithoutSaving | **UC-F1-03 1, 2a:** Pick a CSV with unrelated headers → Preview CSV; the required-columns error appears and no fixture record is saved.<br>**UC-F1-03 1b:** Remove it → pick an empty CSV; “This file is empty” appears and no fixture record is saved. | PASS |
+**[LedgerUiTest.kt](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/LedgerUiTest.kt) — 7 existing local UI tests**
 
-**LedgerUiTest.kt — 7 reused tests**
+These exercise local UI/SQLite behavior, including some directly seeded state. They do not establish the complete app-to-Node-backend flow.
 
 | Test location | Formal use-case steps → test steps and expected behavior | Recorded status |
 | --- | --- | --- |
-| myExpensesIsHomeAndTabsCanBeReopened | **UC-F1-04 precondition; UC-F1-05 1:** Verify My Expenses is selected → open Me → Back → open Groups → Expenses; My Expenses/dashboard is available again. | PASS |
-| expensesTabReturnsToDashboardAndReselectionResetsEditor | **UC-F1-04 1; UC-F1-05 1:** Add → enter 42 → Me → Expenses; the dashboard returns. Open Add again → reselect Expenses; the dashboard returns again. | PASS |
-| createEditAndDeleteTransactionThroughTheUi | **UC-F1-04 1–3:** Enter amount/merchant → Save; the success notice appears and SQLite contains 1234 minor units.<br>**UC-F1-05 2:** Open the row → change amount → Save; SQLite contains 2345 minor units and revision 2.<br>**UC-F1-05 3–4:** Open Delete → confirm; the deletion notice appears and the record is absent. | PASS |
-| draftSurvivesActivityRecreationWithoutSaving | **UC-F1-04 1, 1a:** Enter amount 42 and merchant → recreate the activity; both draft fields survive and no record is saved.<br>**UC-F1-04 1a:** Back → “Discard your changes?” → Discard; the dashboard returns. | PASS |
-| csvContentUriRequiresDuplicateReviewBeforeAtomicImport | **UC-F1-03 1 (partial):** Supply a FileProvider URI through `chooseDocument`; this bypasses the system picker.<br>**UC-F1-03 2–3; UC-02 1–2:** Preview CSV; two review rows appear and duplicate confirmation is disabled.<br>**UC-02 3–8:** Acknowledge the duplicate → Confirm; two CSV records are saved, including the explicitly retained duplicate.<br>**UC-F1-06 1 (menu only):** Open the currency menu; the current-currency checkmark appears. | PASS |
-| newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting | **UC-F1-05 1, 4:** Seed historical PDF/receipt records through the repository → create a fresh ViewModel; its month filter is unset and both saved IDs are visible. This checks reload state, not document extraction or a full process restart. | PASS |
-| bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords | **UC-F1-05 1:** Seed two expenses/one income and set search/kind through the ViewModel; two expenses are visible.<br>**UC-F1-05 3, 3a:** Select all shown → Delete → Cancel; all three records remain.<br>**UC-F1-05 3b:** Change the kind filter through the ViewModel; selection clears and selection mode ends.<br>**UC-F1-05 3–4:** Filter expenses again → Select all shown → confirm deletion; only the income remains. | PASS |
+| myExpensesIsHomeAndTabsCanBeReopened | **UC-F1-04 precondition; UC-F1-05 1:** Verify My Expenses is selected → open Me → Back → open Groups → wait for sign-in page → Back; My Expenses/dashboard is available again. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| expensesTabReturnsToDashboardAndReselectionResetsEditor | **UC-F1-04 1; UC-F1-05 1:** Add → enter 42 → Me → Expenses; the dashboard returns. Open Add again → reselect Expenses; the dashboard returns again. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| createEditAndDeleteTransactionThroughTheUi | **UC-F1-04 1–3:** Enter amount/merchant → Save; the success notice appears and SQLite contains 1234 minor units.<br>**UC-F1-05 2:** Open the row → change amount → Save; SQLite contains 2345 minor units and revision 2.<br>**UC-F1-05 3–4:** Open Delete → confirm; the deletion notice appears and the record is absent. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| draftSurvivesActivityRecreationWithoutSaving | **UC-F1-04 1, 1a:** Enter amount 42 and merchant → recreate the activity; both draft fields survive and no record is saved.<br>**UC-F1-04 1a:** Back → “Discard your changes?” → Discard; the dashboard returns. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| csvContentUriRequiresDuplicateReviewBeforeAtomicImport | **UC-F1-03 1 (partial):** Supply a FileProvider URI through `chooseDocument`; this bypasses the system picker.<br>**UC-F1-03 2–3; UC-02 1–2:** Preview CSV; two review rows appear and duplicate confirmation is disabled.<br>**UC-02 3–8:** Acknowledge the duplicate → Confirm; two CSV records are saved, including the explicitly retained duplicate.<br>**UC-F1-06 1 (menu only):** Open the currency menu; the current-currency checkmark appears. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting | **UC-F1-05 1, 4:** Seed historical PDF/receipt records through the repository → create a fresh ViewModel; its month filter is unset and both saved IDs are visible. This checks reload state, not document extraction or a full process restart. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords | **UC-F1-05 1:** Seed two expenses/one income and set search/kind through the ViewModel; two expenses are visible.<br>**UC-F1-05 3, 3a:** Select all shown → Delete → Cancel; all three records remain.<br>**UC-F1-05 3b:** Change the kind filter through the ViewModel; selection clears and selection mode ends.<br>**UC-F1-05 3–4:** Filter expenses again → Select all shown → confirm deletion; only the income remains. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
 
 **Full-stack E2E (app + Node backend + MongoDB) — 2 tests**
 
@@ -127,51 +160,47 @@ These launch the real app (`MainActivity`) on the emulator against the real Node
 
 | Test | Use case → test steps and expected behavior | Recorded status |
 | --- | --- | --- |
-| [GroupBillFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/GroupBillFullStackE2eTest.kt) `ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend` | **Sign in:** Me → Sign in with a backend-registered username and password → Me shows Log out.<br>**Create Group:** Groups → Create group → enter a name → Create group; the invitation dialog appears → Done; “Group created. You are the owner.”<br>**Join Group (other device):** the member accepts an invitation through the backend; the open group page updates live to “2 members”.<br>**Record Shared Expense:** + Add a bill → Enter manually → description and CAD 30.00, equal split → Save expense; the bill is listed.<br>**Backend check:** the member's `GET /summary` returns total 3000 cents, paid by the owner, split 1500/1500. | PASS (3 consecutive runs, 11/18/2026) |
-| [LetsGoDutchFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/LetsGoDutchFullStackE2eTest.kt) `ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice` | **Start Let's Go Dutch:** owner signs in → opens the group → + Add a bill → Enter manually → CAD 18.00 → Let’s Go Dutch → items Burger 12.00 and Fries 6.00 → confirm review → Start split session; “0 / 2 units claimed”.<br>**Claim Item (other device):** the member claims Burger through `POST /claims`; the app shows “Claimed by First joiner” and “1 / 2 units claimed” over Socket.IO.<br>**Claim and Finalize:** the owner claims Fries → “2 / 2 units claimed” → Finalize split → “Finalized · saved to group expenses”.<br>**Backend check:** the member's summary has one 1800-cent bill “Dutch dinner” with shares member 1200 / owner 600. | PASS (3 consecutive runs, 11/18/2026) |
+| [GroupBillFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/GroupBillFullStackE2eTest.kt) `ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend` | **Sign in:** Me → Sign in with a backend-registered username and password → Me shows Log out.<br>**Create Group:** Groups → Create group → enter a name → Create group; the invitation dialog appears → Done; “Group created. You are the owner.”<br>**Join Group (other device):** the member accepts an invitation through the backend; the open group page updates live to “2 members”.<br>**Record Shared Expense:** + Add a bill → Enter manually → description and CAD 30.00, equal split → Save expense; the bill is listed.<br>**Backend check:** the member's `GET /summary` returns total 3000 cents, paid by the owner, split 1500/1500. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
+| [LetsGoDutchFullStackE2eTest](../frontend/app/src/androidTest/java/com/example/cpen321application/e2e/LetsGoDutchFullStackE2eTest.kt) `ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice` | **Start Let's Go Dutch:** owner signs in → opens the group → + Add a bill → Enter manually → CAD 18.00 → Let’s Go Dutch → items Burger 12.00 and Fries 6.00 → confirm review → Start split session; “0 / 2 units claimed”.<br>**Claim Item (other device):** the member claims Burger through `POST /claims`; the app shows “Claimed by First joiner” and “1 / 2 units claimed” over Socket.IO.<br>**Claim and Finalize:** the owner claims Fries → “2 / 2 units claimed” → Finalize split → “Finalized · saved to group expenses”.<br>**Backend check:** the member's summary has one 1800-cent bill “Dutch dinner” with shares member 1200 / owner 600. | PASS (2026-11-20); [execution log](res/testing/android-e2e-2026-11-20.txt) |
 
 ## NFR location
 To be done within CP3. Not covered yet.
 
 ## Jest Coverage
 
-Scope: `currencies.ts`, `domain.ts`, `importPolicy.ts`, `providers.ts`, `router.ts`, and `statements.ts`.
+The current Jest configuration collects coverage from all `src/**/*.ts` backend files. The combined **interface** run excludes `tests/unit/` and NFR tests.
 
-**Without mocks:**
+| Run | Evidence at the baseline commit |
+| --- | --- |
+| No mocks | Historical image `res/testing/bill-import/no-mock.png` is missing; no current separate-run result is asserted. |
+| Mocks | Historical image `res/testing/bill-import/mock.png` is missing; no current separate-run result is asserted. |
+| Combined interfaces | 24 suites / 567 tests passed; statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. See the [saved console summary](res/testing/backend-interface-summary.txt). Historical image `res/testing/bill-import/combined.png` is missing. |
 
-![Bill Import coverage without mocks](res/testing/bill-import/no-mock.png)
-
-**With mocks:**
-
-![Bill Import coverage with mocks](res/testing/bill-import/mock.png)
-
-**Combined:**
-
-![Bill Import combined coverage](res/testing/bill-import/combined.png)
-
+Coverage is below 100%: interface tests do not launch the production entry point or seed script; several parser/domain cases are tested only in the separate unit suite, and additional error branches remain uncovered. These are coverage gaps, not a claim that every uncovered branch is unreachable. Before submission, capture the separate and combined whole-backend reports and explain remaining uncovered paths.
 
 ## How to run Tests
 
-Commit hash: `c7f846ad5694316405565dc4ca3bded281079416`.
+Backend code baseline on main: `6a9dfdfeaf16e1bf006741138cffc6e114e19993`. The previous document recorded `c7f846ad5694316405565dc4ca3bded281079416`; its historical results must not be treated as a run of the current baseline.
 
 **Test running prerequisites:**
- - Frondend: Install JDK 17 and the Android SDK required by `frontend/`, then start one Android emulator. Preserve `sdk.dir` and set `API_BASE_URL` in `frontend/local.properties` to a running backend with MongoDB and OpenAI recognition configured; use `http://10.0.2.2:3000` for a backend running locally on port 3000. Start a local backend with `npm run dev` from `backend/` in a separate terminal after configuring `backend/.env`.
- - Use Node.js 22.13+ within 22.x and npm 10+. Set a valid `OPENAI_API_KEY` in `backend/.env`. Internet access is required. Commands below were used on PowerShell.
 
-**E2E for Feature 1:**
+- Backend: Node.js 22.13+ within 22.x and npm 10+. Install locked dependencies with `npm ci`. Interface tests use isolated MongoDB processes and do not need a development database or OpenAI key. Network access may be needed for dependency installation, MongoDB binary download and the real Google verifier's certificate retrieval.
+- Android: JDK 17, the SDK required by `frontend/`, and one running emulator. Preserve `sdk.dir` in `frontend/local.properties`. Dependencies and emulator images must be installed first.
+
+**Existing local personal-ledger UI tests (PowerShell, repository root):**
 
 ```powershell
 cd frontend
 .\gradlew.bat :app:connectedDebugAndroidTest `
-  '-Pandroid.testInstrumentationRunnerArguments.class=com.example.cpen321application.e2e.Feature1E2eTest,com.example.cpen321application.e2e.LedgerUiTest' `
-  '-Pandroid.testInstrumentationRunnerArguments.ledgerLiveAi=true' `
-  '-Pandroid.testInstrumentationRunnerArguments.ledgerProvisionAccount=true' --console=plain
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.example.cpen321application.e2e.LedgerUiTest' --console=plain
 cd ..
 ```
 
-This runs the two Feature 1 E2E classes. `ledgerLiveAi` enables receipt recognition; `ledgerProvisionAccount` creates temporary test accounts for the authenticated Feature 1 scenarios. Open `frontend/app/build/reports/androidTests/connected/debug/index.html` for results.
+The latest Android run uses main `1626ab9f0ac44f74645e29de3a35957c15d0ea66` plus the test repairs described above; the execution log records hashes of the modified test files.
 
-**Full-stack E2E (app + Node backend):** no `.env`, OpenAI key or internet is needed; the backend uses an in-memory MongoDB and stops by itself after 15 minutes. Keep `API_BASE_URL=http://10.0.2.2:3000` in `frontend/local.properties`. In one terminal:
+This selects the existing 7-test class only. Open `frontend/app/build/reports/androidTests/connected/debug/index.html` after a run; this generated local report is not committed evidence.
+
+**Full-stack E2E (app + Node backend):** no `.env` or OpenAI key is required. The runner starts a real isolated MongoDB process and stops after 15 minutes. Initial installation and MongoDB binary download may require internet access; the tested group flows use local services. Keep `API_BASE_URL=http://10.0.2.2:3000` in `frontend/local.properties`. In one terminal:
 
 ```powershell
 cd backend
@@ -205,3 +234,7 @@ cd ..
 ```
 
 `test:no-mock` and `test:mock` run each folder with coverage (`backend/coverage/no-mock/`, `backend/coverage/mock/`); `test:interface` runs both together (`backend/coverage/interface/`). `npm test` runs every backend suite, including `tests/unit/`.
+
+### Saving frontend execution evidence
+
+Use any clearly named evidence files; the course does not require the old `android-e2e.txt` or `android-e2e.xml` names. Capture the selected Gradle command output, actual source SHA, environment, selected classes, and each test's passed/failed/skipped status. Preserve the generated Android report or JUnit XML when available; XML is supporting evidence, not a specifically mandated format. A successful Gradle build with skipped full-stack tests is not a passing full-stack run. Review logs for credentials/personal data before committing them.

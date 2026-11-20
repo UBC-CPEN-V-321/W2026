@@ -1,0 +1,565 @@
+Executed: 2026-11-19 (America/Whitehorse)
+Source SHA: 2e9fcdd6cb5dd9149226f44068046f8766d64226
+Tracked application and test source unchanged; documentation edits were uncommitted.
+Device: Pixel_9, Android 16 / API 36, x86_64; isolated temporary emulator userdata.
+Backend: real local Node/Express/Socket.IO with disposable MongoDB on 127.0.0.1:3000.
+APK BuildConfig.API_BASE_URL: http://10.0.2.2:3000; original local.properties restored.
+Build: gradlew.bat :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+Build result: BUILD SUCCESSFUL in 12m 55s.
+Build launcher: JBR 21.0.10; Gradle daemon toolchain configured as Java 17.
+Backend runtime: Node 24.11.1 (project requests Node 22.x; not revalidated here).
+Command: adb -s emulator-5554 shell am instrument -w -r -e class com.example.cpen321application.e2e.LedgerUiTest,com.example.cpen321application.e2e.GroupBillFullStackE2eTest,com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest -e ledgerFullStack true com.example.cpen321application.test/androidx.test.runner.AndroidJUnitRunner
+Result: 9 executed, 3 passed, 6 failed, 0 skipped.
+adb process exit status was 0 despite failures; instrumentation results below determine test status.
+
+--- Original instrumentation output ---
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.LedgerUiTest:
+INSTRUMENTATION_STATUS: test=csvContentUriRequiresDuplicateReviewBeforeAtomicImport
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@610928c, window-token=android.view.ViewRootImpl$W@5e66dd7, has-window-focus=false, layout-params-type=1002, layout-params-string={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=PopupLayout{id=16908290, res-name=content, visibility=VISIBLE, width=294, height=945, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.csvContentUriRequiresDuplicateReviewBeforeAtomicImport(LedgerUiTest.kt:186)
+
+INSTRUMENTATION_STATUS: stream=
+Error in csvContentUriRequiresDuplicateReviewBeforeAtomicImport(com.example.cpen321application.e2e.LedgerUiTest):
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@610928c, window-token=android.view.ViewRootImpl$W@5e66dd7, has-window-focus=false, layout-params-type=1002, layout-params-string={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=PopupLayout{id=16908290, res-name=content, visibility=VISIBLE, width=294, height=945, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.csvContentUriRequiresDuplicateReviewBeforeAtomicImport(LedgerUiTest.kt:186)
+
+INSTRUMENTATION_STATUS: test=csvContentUriRequiresDuplicateReviewBeforeAtomicImport
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=myExpensesIsHomeAndTabsCanBeReopened
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@323fc21, window-token=android.view.ViewRootImpl$W@323fc21, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.myExpensesIsHomeAndTabsCanBeReopened(LedgerUiTest.kt:60)
+
+INSTRUMENTATION_STATUS: stream=
+Error in myExpensesIsHomeAndTabsCanBeReopened(com.example.cpen321application.e2e.LedgerUiTest):
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@323fc21, window-token=android.view.ViewRootImpl$W@323fc21, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.myExpensesIsHomeAndTabsCanBeReopened(LedgerUiTest.kt:60)
+
+INSTRUMENTATION_STATUS: test=myExpensesIsHomeAndTabsCanBeReopened
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=draftSurvivesActivityRecreationWithoutSaving
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@dc4f131, window-token=android.view.ViewRootImpl$W@dc4f131, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.draftSurvivesActivityRecreationWithoutSaving(LedgerUiTest.kt:128)
+
+INSTRUMENTATION_STATUS: stream=
+Error in draftSurvivesActivityRecreationWithoutSaving(com.example.cpen321application.e2e.LedgerUiTest):
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@dc4f131, window-token=android.view.ViewRootImpl$W@dc4f131, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.draftSurvivesActivityRecreationWithoutSaving(LedgerUiTest.kt:128)
+
+INSTRUMENTATION_STATUS: test=draftSurvivesActivityRecreationWithoutSaving
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=createEditAndDeleteTransactionThroughTheUi
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@9762829, window-token=android.view.ViewRootImpl$W@9762829, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.createEditAndDeleteTransactionThroughTheUi(LedgerUiTest.kt:94)
+
+INSTRUMENTATION_STATUS: stream=
+Error in createEditAndDeleteTransactionThroughTheUi(com.example.cpen321application.e2e.LedgerUiTest):
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@9762829, window-token=android.view.ViewRootImpl$W@9762829, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.createEditAndDeleteTransactionThroughTheUi(LedgerUiTest.kt:94)
+
+INSTRUMENTATION_STATUS: test=createEditAndDeleteTransactionThroughTheUi
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=expensesTabReturnsToDashboardAndReselectionResetsEditor
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@26f1832, window-token=android.view.ViewRootImpl$W@26f1832, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.expensesTabReturnsToDashboardAndReselectionResetsEditor(LedgerUiTest.kt:71)
+
+INSTRUMENTATION_STATUS: stream=
+Error in expensesTabReturnsToDashboardAndReselectionResetsEditor(com.example.cpen321application.e2e.LedgerUiTest):
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@26f1832, window-token=android.view.ViewRootImpl$W@26f1832, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.expensesTabReturnsToDashboardAndReselectionResetsEditor(LedgerUiTest.kt:71)
+
+INSTRUMENTATION_STATUS: test=expensesTabReturnsToDashboardAndReselectionResetsEditor
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.GroupBillFullStackE2eTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.GroupBillFullStackE2eTest:
+INSTRUMENTATION_STATUS: test=ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.GroupBillFullStackE2eTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest:
+INSTRUMENTATION_STATUS: test=ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stack=java.lang.AssertionError: Me did not reach the expected sign-in state
+	at com.example.cpen321application.e2e.FullStackUi.showMeUntil(FullStackHarness.kt:220)
+	at com.example.cpen321application.e2e.FullStackUi.signIn(FullStackHarness.kt:178)
+	at com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest.ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice(LetsGoDutchFullStackE2eTest.kt:28)
+
+INSTRUMENTATION_STATUS: stream=
+Error in ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice(com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest):
+java.lang.AssertionError: Me did not reach the expected sign-in state
+	at com.example.cpen321application.e2e.FullStackUi.showMeUntil(FullStackHarness.kt:220)
+	at com.example.cpen321application.e2e.FullStackUi.signIn(FullStackHarness.kt:178)
+	at com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest.ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice(LetsGoDutchFullStackE2eTest.kt:28)
+
+INSTRUMENTATION_STATUS: test=ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice
+INSTRUMENTATION_STATUS_CODE: -2
+INSTRUMENTATION_RESULT: stream=
+
+Time: 271.901
+There were 6 failures:
+1) csvContentUriRequiresDuplicateReviewBeforeAtomicImport(com.example.cpen321application.e2e.LedgerUiTest)
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@610928c, window-token=android.view.ViewRootImpl$W@5e66dd7, has-window-focus=false, layout-params-type=1002, layout-params-string={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=PopupLayout{id=16908290, res-name=content, visibility=VISIBLE, width=294, height=945, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(764,789)(294x945) gr=TOP START CENTER ty=APPLICATION_SUB_PANEL fmt=TRANSLUCENT
+  fl=WATCH_OUTSIDE_TOUCH HARDWARE_ACCELERATED
+  bhv=DEFAULT
+  fitTypes=STATUS_BARS NAVIGATION_BARS CAPTION_BAR
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.csvContentUriRequiresDuplicateReviewBeforeAtomicImport(LedgerUiTest.kt:186)
+2) myExpensesIsHomeAndTabsCanBeReopened(com.example.cpen321application.e2e.LedgerUiTest)
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@323fc21, window-token=android.view.ViewRootImpl$W@323fc21, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=false, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.pressBack(Espresso.java:237)
+	at com.example.cpen321application.e2e.LedgerUiTest.myExpensesIsHomeAndTabsCanBeReopened(LedgerUiTest.kt:60)
+3) draftSurvivesActivityRecreationWithoutSaving(com.example.cpen321application.e2e.LedgerUiTest)
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@dc4f131, window-token=android.view.ViewRootImpl$W@dc4f131, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.draftSurvivesActivityRecreationWithoutSaving(LedgerUiTest.kt:128)
+4) createEditAndDeleteTransactionThroughTheUi(com.example.cpen321application.e2e.LedgerUiTest)
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@9762829, window-token=android.view.ViewRootImpl$W@9762829, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.scrollEditorTo(LedgerUiTest.kt:263)
+	at com.example.cpen321application.e2e.LedgerUiTest.createEditAndDeleteTransactionThroughTheUi(LedgerUiTest.kt:94)
+5) expensesTabReturnsToDashboardAndReselectionResetsEditor(com.example.cpen321application.e2e.LedgerUiTest)
+androidx.test.espresso.base.RootViewPicker$RootViewWithoutFocusException: Waited for the root of the view hierarchy to have window focus and not request layout for 10 seconds. If you specified a non default root matcher, it may be picking a root that never takes focus. Root:
+Root{application-window-token=android.view.ViewRootImpl$W@26f1832, window-token=android.view.ViewRootImpl$W@26f1832, has-window-focus=false, layout-params-type=1, layout-params-string={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, decor-view-string=DecorView{id=-1, visibility=VISIBLE, width=1080, height=2424, has-focus=true, has-focusable=true, has-window-focus=false, is-clickable=false, is-enabled=true, is-focused=false, is-focusable=false, is-layout-requested=false, is-selected=false, layout-params={(0,0)(fillxfill) sim={forwardNavigation} layoutInDisplayCutoutMode=always ty=BASE_APPLICATION wanim=0x103030e
+  fl=LAYOUT_IN_SCREEN LAYOUT_INSET_DECOR SPLIT_TOUCH HARDWARE_ACCELERATED DRAWS_SYSTEM_BAR_BACKGROUNDS
+  pfl=NO_MOVE_ANIMATION EDGE_TO_EDGE_ENFORCED FORCE_DRAW_STATUS_BAR_BACKGROUND FIT_INSETS_CONTROLLED
+  bhv=DEFAULT
+  fitSides=
+  frameRateBoostOnTouch=true
+  dvrrWindowFrameRateHint=true}, tag=null, root-is-layout-requested=false, has-input-connection=false, x=0.0, y=0.0, child-count=1}}
+	at dalvik.system.VMStack.getThreadStackTrace(Native Method)
+	at java.lang.Thread.getStackTrace(Thread.java:1960)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:34)
+	at androidx.test.espresso.base.EspressoExceptionHandler.handleSafely(EspressoExceptionHandler.java:26)
+	at androidx.test.espresso.base.DefaultFailureHandler$TypedFailureHandler.handle(DefaultFailureHandler.java:158)
+	at androidx.test.espresso.base.DefaultFailureHandler.handle(DefaultFailureHandler.java:120)
+	at androidx.test.espresso.ViewInteraction.waitForAndHandleInteractionResults(ViewInteraction.java:385)
+	at androidx.test.espresso.ViewInteraction.desugaredPerform(ViewInteraction.java:212)
+	at androidx.test.espresso.ViewInteraction.perform(ViewInteraction.java:140)
+	at androidx.test.espresso.Espresso.closeSoftKeyboard(Espresso.java:206)
+	at com.example.cpen321application.e2e.LedgerUiTest.expensesTabReturnsToDashboardAndReselectionResetsEditor(LedgerUiTest.kt:71)
+6) ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice(com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest)
+java.lang.AssertionError: Me did not reach the expected sign-in state
+	at com.example.cpen321application.e2e.FullStackUi.showMeUntil(FullStackHarness.kt:220)
+	at com.example.cpen321application.e2e.FullStackUi.signIn(FullStackHarness.kt:178)
+	at com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest.ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice(LetsGoDutchFullStackE2eTest.kt:28)
+
+FAILURES!!!
+Tests run: 9,  Failures: 6
+
+
+INSTRUMENTATION_CODE: -1

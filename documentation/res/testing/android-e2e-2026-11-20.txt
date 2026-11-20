@@ -1,0 +1,159 @@
+Executed: 2026-11-20 (America/Whitehorse)
+Source base: 1626ab9f0ac44f74645e29de3a35957c15d0ea66 (latest fetched main), plus uncommitted E2E test repairs.
+Application source unchanged from this base. Test files are identified by SHA-256 below.
+LedgerUiTest.kt SHA256: C0DAD776C31833D020B0C95A7AEA289B2DD6B96CF16BA1324233FF846A720209
+FullStackHarness.kt SHA256: E308BB18F0A889D41688EB15CB315F3F0F6F3978F627CC4DDC51F4B350A94708
+Device: Pixel_9, Android 16 / API 36, x86_64; separate temporary emulator userdata.
+Backend: real local Node/Express/Socket.IO with disposable MongoDB on 127.0.0.1:3000.
+Backend runtime: Node 24.11.1 (project requests Node 22.x; not validated on 22.x here).
+APK BuildConfig.API_BASE_URL: http://10.0.2.2:3000; original local.properties restored after build.
+Build: gradlew.bat :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+Final build: BUILD SUCCESSFUL in 42s; Java 17 Gradle daemon, JBR 21 launcher.
+Command: adb -s emulator-5554 shell am instrument -w -r -e class com.example.cpen321application.e2e.LedgerUiTest,com.example.cpen321application.e2e.GroupBillFullStackE2eTest,com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest -e ledgerFullStack true com.example.cpen321application.test/androidx.test.runner.AndroidJUnitRunner
+Result: 9 executed, 9 passed, 0 failed, 0 skipped; 205.496 seconds.
+Environment repair: a System UI ANR dialog was closed before this run; focus was confirmed restored.
+Test repairs: wait for navigation before system Back, await IME dismissal without Espresso root selection,
+check initial Activity focus, and reset only stored authentication before/after each full-stack test.
+No product assertions removed. The CSV test additionally checks that Back dismisses the currency menu.
+Intermediate failed diagnostic runs are retained in android-e2e-diagnostics-2026-11-20.txt.
+This validates the nine existing cases, not all course-required scenarios or production service configuration.
+
+--- Original instrumentation output ---
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.LedgerUiTest:
+INSTRUMENTATION_STATUS: test=csvContentUriRequiresDuplicateReviewBeforeAtomicImport
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=csvContentUriRequiresDuplicateReviewBeforeAtomicImport
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=myExpensesIsHomeAndTabsCanBeReopened
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=myExpensesIsHomeAndTabsCanBeReopened
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=draftSurvivesActivityRecreationWithoutSaving
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=draftSurvivesActivityRecreationWithoutSaving
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=4
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=bulkDeleteCanCancelAndDeletesOnlyFilteredSelectedRecords
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=5
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=newViewModelShowsHistoricPdfAndReceiptImportsWithoutReimporting
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=createEditAndDeleteTransactionThroughTheUi
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=6
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=createEditAndDeleteTransactionThroughTheUi
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=expensesTabReturnsToDashboardAndReselectionResetsEditor
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LedgerUiTest
+INSTRUMENTATION_STATUS: current=7
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=expensesTabReturnsToDashboardAndReselectionResetsEditor
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.GroupBillFullStackE2eTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.GroupBillFullStackE2eTest:
+INSTRUMENTATION_STATUS: test=ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.GroupBillFullStackE2eTest
+INSTRUMENTATION_STATUS: current=8
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=ownerCreatesGroupAndRecordsABillTheMemberReadsFromTheBackend
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=
+com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest:
+INSTRUMENTATION_STATUS: test=ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.example.cpen321application.e2e.LetsGoDutchFullStackE2eTest
+INSTRUMENTATION_STATUS: current=9
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=9
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=ownerFinalizesASplitAfterAMemberClaimsFromAnotherDevice
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_RESULT: stream=
+
+Time: 205.496
+
+OK (9 tests)
+
+
+INSTRUMENTATION_CODE: -1
+
