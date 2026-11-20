@@ -123,4 +123,19 @@ interface ApiService {
 
     @GET("courts")
     suspend fun getCourts(@Header("Authorization") authorization: String): CourtsResponseDto
+
+    @GET("user/me/preferred-courts/")
+    suspend fun getPreferredCourts(@Header("Authorization") authorization: String): JsonElement
+
+    @PUT("user/me/preferred-courts/{courtId}")
+    suspend fun addPreferredCourt(
+        @Header("Authorization") authorization: String,
+        @Path("courtId") courtId: Int,
+    ): Response<ResponseBody>
+
+    @DELETE("user/me/preferred-courts/{courtId}")
+    suspend fun removePreferredCourt(
+        @Header("Authorization") authorization: String,
+        @Path("courtId") courtId: Int,
+    ): Response<ResponseBody>
 }
