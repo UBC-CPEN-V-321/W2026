@@ -14,6 +14,7 @@
 | 11-18-2026        | 2.1.1                 | Updated the ELO unit tests (`elo.test.ts`) and `ranking.service.test.ts` for the K-factor that depends on games played, and added tests of `calculateKFactor` |
 | 11-18-2026        | 2.1.1                 | Added tests for `GET /stats` (mocked, no-mock and the `stats.test.ts` unit tests) and for the games-played count in `fetchGamePlayerRatingsForUpdate` |
 | 11-18-2026        | 2.1.1                 | Added tests for `POST /games/start` (mocked, `startBookedGame`, and starting a quarterfinal early in the no-mock tournament flow) |
+| 11-20-2026        | 2.1.1                 | Added the no-mock matchmaking flow (`tests/no-mock/matchmaking.test.ts`): a run takes both players out of the queue, puts the match in both players' games and on the live Games stream, keeps them from queueing again, and books it once both accept |
 
 ---
 
@@ -31,7 +32,7 @@
 | **GET /user/me**              | ...                                                  | [`tests/mock/userMe.test.ts`](#)                   | User DB                            |
 | **PUT /user/me/fcm-token**    | ...                                                  | [`tests/mock/userFcmToken.test.ts`](#)             | User DB                            |
 | **GET, POST /user/equipment**, **PATCH, DELETE /user/equipment/:equipmentId** | ... | [`tests/mock/userEquipment.test.ts`](#)  | Equipment DB                       |
-| **POST, GET, DELETE /matchmaking**, **GET /matchmaking/nearby** | ... | [`tests/mock/matchmaking.test.ts`](#)              | Matchmaking DB                     |
+| **POST, GET, DELETE /matchmaking**, **GET /matchmaking/nearby** | [`tests/no-mock/matchmaking.test.ts`](#) | [`tests/mock/matchmaking.test.ts`](#)              | Matchmaking DB                     |
 | **Matchmaking**               | ...                                                  | [`tests/mock/matchmaking.job.test.ts`](#)          | Task Scheduler                     |
 | **Match deadline job**        | ...                                                  | [`tests/mock/matchDeadline.job.test.ts`](#)        | Task Scheduler                     |
 | **GET /leaderboard**          | ...                                                  | [`tests/mock/leaderboard.test.ts`](#)              | User DB                            |

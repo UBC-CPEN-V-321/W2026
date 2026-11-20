@@ -20,6 +20,7 @@
 | Nov 18, 2026 | 3.4, 3.5 (Use Case 3), 4.1 | Added `POST /games/start` and the game screen's "Start now" button, so players of a booked game can start it before its start time and report the score. |
 | Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
 | Nov 19, 2026 | 4.1 | Live updates over Server-Sent Events for games, the Games tab, tournaments and friends. Games are `IN_PROGRESS` only once started with `POST /games/start`, and only then scored. Friends show the game they are playing. |
+| Nov 20, 2026 | 3.5 (Use Case 1) | A match no longer depends on its push reaching the app: while searching or answering a match, the app follows the player's live games stream, and the queue card's check finds the match once the player is out of the queue. |
 
 ---
 
@@ -123,7 +124,7 @@ External services are drawn with plain lines because they support use cases but 
 3. The user taps "Find a match". The system adds them to the queue and shows that it is searching.
 4. Every 10 seconds, the system takes the longest-waiting players first and groups each with the closest-rated players within 10 km (2 players for singles, 4 for doubles). Ratings in a group must be within 200 points for singles and 400 for doubles.
 5. The system creates a proposed game one hour from now, at the most-preferred court within 10 km of every player, or else the court nearest the middle of them. In doubles, the highest- and lowest-rated players play the middle two.
-6. The system notifies every player through Firebase Cloud Messaging.
+6. The system notifies every player through Firebase Cloud Messaging, and pushes the game to each player's live games stream (`GET /games/feed/events`), which the app follows while searching.
 7. The user sees the match with its court, time and players, and can accept or decline.
 
 **Failure scenario(s)**:
@@ -132,7 +133,7 @@ External services are drawn with plain lines because they support use cases but 
 - 3c. The server can't be reached: the app shows an error and the user can retry.
 - 4a. No compatible players are queued: the user stays in the queue and the system tries again every 10 seconds.
 - 4b. The user leaves the queue first: they are removed and no game is proposed.
-- 6a. A player's device can't receive the notification: the game stays on the server, and the app shows it on the Matchmaking tab and in "My games".
+- 6a. A player's device can't receive the notification, or it arrives late: the app still shows the match from the live stream, or from the queue card's next check (`GET /matchmaking/nearby` answering `404` once the player is out of the queue), and the game is in "My games".
 
 <a name="uc2"></a>
 
