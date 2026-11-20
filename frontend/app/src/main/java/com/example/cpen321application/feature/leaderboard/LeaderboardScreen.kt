@@ -206,7 +206,7 @@ private fun LeaderboardRow(entry: LeaderboardEntryDto, isMe: Boolean, onDarkPill
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Rank(rank = entry.rank, color = if (entry.rank <= PODIUM && !onDarkPill) content else muted)
-        PlayerAvatar(name = entry.name.ifBlank { entry.username }, size = 36.dp)
+        PlayerAvatar(name = entry.name.ifBlank { entry.username }, avatarUrl = entry.avatarUrl, size = 36.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (isMe) "${entry.name} (You)" else entry.name,

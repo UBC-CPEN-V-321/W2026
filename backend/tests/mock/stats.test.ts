@@ -30,6 +30,7 @@ const player = (id: string, username: string, rating: number) => ({
   username,
   name: username,
   rating,
+  photoUrl: null,
 });
 
 const playedAt = new Date("2026-11-10T17:00:00.000Z");
