@@ -21,6 +21,7 @@
 | Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
 | Nov 19, 2026 | 4.1 | Live updates over Server-Sent Events for games, the Games tab, tournaments and friends. Games are `IN_PROGRESS` only once started with `POST /games/start`, and only then scored. Friends show the game they are playing. |
 | Nov 20, 2026 | 3.5 (Use Case 1), 4.1 | A match no longer depends on its push reaching the app: while searching or answering a match, the app follows the player's live games stream. The queue card's map follows the new `GET /matchmaking/events` stream instead of polling `GET /matchmaking/nearby`, so the app polls nothing during matchmaking. |
+| Nov 20, 2026 | 3.1, 3.4, 3.5 (Use Case 3), 4.1, 4.2 | Score confirmation: a reported score waits until every player confirms it (`POST /games/score/confirm`), and a player who disagrees suggests a correction. The game screen shows who has confirmed, live, and the other players get a push asking them to confirm. |
 
 ---
 
@@ -47,16 +48,16 @@ Users schedule a game for a future time at a court they pick from a list. It sho
 During a game, a player updates the score, and it syncs live to every other player's device.
 
 #### **ELO ranking**
-After a game's final score is reported, every player's ELO rating changes, and a leaderboard ranks players by rating. A player's stats screen shows their ELO over time, their match, set and game totals, and how they do against opponents of different ratings.
+After every player of a game confirms its final score, every player's ELO rating changes, and a leaderboard ranks players by rating. A player's stats screen shows their ELO over time, their match, set and game totals, and how they do against opponents of different ratings.
 
 #### **Tournaments**
-Users create an 8-team single-elimination tournament (singles or doubles) that players register for from the feed. When it fills, the system forms and seeds the teams, draws the bracket and books the quarterfinals. Each reported score moves the winner on, up to the champion.
+Users create an 8-team single-elimination tournament (singles or doubles) that players register for from the feed. When it fills, the system forms and seeds the teams, draws the bracket and books the quarterfinals. Each confirmed score moves the winner on, up to the champion.
 
 Supporting features: **friends** (requests, friends list, adding players from a match summary), **match history** with a summary per game, and **equipment** tracking (rackets, balls, shoes, with maintenance dates).
 
 **Project scope requirements:**
 - **External API**: Google Maps (picking courts), Google Places (picking where to play), OpenWeather (feed forecasts), Google Calendar *(planned)*.
-- **External event**: match notifications and game invites through Firebase Cloud Messaging; live score updates *(planned)*.
+- **External event**: match notifications, game invites and requests to confirm a score through Firebase Cloud Messaging; live score updates *(planned)*.
 - **Our own computation**: the matching algorithm, ELO with margin of victory, and the tournament draw (rating-based seeding, balanced doubles teams, moving winners through the bracket).
 
 ### **3.2. Use Case Diagram**
@@ -94,7 +95,7 @@ External services are drawn with plain lines because they support use cases but 
 12. **Live game data syncing**: The score updates on every player's device.
 
 - Feature 5: ELO ranking
-13. **Submit final score**: Once the game has started, a player reports the final score, and every player sees the match summary with their rating change. Players who want to play early can start a booked game before its start time with "Start now".
+13. **Submit final score**: Once the game has started, a player reports the final score and every other player confirms it, or suggests a correction that everyone confirms again. Once everyone agrees, every player sees the match summary with their rating change. Players who want to play early can start a booked game before its start time with "Start now".
 14. **ELO change calculation**: The system calculates each player's rating change.
 15. **Update leaderboard**: The system applies the new ratings to the leaderboard.
 16. **View leaderboard**: The user views players ranked by rating, with their own rank.
@@ -103,7 +104,7 @@ External services are drawn with plain lines because they support use cases but 
 17. **Create a tournament**: The user creates a tournament with a name, format, court and start time, and is registered as its first player.
 18. **Register for or leave a tournament**: The user registers from the feed until it is full (8 players in singles, 16 in doubles) or starts. Players can leave during registration; the creator can't leave but can cancel it.
 19. **Bracket draw**: When it fills, the system forms the teams (in doubles, strongest with weakest), seeds them by rating, draws the bracket (1 v 8, 4 v 5, 3 v 6, 2 v 7) and books the quarterfinals.
-20. **View the bracket and play tournament matches**: The user views the bracket. Each match is played like any game; reporting its score moves the winner on, books the next match once both teams are known (semifinals one hour after the start, the final two hours after), and the final completes the tournament.
+20. **View the bracket and play tournament matches**: The user views the bracket. Each match is played like any game; once every player confirms its score, the system moves the winner on, books the next match once both teams are known (semifinals one hour after the start, the final two hours after), and the final completes the tournament.
 
 ### **3.5. Formal Use Case Specifications (5 Most Major Use Cases)**
 <a name="uc1"></a>
@@ -160,27 +161,30 @@ External services are drawn with plain lines because they support use cases but 
 <a name="uc3"></a>
 
 #### Use Case 3: Submit final score
-**Description**: A player reports the final score. The system decides the winner, updates every player's rating and shows the match summary.
+**Description**: A player reports the final score, and every other player confirms it. Once everyone agrees, the system decides the winner, updates every player's rating and shows the match summary.
 
-**Primary actor(s)**: User
+**Primary actor(s)**: User (the player reporting), other players (confirming)
 
 **Preconditions**: The user is signed in and is a player in a game that has started and has no final score. A player can start a booked game early by tapping "Start now", which moves its start time to now.
 
-**Postconditions**: The game is completed, its score can't change, every player's rating is updated, and the match summary shows each rating before and after.
+**Postconditions**: Every player agreed with the score, the game is completed, its score can't change, every player's rating is updated, and the match summary shows each rating before and after.
 
 **Main success scenario**:
 1. The user opens the game and taps "Report final score".
 2. The user enters each set's score and submits.
-3. The system validates the score and decides the winner: the side that won more sets.
-4. The system calculates each player's rating change with ELO and margin of victory (§7 of the Product Design). In doubles, a team is rated by its average, and each player gets half the team's change.
-5. In one transaction, the system saves the score and the new ratings, records each player's rating before and after, and marks the game completed. For a tournament game, it also moves the winner on through the bracket.
-6. The game shows its final score, and each player can open the match summary from their match history.
+3. The system validates the score and saves it as waiting for confirmation, with only the user agreeing. Every player with the game open sees it live, with who reported it and who has confirmed, and the other players get a push asking them to confirm it.
+4. Each other player opens the game from the push or the app, checks the score and taps "Confirm score". The system records their agreement, and everyone sees it live.
+5. When the last player confirms, the system decides the winner (the side that won more sets) and calculates each player's rating change with ELO and margin of victory (§7 of the Product Design). In doubles, a team is rated by its average, and each player gets half the team's change.
+6. In the same transaction as the last confirmation, the system saves the score and the new ratings, records each player's rating before and after, and marks the game completed. For a tournament game, it also moves the winner on through the bracket.
+7. The game shows its final score, and each player can open the match summary from their match history.
 
 **Failure scenario(s)**:
-- 1a. The final score was already reported: the system rejects it (`409`) and the game shows its final score.
+- 1a. The final score was already confirmed by everyone: the system rejects it (`409`) and the game shows its final score.
 - 3a. There are no sets, a set score isn't a non-negative whole number, a set is tied, or both sides won the same number of sets: the system rejects it (`400`) and the user corrects the score.
-- 3b. A team isn't full: the system rejects it (`409`).
-- 5a. Saving fails, for example on a deadlock when two games sharing a player finish at once: nothing is saved (`409`), and the user can retry.
+- 4a. A player disagrees and taps "Suggest a correction": their score replaces the one waiting, every other player's agreement is reset, and the scenario continues at step 3 with them as the reporter. The reporter can change their own score the same way.
+- 4b. The score changed after the player opened it (another player corrected it): the system rejects the confirmation (`409`), the dialog closes, and the player sees the new score to confirm.
+- 6a. A team isn't full: the system rejects it (`409`) and the score keeps waiting.
+- 6b. Saving fails, for example on a deadlock when two games sharing a player finish at once: nothing is saved (`409`), and the player can confirm again.
 
 <a name="uc4"></a>
 
@@ -288,13 +292,13 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         2. `GET /games/feed` → `{ games: FeedGame[] }` - E
             - **Purpose**: Scheduled games that are `OPEN` and haven't started, soonest first. A `FeedGame` is a `GameDetails` with a `forecast` (`{ at, temperature, description, icon, precipitationChance }`), or `null` if it is over 5 days away or OpenWeather fails.
         3. `GET /games` with `gameId` → `{ game: GameDetails }` - E
-            - **Purpose**: One game with its court, players (`{ id, username, name, rating, team, acceptedAt, ratingBefore, ratingAfter }`), rounds, `tournament` (`{ id, name, round }`, or `null`) and `forecast`, like a `FeedGame`'s (`null` for a `COMPLETED` or `CANCELLED` game). `404` if not found.
+            - **Purpose**: One game with its court, players (`{ id, username, name, rating, team, acceptedAt, scoreConfirmedAt, ratingBefore, ratingAfter }`), rounds, `scoreProposal` (the score waiting for confirmation, `{ rounds, proposedById, proposedAt }` with rounds shaped like the game's, or `null`), `tournament` (`{ id, name, round }`, or `null`) and `forecast`, like a `FeedGame`'s (`null` for a `COMPLETED` or `CANCELLED` game). `404` if not found.
         4. `GET /games/me` → `{ games }` - E
             - **Purpose**: The caller's `BOOKED` and `IN_PROGRESS` games and `OPEN` games that haven't started, soonest first, each with its `forecast` like a `FeedGame`.
         5. `GET /games/history` → `{ games }` - E
             - **Purpose**: The caller's `COMPLETED` games, most recent first, for the match history and summary.
         6. `DELETE /games` with `gameId` → `204` - E
-            - **Purpose**: Cancels a game for everyone. A scheduled game is deleted with its players, rounds and equipment in one transaction, under the game's row lock; a matched game is marked `CANCELLED` (this is how a match is declined). `403` if the caller isn't in it, `404` if not found, `409` for a tournament game or one already completed or cancelled (a completed game keeps its score and rating changes).
+            - **Purpose**: Cancels a game for everyone. A scheduled game is deleted with its players, rounds, score waiting and equipment in one transaction, under the game's row lock; a matched game is marked `CANCELLED` (this is how a match is declined). `403` if the caller isn't in it, `404` if not found, `409` for a tournament game or one already completed or cancelled (a completed game keeps its score and rating changes).
         7. `POST /games/join` with `{ gameId, team }` → `204`, `POST /games/leave` with `{ gameId }` → `204` - E
             - **Purpose**: Join or leave a scheduled game. Joining needs an `OPEN` scheduled game that hasn't started and a free spot on the team (`409` otherwise); filling the last spot books it. Leaving is `409` for tournament and matched games, closed games, or within 30 minutes of the start; a booked game reopens. Both lock the game's row, so two players can't take the last spot.
         8. `POST /games/accept` with `{ gameId }` → `204` - E
@@ -305,8 +309,8 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
             - **Purpose**: Move a game to a future time or another court. The caller must be in it (`403`), and it must be open or booked and not a matched game (`409`).
         11. `POST /games/start` with `{ gameId }` → `{ game }` - E
             - **Purpose**: Starts a `BOOKED` game, early or late: it becomes `IN_PROGRESS` and its `startsAt` moves to now. Games never start on their own. A tournament's later rounds stay timed from the tournament's start. Only a booked game is updated, so two players starting it at once can't both start it. `403` if the caller isn't in it, `404` if not found, `409` if it is completed or cancelled, still `OPEN`, or already `IN_PROGRESS` (which also can't be moved).
-        12. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }` → `{ game, rounds, ratingChanges }` - E
-            - **Purpose**: Reports the final score of an `IN_PROGRESS` game. In one transaction it saves the rounds, completes the game, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). `400` for an invalid score, `409` if not started (`GAME_NOT_STARTED`), already reported, a team isn't full, or Postgres aborts the transaction on a deadlock.
+        12. `POST /games/score` with `{ gameId, rounds: [team1Score, team2Score][] }`, `POST /games/score/confirm` with the same body → `{ completed: false }` or `{ completed: true, game, rounds, ratingChanges }` - E
+            - **Purpose**: Score confirmation for an `IN_PROGRESS` game: the game only completes once every player agrees with its score. `/score` reports a score: it is saved in `score_proposals` with only the caller agreeing (`game_users.scoreConfirmedAt`), replacing any score waiting and resetting everyone else's agreement, and the other players get a push (`type: "scoreReported"`) that opens the game. Reporting the score already waiting counts as confirming it. `/score/confirm` agrees with the score waiting; its body is the score the caller saw, so a score changed since then is refused (`409 SCORE_CHANGED`, or `409 NO_SCORE_TO_CONFIRM` if none is waiting), and confirming twice is fine. Both run under the game's row lock, so two players can't both complete the game. When the last player agrees, the same transaction completes the game, saves the rounds, deletes the score waiting, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). Every step is pushed live to the game's stream. `400` for an invalid score, `403` if the caller isn't in the game, `409` if not started (`GAME_NOT_STARTED`), already completed, a team isn't full, or Postgres aborts the transaction on a deadlock.
         13. `GET /games/events` with `gameId`, `GET /games/feed/events` → Server-Sent Events - E
             - **Purpose**: Live updates, pushed instead of polled. Each stream sends the current state when it opens, then again after every change, plus a heartbeat every 25 s. A game's stream sends `gameUpdated` (`{ game }`, like `GET /games`) or `gameDeleted`; the Games tab's sends `feed` (games and tournaments open to join, the same for everyone) and `mine` (the caller's), each `{ games, tournaments }`. Services announce changes (`events/changes.ts`) and `live/live.ts` pushes them, loading nothing when no one is watching. A user has at most 10 streams open; past that their oldest is closed. The app keeps a stream open only while its screen is visible, and reconnects whenever one ends.
         14. `POST /games/check-in` *(planned)* - E
@@ -352,7 +356,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
         6. `void drawBracket(tx, tournament, now)` - In
             - **Purpose**: Forms and seeds the teams (`formTeams`), saves the 7 matches, books the 4 quarterfinals and marks it `IN_PROGRESS`.
         7. `void advanceBracket(tx, gameId, rounds, now)` - In
-            - **Purpose**: Called by Games when a tournament game's score is reported: records the winner, books the next match once both its teams are known, and after the final marks the tournament `COMPLETED` with its champion.
+            - **Purpose**: Called by Games when every player of a tournament game has confirmed its score: records the winner, books the next match once both its teams are known, and after the final marks the tournament `COMPLETED` with its champion.
         8. `string[][] formTeams(entrants, format)` - In
             - **Purpose**: The pure team draw: ranks by rating, pairs strongest with weakest in doubles, seeds by average rating.
 6. **Friends**
@@ -368,7 +372,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
 
 ### **4.2. Databases**
 1. **PostgreSQL (`donut`)**
-    - **Purpose**: Stores users, refresh tokens, courts, the matchmaking queue, games, their players (with ratings before and after), rounds, equipment, friendships and tournaments (`backend/prisma/schema.prisma`).
+    - **Purpose**: Stores users, refresh tokens, courts, the matchmaking queue, games, their players (with ratings before and after, and when they confirmed the score), rounds, scores waiting for confirmation (`score_proposals`), equipment, friendships and tournaments (`backend/prisma/schema.prisma`).
     - **Rationale**: The data is relational, and a match or a final score (with ratings and the bracket) must be saved in one transaction. MongoDB was rejected because nothing is document-shaped and it would lose those transactions.
 
 ### **4.3. External Modules**
