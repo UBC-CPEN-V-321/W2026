@@ -116,7 +116,7 @@ internal fun TeamsCard(game: Game, canJoin: (team: Int) -> Boolean, onJoin: (tea
             val players = game.playersOnTeam(team)
             // Not the username: until onboarding lets players pick one, it is their email
             players.forEach { player ->
-                PersonRow(name = player.name) {
+                PersonRow(name = player.name, avatarUrl = player.photoUrl) {
                     Text(text = player.rating.roundToInt().toString(), style = DonutTextStyles.numericSmall)
                 }
             }
@@ -157,8 +157,20 @@ internal fun GameScoreboard(game: Game) {
     Scoreboard(
         title = "${if (game.status == GameStatus.COMPLETED) "Final" else "Score"} · ${game.format.label}",
         sides = listOf(
-            ScoreboardSide(playerNames(team1), team1.firstOrNull()?.name.orEmpty(), team1Scores, team2Scores),
-            ScoreboardSide(playerNames(team2), team2.firstOrNull()?.name.orEmpty(), team2Scores, team1Scores)
+            ScoreboardSide(
+                playerNames(team1),
+                team1.firstOrNull()?.name.orEmpty(),
+                team1Scores,
+                team2Scores,
+                team1.firstOrNull()?.photoUrl,
+            ),
+            ScoreboardSide(
+                playerNames(team2),
+                team2.firstOrNull()?.name.orEmpty(),
+                team2Scores,
+                team1Scores,
+                team2.firstOrNull()?.photoUrl,
+            )
         )
     )
 }

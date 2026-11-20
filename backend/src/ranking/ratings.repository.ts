@@ -10,6 +10,7 @@ const leaderboardUserSelect = {
   username: true,
   name: true,
   rating: true,
+  photoUrl: true,
 } satisfies Prisma.UserSelect;
 
 export type LeaderboardUser = Prisma.UserGetPayload<{

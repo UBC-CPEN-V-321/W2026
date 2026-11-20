@@ -9,6 +9,7 @@ data class FriendDto(
     // The backend sends "rating", a decimal like 1520.37 (it used to be read as "elo", which never matched)
     @SerializedName("rating", alternate = ["elo"])
     val rating: Double? = null,
+    @SerializedName("photoUrl", alternate = ["avatarUrl"])
     val avatarUrl: String? = null,
     // The game the friend is playing right now, null if they aren't playing
     val playing: FriendGameDto? = null,

@@ -86,14 +86,14 @@ internal fun ProfileTopBar(onSignOut: () -> Unit) {
  * @param name the real name, empty until the profile loads (the username is shown instead)
  */
 @Composable
-internal fun ProfileIdentity(name: String, username: String) {
+internal fun ProfileIdentity(name: String, username: String, avatarUrl: String? = null) {
     val title = name.ifBlank { username.ifEmpty { "User" } }
     Row(
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        PlayerAvatar(name = title, size = 56.dp)
+        PlayerAvatar(name = title, avatarUrl = avatarUrl, size = 56.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (name.isNotBlank() && username.isNotBlank()) {

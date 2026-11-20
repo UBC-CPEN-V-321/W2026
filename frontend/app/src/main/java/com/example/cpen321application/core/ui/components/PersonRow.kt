@@ -43,6 +43,7 @@ fun PersonRow(
     name: String,
     modifier: Modifier = Modifier,
     supporting: String? = null,
+    avatarUrl: String? = null,
     avatarSize: Dp = ROW_AVATAR,
     supportingContent: (@Composable () -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
@@ -55,7 +56,7 @@ fun PersonRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PlayerAvatar(name = name, size = avatarSize)
+        PlayerAvatar(name = name, avatarUrl = avatarUrl, size = avatarSize)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (supportingContent != null) {

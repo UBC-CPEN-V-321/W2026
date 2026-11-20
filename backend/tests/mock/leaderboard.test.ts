@@ -23,11 +23,12 @@ jest.mock("../../src/ranking/ratings.repository", () => ({
 const mockedFetchLeaderboard = jest.mocked(fetchLeaderboard);
 const mockedFetchLeaderboardUser = jest.mocked(fetchLeaderboardUser);
 
-const player = (id: string, username: string, rating: number) => ({
+const player = (id: string, username: string, rating: number, photoUrl: string | null = null) => ({
   id,
   username,
   name: username,
   rating,
+  photoUrl,
 });
 
 describe("Mocked: GET /leaderboard", () => {
@@ -40,7 +41,7 @@ describe("Mocked: GET /leaderboard", () => {
   // Expected output: 200 with ranked entries and the caller's own entry
   test("Returns the ranked top players and the caller's rank", async () => {
     mockedFetchLeaderboard.mockResolvedValue([
-      player("u1", "alice", 1612.4),
+      player("u1", "alice", 1612.4, "https://example.com/alice.jpg"),
       player("u2", "bob", 1612.1),
       player("u3", "carol", 1500),
     ]);
@@ -54,7 +55,7 @@ describe("Mocked: GET /leaderboard", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       leaderboard: [
-        { ...player("u1", "alice", 1612.4), rank: 1 },
+        { ...player("u1", "alice", 1612.4, "https://example.com/alice.jpg"), rank: 1 },
         { ...player("u2", "bob", 1612.1), rank: 2 },
         { ...player("u3", "carol", 1500), rank: 3 },
       ],

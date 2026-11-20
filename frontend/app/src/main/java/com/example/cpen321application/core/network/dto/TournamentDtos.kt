@@ -8,6 +8,7 @@ import com.example.cpen321application.core.data.model.TournamentCreator
 import com.example.cpen321application.core.data.model.TournamentMatch
 import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
+import com.google.gson.annotations.SerializedName
 import java.time.Instant
 
 // Bodies of the /tournaments routes. Like GameDto, enums and dates stay strings until toTournament.
@@ -30,18 +31,27 @@ data class TournamentDto(
 )
 
 data class TournamentCreatorDto(
-    val id: String,
-    val username: String,
-    val name: String,
-    val rating: Double
+    @SerializedName("id", alternate = ["userId", "_id"])
+    val id: String? = null,
+    val username: String? = null,
+    val name: String? = null,
+    val rating: Double? = null,
+    @SerializedName("photoUrl", alternate = ["avatarUrl", "photo", "picture", "url", "imageUrl", "avatar_url", "photo_url"])
+    val photoUrl: String? = null,
+    val user: UserMeDto? = null,
 )
 
 data class TournamentPlayerDto(
-    val id: String,
-    val username: String,
-    val name: String,
-    val rating: Double,
-    val team: Int?
+    @SerializedName("id", alternate = ["userId", "_id"])
+    val id: String? = null,
+    val username: String? = null,
+    val name: String? = null,
+    val rating: Double? = null,
+    val team: Int? = null,
+    @SerializedName("photoUrl", alternate = ["avatarUrl", "photo", "picture", "url", "imageUrl", "avatar_url", "photo_url"])
+    val photoUrl: String? = null,
+    val user: UserMeDto? = null,
+    val player: UserMeDto? = null,
 )
 
 data class TournamentMatchDto(
@@ -90,6 +100,39 @@ data class TournamentIdRequestDto(
     val tournamentId: String
 )
 
+fun TournamentCreatorDto.toTournamentCreator(): TournamentCreator {
+    val effectiveId = user?.id ?: id.orEmpty()
+    val effectiveUsername = user?.username ?: username.orEmpty()
+    val effectiveName = user?.name ?: name.orEmpty().ifBlank { effectiveUsername }
+    val effectiveRating = rating ?: user?.elo?.toDouble() ?: 1500.0
+    val effectivePhotoUrl = user?.avatarUrl ?: photoUrl
+
+    return TournamentCreator(
+        id = effectiveId,
+        username = effectiveUsername,
+        name = effectiveName,
+        rating = effectiveRating,
+        photoUrl = effectivePhotoUrl,
+    )
+}
+
+fun TournamentPlayerDto.toTournamentPlayer(): TournamentPlayer {
+    val effectiveId = user?.id ?: player?.id ?: id.orEmpty()
+    val effectiveUsername = user?.username ?: player?.username ?: username.orEmpty()
+    val effectiveName = user?.name ?: player?.name ?: name.orEmpty().ifBlank { effectiveUsername }
+    val effectiveRating = rating ?: user?.elo?.toDouble() ?: 1500.0
+    val effectivePhotoUrl = user?.avatarUrl ?: player?.avatarUrl ?: photoUrl
+
+    return TournamentPlayer(
+        id = effectiveId,
+        username = effectiveUsername,
+        name = effectiveName,
+        rating = effectiveRating,
+        team = team,
+        photoUrl = effectivePhotoUrl,
+    )
+}
+
 fun TournamentDto.toTournament(): Tournament = Tournament(
     id = id,
     name = name,
@@ -97,9 +140,9 @@ fun TournamentDto.toTournament(): Tournament = Tournament(
     status = TournamentStatus.valueOf(status),
     startsAt = Instant.parse(startsAt),
     court = court.toCourt(),
-    creator = TournamentCreator(creator.id, creator.username, creator.name, creator.rating),
+    creator = creator.toTournamentCreator(),
     capacity = capacity,
-    players = players.map { TournamentPlayer(it.id, it.username, it.name, it.rating, it.team) },
+    players = players.map { it.toTournamentPlayer() },
     matches = matches.orEmpty().map { it.toTournamentMatch() },
     winningTeam = winningTeam,
     forecast = forecast?.toForecast()

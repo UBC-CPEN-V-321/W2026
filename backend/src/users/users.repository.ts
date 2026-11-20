@@ -17,7 +17,7 @@ const profileUserSelect = {
 
 type LoginUser = Prisma.UserGetPayload<{ select: typeof loginUserSelect }>;
 type ProfileUser = Prisma.UserGetPayload<{ select: typeof profileUserSelect }>;
-type NewUserData = Pick<Prisma.UserCreateInput, 'googleSub' | 'username' | 'name' | 'email'>;
+type NewUserData = Pick<Prisma.UserCreateInput, 'googleSub' | 'username' | 'name' | 'email' | 'photoUrl'>;
 
 
 /**
@@ -57,6 +57,27 @@ export async function getUserById(userId: string): Promise<ProfileUser | null> {
 }
 
 /**
+ * Gets the stored photo URL for a user.
+ * @param userId the user ID
+ * @returns the photo URL, or null if the user does not exist
+ */
+export async function getUserPhoto(userId: string) {
+  return await prisma.user.findUnique({
+    where: { id: userId },
+    select: { photoUrl: true },
+  });
+}
+
+/**
+ * Updates the user's stored Google photo URL.
+ * @param userId the user ID
+ * @param photoUrl the URL from the verified Google profile
+ */
+export async function updateUserPhotoUrl(userId: string, photoUrl: string): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { photoUrl } });
+}
+
+/**
  * Saves a device's FCM token for a user.
  * @param userId the signed-in user
  * @param fcmToken the device's FCM token
@@ -68,6 +89,62 @@ export async function saveFcmToken(userId: string, fcmToken: string): Promise<vo
     // Set the token for the signed-in user
     prisma.user.updateMany({ where: { id: userId }, data: { fcmToken } }),
   ]);
+}
+
+/**
+ * Adds a court to the user's preferred courts.
+ * @param userId the signed-in user
+ * @param courtId the court to add
+ * @returns whether the court exists
+ */
+export async function addPreferredCourt(userId: string, courtId: number): Promise<boolean> {
+  const court = await prisma.court.findUnique({ where: { id: courtId }, select: { id: true } });
+  if (!court) {
+    return false;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { preferredCourts: { connect: { id: courtId } } },
+  });
+  return true;
+}
+
+/**
+ * Removes a court from the user's preferred courts.
+ * @param userId the signed-in user
+ * @param courtId the court to remove
+ * @returns whether the court exists
+ */
+export async function removePreferredCourt(userId: string, courtId: number): Promise<boolean> {
+  const court = await prisma.court.findUnique({ where: { id: courtId }, select: { id: true } });
+  if (!court) {
+    return false;
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { preferredCourts: { disconnect: { id: courtId } } },
+  });
+  return true;
+}
+
+/**
+ * Lists the courts preferred by a user, ordered by name.
+ * @param userId the signed-in user
+ * @returns the preferred courts, or null if the user does not exist
+ */
+export async function listPreferredCourts(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      preferredCourts: {
+        select: { id: true, name: true, latitude: true, longitude: true },
+        orderBy: { name: 'asc' },
+      },
+    },
+  });
+  return user?.preferredCourts ?? null;
 }
 
 /**

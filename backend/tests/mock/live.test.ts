@@ -163,7 +163,7 @@ describe("Mocked: live updates", () => {
     mockedFetchGameDetails.mockResolvedValue(gameDetails());
     mockedFetchFriends.mockImplementation((userId) =>
       Promise.resolve(
-        userId === alice ? [{ id: carol, username: carol, name: carol, rating: 1500, friendsSince: new Date() }] : [],
+        userId === alice ? [{ id: carol, username: carol, name: carol, photoUrl: null, rating: 1500, friendsSince: new Date() }] : [],
       ),
     );
 
@@ -213,7 +213,7 @@ describe("Mocked: live updates", () => {
       jest.useFakeTimers({ doNotFake: ["setImmediate"] });
       mockedFetchFriends.mockImplementation((userId) =>
         Promise.resolve(
-          userId === alice ? [{ id: carol, username: carol, name: carol, rating: 1500, friendsSince: new Date() }] : [],
+          userId === alice ? [{ id: carol, username: carol, name: carol, photoUrl: null, rating: 1500, friendsSince: new Date() }] : [],
         ),
       );
     });

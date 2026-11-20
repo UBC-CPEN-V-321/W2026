@@ -5,7 +5,7 @@ import { createRefreshToken } from '../../src/auth/auth.repository';
 import { hashRefreshToken, verifyAccessToken } from '../../src/auth/tokens';
 import { commonErrors, errorBody } from '../../src/errors';
 import { validateToken } from '../../src/users/helpers/validateToken';
-import { createUser, getUserByGoogleSub } from '../../src/users/users.repository';
+import { createUser, getUserByGoogleSub, updateUserPhotoUrl } from '../../src/users/users.repository';
 import { userErrors } from '../../src/users/users.service';
 
 jest.mock('../../src/users/helpers/validateToken', () => ({
@@ -15,6 +15,7 @@ jest.mock('../../src/users/helpers/validateToken', () => ({
 jest.mock('../../src/users/users.repository', () => ({
   createUser: jest.fn(),
   getUserByGoogleSub: jest.fn(),
+  updateUserPhotoUrl: jest.fn(),
 }));
 
 jest.mock('../../src/auth/auth.repository', () => ({
@@ -24,6 +25,7 @@ jest.mock('../../src/auth/auth.repository', () => ({
 const mockedValidateToken = jest.mocked(validateToken);
 const mockedCreateUser = jest.mocked(createUser);
 const mockedGetUserByGoogleSub = jest.mocked(getUserByGoogleSub);
+const mockedUpdateUserPhotoUrl = jest.mocked(updateUserPhotoUrl);
 const mockedCreateRefreshToken = jest.mocked(createRefreshToken);
 
 // The access token belongs to the user and only the refresh token's hash is stored
@@ -182,6 +184,7 @@ describe('Mocked: POST /user/login', () => {
       sub: 'google-sub-123',
       email: 'new.user@example.com',
       name: 'New User',
+      picture: 'https://example.com/photo.jpg',
     };
 
     mockedValidateToken.mockResolvedValue(googleProfile);
@@ -214,6 +217,7 @@ describe('Mocked: POST /user/login', () => {
       username: 'new.user@example.com',
       name: 'New User',
       email: 'new.user@example.com',
+      photoUrl: 'https://example.com/photo.jpg',
     });
   });
 
@@ -249,5 +253,29 @@ describe('Mocked: POST /user/login', () => {
     expect(mockedValidateToken).toHaveBeenCalledWith('mock-google-token');
     expect(mockedGetUserByGoogleSub).toHaveBeenCalledWith('google-sub-123');
     expect(mockedCreateUser).not.toHaveBeenCalled();
+    expect(mockedUpdateUserPhotoUrl).not.toHaveBeenCalled();
+  });
+
+  test('Refreshes the photo URL for an existing user when Google provides one', async () => {
+    mockedValidateToken.mockResolvedValue({
+      sub: 'google-sub-123',
+      email: 'new.user@example.com',
+      name: 'New User',
+      picture: 'https://example.com/new-photo.jpg',
+    });
+    mockedGetUserByGoogleSub.mockResolvedValue({
+      id: 'user-123',
+      username: 'new.user@example.com',
+      name: 'New User',
+      email: 'new.user@example.com',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    const response = await request(createApp())
+      .post('/user/login')
+      .send({ idToken: 'mock-google-token' });
+
+    expect(response.status).toBe(200);
+    expect(mockedUpdateUserPhotoUrl).toHaveBeenCalledWith('user-123', 'https://example.com/new-photo.jpg');
   });
 });

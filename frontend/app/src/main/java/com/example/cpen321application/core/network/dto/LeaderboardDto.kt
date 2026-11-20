@@ -1,5 +1,7 @@
 package com.example.cpen321application.core.network.dto
 
+import com.google.gson.annotations.SerializedName
+
 /**
  * Response of GET /leaderboard
  * @property leaderboard the top players in rank order
@@ -14,7 +16,7 @@ data class LeaderboardResponseDto(
  * One player on the leaderboard
  * @property rank 1-based position on the leaderboard
  * @property rating the full decimal Elo rating
- * @property avatarUrl profile picture, not sent by the backend yet
+ * @property avatarUrl profile picture URL
  */
 data class LeaderboardEntryDto(
     val id: String,
@@ -22,5 +24,6 @@ data class LeaderboardEntryDto(
     val name: String,
     val rating: Double,
     val rank: Int,
+    @SerializedName("photoUrl", alternate = ["avatarUrl"])
     val avatarUrl: String? = null,
 )

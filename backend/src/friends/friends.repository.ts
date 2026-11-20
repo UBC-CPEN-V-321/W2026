@@ -8,6 +8,7 @@ const friendUserSelect = {
   username: true,
   name: true,
   rating: true,
+  photoUrl: true,
 } satisfies Prisma.UserSelect;
 
 /**
