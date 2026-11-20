@@ -85,7 +85,6 @@ function seededItinerary() {
         id: ACTIVITY_ID,
         type: 'activity',
         name: 'Museum of Anthropology',
-        image: 'https://example.com/moa.jpg',
         description: 'Explore the museum.',
         category: 'art',
         location: '6393 NW Marine Drive, Vancouver, BC',
@@ -150,7 +149,6 @@ describe('Itinerary repository malformed-ID guards — no mocks', () => {
       ...ACTIVITY_INPUT,
       type: 'activity',
       id: 'invalid-owner-activity',
-      image: '',
     };
 
     await expect(
@@ -305,7 +303,6 @@ describe('POST /api/v1/users/:userId/itineraries — no mocks', () => {
       items: [{
         type: 'activity',
         name: 1,
-        image: 2,
         description: 'a'.repeat(1001),
         category: ' ',
         location: 'a'.repeat(501),
@@ -593,15 +590,15 @@ describe('DELETE /api/v1/users/:userId/itineraries/:itineraryId — no mocks', (
 });
 
 describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities — no mocks', () => {
-  test('adds an activity with an optional blank image', async () => {
-    // Input: valid activity without image. Expect: 201, blank image, generated ID.
+  test('adds an activity', async () => {
+    // Input: valid activity. Expect: 201 with a generated ID.
     // Behavior: the service and real DAO append the activity in MongoDB.
     const response = await request(app)
       .post(`/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/activities`)
       .send(ACTIVITY_INPUT);
     expect(response.status).toBe(201);
     expect(response.body.activity).toMatchObject({
-      ...ACTIVITY_INPUT, image: '', id: expect.any(String),
+      ...ACTIVITY_INPUT, id: expect.any(String),
     });
     await expect(database.collection('itineraries').findOne({
       _id: ITINERARY_ID, 'items.id': response.body.activity.id,
@@ -666,8 +663,6 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities — no 
     [{ ...ACTIVITY_INPUT, id: 'client-id' }],
     [{ ...ACTIVITY_INPUT, name: '' }],
     [{ ...ACTIVITY_INPUT, name: 'a'.repeat(201) }],
-    [{ ...ACTIVITY_INPUT, image: 1 }],
-    [{ ...ACTIVITY_INPUT, image: 'a'.repeat(2001) }],
     [{ ...ACTIVITY_INPUT, description: 1 }],
     [{ ...ACTIVITY_INPUT, category: '' }],
     [{ ...ACTIVITY_INPUT, location: 1 }],
@@ -729,7 +724,6 @@ describe('PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activ
       .patch(`/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/activities/${ACTIVITY_ID}`)
       .send({
         name: 'Every field',
-        image: '',
         description: 'Updated description',
         category: 'outdoors',
         location: 'Main Mall',
@@ -739,7 +733,7 @@ describe('PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activ
 
     expect(response.status).toBe(200);
     expect(response.body.activity).toMatchObject({
-      name: 'Every field', location: 'Main Mall', image: '',
+      name: 'Every field', location: 'Main Mall',
     });
   });
 
@@ -747,7 +741,6 @@ describe('PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activ
     [[]],
     [{ unknown: true }],
     [{ name: 1 }],
-    [{ image: 1 }],
     [{ description: 'a'.repeat(1001) }],
     [{ category: '' }],
     [{ location: 'a'.repeat(501) }],

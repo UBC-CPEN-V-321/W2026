@@ -48,7 +48,10 @@ import com.exploreUBC.cpen321application.ui.events.LiveEventsScreen
 import com.exploreUBC.cpen321application.ui.events.rememberAppEventRecommendationsState
 import com.exploreUBC.cpen321application.ui.map.MapRoute
 import com.exploreUBC.cpen321application.ui.profile.ProfileRoute
+import com.exploreUBC.cpen321application.ui.profile.CreateProfileRoute
 import com.exploreUBC.cpen321application.ui.trips.TripsRoute
+import com.exploreUBC.cpen321application.ui.trips.TripsRouteState
+import com.exploreUBC.cpen321application.ui.trips.rememberTripsRouteState
 import com.exploreUBC.cpen321application.ui.theme.CPEN321ApplicationTheme
 import java.io.IOException
 import java.security.GeneralSecurityException
@@ -135,6 +138,7 @@ class MainActivity2 : ComponentActivity() {
             CPEN321ApplicationTheme {
                 CPEN321ApplicationApp(
                     userId = auth.userId,
+                    onboardingCompletedAt = auth.onboardingCompletedAt,
                     usersRepository = UsersApi(auth.apiClient),
                     itinerariesRepository = ItinerariesApi(auth.apiClient),
                     eventsRepository = EventsApi(auth.apiClient),
@@ -229,12 +233,23 @@ class MainActivity2 : ComponentActivity() {
 @Composable
 fun CPEN321ApplicationApp(
     userId: String?,
+    onboardingCompletedAt: String? = "completed",
     usersRepository: UsersRepository,
     itinerariesRepository: ItinerariesRepository,
     eventsRepository: EventsRepository,
     eventLocation: UserLocation = UserLocation.UBC,
     onLogout: () -> Unit = {},
 ) {
+    var needsProfileCreation by rememberSaveable { mutableStateOf(onboardingCompletedAt == null) }
+    if (needsProfileCreation && !userId.isNullOrBlank()) {
+        CreateProfileRoute(
+            userId = userId,
+            usersRepository = usersRepository,
+            onProfileCreated = { needsProfileCreation = false },
+            onLogout = onLogout,
+        )
+        return
+    }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.EVENTS) }
     var selectedMapItineraryId by rememberSaveable { mutableStateOf<String?>(null) }
     var itineraryToOpenInTrips by rememberSaveable { mutableStateOf<String?>(null) }
@@ -282,6 +297,7 @@ private fun AppScreenContent(
     actions: AppDestinationActions,
     eventRecommendations: AppEventRecommendationsState,
 ) {
+    val tripsState = rememberTripsRouteState(state.userId, repositories.itineraries)
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             AppDestinations.entries.forEach {
@@ -310,6 +326,7 @@ private fun AppScreenContent(
                 actions = actions,
                 eventLocation = state.eventLocation,
                 eventRecommendations = eventRecommendations,
+                tripsState = tripsState,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -324,6 +341,7 @@ private fun AppDestinationContent(
     actions: AppDestinationActions,
     eventLocation: UserLocation,
     eventRecommendations: AppEventRecommendationsState,
+    tripsState: TripsRouteState,
     modifier: Modifier = Modifier,
 ) {
     when (state.destination) {
@@ -335,8 +353,7 @@ private fun AppDestinationContent(
             modifier = modifier,
         )
         AppDestinations.TRIPS -> TripsRoute(
-            userId = userId,
-            itinerariesRepository = repositories.itineraries,
+            state = tripsState,
             itineraryIdToOpen = state.itineraryIdToOpen,
             onItineraryOpenRequested = actions.onItineraryOpenRequested,
             onViewMap = actions.onViewMap,

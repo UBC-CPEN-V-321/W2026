@@ -23,10 +23,16 @@ jobs:
       MONGODB_URI: mongodb://127.0.0.1:27017/exploreubc_test
       EVENT_SEARCH_STATE_CODE: BC
       EVENT_SEARCH_COUNTRY_CODE: CA
+      RECOMMENDATION_CLIENT: soclaas
       SOCLAAS_ENDPOINT: ${{ secrets.SOCLAAS_ENDPOINT }}
       SOCLAAS_API_KEY: ${{ secrets.SOCLAAS_API_KEY }}
       SOCLAAS_MODEL: ${{ secrets.SOCLAAS_MODEL }}
       SOCLAAS_MAX_OUTPUT_TOKENS: 16384
+      SOCLAAS_TIMEOUT_MS: 120000
+      QWEN_ENDPOINT: https://us-east-1.maas.qwencloudapi.com/compatible-mode/v1
+      QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+      QWEN_MODEL: qwen3.6-flash
+      QWEN_TIMEOUT_MS: 120000
       GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
       GEOCODING_API_KEY: ${{ secrets.GEOCODING_API_KEY }}
       PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}

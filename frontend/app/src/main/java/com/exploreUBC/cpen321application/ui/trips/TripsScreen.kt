@@ -49,7 +49,23 @@ fun TripsRoute(
     onViewMap: (Itinerary) -> Unit = {},
 ) {
     val state = rememberTripsRouteState(userId, itinerariesRepository)
+    TripsRoute(
+        state = state,
+        modifier = modifier,
+        itineraryIdToOpen = itineraryIdToOpen,
+        onItineraryOpenRequested = onItineraryOpenRequested,
+        onViewMap = onViewMap,
+    )
+}
 
+@Composable
+internal fun TripsRoute(
+    state: TripsRouteState,
+    modifier: Modifier = Modifier,
+    itineraryIdToOpen: String? = null,
+    onItineraryOpenRequested: () -> Unit = {},
+    onViewMap: (Itinerary) -> Unit = {},
+) {
     LaunchedEffect(state) {
         if (state.hasUser) {
             state.loadItineraries()

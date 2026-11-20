@@ -7,20 +7,9 @@ export class InvalidUserUpdateError extends Error {
     this.details = details;
   }
 }
-
 export class UserNotFoundError extends Error {
   constructor(userId: string) {
     super(`User '${userId}' was not found.`);
     this.name = 'UserNotFoundError';
-  }
-}
-
-export class InvalidOnboardingError extends Error {
-  readonly details: string[];
-
-  constructor(details: string[]) {
-    super('The onboarding form is invalid.');
-    this.name = 'InvalidOnboardingError';
-    this.details = details;
   }
 }

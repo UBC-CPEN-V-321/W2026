@@ -38,7 +38,6 @@ class ItineraryTimeConflictException(
 data class ActivityItem(
     override val id: String,
     val name: String,
-    val image: String,
     val description: String?,
     val category: String?,
     val location: String,
@@ -48,7 +47,6 @@ data class ActivityItem(
 
 data class CreateActivityInput(
     val name: String,
-    val image: String,
     val description: String? = null,
     val category: String? = null,
     val location: String,

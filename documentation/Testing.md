@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| November 19, 2026 | 2.1, 4.1, 4.2         | Named the actual mocked dependencies, aligned frontend scenario labels with Section 3.4, and converted frontend E2E suites to the real authenticated app and backend. |
 | November 18, 2026 | 4.2                   | Added end-to-end specifications for viewing an itinerary on the map and browsing popular locations. |
 | November 18, 2026 | 2.1, 2.3–2.6         | Added mock and no-mock coverage for the itinerary map GET API and Google Maps integration. |
 | November 17, 2026 | 3.1, 3.2              | Added frontend and backend NFR coverage for secure authentication and session management. |
@@ -22,24 +23,24 @@
 
 | **Interface** | **Describe Group Location, No Mocks** | **Describe Group Location, With Mocks** | **Mocked Components** |
 | --- | --- | --- | --- |
-| **GET /api/v1/users/:userId** | [`backend/tests/no-mock/users/users.test.ts`](../backend/tests/no-mock/users/users.test.ts) | [`backend/tests/mock/users/users.test.ts`](../backend/tests/mock/users/users.test.ts) | Get one user's data from the database |
-| **PATCH /api/v1/users/:userId** | [`backend/tests/no-mock/users/users.test.ts`](../backend/tests/no-mock/users/users.test.ts) | [`backend/tests/mock/users/users.test.ts`](../backend/tests/mock/users/users.test.ts) | Update a user's display name, starting location, or preferences in the database |
-| **POST /api/v1/users/:userId/itineraries** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Create an itinerary for a user in the database |
-| **GET /api/v1/users/:userId/itineraries** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Get all itineraries for a user from the database. The itinerary-list endpoint accepts the optional Boolean query parameters `saved` and `inRecommendation`. |
-| **GET /api/v1/users/:userId/itineraries/:itineraryId/details** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Get an itinerary's details from the database |
-| **GET /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Get one complete itinerary from the database |
-| **GET /api/v1/users/:userId/itineraries/:itineraryId/map** | [`backend/tests/no-mock/maps/itineraryMap.test.ts`](../backend/tests/no-mock/maps/itineraryMap.test.ts) | [`backend/tests/mock/maps/itineraryMap.test.ts`](../backend/tests/mock/maps/itineraryMap.test.ts) | Generate or retrieve map data, including cached maps, unresolved locations, route failures, and ownership validation |
-| **PATCH /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Update an itinerary's details in the database |
-| **DELETE /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Delete an itinerary from the database |
-| **POST /api/v1/users/:userId/itineraries/:itineraryId/activities** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Add an activity to an itinerary in the database |
-| **PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activityId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Update an itinerary activity in the database |
-| **DELETE /api/v1/users/:userId/itineraries/:itineraryId/activities/:activityId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Remove an activity from an itinerary in the database |
-| **POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Add a transportation segment to an itinerary in the database |
-| **PATCH /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Update a transportation segment in the database |
-| **DELETE /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | Remove a transportation segment from an itinerary in the database |
-| **GET /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | Get itineraries from the recommendation list |
-| **POST /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | Generate itineraries with the external LLM, rank them, and replace the recommendation list |
-| **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) | Get a user's stored preference and the nearby upcoming events from the database (database failure and unexpected service failure) |
+| **GET /api/v1/users/:userId** | [`backend/tests/no-mock/users/users.test.ts`](../backend/tests/no-mock/users/users.test.ts) | [`backend/tests/mock/users/users.test.ts`](../backend/tests/mock/users/users.test.ts) | `UserRepository`; `SessionService` path-validator test double |
+| **PATCH /api/v1/users/:userId** | [`backend/tests/no-mock/users/users.test.ts`](../backend/tests/no-mock/users/users.test.ts) | [`backend/tests/mock/users/users.test.ts`](../backend/tests/mock/users/users.test.ts) | `UserRepository`; `SessionService` path-validator test double |
+| **POST /api/v1/users/:userId/itineraries** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/itineraries** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/itineraries/:itineraryId/details** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/itineraries/:itineraryId/map** | [`backend/tests/no-mock/maps/itineraryMap.test.ts`](../backend/tests/no-mock/maps/itineraryMap.test.ts) | [`backend/tests/mock/maps/itineraryMap.test.ts`](../backend/tests/mock/maps/itineraryMap.test.ts) | `ItineraryRepository`; `ItineraryMapRepository`; `MapProvider` (Google Geocoding and Routes); `SessionService` path-validator test double |
+| **PATCH /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **DELETE /api/v1/users/:userId/itineraries/:itineraryId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `ItineraryMapRepository`; `SessionService` path-validator test double |
+| **POST /api/v1/users/:userId/itineraries/:itineraryId/activities** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activityId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **DELETE /api/v1/users/:userId/itineraries/:itineraryId/activities/:activityId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **PATCH /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **DELETE /api/v1/users/:userId/itineraries/:itineraryId/transportation-segments/:segmentId** | [`backend/tests/no-mock/itineraries/itineraries.test.ts`](../backend/tests/no-mock/itineraries/itineraries.test.ts) | [`backend/tests/mock/itineraries/itineraries.test.ts`](../backend/tests/mock/itineraries/itineraries.test.ts) | `ItineraryRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | `RecommendationRepository`; `SessionService` path-validator test double |
+| **POST /api/v1/users/:userId/recommendations** | [`backend/tests/no-mock/recommendation/recommendation.test.ts`](../backend/tests/no-mock/recommendation/recommendation.test.ts) | [`backend/tests/mock/recommendation/recommendation.test.ts`](../backend/tests/mock/recommendation/recommendation.test.ts) | `ItineraryGenerator` (SoCLaaS); `ItineraryRanker`; `RecommendationRepository`; `UserRepository`; `SessionService` path-validator test double |
+| **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) | `UserRepository`; `EventRepository`; `SessionService` path-validator test double |
 
 Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is run by a script (`npm run sync:events`, in `backend/scripts/sync-events.ts`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite. The no-mock supporting tests ([`backend/tests/no-mock/events/eventSync.test.ts`](../backend/tests/no-mock/events/eventSync.test.ts)) run the real client and `syncEvents` over real HTTP against a small local server that stands in for Ticketmaster, with a real database. The mock supporting tests replace `fetch` and the repository to cover the failure cases.
 
@@ -177,7 +178,6 @@ The only uncovered area is:
     Finished 4 tests on Pixel_9_2(AVD) - 16
     BUILD SUCCESSFUL in 15s
     ```
-
 - **Accessibility: Manual TalkBack Verification**
 
   - **Verification:** TalkBack was enabled on the Pixel 9 API 36 emulator. Each primary navigation destination was focused and activated. TalkBack announced the same destination name shown in the interface, and each item remained operable.
@@ -213,42 +213,60 @@ The only uncovered area is:
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - Map scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt)
 - Recommendation scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/recommendation/RecommendationE2ETest.kt)
-- User scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
+- User profile scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/UserProfileE2ETest.kt)
+- First-login profile scenario: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/CreateProfileE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/users/CreateProfileE2ETest.kt)
 - Live Events scenarios: `frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/`. These tests use the real backend and automatically prepared test data. Files: [`LiveEventsE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsE2ETest.kt) (recommendations, Load more, preference change), [`LiveEventsLocationChangeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsLocationChangeE2ETest.kt) (location change), [`EventItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/EventItineraryE2ETest.kt) (add an event to an itinerary), [`LiveEventsEmptyStateE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsEmptyStateE2ETest.kt) (empty state), and the setup check [`LiveEventsSmokeE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/events/LiveEventsSmokeE2ETest.kt).
 
 - Live Events component tests (fake repositories or a fake backend client, no real backend; they cover loading, error, retry, pagination, refresh and notification behaviour that the real-backend E2E tests cannot produce): [`LiveEventsScreenTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/LiveEventsScreenTest.kt), [`EventRecommendationRefreshTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/ui/events/EventRecommendationRefreshTest.kt), [`EventsApiTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/data/events/EventsApiTest.kt)
 
 #### Running the real-backend E2E tests
 
-**One command:** with an emulator (API 36 or lower) already running, run `npm run e2e:events` from `backend/`. It does steps 1 to 6 below automatically, including the empty-state test, and discards the database when it finishes. The manual steps are listed for running individual tests.
+**One command:** with an emulator (API 36 or lower) already running, run `npm run e2e:frontend` from `backend/`. It starts and seeds the disposable database, starts the non-mocked backend, runs every class under the frontend `e2e` package from the real authenticated app, reruns the Live Events empty-state case with an empty event catalogue, and discards the database when finished.
 
-The Live Events E2E tests launch the real app on its main screen and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. Use an emulator on API 36 or lower. The seed also stores a session for the test user. Each test saves that session in the app before launch, so the app opens already signed in without the Google sign-in screen (the sign-in screen itself is not exercised).
+The recommendation and map journeys also require valid `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, `SOCLAAS_MODEL`, `GEOCODING_API_KEY`, and `ROUTES_API_KEY` values in `backend/.env` because those E2E requests deliberately use the real configured providers.
+
+All frontend E2E tests launch the real authenticated app and talk to the real, non-mocked backend. The backend runs against a throwaway local MongoDB (Docker, port 27018), never Atlas, so the data is predictable and nothing shared is changed. The seed creates the completed-profile test user, two incomplete-profile users, and their backend sessions. The test rules install the matching session before launching the activity; no E2E test mounts an individual route or injects an in-memory repository.
 
 1. Start the database and seed it (from `backend/`): `npm run e2e:db:up`, then `npm run e2e:seed`. The seed creates the test user (interest `outdoors`), 21 Sports events and 3 Music events near UBC, 3 Sports events about 70 km away (for the location-change test), and one itinerary whose activity overlaps the first seeded event. Event times are relative to the current time.
 2. Start the backend on that database (from `backend/`): `npm run e2e:backend`.
 3. Set the emulator location to UBC: `adb emu geo fix -123.2460 49.2606`. (`LiveEventsLocationChangeE2ETest` sets its own location, so it does not need this.)
-4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest` from `frontend/`). Each test resets the user's interest through the real backend first.
+4. Run the tests from Android Studio (or `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.exploreUBC.cpen321application.e2e` from `frontend/`). Each suite prepares and verifies its fixtures through the real backend API.
 5. Empty state: run `npm run e2e:seed -- empty` (no events), restart nothing, and run `LiveEventsEmptyStateE2ETest`. With events seeded, that test is skipped.
 6. When finished, stop the backend and run `npm run e2e:db:down` to discard the database.
 
 ### 4.2. Tests
 
-- **Use Case: Update Preferences** (Users)
+- **Use Case 3.4.3.1: Create Profile** (User)
+
+  - **Expected Behaviors:**
+    | **Scenario Steps** | **Test Case Steps** |
+    | ------------------ | ------------------- |
+    | 1. The user signs in for the first time. | Render the first-login profile flow and verify that the `Create profile` page is displayed. |
+    | 2. The system shows the starting-location field and transportation, budget, and interest controls. | Check that the location field, all three preference dropdowns, and the `Create profile` button are displayed. |
+    | 3. The user has not entered a starting location. | Check that the `Create profile` button is disabled. |
+    | 4. The user enters `UBC Bus Exchange` and selects transit, balanced, and outdoors. | Enter the location and select each preference from its dropdown. |
+    | 5. The user selects `Create profile`. | Check that the button is enabled, click it, and wait for completion. |
+    | 6. The system saves the profile and finishes first-login setup. | Verify that onboarding is marked complete and that the repository contains the chosen location and preferences. |
+    | 2a. The user does not want to finish creating the profile. | Check that the `Log out` button is displayed at the bottom of the page and select it. |
+    | 2a1. The stored session is cleared. | Verify that the existing logout callback runs so the application returns to the login screen. |
+
+- **Use Case 3.4.3.2: Update Profile** (User)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
     | ------------------ | ------------------- |
     | 1. The user opens the user profile tab. | Open User Profile screen |
-    | 2. The app shows the logged in userName, the user's start location input field, transportation, budget, interest dropdowns, and a `Saved Prefrences` button. | Check that the user name is present.<br>Check the start location input is present and enabled.<br>Check the three preferences dropdowns are present and enabled.<br>Check the save button is present and enabled. |
+    | 2. The app shows the user's display name and starting location, plus transportation, budget, and interest preferences. | Check that the display name and starting location are present.<br>Check that the three preference dropdowns and their save control are present. |
     | 2a. The user enters profile details that exceed the supported length. | Click the `Edit` button.<br>Input a 201-character value in the `Display name` field and a valid value in the `Starting location` field. |
     | 2a1. The profile length error is displayed. | Check that the `Save profile` button is disabled.<br>Check that the red error message `Display name must be at most 200 characters.` is present. |
-    | 3. The user inputs a new start location. | Input "12345 abc Avenue, Vancouver BC" in the text field. |
-    | 4. The user selects another transportation preference | Click the transportation dropdown <br> Check the list option 'walking', 'cycling', 'transit','driving','other' appears. <br>Select "transit" and check if the field value is 'transit'    |
-    | 5. The user selects another budget preference | Click the budget dropdown <br> Check the list option 'economical', 'balanced', 'premium' appears. <br>Select "balanced" and check if the field value is 'balanced'    |
-    | 6. The user selects another interest preference | Click the interest dropdown <br> Check the list option 'food', 'art', 'outdoors', 'markets', 'live_music', 'gaming' appears. <br>Select "outdoors" and check if the field value is 'outdoor'    |
-    | 7. The user saves the user profile change | Click the `Save preferences` button <br>Check the confirmation message "Preference saved` appears   |
+    | 3. The user edits the profile and enters a new starting location. | Click `Edit`, replace the starting location with `12345 abc Avenue, Vancouver BC`, and click `Save profile`. |
+    | 4. The system saves the new starting location. | Check that the updated starting location is displayed and persisted in the user repository. |
+    | 5. The user selects another transportation preference. | Open the transportation dropdown, verify walking, cycling, transit, driving, and other are available, then select transit. |
+    | 6. The user selects another budget preference. | Open the budget dropdown, verify economical, balanced, and premium are available, then select balanced. |
+    | 7. The user selects another interest preference. | Open the interest dropdown, verify food, art, outdoors, markets, live music, and gaming are available, then select outdoors. |
+    | 8. The user saves the preference changes. | Click `Save preferences`, check that `Preferences saved.` appears, and verify that the selected preferences are persisted. |
 
-- **Use Case: Create an itinerary** (Itineraries)
+- **Use Case 3.4.2.1: Create an Itinerary** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -257,7 +275,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'Create' button  | Check that a blank itinerary details form is present  |
     | 3. The user clicks 'back to itineraries' button  | Check that a new itinerary is present under "Saved Itineraries" |
 
-- **Use Case: Modify an itinerary** (Itineraries)
+- **Use Case 3.4.2.3: Modify Itinerary Details** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -269,21 +287,21 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 3a1. The itinerary length error is displayed. | Check that the `Save details` button is disabled.<br>Check that the red error message `Name must be at most 100 characters.` is present. |
     | 4. The user clicks the  "Save details" button  | Check that the message "Itinerary details saved" is present <br> Check that the fields are updated with the input from step 3 and disabled.  |
 
-- **Use Case: Add an activity** (Itineraries)
+- **Use Case 3.4.2.4: Add an Activity** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
     | ------------------ | ------------------- |
     | 1. The user opens an itinerary under the "Saved Itineraries" list| Open the Itinerary details <br> Check that the "Itinerary details form is present and the `+ Activity` button is present" |
     | 2. The user clicks the `+ Activity` button  | Check that an empty new activty form is present <br> Check that under "Category" dropdown, the list options "food", "art", "outdoors", "markets", "live_music", "gaming", "museum", "other" are present. <br> Check that the "Add" button is disabled. |
-    | 3. The user types "new activity" under "Name", selects "outdoors" under the required "Category" dropdown, inputs "UBC nest" under "Location", and sets start time to "2027-11-30 14:00:00" and end time to "2027-11-30 15:00:00". The optional "Image URL" is left blank. | Input "new activity" in the "Name" field.<br>Select "outdoors" in the "Category" dropdown.<br>Input "UBC nest" in the "Location" field.<br>Leave "Image URL (optional)" blank.<br>Check that the start and end times are displayed. |
+    | 3. The user types "new activity" under "Name", selects "outdoors" under the required "Category" dropdown, inputs "UBC nest" under "Location", and sets start time to "2027-11-30 14:00:00" and end time to "2027-11-30 15:00:00". | Input "new activity" in the "Name" field.<br>Select "outdoors" in the "Category" dropdown.<br>Input "UBC nest" in the "Location" field.<br>Check that the start and end times are displayed. |
      | 3a. The user enters an invalid time range.   | Set start time to "2027-11-30 14:00:00", Set end time to "2027-11-30 13:00:00"|
      | 3a1. The error message is displayed | Check the "Add" button is disabled <br> Check the error message "End time must be after start time." is present |
     | 3b. The user enters an activity name that exceeds the supported length. | Input a 201-character value in the `Name` field.<br>Keep all other required fields valid. |
     | 3b1. The activity length error is displayed. | Check that the `Add` button is disabled.<br>Check that the red error message `Name must be at most 200 characters.` is present. |
     | 4. The user clicks the  "Add" button  | Check that the "Itinerary details" page is present <br> Check that the new activity is present (check the activity name, start time and end time, and the "Activity" tag is present). |
 
-- **Use Case: Add a transportation** (Itineraries)
+- **Use Case 3.4.2.5: Add a Transportation Segment** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -299,17 +317,17 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 3c1. The transportation length error is displayed. | Check that the `Add` button is disabled.<br>Check that the red error message `Start location must be at most 500 characters.` is present. |
     | 4. The user clicks the  "Add" button  | Check that the "Itinerary details" page is present <br> Check that the new transportation is present (check the transportation mode, start time and end time, and the "Transportation" tag is present). |
 
-- **Use Case: Modify an activity** (Itineraries)
+- **Use Case 3.4.2.9: Edit an Activity** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
     | ------------------ | ------------------- |
     | 1. The user opens an activity from the Itinerary Details page | Check that "Edit" button is present <br> Check that the Activity form is present. |
-    | 2. The user clicks the `Edit` button  | Check that the activity fields are enabled.<br>Check that "Name", "Category", "Location", "Start time", and "End time" have required-field asterisks.<br>Check that "Image URL" is marked optional. |
-    | 3. The user types "edited activity" under "Name", selects "art" under "Category", inputs "UBC Nest" under "Location", and sets start time to "2027-11-30 14:00:00" and end time to "2027-11-30 15:00:00". | Input "edited activity" in the "Name" field.<br>Select "art" in the "Category" dropdown.<br>Input "UBC Nest" in the "Location" field.<br>Leave "Image URL (optional)" blank.<br>Check that the start and end times are displayed. |
+    | 2. The user clicks the `Edit` button  | Check that the activity fields are enabled.<br>Check that "Name", "Category", "Location", "Start time", and "End time" have required-field asterisks. |
+    | 3. The user types "edited activity" under "Name", selects "art" under "Category", inputs "UBC Nest" under "Location", and sets start time to "2027-11-30 14:00:00" and end time to "2027-11-30 15:00:00". | Input "edited activity" in the "Name" field.<br>Select "art" in the "Category" dropdown.<br>Input "UBC Nest" in the "Location" field.<br>Check that the start and end times are displayed. |
     | 4. The user clicks the  "Save" button  | Check that the message "Activity saved." is present. |
 
-- **Use Case: Modify a transportation** (Itineraries)
+- **Use Case 3.4.2.10: Edit a Transportation Segment** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -325,7 +343,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 3c1. The transportation length error is displayed. | Check that the `Save` button is disabled.<br>Check that the red error message `Start location must be at most 500 characters.` is present. |
     | 4. The user clicks the  "Save" button  | Check that the message "Transportation saved." is present. |
 
-- **Use Case: Remove an Activities** (Itineraries)
+- **Use Case 3.4.2.6: Remove an Activity** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -334,7 +352,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'delete' button  | Check that a dialog with a message "Delete Item?" is present.  |
     | 3. The user clicks the 'yes' button from the dialog | Check that Itineray Details page <br> Check that the message "Item deleted." is present <br> Check that the deleted activity is not present".|
 
-- **Use Case: Remove a Transportation** (Itineraries)
+- **Use Case 3.4.2.7: Remove a Transportation Segment** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -343,7 +361,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'delete' button  | Check that a dialog with a message "Delete Item?" is present.  |
     | 3. The user clicks the 'yes' button from the dialog | Check that Itineray Details page <br> Check that the message "Item deleted." is present <br> Check that the deleted transportation is not present".|
 
-- **Use Case: Delete an itinerary** (Itineraries)
+- **Use Case 3.4.2.11: Delete an Itinerary** (Itineraries)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -352,7 +370,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'delete' button  | Check that a dialog with a message "Delete Itinerary?" is present.  |
     | 3. The user clicks the 'yes' button from the dialog | Check that Trip Screen is present <br> Check that the message "Itinerary deleted." is present <br> Check that the deleted itinerary is not present under "Saved itineraries".|
 
-- **Use Case: View Itinerary on Map** (Maps)
+- **Use Case 3.4.5.1: View Itinerary on Map** (Maps)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -364,7 +382,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 5. The user changes the travel mode. | Click the `Walk` control and check that walking distance, duration, directions, and route are displayed for the selected leg.<br>Click the `Drive` control and check that driving distance, duration, directions, and route are displayed for the selected leg. |
     | 6. The user opens the selected itinerary from the map. | Click the `Visit itinerary` button.<br>Check that the selected itinerary's details page is present. |
 
-- **Use Case: Browse Popular Locations** (Maps)
+- **Use Case 3.4.5.3: Browse Popular Locations** (Maps)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -375,7 +393,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 4. The user hides popular locations. | Clear the `Show popular locations` control.<br>Check that the popular-location pins are removed and the map reports `Popular locations are hidden`. |
     | 5. The user shows popular locations again. | Select the `Show popular locations` control.<br>Check that the popular-location pins return and the map reports `Popular locations are pinned nearby`. |
 
-- **Use Case: Generate a list of recommended itineraries** (Recommendation)
+- **Use Case 3.4.1.1: Generate Itineraries** (Recommendation)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -385,7 +403,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 3. The user clicks the 'confirm' button from the dialog | Check that button with a loading indicator and the message "Generating" is present.|
     | 4. The system shows 4 new recommended itineraries | Check that a new list of 4 recommended itineraries are present|
 
-- **Use Case: Save an itinerary** (Recommendation)
+- **Use Case 3.4.1.3: Save a Recommendation** (Recommendation)
 
   - **Expected Behaviors:**
     | **Scenario Steps** | **Test Case Steps** |
@@ -394,7 +412,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     | 2. The user clicks the 'Save Itinerary' button  | Check that the button "+Activity" and "+Transportation" are present.|
 
 
-- **Use Case: View Event Recommendations** (Live Events) 
+- **Use Case 3.4.6.1: View Event Recommendations** (Live Events)
 
   - **Setup:** The test starts on the main screen with a known user already logged in. Before the test, the backend is seeded with the user's `live_music` interest and 21 known upcoming Music events near the default location, each with a different distance so their ranking is known. The seeded data is removed after the test.
   - **Expected Behaviors:**
@@ -420,7 +438,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     PASSED  LiveEventsEmptyStateE2ETest > showsNoEventsMessageWhenNothingMatches  (2.3 s, run on a database with no events)
     ```
 
-- **Use Case: Add an Event to an Itinerary** (Live Events to Itineraries) 
+- **Use Case 3.4.6.3: Add an Event to an Itinerary** (Live Events to Itineraries)
 
   - **Setup:** The test starts on the main screen with a known user already logged in, one seeded upcoming event, and one seeded saved itinerary. Before each test, the test deletes the user's itineraries and recreates one saved itinerary whose activity overlaps the first seeded event (it creates none for the no-itinerary scenario). Results are checked on screen and by reading the itinerary back from the real backend.
   - **Expected Behaviors:**
@@ -451,7 +469,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     PASSED  EventItineraryE2ETest > replacesConflictingItemOnTimeConflict  (2.6 s)
     ```
 
-- **Use Case: Refresh Event Recommendations After a Preference Change** (Live Events) 
+- **Use Case 3.4.6.4: Refresh Event Recommendations After a Preference Change** (Live Events)
 
   - **Setup:** The test starts on the main screen (the app opens on Events) with a known user already logged in whose interest is `outdoors`. The backend is seeded with Sports events and Music events, so changing the interest to `live_music` adds Music events to the user's first page of recommendations. The seeded data is removed after the test.
   - **Expected Behaviors:**
@@ -470,7 +488,7 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     PASSED  LiveEventsE2ETest > changingInterestShowsSnackbarAndLinksToNewEvents  (3.6 s)
     ```
 
-- **Use Case: Refresh Event Recommendations After a Location Change** (Live Events)
+- **Use Case 3.4.6.4: Refresh Event Recommendations After a Location Change** (Live Events)
 
   - **Setup:** The test starts on the main screen with a known user already logged in and location permission granted. The device location is set by the test itself (mock location), first to UBC. Before the test, the backend is seeded with the user's `outdoors` interest, 21 Sports events near UBC, and 3 Sports events ("E2E Far Event 01" to "03") near Abbotsford, about 70 km from UBC and outside the 30 km search radius. The seeded data is removed after the test.
 
@@ -510,18 +528,3 @@ The Live Events E2E tests launch the real app on its main screen and talk to the
     Finished 9 tests on Medium_Phone_API_36.0(AVD) - 16
     BUILD SUCCESSFUL
     ```
-
-- **Use Case: ...**
-
-  - **Expected Behaviors:**
-
-    | **Scenario Steps** | **Test Case Steps** |
-    | ------------------ | ------------------- |
-    | ...                | ...                 |
-
-  - **Test Logs:**
-    ```
-    [Placeholder for Espresso test execution logs]
-    ```
-
-- **...**

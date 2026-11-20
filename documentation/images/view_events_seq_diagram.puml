@@ -76,7 +76,7 @@ alt recommendations retrieved successfully
     else no recommendations
         App --> User : Display no-events message
     end
-else initial retrieval fails
+else initial retrieval fails because of a network or server error
     EventRecommendation --> App : error: RetrievalError
     deactivate EventRecommendation
     App --> User : Keep displayed recommendations and offer retry

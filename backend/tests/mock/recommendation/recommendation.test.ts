@@ -7,7 +7,9 @@ import {
   type AppDependencies,
 } from '../../../src/index';
 import type { Itinerary } from '../../../src/itineraries/itineraryTypes';
+import { QwenClient } from '../../../src/recommendation/qwenClient';
 import { RecommendationDao } from '../../../src/recommendation/recommendationDao';
+import { RecommendationConfigurationError } from '../../../src/recommendation/recommendationErrors';
 import type { RecommendationRepository } from '../../../src/recommendation/recommendationRepository';
 import { createRecommendationRouter } from '../../../src/recommendation/recommendationRouter';
 import type { RecommendationService } from '../../../src/recommendation/recommendationService';
@@ -26,7 +28,6 @@ import type {
 import type { UserRepository } from '../../../src/users/userRepository';
 import type {
   GoogleUserIdentity,
-  OnboardingInput,
   User,
   UserPreferences,
   UserUpdate,
@@ -50,6 +51,12 @@ const PREFERENCES: UserPreferences = {
   transportation: { mode: 'transit' },
   budget: 'balanced',
   interest: 'art',
+};
+const QWEN_CONFIG = {
+  endpoint: 'https://qwen.example/v1',
+  apiKey: 'test-key',
+  model: 'qwen3.6-flash',
+  timeoutMs: 120_000,
 };
 
 describe('Recommendation route ownership validation', () => {
@@ -83,7 +90,6 @@ function generatedJson(count = 4): string {
         {
           type: 'activity',
           name: `Activity ${index + 1}`,
-          image: '',
           category: 'art',
           location: 'Museum of Anthropology at UBC',
           startTime: `2026-11-0${index + 1}T10:00:00.000Z`,
@@ -132,14 +138,6 @@ class TestUserRepository implements UserRepository {
     const user = await this.findUser(USER_ID);
     if (user !== null) return user;
     throw new Error(`Could not create ${identity.googleSubject}`);
-  }
-
-  async completeOnboarding(
-    _userId: string,
-    _onboarding: OnboardingInput,
-    _completedAt: Date,
-  ): Promise<User | null> {
-    return null;
   }
 
   async updateUser(
@@ -454,12 +452,23 @@ describe('Universal Sentence Encoder itinerary ranking', () => {
 });
 
 describe('Mocked: SoCLaaS Responses API client', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   function clientWith(fetchFunction: jest.Mock) {
     return new SoclaasClient({
       endpoint: 'https://soclaas-api.comp.nus.edu.sg/v1',
       apiKey: 'test-key',
       model: 'qwen3.5:9b',
       maxOutputTokens: 16_384,
+      timeoutMs: 120_000,
     }, fetchFunction);
   }
 
@@ -481,6 +490,7 @@ describe('Mocked: SoCLaaS Responses API client', () => {
       apiKey: 'test-key',
       model: 'qwen3.5:9b',
       maxOutputTokens: 16_384,
+      timeoutMs: 120_000,
     }, fetchMock);
 
     const output = await client.generateItineraries({
@@ -518,6 +528,7 @@ describe('Mocked: SoCLaaS Responses API client', () => {
       apiKey: 'test-key',
       model: 'qwen3.5:9b',
       maxOutputTokens: 2_000,
+      timeoutMs: 120_000,
     }, fetchMock);
 
     await expect(client.generateItineraries({
@@ -538,12 +549,17 @@ describe('Mocked: SoCLaaS Responses API client', () => {
       apiKey: 'test-key',
       model: 'qwen3.5:9b',
       maxOutputTokens: 16_384,
+      timeoutMs: 120_000,
     }, fetchMock);
 
     await expect(client.generateItineraries({
       start_location: 'UBC Bus Exchange',
       preferences: PREFERENCES,
     })).rejects.toThrow('returned 503: Model is unavailable.');
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[SoCLaaS] Itinerary generation failed: ' +
+        'The itinerary generation service returned 503: Model is unavailable.',
+    );
   });
 
   test('reads top-level output text', async () => {
@@ -683,5 +699,83 @@ describe('Mocked: RecommendationDao publication', () => {
     await expect(dao.replaceLatestRecommendations(USER_ID, inputs))
       .rejects.toThrow('Not all generated recommendations could be published.');
     expect(collection.deleteMany).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Mocked: Qwen Responses API client', () => {
+  test('requests thinking mode and extracts message output text', async () => {
+    const create = jest.fn().mockResolvedValue({
+      output: [
+        { type: 'reasoning', summary: [{ text: 'Internal reasoning' }] },
+        {
+          type: 'message',
+          content: [{ type: 'output_text', text: generatedJson() }],
+        },
+      ],
+    });
+    const client = new QwenClient(QWEN_CONFIG, { responses: { create } });
+
+    await expect(client.generateItineraries({
+      start_location: 'UBC Bus Exchange',
+      preferences: PREFERENCES,
+    })).resolves.toBe(generatedJson());
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'qwen3.6-flash',
+      enable_thinking: true,
+      input: expect.stringContaining('UBC Bus Exchange'),
+    }));
+  });
+
+  test('uses top-level output text when provided', async () => {
+    const create = jest.fn().mockResolvedValue({
+      output_text: generatedJson(),
+      output: [],
+    });
+    const client = new QwenClient(QWEN_CONFIG, { responses: { create } });
+
+    await expect(client.generateItineraries({
+      start_location: 'UBC Bus Exchange',
+      preferences: PREFERENCES,
+    })).resolves.toBe(generatedJson());
+  });
+
+  test('requires QWEN_API_KEY', async () => {
+    const client = new QwenClient({ ...QWEN_CONFIG, apiKey: '' });
+
+    await expect(client.generateItineraries({
+      start_location: 'UBC Bus Exchange',
+      preferences: PREFERENCES,
+    })).rejects.toBeInstanceOf(RecommendationConfigurationError);
+  });
+
+  test('accepts Qwen configuration explicitly', () => {
+    expect(new QwenClient(QWEN_CONFIG)).toBeInstanceOf(QwenClient);
+  });
+
+  test.each([
+    [{ output: [] }, 'returned no output text'],
+    [{ output_text: ' ', output: [{ type: 'reasoning' }] }, 'returned no output text'],
+    [{ output: [{ type: 'message' }] }, 'returned no output text'],
+  ])('rejects a response without answer text %#', async (response, message) => {
+    const create = jest.fn().mockResolvedValue(response);
+    const client = new QwenClient(QWEN_CONFIG, { responses: { create } });
+
+    await expect(client.generateItineraries({
+      start_location: 'UBC Bus Exchange',
+      preferences: PREFERENCES,
+    })).rejects.toThrow(message);
+  });
+
+  test.each([
+    [new Error('provider unavailable'), 'provider unavailable'],
+    ['provider unavailable', 'provider unavailable'],
+  ])('wraps provider failure %#', async (failure, message) => {
+    const create = jest.fn().mockRejectedValue(failure);
+    const client = new QwenClient(QWEN_CONFIG, { responses: { create } });
+
+    await expect(client.generateItineraries({
+      start_location: 'UBC Bus Exchange',
+      preferences: PREFERENCES,
+    })).rejects.toThrow(`The Qwen generation service failed: ${message}`);
   });
 });

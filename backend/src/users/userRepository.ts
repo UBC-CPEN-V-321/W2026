@@ -1,6 +1,5 @@
 import type {
   GoogleUserIdentity,
-  OnboardingInput,
   User,
   UserPreferences,
   UserUpdate,
@@ -12,10 +11,5 @@ export interface UserRepository {
   ): Promise<User>;
   findPreferences(userId: string): Promise<UserPreferences | null>;
   findUser(userId: string): Promise<User | null>;
-  completeOnboarding(
-    userId: string,
-    onboarding: OnboardingInput,
-    completedAt: Date,
-  ): Promise<User | null>;
   updateUser(userId: string, update: UserUpdate): Promise<User | null>;
 }

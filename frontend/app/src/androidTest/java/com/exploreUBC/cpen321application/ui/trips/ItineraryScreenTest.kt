@@ -12,9 +12,13 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.runtime.mutableStateOf
+import com.exploreUBC.cpen321application.CPEN321ApplicationApp
 import com.exploreUBC.cpen321application.data.itineraries.ActivityItem
 import com.exploreUBC.cpen321application.data.itineraries.Itinerary
 import com.exploreUBC.cpen321application.data.itineraries.TransportationItem
+import com.exploreUBC.cpen321application.testutil.E2E_USER_ID
+import com.exploreUBC.cpen321application.testutil.InMemoryItinerariesRepository
+import com.exploreUBC.cpen321application.testutil.TestRepositories
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -204,10 +208,8 @@ class ItineraryScreenTest {
 
         composeRule.onNodeWithTag("itinerary_item_edit").performClick()
         composeRule.onNodeWithText("Name *").assertIsDisplayed()
-        composeRule.onNodeWithText("Image URL (optional)").assertIsDisplayed()
         composeRule.onNodeWithText("Category *").assertIsDisplayed()
         composeRule.onNodeWithText("Location *").assertIsDisplayed()
-        composeRule.onNodeWithTag("edit_activity_image").performTextReplacement("")
         composeRule.onNodeWithTag("edit_activity_save").assertIsEnabled()
         composeRule.onNodeWithTag("edit_activity_name")
             .performTextReplacement("a".repeat(ACTIVITY_NAME_MAX_LENGTH + 1))
@@ -285,6 +287,42 @@ class ItineraryScreenTest {
         }
         composeRule.onNodeWithTag("generate_recommendations").assertIsNotEnabled()
         composeRule.onNodeWithTag("generate_recommendations_loading").assertIsDisplayed()
+        composeRule.onNodeWithText("May take up to a minute").assertIsDisplayed()
+    }
+
+    @Test
+    fun recommendationGenerationRemainsLoadingAfterSwitchingTabs() {
+        val repository = InMemoryItinerariesRepository().apply {
+            prepareRecommendationGeneration()
+        }
+        composeRule.setContent {
+            CPEN321ApplicationApp(
+                userId = E2E_USER_ID,
+                usersRepository = TestRepositories.users,
+                itinerariesRepository = repository,
+                eventsRepository = TestRepositories.events,
+            )
+        }
+
+        composeRule.onNodeWithTag("navigation_Trips").performClick()
+        composeRule.onNodeWithTag("generate_recommendations")
+            .performScrollTo()
+            .performClick()
+        composeRule.onNodeWithTag("confirm_generate_recommendations").performClick()
+        composeRule.onNodeWithTag("generate_recommendations_loading").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("navigation_Events").performClick()
+        composeRule.onNodeWithTag("navigation_Trips").performClick()
+
+        composeRule.onNodeWithTag("generate_recommendations_loading").assertIsDisplayed()
+        composeRule.onNodeWithText("May take up to a minute").assertIsDisplayed()
+
+        repository.releaseRecommendationGeneration()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("trips_status").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("trips_status")
+            .assertTextContains("Recommendations generated.")
     }
 
     @Test
@@ -321,7 +359,6 @@ class ItineraryScreenTest {
             ActivityItem(
                 id = "activity-1",
                 name = "Stanley Park Seawall Walk",
-                image = "",
                 description = "Walk along the seawall.",
                 category = "outdoors",
                 location = "Stanley Park",

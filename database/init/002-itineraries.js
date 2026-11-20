@@ -21,7 +21,6 @@ const activityItemSchema = {
     "id",
     "type",
     "name",
-    "image",
     "location",
     "startTime",
     "endTime",
@@ -30,7 +29,6 @@ const activityItemSchema = {
     id: { bsonType: "string" },
     type: { enum: ["activity"] },
     name: { bsonType: "string" },
-    image: { bsonType: "string" },
     description: { bsonType: "string" },
     category: { bsonType: "string" },
     location: { bsonType: "string" },
@@ -118,6 +116,11 @@ if (!exploreUbcDb.getCollectionNames().includes("itineraries")) {
     validationAction: "error",
   });
 }
+
+exploreUbcDb.itineraries.updateMany(
+  { "items.image": { $exists: true } },
+  { $unset: { "items.$[].image": "" } },
+);
 
 exploreUbcDb.itineraries.createIndex(
   { ownerId: 1, updatedAt: -1 },

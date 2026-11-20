@@ -9,7 +9,6 @@ import {
 import type { UserRepository } from './userRepository';
 import type {
   GoogleUserIdentity,
-  OnboardingInput,
   User,
   UserPreferences,
   UserUpdate,
@@ -94,14 +93,6 @@ export class UserDao implements UserRepository {
     return user === null ? null : this.toUser(user);
   }
 
-  async completeOnboarding(
-    userId: string,
-    onboarding: OnboardingInput,
-    completedAt: Date,
-  ): Promise<User | null> {
-    return this.saveUserUpdate(userId, onboarding, completedAt);
-  }
-
   async updateUser(userId: string, update: UserUpdate): Promise<User | null> {
     return this.saveUserUpdate(userId, update);
   }
@@ -109,18 +100,21 @@ export class UserDao implements UserRepository {
   private async saveUserUpdate(
     userId: string,
     update: UserUpdate,
-    onboardingCompletedAt?: Date,
   ): Promise<User | null> {
     const objectId = this.parseUserId(userId);
     if (objectId === null) {
       return null;
     }
 
-    const fields: Document = {
-      updated_at: onboardingCompletedAt ?? new Date(),
-    };
-    if (onboardingCompletedAt !== undefined) {
-      fields.onboardingCompletedAt = onboardingCompletedAt;
+    const now = new Date();
+    const fields: Document = { updated_at: now };
+    if (
+      update.start_location !== undefined &&
+      update.preferences?.transportation !== undefined &&
+      update.preferences.budget !== undefined &&
+      update.preferences.interest !== undefined
+    ) {
+      fields.onboardingCompletedAt = now;
     }
     if (update.displayName !== undefined) {
       fields.displayName = update.displayName;

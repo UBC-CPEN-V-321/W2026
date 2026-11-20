@@ -19,24 +19,49 @@ sequenceDiagram
     Frontend-->>User: ActivityForm getActivityForm(Activity activity)
 
     User->>Frontend: void updateActivityForm(ActivityUpdate update)
-    Frontend->>Frontend: ValidationResult validateActivityUpdate(ActivityUpdate update)
+    Frontend->>Frontend: ValidationResult validateActivityTime(ActivityUpdate update)
 
-    alt ValidationResult.isValid() == false
+    alt start or end time is invalid
         Frontend-->>User: void disableSave()
         Frontend-->>User: void displayValidationErrors(FieldError[] errors)
 
-    else ValidationResult.isValid() == true
+    else activity time is valid
         Frontend-->>User: void enableSave()
         User->>Frontend: void saveActivity()
 
-        Frontend->>Itineraries: Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)
-        Itineraries->>Itineraries: ValidationResult validateActivityUpdate(ActivityUpdate update)
+        Frontend->>Itineraries: Conflict[] findScheduleConflicts(String itineraryId, String activityId, ActivityUpdate update)
+        Itineraries-->>Frontend: Conflict[] conflicts
 
-        alt ValidationResult.isValid() == false
-            Itineraries-->>Frontend: ValidationError
-            Frontend-->>User: void displayValidationErrors(FieldError[] errors)
+        alt conflicts.length > 0
+            Frontend-->>User: void displayConflicts(Conflict[] conflicts)
+            Frontend-->>User: ConflictChoice askKeepOrReplace()
 
-        else ValidationResult.isValid() == true
+            alt user keeps existing schedule
+                User->>Frontend: void keepExistingSchedule()
+                Frontend-->>User: void displayActivityDetails(Activity originalActivity)
+
+            else user replaces conflicting items
+                User->>Frontend: void replaceConflictingItems()
+                Frontend->>Itineraries: Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update, bool replaceConflicts)
+                Itineraries->>MongoDB: bool replaceConflictsAndUpdateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)
+
+                alt stored == true
+                    MongoDB-->>Itineraries: bool stored
+                    Itineraries-->>Frontend: Activity updatedActivity
+                    Frontend->>Frontend: void replaceActivity(Itinerary itinerary, Activity updatedActivity)
+                    Frontend-->>User: void displayActivityDetails(Activity updatedActivity)
+
+                else stored == false because of server or network error
+                    MongoDB-->>Itineraries: StorageError
+                    Note over Itineraries,MongoDB: Previously stored activity remains unchanged
+                    Itineraries-->>Frontend: StorageError
+                    Frontend-->>User: void displaySaveError(StorageError error)
+                    Frontend-->>User: void enableSaveRetry()
+                end
+            end
+
+        else conflicts.length == 0
+            Frontend->>Itineraries: Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update, bool replaceConflicts)
             Itineraries->>MongoDB: bool updateEmbeddedActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)
 
             alt stored == true
@@ -45,11 +70,12 @@ sequenceDiagram
                 Frontend->>Frontend: void replaceActivity(Itinerary itinerary, Activity updatedActivity)
                 Frontend-->>User: void displayActivityDetails(Activity updatedActivity)
 
-            else stored == false
+            else stored == false because of server or network error
                 MongoDB-->>Itineraries: StorageError
-                Note over Itineraries,MongoDB: Previously stored itinerary remains unchanged
+                Note over Itineraries,MongoDB: Previously stored activity remains unchanged
                 Itineraries-->>Frontend: StorageError
                 Frontend-->>User: void displaySaveError(StorageError error)
+                Frontend-->>User: void enableSaveRetry()
             end
         end
     end

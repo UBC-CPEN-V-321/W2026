@@ -24,6 +24,7 @@ import type { ItineraryMapRepository } from './maps/itineraryMapRepository';
 import { createItineraryMapRouter } from './maps/itineraryMapRouter';
 import { ItineraryMapService } from './maps/itineraryMapService';
 import type { MapProvider } from './maps/mapProvider';
+import { QwenClient } from './recommendation/qwenClient';
 import { RecommendationDao } from './recommendation/recommendationDao';
 import type { RecommendationRepository } from './recommendation/recommendationRepository';
 import { createRecommendationRouter } from './recommendation/recommendationRouter';
@@ -167,6 +168,10 @@ const sessionService = new SessionService(
   new SessionDao(database),
   env.sessionTtlDays,
 );
+const recommendationGenerator: ItineraryGenerator =
+  env.recommendationClient === 'qwen'
+    ? new QwenClient(env.qwen)
+    : new SoclaasClient(env.soclaas);
 const app = createApp({
   authService: new AuthService(
     new GoogleIdTokenVerifier(env.googleClientId),
@@ -176,7 +181,7 @@ const app = createApp({
   eventRepository: eventDao,
   itineraryMapRepository: itineraryMapDao,
   itineraryRepository: itineraryDao,
-  recommendationGenerator: new SoclaasClient(env.soclaas),
+  recommendationGenerator,
   recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
   recommendationRepository: new RecommendationDao(database),
   sessionService,

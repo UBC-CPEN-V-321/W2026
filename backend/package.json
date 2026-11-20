@@ -16,6 +16,7 @@
     "e2e:seed": "node scripts/seed-e2e.js",
     "e2e:clean": "node scripts/seed-e2e.js clean",
     "e2e:events": "bash scripts/run-events-e2e.sh",
+    "e2e:frontend": "bash scripts/run-frontend-e2e.sh",
     "e2e:backend": "MONGODB_URI=mongodb://localhost:27018 tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
@@ -36,7 +37,8 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "google-auth-library": "^11.3.1",
-    "mongodb": "^7.7.0"
+    "mongodb": "^7.7.0",
+    "openai": "^7.62.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

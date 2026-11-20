@@ -13,21 +13,18 @@ type FetchFunction = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-// The provider can legitimately take a full minute to generate four complete
-// itineraries. Allow a small transport/serialization margin around that SLA.
-const GENERATION_TIMEOUT_MS = 90_000;
-
 export type SoclaasConfig = {
   endpoint: string | undefined;
   apiKey: string | undefined;
   model: string | undefined;
   maxOutputTokens: number;
+  timeoutMs: number;
 };
 
 const RESPONSE_SCHEMA =
   '{"itineraries":[{"name":"string","description":"string",' +
   '"items":[{"type":"activity",' +
-  '"name":"string","image":"","description":"string",' +
+  '"name":"string","description":"string",' +
   '"category":"string","location":"string","startTime":"ISO-8601",' +
   '"endTime":"ISO-8601"},{"type":"transportation",' +
   '"mode":"walking|cycling|transit|driving|other",' +
@@ -41,6 +38,18 @@ export class SoclaasClient implements ItineraryGenerator {
   ) {}
 
   async generateItineraries(profile: RecommendationProfile): Promise<string> {
+    try {
+      return await this.generateItinerariesOrThrow(profile);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[SoCLaaS] Itinerary generation failed: ${message}`);
+      throw error;
+    }
+  }
+
+  private async generateItinerariesOrThrow(
+    profile: RecommendationProfile,
+  ): Promise<string> {
     const { endpoint, apiKey, model } = this.requiredConfig();
     const response = await this.sendRequest(`${endpoint}/responses`, {
       model,
@@ -98,10 +107,11 @@ export class SoclaasClient implements ItineraryGenerator {
     apiKey: string,
   ): Promise<SoclaasResponsesApiResponse> {
     let response: Response;
+    const startedAt = performance.now();
     try {
       response = await this.fetchFunction(url, {
         method: 'POST',
-        signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+        signal: AbortSignal.timeout(this.config.timeoutMs),
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
@@ -114,6 +124,9 @@ export class SoclaasClient implements ItineraryGenerator {
           ? `Could not reach the itinerary generation service: ${error.message}`
           : undefined,
       );
+    } finally {
+      const durationMs = Math.round(performance.now() - startedAt);
+      console.log(`[SoCLaaS] LLM request finished in ${durationMs} ms`);
     }
 
     const payload = await response.json().catch(() => null) as
@@ -153,4 +166,5 @@ export class SoclaasClient implements ItineraryGenerator {
     }
     return undefined;
   }
+
 }

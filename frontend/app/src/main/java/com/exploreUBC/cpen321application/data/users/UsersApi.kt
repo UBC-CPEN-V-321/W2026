@@ -10,6 +10,7 @@ interface UsersRepository {
     suspend fun getUser(userId: String): User
 
     suspend fun updateUser(userId: String, update: UserUpdate): User
+
 }
 
 class UsersApi(private val backendClient: BackendClient) : UsersRepository {
@@ -59,6 +60,11 @@ class UsersApi(private val backendClient: BackendClient) : UsersRepository {
         googleSubject = json.getString("googleSubject"),
         email = json.getString("email"),
         displayName = json.getString("displayName"),
+        profileImageUrl = if (json.isNull("profileImageUrl")) {
+            null
+        } else {
+            json.optString("profileImageUrl").takeIf { it.isNotBlank() }
+        },
         startLocation = json.getString("start_location"),
         preferences = parsePreferences(json.getJSONObject("preferences")),
         createdAt = json.getString("create_at"),
