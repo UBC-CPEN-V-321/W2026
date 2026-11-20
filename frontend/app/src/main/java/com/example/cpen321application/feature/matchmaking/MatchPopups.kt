@@ -8,11 +8,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.cpen321application.core.notifications.MatchEvents
+import com.example.cpen321application.core.ui.FollowWhileVisible
 import kotlinx.coroutines.launch
 
 /**
  * Shows the match pop-up over whichever screen is open, so a match found while the player is on
- * another tab still pops up. It follows match pushes and the app coming back instead of polling.
+ * another tab still pops up. It follows the user's games live, match pushes and the app coming back.
  * @param username the signed-in user, to tell which side of the match they are on
  * @param onGoToGame opens the matched game's screen
  */
@@ -34,6 +35,12 @@ fun MatchPopups(
     // A match was found, accepted or cancelled while the app is open. Stops on sign-out.
     LaunchedEffect(Unit) {
         MatchEvents.events.collect { viewModel.refresh() }
+    }
+
+    // Pushes can be late or lost, so while searching or answering a match the user's games are followed live too:
+    // the match shows as soon as matchmaking creates it. Closed again once neither is going on
+    if (uiState.isSearching || uiState.match != null) {
+        FollowWhileVisible(viewModel) { viewModel.followMatches() }
     }
 
     val match = uiState.match

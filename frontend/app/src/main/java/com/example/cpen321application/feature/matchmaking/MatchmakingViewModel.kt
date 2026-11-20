@@ -4,11 +4,15 @@ import androidx.lifecycle.ViewModel
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
 import com.example.cpen321application.core.data.model.GameStatus
+import com.example.cpen321application.core.data.repository.GameListUpdate
+import com.example.cpen321application.core.data.repository.GameListUpdates
 import com.example.cpen321application.core.data.repository.GamesRepository
+import com.example.cpen321application.core.data.repository.reconnecting
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.update
 import retrofit2.HttpException
 import java.net.HttpURLConnection
@@ -26,12 +30,13 @@ const val ALREADY_ACCEPTED_ERROR = "Match already accepted"
  * Holds the location and format the user picked on the Matchmaking tab, their place in the queue,
  * and the matched game waiting for their answer.
  * The screen fetches the location (GPS or Places) and reports the result here.
- * Queue calls are suspend functions the screen launches; MatchPopups calls refresh() on match pushes and when
- * the app comes back, instead of polling.
+ * Queue calls are suspend functions the screen launches. MatchPopups calls refresh() when the user's games change
+ * live (followMatches), on match pushes, and when the app comes back, so a match shows even if its push is lost.
  */
 class MatchmakingViewModel(
     private val repository: MatchmakingRepository,
-    private val gamesRepository: GamesRepository
+    private val gamesRepository: GamesRepository,
+    private val gameListUpdates: GameListUpdates
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MatchmakingUiState())
     val uiState: StateFlow<MatchmakingUiState> = _uiState.asStateFlow()
@@ -98,8 +103,9 @@ class MatchmakingViewModel(
 
         val result = repository.joinQueue(state.format, location)
         if (result.isSuccess) {
-            // nearby = null: the dots of an earlier search are not around this one
-            _uiState.update { it.copy(isUpdatingQueue = false, isSearching = true, nearby = null) }
+            // nearby = null: the dots of an earlier search are not around this one. A match shown while the join
+            // was on its way (its push or the live games beat the answer) means the search is already over
+            _uiState.update { it.copy(isUpdatingQueue = false, isSearching = it.match == null, nearby = null) }
             return
         }
         val message = if (result.exceptionOrNull() is ActiveMatchException) ACTIVE_MATCH_MESSAGE else JOIN_FAILED_MESSAGE
@@ -173,18 +179,33 @@ class MatchmakingViewModel(
 
     /**
      * Loads the players searching near this one, for the queue card's map.
-     * A failed load keeps the last dots, the next one tries again.
+     * A failed load keeps the last dots, the next one tries again. The backend answering that the player is no
+     * longer queued means matchmaking took them out, so the match is looked up then
      */
     suspend fun refreshNearby() {
         if (!_uiState.value.isSearching) {
             return
         }
-        val nearby = repository.nearbyPlayers().getOrNull()
-        // Failed, or the player was matched or left while this load was on its way
-        if (nearby == null || !_uiState.value.isSearching) {
-            return
+        val result = repository.nearbyPlayers()
+        val nearby = result.getOrNull()
+        when {
+            result.isSuccess && nearby == null -> checkQueue()
+            // Not if the player was matched or left while this load was on its way
+            nearby != null && _uiState.value.isSearching -> _uiState.update { it.copy(nearby = nearby) }
         }
-        _uiState.update { it.copy(nearby = nearby) }
+    }
+
+    /**
+     * Follows the user's own games live, refreshing the queue and the match whenever they change: matchmaking
+     * creating the match, or a player accepting or cancelling it. The backend sends them first on every connect,
+     * so a match found while the stream was down is caught up. Reconnects after the connection drops; a refused
+     * stream is left to the pushes and the app coming back
+     */
+    suspend fun followMatches() {
+        gameListUpdates.updates()
+            .filterIsInstance<GameListUpdate.Mine>()
+            .reconnecting { }
+            .collect { refresh() }
     }
 
     /**
