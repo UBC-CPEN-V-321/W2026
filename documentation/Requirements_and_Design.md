@@ -8,6 +8,7 @@
 
 | Change Date | Modified Sections | Rationale |
 | --- | --- | --- |
+| 2026-11-19 | 3.5 | Each framework and library now states why it was chosen over the alternatives, not only what it does. mongo-sanitize is listed as removed, since the backend now validates input and builds queries explicitly. |
 | 2026-11-19 | 2.2, 2.4 | Figure 1 replaced with the revised use case diagram. Use case names in 2.4 now match the figure, UC-03 is described as two use cases (reusing a personal bill and splitting it), and Feature 2 follows the figure's order. |
 | 2026-11-19 | 2.6 (NFR-3), 3.8 (NFR-3) | Every number in the responsiveness requirement now has a stated reason. The load is the backend's enforced limits (100 members, 200 units) instead of an unexplained 20 members; the delivery target is 1 second, the limit for an uninterrupted flow of thought; and the 5-second recovery target is half the 10-second attention limit, met by a 3-second snapshot poll. The polling, back-off and summary limits in 3.8 are explained the same way. |
 | 2026-11-19 | 2.4 | Each use case now names a single action. Combined use cases were split, the planned repayment and archival use cases were removed, reconnect recovery was removed because it is a failure scenario rather than a use case, and **View Live Allocations and Totals** was added. Shared expenses are now called group expenses, and every description was rewritten to match the current app. |
@@ -531,21 +532,22 @@ Connections pass the Ledger session in `auth.token` or the Authorization header;
 
 | Framework/library | Purpose and reason |
 | --- | --- |
-| Kotlin, Jetpack Compose, Material 3 | Native, state-driven Android UI with reusable components. |
-| Kotlin coroutines | Run repository and API work on `Dispatchers.IO` so the UI stays responsive. |
-| Android SQLite / `SQLiteOpenHelper` | Local records, quotes, preferences and atomic request replay without an account. |
-| `HttpURLConnection` and `org.json` | REST/JSON clients for the backend. |
-| Credential Manager 1.3.0 and googleid 1.1.1 | Google account selection and ID tokens on Android. |
-| Node.js 22 and TypeScript ~5.9 | Backend runtime and type checking. |
-| Express 5.2.1 | Routes, middleware, bounded JSON parsing and error handling. |
-| Mongoose ^9.11.2 | MongoDB schemas, indexes, conditional updates and summary aggregation. |
-| google-auth-library 11.1.0 | Verify Google ID-token signature, audience, issuer and expiry. |
-| Node crypto | Salted scrypt password hashes, random session and invitation tokens, and SHA-256 token hashes. |
-| pdfjs-dist 6.4.299 | Read text from supported PDF statements on the backend. |
-| Socket.IO 4.8.3 and Android client 2.1.2 | The authenticated `/dutch` namespace for live updates over WebSocket (WSS in release). |
-| dotenv | Load backend configuration, including database and provider settings. |
-| Jest, Supertest, mongodb-memory-server | Backend domain and API tests against isolated MongoDB instances. |
-| JUnit, Compose UI testing, Espresso | Android domain, persistence and UI tests. |
+| Kotlin, Jetpack Compose, Material 3 | Kotlin and Compose build the native Android screens, and Material 3 provides shared controls and styling. Compared with XML layouts and manual view updates, Compose lets the receipt review and live split screens render directly from Kotlin state. Material 3 gives those screens consistent components without a custom widget library. |
+| Kotlin coroutines | Coroutines move repository and HTTP work to `Dispatchers.IO` so the UI stays responsive. Compared with callbacks or manually managed threads, suspend functions keep sequential steps, such as importing a receipt and loading its preview, readable at the call site. |
+| Android SQLite / `SQLiteOpenHelper` | SQLite stores local entries, cached quotes, preferences, and request replay records. Compared with a preferences store, SQLite supports querying individual entries and committing entries and their request result together. `SQLiteOpenHelper` gives Ledger direct control over its existing SQL and transaction boundaries without adding Room. |
+| `HttpURLConnection` and `org.json` | These built-in APIs send REST requests and parse JSON responses. Compared with adding Retrofit and a serializer, they suit Ledger’s approach of sharing HTTP transport logic and mapping payloads explicitly in each feature’s API client. |
+| Credential Manager 1.3.0 and googleid 1.1.1 | Credential Manager presents Google account selection, and googleid gives the app the Google ID token to send to the backend. Compared with implementing a browser-based Google OAuth flow directly, this fits Ledger’s native Android sign-in and its existing server-side ID-token verification. |
+| Node.js 22 and TypeScript ~5.9 | Node.js runs Ledger’s REST and live-update services in one process. Compared with plain JavaScript, TypeScript catches mismatches in internal expense, split-session, and API types at build time, while the app validates untrusted request data at runtime. |
+| Express 5.2.1 | Express handles routing, middleware, bounded JSON parsing, and errors. Compared with Node’s raw HTTP module, it lets Ledger apply shared session and request-handling middleware across feature routes without implementing routing and middleware dispatch itself. |
+| Mongoose ^9.11.2 | Mongoose defines MongoDB schemas and indexes for groups, expenses, and split sessions and supports conditional updates and aggregation. Compared with using the MongoDB driver directly, it keeps document definitions and validation close to the models while still allowing database-level updates for operations such as exclusive item claims. |
+| google-auth-library 11.1.0 | The backend verifies Google ID-token signatures, audience, issuer, and expiry with this library. Compared with implementing Google token verification from scratch, the library handles Google’s signing keys and token checks while Ledger remains responsible for issuing its own sessions. |
+| Node crypto | Node crypto supplies scrypt password hashing with salts, secure random session and invitation tokens, and SHA-256 token hashes. Its built-in primitives cover these needs without adding separate hashing and token-generation packages. |
+| pdfjs-dist 6.4.299 | PDF.js extracts text from supported bank-statement PDFs on the backend. Compared with routing text PDFs through OCR or AI recognition, reading the existing text layer keeps statement parsing independent of the receipt-recognition provider. |
+| Socket.IO 4.8.3 and Android client 2.1.2 | Socket.IO delivers authenticated live split updates over `/dutch`, with WSS in release. Compared with periodic polling alone, it can push accepted changes to connected members as they happen. Compared with raw WebSocket, it supplies namespaces, events, and client reconnection. Ledger handles recovery of missed state with snapshots. |
+| mongo-sanitize 1.1.0 | The earlier CP2 implementation used a shared helper to strip MongoDB operator syntax, reducing repeated operator filtering at query call sites. The current backend has removed this dependency and uses explicit validation and query construction. |
+| dotenv | dotenv loads backend settings from a local `.env` file into environment variables. Compared with hard-coding values or maintaining a separate development configuration format, it lets local development and deployment use the same setting names, with secrets supplied outside application code. |
+| Jest, Supertest, mongodb-memory-server | Jest runs domain and interface tests, Supertest sends requests through the Express routes, and mongodb-memory-server provides isolated MongoDB instances. Compared with mock-only tests, this setup exercises MongoDB-specific behavior such as unique indexes and conditional updates without relying on a shared database. |
+| JUnit, Compose UI testing, Espresso | JUnit runs Android domain and persistence tests. Compose UI testing makes assertions against the same semantics users interact with, and Espresso supports device interactions such as Back navigation. Compared with coordinate-based UI scripts, these tests can target UI meaning and observable behavior even when the layout changes. |
 
 ### 3.6. Dependency Diagram
 
