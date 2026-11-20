@@ -4,12 +4,14 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
 import com.exploreUBC.cpen321application.testutil.REAL_BACKEND_TIMEOUT_MS
@@ -74,9 +76,11 @@ class RecommendationE2ETest {
         val recommendations = loadRecommendations()
         assertEquals(4, recommendations.size)
         recommendations.forEach { recommendation ->
-            waitForTag("recommended_itinerary_${recommendation.id}")
+            val recommendationTag = "recommended_itinerary_${recommendation.id}"
+            composeRule.onNodeWithTag("trips_list")
+                .performScrollToNode(hasTestTag(recommendationTag))
+            composeRule.onNodeWithTag(recommendationTag).assertIsDisplayed()
         }
-
     }
 
     @Test

@@ -18,35 +18,22 @@ import type {
 import {
   authenticatedAgent,
   createPathSessionValidator,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
+import {
+  EMPTY_ITINERARY,
+  ITINERARY_FIXTURE_ID,
+  ITINERARY_FIXTURE_USER_ID,
+  buildCachedItineraryMap,
+} from '../../utils/itineraryFixtures';
+import type { MockedRepository } from '../../utils/mockedRepository';
 
-const USER_ID = '6705f0000000000000000001';
-const ITINERARY_ID = '6705f1000000000000000001';
+const USER_ID = ITINERARY_FIXTURE_USER_ID;
+const ITINERARY_ID = ITINERARY_FIXTURE_ID;
 const MISSING_ITINERARY_ID = '6705f1000000000000000002';
 const MAP_PATH =
   `/api/v1/users/${USER_ID}/itineraries/${ITINERARY_ID}/map`;
 
-const BASE_ITINERARY: Itinerary = {
-  id: ITINERARY_ID,
-  ownerId: USER_ID,
-  name: 'Map test itinerary',
-  items: [],
-  createdAt: '2026-10-12T12:00:00.000Z',
-  updatedAt: '2026-10-12T12:00:00.000Z',
-  saved: true,
-  inRecommendation: false,
-  score: {},
-};
-
-const CACHED_MAP: ItineraryMap = {
-  itineraryId: ITINERARY_ID,
-  ownerId: USER_ID,
-  itineraryUpdatedAt: BASE_ITINERARY.updatedAt,
-  markers: [],
-  routes: [],
-  unmappedActivities: [],
-  generatedAt: '2026-10-12T12:05:00.000Z',
-};
+const CACHED_MAP = buildCachedItineraryMap({ generatedAt: '2026-10-12T12:05:00.000Z' });
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({
@@ -57,7 +44,7 @@ function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Expre
 
 const request = (app: Express) => authenticatedAgent(app);
 
-function createItineraryRepository(): jest.Mocked<ItineraryRepository> {
+function createItineraryRepository(): MockedRepository<ItineraryRepository> {
   return {
     insertItinerary: jest.fn(),
     findItineraryDetails: jest.fn(),
@@ -70,13 +57,14 @@ function createItineraryRepository(): jest.Mocked<ItineraryRepository> {
     removeEmbeddedTransportationSegment: jest.fn(),
     updateEmbeddedActivity: jest.fn(),
     updateEmbeddedTransportationSegment: jest.fn(),
+    replaceEmbeddedItems: jest.fn(),
     removeItinerary: jest.fn(),
   };
 }
 
 function createMapRepository(
   cachedMap: ItineraryMap | null = null,
-): jest.Mocked<ItineraryMapRepository> {
+): MockedRepository<ItineraryMapRepository> {
   return {
     findByItineraryId: jest.fn().mockResolvedValue(cachedMap),
     upsertMapData: jest.fn().mockResolvedValue(undefined),
@@ -94,7 +82,7 @@ function createMapProvider(): jest.Mocked<MapProvider> {
 describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () => {
   test('returns a current cached map without calling the provider', async () => {
     const itineraries = createItineraryRepository();
-    itineraries.findItinerary.mockResolvedValue(BASE_ITINERARY);
+    itineraries.findItinerary.mockResolvedValue(EMPTY_ITINERARY);
     const maps = createMapRepository(CACHED_MAP);
     const provider = createMapProvider();
     const app = createApp({
@@ -114,7 +102,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('accepts a cache with an unresolved starting location and no activities', async () => {
     const itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'Unknown origin',
     };
     const cachedMap: ItineraryMap = {
@@ -144,7 +132,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('accepts a cache when the final activity has no marker', async () => {
     const itinerary: Itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'Known origin',
       items: [{
         id: 'unmapped-activity',
@@ -202,7 +190,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
       }],
     } as unknown as ItineraryMap;
     const itineraries = createItineraryRepository();
-    itineraries.findItinerary.mockResolvedValue(BASE_ITINERARY);
+    itineraries.findItinerary.mockResolvedValue(EMPTY_ITINERARY);
     const maps = createMapRepository(legacyMap);
     const app = createApp({
       itineraryRepository: itineraries,
@@ -219,7 +207,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('regenerates a cache missing the return route', async () => {
     const itinerary: Itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'Origin',
       items: [{
         id: 'activity-1',
@@ -269,7 +257,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('generates markers and both travel options, then caches the map', async () => {
     const itinerary: Itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'UBC Bus Exchange',
       items: [
         {
@@ -347,7 +335,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('reports an unresolved activity and omits routes to it', async () => {
     const itinerary: Itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       items: [{
         id: 'unmapped',
         type: 'activity',
@@ -384,7 +372,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('falls back to stale cached data when regeneration fails', async () => {
     const itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       updatedAt: '2026-10-13T12:00:00.000Z',
       startingLocation: 'UBC',
     };
@@ -428,7 +416,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
   test('returns an internal error when generation fails without a cache', async () => {
     const itineraries = createItineraryRepository();
     itineraries.findItinerary.mockResolvedValue({
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'UBC',
     });
     const maps = createMapRepository();
@@ -448,7 +436,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
 
   test('keeps unresolved origins and skips route segments without markers', async () => {
     const itinerary: Itinerary = {
-      ...BASE_ITINERARY,
+      ...EMPTY_ITINERARY,
       startingLocation: 'Unknown origin',
       items: [{
         id: 'activity-1',
@@ -489,7 +477,7 @@ describe('GET /api/v1/users/:userId/itineraries/:itineraryId/map — mocks', () 
     'uses available route fallback for preferred mode %s',
     async (transportationMode, walking, driving, encodedPolyline) => {
       const itinerary: Itinerary = {
-        ...BASE_ITINERARY,
+        ...EMPTY_ITINERARY,
         items: [
           {
             id: 'activity-1',

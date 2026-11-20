@@ -5,7 +5,7 @@ name: cpen321-project
 services:
   backend:
     build: ./backend
-    command: ["sh", "-c", "npm run sync:events && npm run dev"]
+    command: ["sh", "-c", "if [ \"$${SKIP_EVENT_SYNC:-0}\" = 1 ]; then npm run dev; else npm run sync:events && npm run dev; fi"]
     # Published on all interfaces so a physical Android device on the same Wi-Fi
     # can reach it. Emulators use http://10.0.2.2:3000/api/ either way.
     ports:
@@ -14,10 +14,21 @@ services:
       - path: ./backend/.env
         required: false
     environment:
-      MONGODB_URI: mongodb://mongo:27017/cpen321
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/cpen321}
+      SKIP_EVENT_SYNC: ${SKIP_EVENT_SYNC:-0}
+      EVENT_SEARCH_STATE_CODE: ${EVENT_SEARCH_STATE_CODE:-BC}
+      EVENT_SEARCH_COUNTRY_CODE: ${EVENT_SEARCH_COUNTRY_CODE:-CA}
     depends_on:
       mongo:
         condition: service_healthy
+      e2e-mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
   mongo:
     image: mongo:7
@@ -34,6 +45,23 @@ services:
       retries: 5
       start_period: 20s
 
+  # Isolated, disposable database used by every real-backend E2E test.
+  e2e-mongo:
+    image: mongo:7
+    ports:
+      - "27018:27017"
+    tmpfs:
+      - /data/db
+    volumes:
+      - ./database/init/001-users.js:/docker-entrypoint-initdb.d/001-users.js:ro
+      - ./database/init/002-itineraries.js:/docker-entrypoint-initdb.d/002-itineraries.js:ro
+      - ./database/init/004-sessions.js:/docker-entrypoint-initdb.d/004-sessions.js:ro
+      - ./database/init-e2e/005-seed-e2e.js:/docker-entrypoint-initdb.d/005-seed-e2e.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "const d = db.getSiblingDB('cpen321'); if (d.liveevents.countDocuments({ externalId: /^e2e-/ }) === 27 && d.users.countDocuments({ _id: ObjectId('6acd519c76376cefc61e97f1') }) === 1) quit(0); quit(1)"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
 volumes:
   mongo-data:

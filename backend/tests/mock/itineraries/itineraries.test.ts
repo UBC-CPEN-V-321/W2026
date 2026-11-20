@@ -6,22 +6,28 @@ import {
 } from '../../../src/index';
 import type { ItineraryRepository } from '../../../src/itineraries/itineraryRepository';
 import type { ItineraryMapRepository } from '../../../src/maps/itineraryMapRepository';
-import type { ItineraryMap } from '../../../src/maps/mapTypes';
-import type {
-  CreateActivityInput,
-  CreateItineraryInput,
-  CreateTransportationInput,
-  Itinerary,
-} from '../../../src/itineraries/itineraryTypes';
 import {
   authenticatedAgent,
   createPathSessionValidator,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
+import {
+  ACTIVITY_FIXTURE_ID,
+  ACTIVITY_INPUT,
+  CACHED_ITINERARY_MAP,
+  CREATE_ITINERARY_INPUT,
+  EMPTY_ITINERARY,
+  ITINERARY_FIXTURE_ID,
+  ITINERARY_FIXTURE_USER_ID,
+  STORED_ITINERARY,
+  TRANSPORTATION_FIXTURE_ID,
+  TRANSPORTATION_INPUT,
+} from '../../utils/itineraryFixtures';
+import type { MockedRepository } from '../../utils/mockedRepository';
 
-const USER_ID = '6705f0000000000000000001';
-const ITINERARY_ID = '6705f1000000000000000001';
-const ACTIVITY_ID = 'activity-1';
-const SEGMENT_ID = 'transportation-1';
+const USER_ID = ITINERARY_FIXTURE_USER_ID;
+const ITINERARY_ID = ITINERARY_FIXTURE_ID;
+const ACTIVITY_ID = ACTIVITY_FIXTURE_ID;
+const SEGMENT_ID = TRANSPORTATION_FIXTURE_ID;
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({
@@ -32,60 +38,9 @@ function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Expre
 
 const request = (app: Express) => authenticatedAgent(app);
 
-const ACTIVITY_INPUT: CreateActivityInput = {
-  type: 'activity',
-  name: 'Museum of Anthropology',
-  category: 'art',
-  location: '6393 NW Marine Drive, Vancouver, BC',
-  startTime: '2027-11-30T17:00:00.000Z',
-  endTime: '2027-11-30T18:00:00.000Z',
-};
+const CREATE_INPUT = CREATE_ITINERARY_INPUT;
 
-const TRANSPORTATION_INPUT: CreateTransportationInput = {
-  type: 'transportation',
-  mode: 'walking',
-  startLocation: 'Museum of Anthropology',
-  endLocation: 'UBC Nest',
-  distanceMeters: 1200,
-  startTime: '2027-11-30T18:00:00.000Z',
-  endTime: '2027-11-30T18:30:00.000Z',
-};
-
-const CREATE_INPUT: CreateItineraryInput = {
-  ownerId: USER_ID,
-  name: 'Mocked database itinerary',
-  items: [],
-  saved: true,
-  inRecommendation: false,
-  score: {},
-};
-
-const STORED_ITINERARY: Itinerary = {
-  id: ITINERARY_ID,
-  ownerId: USER_ID,
-  name: 'Stored itinerary',
-  items: [
-    { ...ACTIVITY_INPUT, id: ACTIVITY_ID },
-    { ...TRANSPORTATION_INPUT, id: SEGMENT_ID },
-  ],
-  createdAt: '2026-10-12T12:00:00.000Z',
-  updatedAt: '2026-10-12T12:00:00.000Z',
-  saved: true,
-  inRecommendation: false,
-  score: {},
-};
-
-const CACHED_MAP: ItineraryMap = {
-  itineraryId: ITINERARY_ID,
-  ownerId: USER_ID,
-  itineraryUpdatedAt: STORED_ITINERARY.updatedAt,
-  markers: [],
-  routes: [],
-  unmappedActivities: [],
-  generatedAt: '2026-10-12T12:00:00.000Z',
-};
-
-function createMockRepository(): jest.Mocked<ItineraryRepository> {
+function createMockRepository(): MockedRepository<ItineraryRepository> {
   return {
     insertItinerary: jest.fn(),
     findItineraryDetails: jest.fn(),
@@ -98,6 +53,7 @@ function createMockRepository(): jest.Mocked<ItineraryRepository> {
     removeEmbeddedTransportationSegment: jest.fn(),
     updateEmbeddedActivity: jest.fn(),
     updateEmbeddedTransportationSegment: jest.fn(),
+    replaceEmbeddedItems: jest.fn(),
     removeItinerary: jest.fn(),
   };
 }
@@ -241,7 +197,7 @@ describe('Itinerary map routes — mocks', () => {
     const repository = createMockRepository();
     repository.findItinerary.mockResolvedValue(STORED_ITINERARY);
     const mapRepository: jest.Mocked<ItineraryMapRepository> = {
-      findByItineraryId: jest.fn().mockResolvedValue(CACHED_MAP),
+      findByItineraryId: jest.fn().mockResolvedValue(CACHED_ITINERARY_MAP),
       upsertMapData: jest.fn(),
       deleteByItineraryId: jest.fn().mockResolvedValue(true),
     };
@@ -255,7 +211,7 @@ describe('Itinerary map routes — mocks', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.body.itineraryMap).toEqual(CACHED_MAP);
+    expect(response.body.itineraryMap).toEqual(CACHED_ITINERARY_MAP);
     expect(mapRepository.upsertMapData).not.toHaveBeenCalled();
   });
 
@@ -391,10 +347,7 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-seg
     // Input: valid segment. Expect: 500 INTERNAL_SERVER_ERROR.
     // Mock: insertEmbeddedTransportationSegment rejects.
     const repository = createMockRepository();
-    repository.findItinerary.mockResolvedValue({
-      ...STORED_ITINERARY,
-      items: [],
-    });
+    repository.findItinerary.mockResolvedValue(EMPTY_ITINERARY);
     repository.insertEmbeddedTransportationSegment.mockRejectedValue(
       new Error('write failed'),
     );
@@ -412,10 +365,7 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/transportation-seg
     // Input: valid segment. Expect: 404 ITINERARY_NOT_FOUND.
     // Mock: insertEmbeddedTransportationSegment resolves false.
     const repository = createMockRepository();
-    repository.findItinerary.mockResolvedValue({
-      ...STORED_ITINERARY,
-      items: [],
-    });
+    repository.findItinerary.mockResolvedValue(EMPTY_ITINERARY);
     repository.insertEmbeddedTransportationSegment.mockResolvedValue(false);
     const app = createApp({ itineraryRepository: repository });
 

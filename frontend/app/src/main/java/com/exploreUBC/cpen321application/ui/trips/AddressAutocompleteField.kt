@@ -42,6 +42,7 @@ data class AddressAutocompleteOptions(
 )
 
 private class AddressAutocompleteState {
+    var hasUserEdited by mutableStateOf(false)
     var suggestions by mutableStateOf<List<AddressSuggestion>>(emptyList())
     var isSearching by mutableStateOf(false)
     var selectedSuggestion by mutableStateOf(false)
@@ -75,7 +76,7 @@ fun AddressAutocompleteField(
     val state = remember { AddressAutocompleteState() }
 
     LaunchedEffect(value) {
-        if (state.selectedSuggestion || value.trim().length < 3) {
+        if (!state.hasUserEdited || state.selectedSuggestion || value.trim().length < 3) {
             state.clearSearch()
         } else {
             state.isSearching = true
@@ -147,6 +148,7 @@ private fun AddressAutocompleteDropdown(
         AddressAutocompleteTextField(
             value = value,
             onValueChange = {
+                state.hasUserEdited = true
                 state.selectedSuggestion = false
                 onValueChange(it)
             },

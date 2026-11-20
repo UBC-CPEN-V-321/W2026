@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { type Db, MongoServerError, ObjectId } from 'mongodb';
+import { type Db, MongoServerError } from 'mongodb';
 
 import {
   createApp as createBackendApp,
@@ -10,9 +10,15 @@ import type { UserRepository } from '../../../src/users/userRepository';
 import {
   authenticatedAgent,
   createPathSessionValidator,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
+import type { MockedRepository } from '../../utils/mockedRepository';
+import {
+  buildStoredUserDocument,
+  GOOGLE_USER_IDENTITY,
+  USER_FIXTURE_ID,
+} from '../../utils/userFixtures';
 
-const USER_ID = '6705f0000000000000000001';
+const USER_ID = USER_FIXTURE_ID;
 
 function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Express {
   return createBackendApp({
@@ -23,7 +29,7 @@ function createApp(dependencies: Omit<AppDependencies, 'sessionService'>): Expre
 
 const request = (app: Express) => authenticatedAgent(app);
 
-function createMockRepository(): jest.Mocked<UserRepository> {
+function createMockRepository(): MockedRepository<UserRepository> {
   return {
     findOrCreateByGoogleIdentity: jest.fn(),
     findPreferences: jest.fn(),
@@ -40,30 +46,10 @@ function createUserDao(collection: object): UserDao {
 }
 
 function storedUser() {
-  return {
-    _id: new ObjectId(USER_ID),
-    googleSubject: 'google-subject-123',
-    email: 'student@example.com',
-    displayName: 'Student Name',
-    profileImageUrl: null,
-    start_location: '',
-    preferences: {
-      transportation: { mode: 'walking' },
-      budget: 'economical',
-      interest: 'food',
-    },
-    onboardingCompletedAt: null,
-    create_at: new Date('2026-11-01T00:00:00.000Z'),
-    updated_at: new Date('2026-11-01T00:00:00.000Z'),
-  };
+  return buildStoredUserDocument();
 }
 
-const GOOGLE_IDENTITY = {
-  googleSubject: 'google-subject-123',
-  email: 'student@example.com',
-  displayName: 'Student Name',
-  profileImageUrl: null,
-};
+const GOOGLE_IDENTITY = GOOGLE_USER_IDENTITY;
 
 describe('Google identity persistence — mocks', () => {
   test('fails if MongoDB returns no user after an upsert', async () => {

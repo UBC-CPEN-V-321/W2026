@@ -62,14 +62,14 @@ class UserProfileE2ETest {
         composeRule.onNodeWithTag("profile_display_name_input")
             .performTextReplacement("Updated Explorer")
         composeRule.onNodeWithTag("profile_start_location")
-            .performTextReplacement("12345 abc Avenue, Vancouver BC")
+            .performTextReplacement("BC")
         composeRule.onNodeWithTag("profile_details_save").performClick()
 
         waitForTag("profile_display_name")
         composeRule.onNodeWithTag("profile_display_name").assertTextContains("Updated Explorer")
         val stored = loadUser()
         assertEquals("Updated Explorer", stored.displayName)
-        assertEquals("12345 abc Avenue, Vancouver BC", stored.startLocation)
+        assertEquals("BC", stored.startLocation)
     }
 
     @Test

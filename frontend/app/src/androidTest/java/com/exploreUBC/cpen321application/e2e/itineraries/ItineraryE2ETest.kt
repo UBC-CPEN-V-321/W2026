@@ -85,6 +85,7 @@ class ItineraryE2ETest {
             .performTextReplacement("UBC nest")
         composeRule.onNodeWithTag("itinerary_save").performClick()
 
+        waitForTag("itinerary_status")
         composeRule.onNodeWithTag("itinerary_status")
             .assertTextContains("Itinerary details saved.")
         val stored = loadItinerary()
@@ -117,6 +118,7 @@ class ItineraryE2ETest {
         setDateTime("new_activity_end_time", hour = 3)
         composeRule.onNodeWithTag("new_item_create").assertIsEnabled().performClick()
 
+        waitForTag("itinerary_status")
         composeRule.onNodeWithTag("itinerary_status").assertTextContains("Activity added.")
         val added = loadItinerary().items.filterIsInstance<ActivityItem>()
             .single { it.name == "new activity" }
@@ -152,6 +154,7 @@ class ItineraryE2ETest {
         setDateTime("new_transportation_end_time", hour = 3)
 
         composeRule.onNodeWithTag("new_item_create").assertIsEnabled().performClick()
+        waitForTag("itinerary_status")
         composeRule.onNodeWithTag("itinerary_status")
             .assertTextContains("Transportation added.")
         val added = loadItinerary().items.filterIsInstance<TransportationItem>()
@@ -172,6 +175,7 @@ class ItineraryE2ETest {
         composeRule.onNodeWithTag("edit_activity_location").performTextReplacement("UBC Nest")
         composeRule.onNodeWithTag("edit_activity_save").performScrollTo().performClick()
 
+        waitForTag("itinerary_item_status")
         composeRule.onNodeWithTag("itinerary_item_status").assertTextContains("Activity saved.")
         assertTrue(
             loadItinerary().items.filterIsInstance<ActivityItem>()
@@ -204,6 +208,7 @@ class ItineraryE2ETest {
         composeRule.onNodeWithText("Transit").performClick()
         composeRule.onNodeWithTag("edit_transportation_save").performScrollTo().performClick()
 
+        waitForTag("itinerary_item_status")
         composeRule.onNodeWithTag("itinerary_item_status")
             .assertTextContains("Transportation saved.")
         val stored = loadItinerary().items.filterIsInstance<TransportationItem>()

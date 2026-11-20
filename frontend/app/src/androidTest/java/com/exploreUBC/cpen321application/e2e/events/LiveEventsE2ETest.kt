@@ -22,7 +22,7 @@ import org.junit.Test
 import org.junit.rules.RuleChain
 
 /**
- * Live Events E2E tests against the real backend. Run after `npm run e2e:seed`, with the backend
+ * Live Events E2E tests against the real backend. Run with `npm run test:e2e` from `backend/`, with the backend
  * on the E2E database and the emulator location set to UBC (see documentation/Testing.md, Section 4).
  */
 class LiveEventsE2ETest {

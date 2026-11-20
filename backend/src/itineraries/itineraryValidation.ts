@@ -169,7 +169,7 @@ function parseTransportation(
     mode: mode as (typeof TRANSPORTATION_MODES)[number],
     startLocation,
     endLocation,
-    distanceMeters: distanceMeters as number,
+    distanceMeters,
     startTime,
     endTime,
   };
@@ -377,7 +377,16 @@ function parseScore(value: unknown, details: string[]): ItineraryScore {
   for (const [key, scoreValue] of Object.entries(value)) {
     if (typeof scoreValue !== 'number' || !Number.isFinite(scoreValue)) {
       details.push(`score.${key} must be a finite number.`);
-    } else score[key] = scoreValue;
+    } else if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
+      Object.defineProperty(score, key, {
+        value: scoreValue,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    } else {
+      details.push(`score.${key} is not a valid score field.`);
+    }
   }
   return score;
 }
@@ -501,7 +510,7 @@ export function parseItineraryFilters(value: unknown): ItineraryFilters {
 
   const details: string[] = [];
   const parseBoolean = (field: 'saved' | 'inRecommendation'): boolean | undefined => {
-    const queryValue = value[field];
+    const queryValue = field === 'saved' ? value.saved : value.inRecommendation;
     if (queryValue === undefined) return undefined;
     if (queryValue === 'true') return true;
     if (queryValue === 'false') return false;

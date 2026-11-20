@@ -58,6 +58,8 @@ function parseActivity(
     name === undefined || location === undefined ||
     startTime === undefined || endTime === undefined
   ) return undefined;
+  const description = optionalString(item.description);
+  const category = optionalString(item.category);
 
   return {
     type: 'activity',
@@ -65,12 +67,8 @@ function parseActivity(
     location,
     startTime,
     endTime,
-    ...(optionalString(item.description) === undefined
-      ? {}
-      : { description: optionalString(item.description)! }),
-    ...(optionalString(item.category) === undefined
-      ? {}
-      : { category: optionalString(item.category)! }),
+    ...(description === undefined ? {} : { description }),
+    ...(category === undefined ? {} : { category }),
   };
 }
 
@@ -194,12 +192,11 @@ export function parseItineraries(text: string): GeneratedItineraryInput[] {
     if (name === undefined || items.length === 0) {
       return [];
     }
+    const description = optionalString(candidate.description);
     const itinerary: GeneratedItineraryInput = {
       name,
       items,
-      ...(optionalString(candidate.description) === undefined
-        ? {}
-        : { description: optionalString(candidate.description)! }),
+      ...(description === undefined ? {} : { description }),
     };
     return [itinerary];
   });

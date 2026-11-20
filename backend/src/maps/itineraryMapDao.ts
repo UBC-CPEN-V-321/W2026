@@ -8,7 +8,7 @@ import type {
   UnmappedActivity,
 } from './mapTypes';
 
-type ItineraryMapDocument = {
+interface ItineraryMapDocument {
   _id: ObjectId;
   itineraryId: ObjectId;
   ownerId: ObjectId;
@@ -17,7 +17,7 @@ type ItineraryMapDocument = {
   routes: MapRoute[];
   unmappedActivities?: UnmappedActivity[];
   generatedAt: Date;
-};
+}
 
 export class ItineraryMapDao implements ItineraryMapRepository {
   private readonly itineraryMaps: Collection<ItineraryMapDocument>;

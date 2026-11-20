@@ -20,7 +20,7 @@ private const val MOVED_LOCATION_DELIVERY_TIMEOUT_MS = 120_000L
 
 /**
  * Refresh After a Location Change against the real backend. The test sets the device location
- * itself, so it does not depend on the emulator location. Run after `npm run e2e:seed`.
+ * itself, so it does not depend on the emulator location. Run with `npm run test:e2e` from `backend/`.
  */
 class LiveEventsLocationChangeE2ETest {
     private val mockLocation = MockLocationRule(UBC_LATITUDE, UBC_LONGITUDE)

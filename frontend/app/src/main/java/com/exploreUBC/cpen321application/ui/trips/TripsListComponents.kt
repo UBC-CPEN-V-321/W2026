@@ -61,7 +61,8 @@ fun TripsList(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp)
+            .testTag("trips_list"),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {

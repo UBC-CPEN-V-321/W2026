@@ -72,6 +72,11 @@ private data class AppDestinationState(
     val selectedItineraryId: String?,
 )
 
+private data class AppEventDestinationState(
+    val location: UserLocation,
+    val recommendations: AppEventRecommendationsState,
+)
+
 private data class AppScreenState(
     val destination: AppDestinations,
     val userId: String?,
@@ -324,8 +329,7 @@ private fun AppScreenContent(
                 userId = state.userId,
                 repositories = repositories,
                 actions = actions,
-                eventLocation = state.eventLocation,
-                eventRecommendations = eventRecommendations,
+                events = AppEventDestinationState(state.eventLocation, eventRecommendations),
                 tripsState = tripsState,
                 modifier = Modifier.padding(innerPadding),
             )
@@ -339,8 +343,7 @@ private fun AppDestinationContent(
     userId: String?,
     repositories: AppRepositories,
     actions: AppDestinationActions,
-    eventLocation: UserLocation,
-    eventRecommendations: AppEventRecommendationsState,
+    events: AppEventDestinationState,
     tripsState: TripsRouteState,
     modifier: Modifier = Modifier,
 ) {
@@ -363,12 +366,12 @@ private fun AppDestinationContent(
             userId = userId,
             eventsRepository = repositories.events,
             itinerariesRepository = repositories.itineraries,
-            location = eventLocation,
-            initialEvents = eventRecommendations.eventsAt(eventLocation),
-            onFirstPageLoaded = { events ->
-                eventRecommendations.recordRecommendations(
-                    eventLocation,
-                    events,
+            location = events.location,
+            initialEvents = events.recommendations.eventsAt(events.location),
+            onFirstPageLoaded = { loadedEvents ->
+                events.recommendations.recordRecommendations(
+                    events.location,
+                    loadedEvents,
                     notifyAboutNewEvents = false,
                 )
             },

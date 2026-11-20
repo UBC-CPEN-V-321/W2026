@@ -1,5 +1,4 @@
 const { MongoClient } = require('mongodb');
-const { seedTestData } = require('./seed-test-data');
 
 const userValidator = {
   $jsonSchema: {
@@ -232,8 +231,7 @@ async function initializeDatabase() {
     await liveEvents.createIndex({ category: 1, startDateTime: 1 });
     await liveEvents.createIndex({ location: '2dsphere' });
 
-    await seedTestData(database);
-    console.log('Atlas database schema and indexes are ready.');
+    console.log('Database schema and indexes are ready.');
   } finally {
     await client.close();
   }

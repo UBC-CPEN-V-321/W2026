@@ -17,8 +17,10 @@ import {
   RecommendationGenerationError,
 } from '../../../src/recommendation/recommendationErrors';
 import { parseItineraries } from '../../../src/recommendation/recommendationParser';
+import { QwenClient } from '../../../src/recommendation/qwenClient';
 import { RecommendationService } from '../../../src/recommendation/recommendationService';
 import { SoclaasClient } from '../../../src/recommendation/soclaasClient';
+import type { ItineraryGenerator } from '../../../src/recommendation/recommendationTypes';
 import {
   cleanTextForRanking,
   UniversalSentenceEncoderItineraryRanker,
@@ -27,11 +29,20 @@ import { UserDao } from '../../../src/users/userDao';
 import {
   authenticatedAgent,
   MongoTestSessions,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
 
-// SoCLaaS can take a full minute and may occasionally return unusable generated
-// output. Leave enough time for one retry plus ranking and MongoDB work.
-jest.setTimeout(210_000);
+// The live generation test may make a second provider request. Allow both
+// requests to reach their configured timeouts, plus ranking and MongoDB work.
+const providerTimeoutMs = env.recommendationClient === 'qwen'
+  ? env.qwen.timeoutMs
+  : env.soclaas.timeoutMs;
+jest.setTimeout(providerTimeoutMs * 2 + 60_000);
+
+function configuredGenerator(): ItineraryGenerator {
+  return env.recommendationClient === 'qwen'
+    ? new QwenClient(env.qwen)
+    : new SoclaasClient(env.soclaas);
+}
 
 const USER_ID = new ObjectId();
 const MISSING_USER_ID = new ObjectId();
@@ -118,7 +129,7 @@ beforeAll(async () => {
   testSessions = new MongoTestSessions(database);
   const repository = new RecommendationDao(database);
   const userRepository = new UserDao(database);
-  const generator = new SoclaasClient(env.soclaas);
+  const generator = configuredGenerator();
   const ranker = new UniversalSentenceEncoderItineraryRanker();
   recommendationService = new RecommendationService(
     repository,
@@ -224,7 +235,7 @@ describe('GET /api/v1/users/:userId/recommendations — no mocks', () => {
     const closedDatabase = closedClient.db(`eubc_closed_${new ObjectId().toHexString()}`);
     await closedClient.close();
     const disconnectedApp = createApp({
-      recommendationGenerator: new SoclaasClient(env.soclaas),
+      recommendationGenerator: configuredGenerator(),
       recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
       recommendationRepository: new RecommendationDao(closedDatabase),
       userRepository: new UserDao(closedDatabase),

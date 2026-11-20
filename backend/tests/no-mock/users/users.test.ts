@@ -13,7 +13,7 @@ import { UserDao } from '../../../src/users/userDao';
 import {
   authenticatedAgent,
   MongoTestSessions,
-} from '../../support/authTestUtils';
+} from '../../utils/authTestUtils';
 
 jest.setTimeout(30_000);
 
