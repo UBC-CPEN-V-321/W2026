@@ -7,6 +7,7 @@ import com.example.cpen321application.core.network.RetrofitClient
 import com.example.cpen321application.core.network.dto.CourtDto
 import com.example.cpen321application.core.network.dto.toCourt
 import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.reflect.TypeToken
 import retrofit2.HttpException
@@ -125,34 +126,32 @@ class CourtsRepositoryImpl(
         }
     }
 
+    private val courtIdArrayKeys = listOf("preferredCourts", "courts", "data", "items", "courtIds")
+
     private fun parseFlexibleCourtIds(jsonElement: JsonElement): List<Int> {
-        val ids = mutableListOf<Int>()
-        try {
-            if (jsonElement.isJsonArray) {
-                jsonElement.asJsonArray.forEach { el ->
-                    if (el.isJsonPrimitive) {
-                        el.asString.toIntOrNull()?.let { ids.add(it) }
-                    } else if (el.isJsonObject && el.asJsonObject.has("id")) {
-                        el.asJsonObject.get("id").asString.toIntOrNull()?.let { ids.add(it) }
-                    }
-                }
-            } else if (jsonElement.isJsonObject) {
+        val arrays: List<JsonArray> = when {
+            jsonElement.isJsonArray -> listOf(jsonElement.asJsonArray)
+            jsonElement.isJsonObject -> {
                 val obj = jsonElement.asJsonObject
-                for (key in listOf("preferredCourts", "courts", "data", "items", "courtIds")) {
-                    if (obj.has(key) && obj.get(key).isJsonArray) {
-                        obj.getAsJsonArray(key).forEach { el ->
-                            if (el.isJsonPrimitive) {
-                                el.asString.toIntOrNull()?.let { ids.add(it) }
-                            } else if (el.isJsonObject && el.asJsonObject.has("id")) {
-                                el.asJsonObject.get("id").asString.toIntOrNull()?.let { ids.add(it) }
-                            }
-                        }
-                    }
+                courtIdArrayKeys.mapNotNull { key ->
+                    obj.get(key)?.takeIf { it.isJsonArray }?.asJsonArray
                 }
             }
-        } catch (_: Exception) {
+            else -> emptyList()
         }
-        return ids
+        return arrays.flatMap { array -> array.mapNotNull { extractCourtId(it) } }
+    }
+
+    private fun extractCourtId(element: JsonElement): Int? {
+        return try {
+            when {
+                element.isJsonPrimitive -> element.asString.toIntOrNull()
+                element.isJsonObject -> element.asJsonObject.get("id")?.asString?.toIntOrNull()
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private inline fun <reified T> parseFlexibleList(

@@ -135,6 +135,18 @@ export async function saveFcmToken(userId: string, token: string) {
 }
 
 /**
+ * Throws the court-not-found error when a preferred-court write matched nothing.
+ * Kept synchronous so the async callers below only await and then assert.
+ * @param found The result of the repository write
+ * @throws AppError 404 if the court was not found
+ */
+function assertCourtFound(found: unknown): asserts found {
+  if (!found) {
+    throw new AppError(commonErrors.CourtNotFound);
+  }
+}
+
+/**
  * Adds a court to the signed-in user's preferred courts.
  * @param userId The signed-in user
  * @param courtId The court to add
@@ -142,9 +154,7 @@ export async function saveFcmToken(userId: string, token: string) {
  */
 export async function addPreferredCourt(userId: string, courtId: number): Promise<void> {
   const added = await addPreferredCourtRecord(userId, courtId);
-  if (!added) {
-    throw new AppError(commonErrors.CourtNotFound);
-  }
+  assertCourtFound(added);
 }
 
 /**
@@ -155,9 +165,7 @@ export async function addPreferredCourt(userId: string, courtId: number): Promis
  */
 export async function removePreferredCourt(userId: string, courtId: number): Promise<void> {
   const removed = await removePreferredCourtRecord(userId, courtId);
-  if (!removed) {
-    throw new AppError(commonErrors.CourtNotFound);
-  }
+  assertCourtFound(removed);
 }
 
 /**
