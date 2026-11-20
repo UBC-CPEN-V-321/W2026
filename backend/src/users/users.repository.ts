@@ -17,7 +17,7 @@ const profileUserSelect = {
 
 type LoginUser = Prisma.UserGetPayload<{ select: typeof loginUserSelect }>;
 type ProfileUser = Prisma.UserGetPayload<{ select: typeof profileUserSelect }>;
-type NewUserData = Pick<Prisma.UserCreateInput, 'googleSub' | 'username' | 'name' | 'email'>;
+type NewUserData = Pick<Prisma.UserCreateInput, 'googleSub' | 'username' | 'name' | 'email' | 'photoUrl'>;
 
 
 /**
@@ -54,6 +54,27 @@ export async function getUserById(userId: string): Promise<ProfileUser | null> {
     where: { id: userId },
     select: profileUserSelect,
   });
+}
+
+/**
+ * Gets the stored photo URL for a user.
+ * @param userId the user ID
+ * @returns the photo URL, or null if the user does not exist
+ */
+export async function getUserPhoto(userId: string) {
+  return await prisma.user.findUnique({
+    where: { id: userId },
+    select: { photoUrl: true },
+  });
+}
+
+/**
+ * Updates the user's stored Google photo URL.
+ * @param userId the user ID
+ * @param photoUrl the URL from the verified Google profile
+ */
+export async function updateUserPhotoUrl(userId: string, photoUrl: string): Promise<void> {
+  await prisma.user.update({ where: { id: userId }, data: { photoUrl } });
 }
 
 /**

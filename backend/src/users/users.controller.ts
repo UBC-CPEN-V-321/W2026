@@ -9,6 +9,7 @@ import {
     getEquipment,
     getPreferredCourts,
     getProfile,
+    getUserPhoto,
     login,
     removeEquipment,
     removePreferredCourt,
@@ -22,6 +23,7 @@ import {
     loginSchema,
     refreshTokenSchema,
     updateEquipmentSchema,
+    userIdSchema,
 } from './users.schemas';
 
 export const usersRouter = Router();
@@ -80,6 +82,12 @@ usersRouter.delete('/equipment/:equipmentId', async (req: Request, res: Response
 usersRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
     const user = await getProfile(authedUserId(req));
     res.status(200).json({ user });
+});
+
+usersRouter.get('/:userId/photo', requireAuth, async (req: Request, res: Response) => {
+    const userId = parseRequest(userIdSchema, req.params.userId);
+    const photoUrl = await getUserPhoto(userId);
+    res.status(200).json({ photoUrl });
 });
 
 usersRouter.put('/me/fcm-token', requireAuth, async (req: Request, res: Response) => {

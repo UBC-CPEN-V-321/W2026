@@ -8,6 +8,7 @@ import {
   createEquipment as createEquipmentRecord,
   createUser,
   getFcmTokens,
+  getUserPhoto as getUserPhotoRecord,
   listPreferredCourts as listPreferredCourtsRecord,
   getUserByGoogleSub,
   getUserById,
@@ -16,6 +17,7 @@ import {
   removePreferredCourt as removePreferredCourtRecord,
   saveFcmToken as saveFcmTokenRecord,
   updateEquipment as updateEquipmentRecord,
+  updateUserPhotoUrl as updateUserPhotoUrlRecord,
 } from './users.repository';
 import type { CreateEquipmentInput, UpdateEquipmentInput } from './users.schemas';
 
@@ -51,6 +53,9 @@ export async function login(idToken: string): Promise<LoginResult> {
 
   const existingUser = await getUserByGoogleSub(payload.sub);
   if (existingUser) {
+    if (payload.picture !== undefined) {
+      await updateUserPhotoUrlRecord(existingUser.id, payload.picture);
+    }
     const tokens = await issueTokens(existingUser.id);
     return {
       isNewUser: false,
@@ -81,6 +86,7 @@ export async function login(idToken: string): Promise<LoginResult> {
     username: email, // temporary until user sets their username with onboarding
     name,
     email,
+    photoUrl: payload.picture ?? null,
   });
 
   const tokens = await issueTokens(newUser.id);
@@ -103,6 +109,20 @@ export async function getProfile(userId: string) {
     throw new AppError(commonErrors.UserNotFound);
   }
   return user;
+}
+
+/**
+ * Gets the signed-in user's photo URL.
+ * @param userId The signed-in user
+ * @returns The photo URL, or null when none is available
+ * @throws AppError 404 if the user does not exist
+ */
+export async function getUserPhoto(userId: string): Promise<string | null> {
+  const user = await getUserPhotoRecord(userId);
+  if (!user) {
+    throw new AppError(commonErrors.UserNotFound);
+  }
+  return user.photoUrl;
 }
 
 /**
