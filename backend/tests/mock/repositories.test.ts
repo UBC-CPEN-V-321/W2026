@@ -208,6 +208,7 @@ describe("Mocked: fetchGameDetails", () => {
       username: true,
       name: true,
       rating: true,
+      photoUrl: true,
     });
   });
 
