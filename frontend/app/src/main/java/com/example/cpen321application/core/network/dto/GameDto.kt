@@ -41,7 +41,8 @@ data class PlayerDto(
     val team: Int,
     val ratingBefore: Double? = null,  // null until the game is completed
     val ratingAfter: Double? = null,
-    val acceptedAt: String? = null  // matched games only: null until the player accepts
+    val acceptedAt: String? = null,  // matched games only: null until the player accepts
+    val photoUrl: String? = null
 )
 
 data class RoundDto(
@@ -70,7 +71,17 @@ fun GameDto.toGame(): Game = Game(
     startsAt = Instant.parse(startsAt),
     court = court.toCourt(),
     players = players.map {
-        Player(it.id, it.username, it.name, it.rating, it.team, it.ratingBefore, it.ratingAfter, it.acceptedAt?.let(Instant::parse))
+        Player(
+            it.id,
+            it.username,
+            it.name,
+            it.rating,
+            it.team,
+            it.ratingBefore,
+            it.ratingAfter,
+            it.acceptedAt?.let(Instant::parse),
+            it.photoUrl,
+        )
     },
     rounds = rounds.map { it.toRound() },
     forecast = forecast?.toForecast(),

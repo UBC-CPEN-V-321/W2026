@@ -52,7 +52,7 @@ class GamesRepositoryTest {
           "gameSource": "SCHEDULED",
           "court": { "id": 3, "name": "Kitsilano Beach", "latitude": 49.27, "longitude": -123.15 },
           "players": [
-            { "id": "u1", "username": "alice", "name": "Alice A", "rating": 1512.5, "team": 1, "acceptedAt": "2026-11-01T10:00:00.000Z" },
+            { "id": "u1", "username": "alice", "name": "Alice A", "rating": 1512.5, "team": 1, "photoUrl": "https://example.com/alice.jpg", "acceptedAt": "2026-11-01T10:00:00.000Z" },
             { "id": "u2", "username": "bob", "name": "Bob B", "rating": 1490, "team": 2, "acceptedAt": "2026-11-01T11:00:00.000Z" }
           ],
           "rounds": [],
@@ -155,7 +155,7 @@ class GamesRepositoryTest {
         assertEquals(Court(3, "Kitsilano Beach", 49.27, -123.15), game.court)
         assertEquals(
             listOf(
-                Player("u1", "alice", "Alice A", 1512.5, 1, acceptedAt = Instant.parse("2026-11-01T10:00:00Z")),
+                Player("u1", "alice", "Alice A", 1512.5, 1, acceptedAt = Instant.parse("2026-11-01T10:00:00Z"), photoUrl = "https://example.com/alice.jpg"),
                 Player("u2", "bob", "Bob B", 1490.0, 2, acceptedAt = Instant.parse("2026-11-01T11:00:00Z"))
             ),
             game.players

@@ -35,6 +35,7 @@ export function testPlayer(id: string, team: number): GameDetails["players"][num
     id,
     username: id,
     name: id,
+    photoUrl: null,
     rating: 1500,
     team,
     acceptedAt: new Date(),

@@ -33,7 +33,8 @@ data class Player(
     val ratingBefore: Double? = null,
     val ratingAfter: Double? = null,
     // Matched games only: null until the player accepts
-    val acceptedAt: Instant? = null
+    val acceptedAt: Instant? = null,
+    val photoUrl: String? = null
 )
 
 // One round of a game (a set in tennis)

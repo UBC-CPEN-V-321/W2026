@@ -157,8 +157,20 @@ internal fun GameScoreboard(game: Game) {
     Scoreboard(
         title = "${if (game.status == GameStatus.COMPLETED) "Final" else "Score"} · ${game.format.label}",
         sides = listOf(
-            ScoreboardSide(playerNames(team1), team1.firstOrNull()?.name.orEmpty(), team1Scores, team2Scores),
-            ScoreboardSide(playerNames(team2), team2.firstOrNull()?.name.orEmpty(), team2Scores, team1Scores)
+            ScoreboardSide(
+                playerNames(team1),
+                team1.firstOrNull()?.name.orEmpty(),
+                team1Scores,
+                team2Scores,
+                team1.firstOrNull()?.photoUrl,
+            ),
+            ScoreboardSide(
+                playerNames(team2),
+                team2.firstOrNull()?.name.orEmpty(),
+                team2Scores,
+                team1Scores,
+                team2.firstOrNull()?.photoUrl,
+            )
         )
     )
 }

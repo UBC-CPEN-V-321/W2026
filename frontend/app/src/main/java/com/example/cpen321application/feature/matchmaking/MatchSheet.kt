@@ -235,6 +235,7 @@ private fun TeamColumn(players: List<Player>, firstIsMe: Boolean, modifier: Modi
             players.forEach { player ->
                 PlayerAvatar(
                     name = player.name,
+                    avatarUrl = player.photoUrl,
                     size = 44.dp,
                     modifier = Modifier.border(2.dp, ring, CircleShape)
                 )

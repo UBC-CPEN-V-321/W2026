@@ -117,19 +117,20 @@ fun PlayerSlots(
     capacity: Int,
     modifier: Modifier = Modifier,
     ringColor: Color = MaterialTheme.colorScheme.surfaceContainerLowest,
+    avatarUrls: List<String?> = emptyList(),
 ) {
     val outline = MaterialTheme.colorScheme.outline
     Row(
         modifier = modifier.clearAndSetSemantics {},
         horizontalArrangement = Arrangement.spacedBy(SLOT_OVERLAP),
     ) {
-        names.forEach { name ->
+        names.forEachIndexed { index, name ->
             Box(
                 modifier = Modifier
                     .background(ringColor, CircleShape)
                     .padding(SLOT_RING),
             ) {
-                PlayerAvatar(name = name, size = SLOT_SIZE)
+                PlayerAvatar(name = name, avatarUrl = avatarUrls.getOrNull(index), size = SLOT_SIZE)
             }
         }
         repeat((capacity - names.size).coerceAtLeast(0)) {
