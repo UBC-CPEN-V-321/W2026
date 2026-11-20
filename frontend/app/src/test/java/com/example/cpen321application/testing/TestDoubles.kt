@@ -33,6 +33,7 @@ open class UnusedGamesRepository : GamesRepository {
     override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
     override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
     override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
+    override suspend fun confirmScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
     override fun gameUpdates(gameId: String): Flow<GameUpdate> = error("unused")
 }
 

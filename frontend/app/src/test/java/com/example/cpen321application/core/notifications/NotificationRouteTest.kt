@@ -24,6 +24,15 @@ class NotificationRouteTest {
         assertEquals(Screen.GameDetail.createRoute("game-1"), notificationRoute("game-1", GAME_INVITE_TYPE))
     }
 
+    // Input: the app was opened from a push asking to confirm the score another player reported
+    // Expected behavior: go to the game, where the user can confirm the score or suggest a correction
+    // Expected output: the game's screen
+    @Test
+    fun scoreReportedOpensTheGame() {
+        assertEquals(Screen.GameDetail.createRoute("game-1"), notificationRoute("game-1", SCORE_REPORTED_TYPE))
+        assertFalse(isMatchPush(mapOf(EXTRA_GAME_ID to "game-1", EXTRA_NOTIFICATION_TYPE to SCORE_REPORTED_TYPE)))
+    }
+
     // Input: the app was opened normally, without a notification
     // Expected behavior: stay where the app starts
     // Expected output: null

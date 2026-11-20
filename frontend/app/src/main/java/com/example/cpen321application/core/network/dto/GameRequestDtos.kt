@@ -42,6 +42,7 @@ data class ChangeGameLocationRequestDto(
     val courtId: Int
 )
 
+// Also the body of POST /games/score/confirm: the score the player saw, which must still be the one waiting
 data class ReportScoreRequestDto(
     val gameId: String,
     val rounds: List<List<Int>>  // [team 1 score, team 2 score] of each round, in order

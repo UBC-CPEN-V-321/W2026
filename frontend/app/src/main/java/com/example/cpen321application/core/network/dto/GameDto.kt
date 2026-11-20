@@ -9,6 +9,7 @@ import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.GameTournament
 import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.model.Round
+import com.example.cpen321application.core.data.model.ScoreProposal
 import java.time.Instant
 
 // A game with its court, players and rounds, as GET /games, /games/feed, /games/me and /games/history return it.
@@ -23,7 +24,14 @@ data class GameDto(
     val players: List<PlayerDto>,
     val rounds: List<RoundDto>,
     val forecast: ForecastDto?,  // null for a completed or cancelled game; GET /games/history leaves it out
-    val tournament: GameTournamentDto?  // null unless the game is a tournament match
+    val tournament: GameTournamentDto?,  // null unless the game is a tournament match
+    val scoreProposal: ScoreProposalDto? = null  // null unless a reported score waits for every player to confirm it
+)
+
+data class ScoreProposalDto(
+    val rounds: List<RoundDto>,
+    val proposedById: String,
+    val proposedAt: String
 )
 
 data class CourtDto(
@@ -41,7 +49,8 @@ data class PlayerDto(
     val team: Int,
     val ratingBefore: Double? = null,  // null until the game is completed
     val ratingAfter: Double? = null,
-    val acceptedAt: String? = null  // matched games only: null until the player accepts
+    val acceptedAt: String? = null,  // matched games only: null until the player accepts
+    val scoreConfirmedAt: String? = null  // null until the player agrees with the score waiting
 )
 
 data class RoundDto(
@@ -70,11 +79,18 @@ fun GameDto.toGame(): Game = Game(
     startsAt = Instant.parse(startsAt),
     court = court.toCourt(),
     players = players.map {
-        Player(it.id, it.username, it.name, it.rating, it.team, it.ratingBefore, it.ratingAfter, it.acceptedAt?.let(Instant::parse))
+        Player(
+            it.id, it.username, it.name, it.rating, it.team, it.ratingBefore, it.ratingAfter,
+            acceptedAt = it.acceptedAt?.let(Instant::parse),
+            scoreConfirmedAt = it.scoreConfirmedAt?.let(Instant::parse)
+        )
     },
     rounds = rounds.map { it.toRound() },
     forecast = forecast?.toForecast(),
-    tournament = tournament?.let { GameTournament(it.id, it.name, it.round) }
+    tournament = tournament?.let { GameTournament(it.id, it.name, it.round) },
+    scoreProposal = scoreProposal?.let {
+        ScoreProposal(it.rounds.map { round -> round.toRound() }, it.proposedById, Instant.parse(it.proposedAt))
+    }
 )
 
 fun ForecastDto.toForecast(): Forecast = Forecast(temperature, description, precipitationChance)

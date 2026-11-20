@@ -6,7 +6,7 @@ enum class Format { SINGLES, DOUBLES }
 
 // OPEN: a scheduled game with free spots, or a matched game waiting for every player to accept
 // BOOKED: every spot filled. IN_PROGRESS: a booked game started early or that reached its start time.
-// COMPLETED: final score reported. CANCELLED: acceptance deadline missed
+// COMPLETED: every player confirmed the final score. CANCELLED: acceptance deadline missed
 enum class GameStatus { OPEN, BOOKED, IN_PROGRESS, COMPLETED, CANCELLED }
 
 // SCHEDULED: created by a player and shown on the feed. MATCHED: proposed by matchmaking.
@@ -33,7 +33,9 @@ data class Player(
     val ratingBefore: Double? = null,
     val ratingAfter: Double? = null,
     // Matched games only: null until the player accepts
-    val acceptedAt: Instant? = null
+    val acceptedAt: Instant? = null,
+    // When the player agreed to the score waiting for confirmation; null until they do
+    val scoreConfirmedAt: Instant? = null
 )
 
 // One round of a game (a set in tennis)
@@ -57,6 +59,13 @@ data class GameTournament(
     val round: Int
 )
 
+// A final score a player reported, waiting for every player to confirm it. Reporting a different score replaces it
+data class ScoreProposal(
+    val rounds: List<Round>,
+    val proposedById: String,
+    val proposedAt: Instant
+)
+
 data class Game(
     val id: String,
     val format: Format,
@@ -70,7 +79,9 @@ data class Game(
     // or OpenWeather could not be reached
     val forecast: Forecast? = null,
     // Only tournament games have one
-    val tournament: GameTournament? = null
+    val tournament: GameTournament? = null,
+    // The final score a player reported, until every player confirms it and the game is completed
+    val scoreProposal: ScoreProposal? = null
 )
 
 /**

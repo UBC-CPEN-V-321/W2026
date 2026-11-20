@@ -60,8 +60,12 @@ interface GamesRepository {
 
     suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit>
 
-    // Ends the game with its final score: the (team 1, team 2) score of each round, in order
+    // Reports the final score: the (team 1, team 2) score of each round, in order. It replaces any score waiting,
+    // and the game ends once every player confirmed it
     suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit>
+
+    // Agrees with the score waiting, sent back as the user saw it, so a score changed since then is refused
+    suspend fun confirmScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit>
 
     // The game pushed by the backend each time anyone changes it, starting with its current state. Ends after
     // Deleted, or right away if signed out. Throws IOException if the connection drops, HttpException if refused
@@ -143,10 +147,13 @@ class GamesRepositoryImpl(
         request { gamesApi.changeGameLocation(it, ChangeGameLocationRequestDto(gameId, courtId)) }
 
     override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> =
-        request {
-            val scores = rounds.map { (team1Score, team2Score) -> listOf(team1Score, team2Score) }
-            gamesApi.reportScore(it, ReportScoreRequestDto(gameId, scores))
-        }
+        request { gamesApi.reportScore(it, scoreRequest(gameId, rounds)) }
+
+    override suspend fun confirmScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> =
+        request { gamesApi.confirmScore(it, scoreRequest(gameId, rounds)) }
+
+    private fun scoreRequest(gameId: String, rounds: List<Pair<Int, Int>>) =
+        ReportScoreRequestDto(gameId, rounds.map { (team1Score, team2Score) -> listOf(team1Score, team2Score) })
 
     // Sends an authorized request and wraps its result, like AuthRepository does
     private suspend fun <T> request(call: suspend (authorization: String) -> T): Result<T> {

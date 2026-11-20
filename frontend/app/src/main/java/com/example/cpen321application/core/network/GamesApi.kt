@@ -99,8 +99,15 @@ interface GamesApi {
         @Body request: ChangeGameLocationRequestDto
     )
 
+    // The score waits for every other player to confirm it
     @POST("games/score")
     suspend fun reportScore(
+        @Header("Authorization") authorization: String,
+        @Body request: ReportScoreRequestDto
+    )
+
+    @POST("games/score/confirm")
+    suspend fun confirmScore(
         @Header("Authorization") authorization: String,
         @Body request: ReportScoreRequestDto
     )
