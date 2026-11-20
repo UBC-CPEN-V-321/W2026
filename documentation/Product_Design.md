@@ -81,7 +81,7 @@ The longest-waiting player is matched first, with the closest-rated players near
 
 Every match is a list of **rounds**, each with a score per side. The winner is the side that wins more rounds.
 
-In tennis, a round is a **set** and its score counts **games** (e.g. 6–4).
+In tennis, a round is a **set** and its score counts **games** (e.g. 6–4). A set is won at 6 games; past 6 it is won by exactly 2 games (e.g. 8–6), or 7–6 after a tiebreak. Any score up to 6 games is accepted, so 99–0 can't be entered, and a long set like 99–97 rates like 8–6.
 
 ### 6.2. Who enters the score
 

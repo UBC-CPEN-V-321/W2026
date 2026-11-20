@@ -6,6 +6,7 @@
 | ----------------- | --------------------- | ------------- |
 | 11-03-2026        | 2                     | Added the Codacy results for `main` at `e9776ef` |
 | 11-03-2026        | 2                     | Updated to `cd0a483`, where Codacy reports 0 unfixed issues |
+| 11-20-2026        | 3.2, 3.3              | Recorded the fault the other group reported (fabricated scores moving ratings) and how score confirmation, the set score rule and the started-game check fix it |
 
 ---
 
@@ -90,16 +91,18 @@ None: there are no unfixed issues.
 
 **Major fault reported against your project**
 
-- **Description:** ...
-- **Severity:** ...
+- **Description:** Fabricated scores: one player could set any opponent's rating. Any player of a game could report its final score alone, and it was final at once. Set scores only had to be non-negative whole numbers (the app allowed up to 99), and the rating's margin-of-victory term grows with the games difference, so a fabricated 99–0, 99–0, 99–0 moved each player's rating by about ±475 points. The reviewers also asked us to confirm that a game nobody accepted, or that hasn't started, can't be scored, since no test enforced Use Case 3's "the game has started" precondition.
+- **Severity:** High
 
 ### 3.3. Actions Taken in Response to the Review
 
 | **Finding** | **Action Taken** | **Commit / Location in Git** |
 | ----------- | ---------------- | ---------------------------- |
-| ...         | ...              | [`src/...`](#)               |
-| ...         | ...              | ...                          |
+| One player can set the final score alone | Score confirmation: a reported score waits until every player of the game confirms it (`POST /games/score/confirm`), and only then is the game completed and rated. A player who disagrees suggests a correction, which everyone confirms again | `81ba1c5`, `2f1a0f9` (backend), `68277a7`, `22e442a` (app); [`backend/src/games/games.repository.ts`](#) (`recordScore`) |
+| Set scores aren't validated, so 99–0 is accepted | Past 6 games a set must be won by exactly 2 games, or be 7–6 after a tiebreak, checked by the backend and the app's score form. Each set's games difference is now at most 6, so the rating's margin term is bounded: 99–0 can't be entered, and a long set like 99–97 counts like 8–6 | `86dc2e5`; [`backend/src/games/games.schemas.ts`](#) (`isLegalSet`), [`frontend/.../gamedetail/ScoreInput.kt`](#) |
+| A game nobody accepted, or that hasn't started, can be scored | A game is scored only once a player started it (`IN_PROGRESS`), and only a booked game, every player having accepted, can be started (`NOT_BOOKED` otherwise). Tests now cover scoring an open, a booked and an unaccepted matched game (`GAME_NOT_STARTED`) | `d28ff7e`, `38cd2d4`; tests in `86dc2e5` |
+| No tests for the above | Tests for confirming, correcting and refusing a stale confirmation (mocked and against Postgres), for the set rule on both score routes and in the app, for 99–97 rating like 8–6, and for the unaccepted matched game | [`backend/tests/mock/games.test.ts`](#), [`backend/tests/no-mock/playerStats.test.ts`](#), [`backend/tests/unit/elo.test.ts`](#), [`frontend/.../ScoreInputTest.kt`](#) |
 
 - **Findings not acted on.** For each finding you decided not to address, give the reason:
-  1. **Finding:** ...
-     - **Justification:** ...
+  1. **Finding:** Cap the margin-of-victory term in `elo.ts`.
+     - **Justification:** The set rule already bounds the margin: no set's games difference can exceed 6, so a score can't move ratings further than a real lopsided match (6–0, 6–0). A cap on top would also shrink the effect of real lopsided wins, so we kept the rating formula as designed.
