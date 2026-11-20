@@ -83,6 +83,12 @@ class AppNavigationUiTest {
         compose.onNodeWithTag("ledger-dashboard").assertIsDisplayed()
     }
 
+    private fun assertNoNavigationBar() {
+        listOf("section-Expenses", "section-Groups", "section-Me").forEach {
+            compose.onNodeWithTag(it).assertDoesNotExist()
+        }
+    }
+
     @Test fun signedOutLaunchOpensPersonalExpensesWithThreeTabs() {
         openApp()
         awaitDashboard()
@@ -98,7 +104,8 @@ class AppNavigationUiTest {
     @Test fun groupTabRequiresLoginAndAllowsContinuingWithoutIt() {
         openApp()
         awaitDashboard()
-        compose.onNodeWithTag("section-Groups").performClick().assertIsSelected()
+        compose.onNodeWithTag("section-Groups").performClick()
+        assertNoNavigationBar()
         compose.onNodeWithText("Welcome back").assertIsDisplayed()
         compose.onNodeWithText("Create group").assertDoesNotExist()
         compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
@@ -118,11 +125,14 @@ class AppNavigationUiTest {
 
         compose.onNodeWithTag("guest-sign-in").performScrollTo().performClick()
         compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        assertNoNavigationBar()
         Espresso.pressBack()
         compose.onNodeWithText("Guest account").assertIsDisplayed()
+        compose.onNodeWithTag("section-Me").assertIsSelected()
 
         compose.onNodeWithTag("guest-sign-up").performScrollTo().performClick()
         compose.onNodeWithText("Create your account").assertIsDisplayed()
+        assertNoNavigationBar()
         Espresso.pressBack()
         compose.onNodeWithText("Guest account").assertIsDisplayed()
         Espresso.pressBack()
@@ -140,7 +150,7 @@ class AppNavigationUiTest {
     @Test fun invitationLoginCanBeDismissedWithoutAnAccount() {
         openApp("ledger://invite/test-invitation")
         compose.onNodeWithText("Sign in or create an account to view your group invitation.").assertExists()
-        compose.onNodeWithTag("section-Groups").assertIsSelected()
+        assertNoNavigationBar()
         compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
         awaitDashboard()
         compose.onNodeWithTag("section-Me").performClick()
@@ -167,7 +177,7 @@ class AppNavigationUiTest {
         assertNull(storage.load())
         assertNull(navigation.groupToOpen)
         openApp()
-        compose.onNodeWithTag("section-Groups").assertIsSelected()
+        assertNoNavigationBar()
         compose.onNodeWithText("Your session has expired. Please sign in again.").assertExists()
         compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
         awaitDashboard()

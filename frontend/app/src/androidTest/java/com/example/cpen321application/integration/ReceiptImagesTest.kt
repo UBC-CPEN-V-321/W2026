@@ -21,6 +21,8 @@ class ReceiptImagesTest {
             source.eraseColor(Color.BLUE)
             file.outputStream().use { source.compress(Bitmap.CompressFormat.JPEG, 95, it) }
             source.recycle()
+            // A valid JPEG padded to the source limit still compresses to the transport limit.
+            RandomAccessFile(file, "rw").use { it.setLength(LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) }
             val bytes = compressReceiptImage(file)
             assertTrue(bytes.size <= LedgerRepository.MAX_IMAGE_BYTES)
             val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -36,9 +38,9 @@ class ReceiptImagesTest {
         try {
             file.writeText("not an image")
             assertThrows(IllegalArgumentException::class.java) { compressReceiptImage(file) }
-            RandomAccessFile(file, "rw").use { it.setLength(100L * 1024 * 1024 + 1) }
+            RandomAccessFile(file, "rw").use { it.setLength(LedgerRepository.MAX_DOCUMENT_BYTES.toLong() + 1) }
             val error = assertThrows(IllegalArgumentException::class.java) { compressReceiptImage(file) }
-            assertTrue(error.message!!.contains("100 MB"))
+            assertTrue(error.message!!.contains("20 MB"))
         } finally { file.delete() }
     }
 }

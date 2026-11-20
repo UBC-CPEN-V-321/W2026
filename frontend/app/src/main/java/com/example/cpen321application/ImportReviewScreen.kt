@@ -187,7 +187,8 @@ private fun ImportSourceCard(model: LedgerViewModel, chooseFile: () -> Unit, tak
             PrimaryBarButton(enabled = !model.busy, onClick = chooseFile, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text(t("Choose a file")) }
             BarButton(enabled = !model.busy, onClick = takePhoto, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text(t("Take a receipt photo")) }
             BarButton(enabled = !model.busy, onClick = model.bills::enterManually, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text(t("Enter manually")) }
-            Text(t("CSV and PDF · Up to 20 MB; images · Up to 5 MiB after compression"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("Choose a document to get started."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("Files up to 20 MB"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -7,7 +7,7 @@ import java.io.File
 
 /** Decode by dimensions before allocating pixels; re-encoding strips receipt metadata. */
 internal fun compressReceiptImage(file: File): ByteArray {
-    require(file.length() in 1..100L * 1024 * 1024) { "Choose an image smaller than 100 MB." }
+    require(file.length() in 1..LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) { "Choose a nonempty image of 20 MB or smaller." }
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.path, bounds)
     require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Choose a supported image." }

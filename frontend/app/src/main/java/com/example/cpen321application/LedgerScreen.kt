@@ -49,6 +49,7 @@ internal fun LedgerScreen(model: LedgerViewModel, session: Session? = null, onSe
 
 @Composable
 private fun LedgerActions(model: LedgerViewModel, onShare: (() -> Unit)? = null) {
+    if (model.hideEmptyImportActions()) return
     Surface(tonalElevation = 2.dp, shadowElevation = 4.dp) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,11 +91,14 @@ private fun LedgerActions(model: LedgerViewModel, onShare: (() -> Unit)? = null)
                             else -> t("Send to OpenAI & extract")
                         })
                     }
-                } else Text(t("Choose a document to get started."), style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
 }
+
+private fun LedgerViewModel.hideEmptyImportActions(): Boolean =
+    page == LedgerPage.Import && importRows.isEmpty() && documentName == null && !busy
 
 @Composable
 private fun LedgerDashboard(model: LedgerViewModel, onShare: ((LedgerRecord) -> Unit)? = null) {
@@ -269,11 +273,11 @@ private fun LedgerTopBar(model: LedgerViewModel) {
                 if (model.page != LedgerPage.Dashboard) {
                     BackBar("Back", onClick = model::requestBack, enabled = !model.busy)
                 }
-                Column(Modifier.weight(1f)) {
+                if (model.page != LedgerPage.Import) Column(Modifier.weight(1f)) {
                     Text(when (model.page) {
                         LedgerPage.Dashboard -> t("My Expenses")
                         LedgerPage.Editor -> if (model.editingRecord == null) t("New transaction") else t("Edit transaction")
-                        LedgerPage.Import -> t("Add a bill")
+                        LedgerPage.Import -> ""
                         LedgerPage.ImportEditor -> t("Review transaction")
                     }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }

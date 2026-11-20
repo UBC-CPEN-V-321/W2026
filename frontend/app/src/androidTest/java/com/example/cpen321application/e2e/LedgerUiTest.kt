@@ -61,7 +61,7 @@ class LedgerUiTest {
         awaitDashboard()
         compose.onNodeWithTag("section-Expenses").assertIsSelected()
         compose.onNodeWithTag("section-Groups").performClick()
-        compose.onNodeWithTag("section-Expenses").performClick()
+        Espresso.pressBack()
         awaitDashboard()
     }
 

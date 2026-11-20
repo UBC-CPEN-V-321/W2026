@@ -27,7 +27,9 @@ internal class AccountNavigation(
     sectionState: MutableState<AppSection>,
     invitationState: MutableState<String?>,
     groupState: MutableState<String?>,
+    guestPageState: MutableState<GuestPage> = mutableStateOf(GuestPage.Home),
 ) {
+    var guestPage by guestPageState
     var section by sectionState
     var pastedInvitation by invitationState
     var groupToOpen by groupState
@@ -39,6 +41,7 @@ internal class AccountNavigation(
     var cloudSaveOfferPending by mutableStateOf(false)
 
     fun signIn(value: Session) {
+        guestPage = GuestPage.Home
         updateSession(value)
         authNotice = null
         cloudSaveOfferPending = true
@@ -65,7 +68,8 @@ private fun rememberAccountNavigation(): AccountNavigation {
     val section = rememberSaveable { mutableStateOf(AppSection.Expenses) }
     val invitation = rememberSaveable { mutableStateOf<String?>(null) }
     val group = rememberSaveable { mutableStateOf<String?>(null) }
-    return remember(storage) { AccountNavigation(storage, section, invitation, group) }
+    val guestPage = rememberSaveable { mutableStateOf(GuestPage.Home) }
+    return remember(storage) { AccountNavigation(storage, section, invitation, group, guestPage) }
 }
 
 @Composable
@@ -74,6 +78,7 @@ internal fun LedgerApp(
     navigation: AccountNavigation = rememberAccountNavigation(),
 ) {
     val pendingInvitation = incomingInvitation ?: navigation.pastedInvitation
+    val showingAuth = navigation.isAuthPage(pendingInvitation)
     val cloudSaves = remember(ledger) { CloudSaves(ledger.localLedger, LedgerSavesApi, cloudSaveDeviceName()) }
     cloudSaves.onSessionExpired = { navigation.endSession() }
     val scrollState = rememberScrollState()
@@ -82,20 +87,15 @@ internal fun LedgerApp(
         navigation.pastedInvitation = null
         onInvitationHandled()
     }
-    val openExpenses = {
-        clearInvitation()
-        navigation.section = AppSection.Expenses
-    }
+    val openExpenses = { clearInvitation(); navigation.section = AppSection.Expenses }
     RefreshSavedSession(navigation)
     CloudSaveSession(navigation, cloudSaves, localCount = ledger.records.size)
     BackHandler(pendingInvitation != null || navigation.section != AppSection.Expenses, onBack = openExpenses)
-    LaunchedEffect(navigation.section, pendingInvitation) {
-        scrollState.scrollTo(0)
-    }
+    LaunchedEffect(navigation.section, pendingInvitation) { scrollState.scrollTo(0) }
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            AppNavigationBar(
+            if (!showingAuth) AppNavigationBar(
                 selected = if (pendingInvitation != null) AppSection.Groups else navigation.section,
                 enabled = !ledger.busy || navigation.section != AppSection.Expenses,
             ) { section ->
@@ -107,6 +107,7 @@ internal fun LedgerApp(
                 }
                 if (section == AppSection.Expenses && !ledger.busy) ledger.returnToDashboard()
                 if (section == AppSection.Me) groupHomeRevision++
+                navigation.guestPage = GuestPage.Home
                 navigation.section = section
             }
         }
@@ -120,7 +121,9 @@ internal fun LedgerApp(
                 })
             } else {
                 Column(
-                    Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(scrollState).padding(24.dp),
+                    Modifier.fillMaxSize().statusBarsPadding()
+                        .then(if (showingAuth) Modifier.navigationBarsPadding() else Modifier)
+                        .imePadding().verticalScroll(scrollState).padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     // Reselecting Group starts at the group list, including from a nested form.
@@ -132,6 +135,10 @@ internal fun LedgerApp(
         }
     }
 }
+
+private fun AccountNavigation.isAuthPage(pendingInvitation: String?): Boolean =
+    session == null && (pendingInvitation != null || section == AppSection.Groups ||
+        (section == AppSection.Me && guestPage in listOf(GuestPage.SignIn, GuestPage.SignUp)))
 
 @Composable
 private fun AppNavigationBar(selected: AppSection, enabled: Boolean, onSelect: (AppSection) -> Unit) {
@@ -194,7 +201,8 @@ private fun AccountContent(
     val signedIn = navigation.session
     when {
         signedIn == null && pendingInvitation == null && navigation.section == AppSection.Me ->
-            GuestAccountScreen(notice = navigation.authNotice, onSignedIn = navigation::signIn, onNavigate = { scrollState.scrollTo(0) })
+            GuestAccountScreen(notice = navigation.authNotice, page = navigation.guestPage,
+                onPageChange = { navigation.guestPage = it }, onNavigate = { scrollState.scrollTo(0) }, onSignedIn = navigation::signIn)
         signedIn == null -> {
             if (pendingInvitation != null) Text(t("Sign in or create an account to view your group invitation."))
             SignInPage(notice = navigation.authNotice, onSignedIn = navigation::signIn, onBack = openExpenses)

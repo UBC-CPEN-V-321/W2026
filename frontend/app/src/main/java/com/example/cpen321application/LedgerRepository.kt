@@ -252,6 +252,7 @@ class LedgerRepository(
     companion object {
         private val operationLock = Any()
         const val MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
+        // Internal image payload limit after compression; all selected source files allow 20 MB.
         const val MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
         fun matchesDocumentType(mimeType: String, bytes: ByteArray): Boolean {
