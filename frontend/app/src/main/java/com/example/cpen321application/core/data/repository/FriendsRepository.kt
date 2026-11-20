@@ -34,6 +34,9 @@ interface FriendsRepository {
 
     // The signed-in user's completed games, most recent first
     suspend fun getMatchHistory(session: AuthSession): Result<List<Game>>
+
+    // Fetches the user's profile photo URL from GET users/:userId/photo
+    suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?>
 }
 
 class FriendsRepositoryImpl(
@@ -186,6 +189,20 @@ class FriendsRepositoryImpl(
         }
     }
 
+    override suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?> {
+        return try {
+            val jsonElement = session.authorized { auth ->
+                apiService.getUserPhoto(auth, userId)
+            }
+            val photoUrl = parsePhotoUrl(jsonElement)
+            Result.success(photoUrl)
+        } catch (e: HttpException) {
+            Result.failure(e)
+        } catch (e: IOException) {
+            Result.failure(e)
+        }
+    }
+
     private fun parseUserMe(jsonElement: JsonElement?): UserMeDto? {
         if (jsonElement == null || jsonElement.isJsonNull) return null
 
@@ -213,8 +230,43 @@ class FriendsRepositoryImpl(
                 if (targetObj.has(key) && !targetObj.get(key).isJsonNull) targetObj.get(key).asString else null
             }
             val emailVal = directDto?.email ?: if (targetObj.has("email") && !targetObj.get("email").isJsonNull) targetObj.get("email").asString else null
+            val photoUrlVal = directDto?.avatarUrl ?: parsePhotoUrl(targetObj)
 
-            return UserMeDto(id = idVal, username = usernameVal, name = directDto?.name, email = emailVal, elo = eloVal)
+            return UserMeDto(id = idVal, username = usernameVal, name = directDto?.name, email = emailVal, elo = eloVal, avatarUrl = photoUrlVal)
+        }
+
+        return null
+    }
+
+    private fun parsePhotoUrl(jsonElement: JsonElement?): String? {
+        if (jsonElement == null || jsonElement.isJsonNull) return null
+
+        if (jsonElement.isJsonPrimitive) {
+            val str = jsonElement.asString.trim()
+            return if (str.startsWith("http://") || str.startsWith("https://")) str else null
+        }
+
+        if (jsonElement.isJsonObject) {
+            val obj = jsonElement.asJsonObject
+            val targetObj = when {
+                obj.has("data") && obj.get("data").isJsonObject -> obj.getAsJsonObject("data")
+                obj.has("user") && obj.get("user").isJsonObject -> obj.getAsJsonObject("user")
+                obj.has("photo") && obj.get("photo").isJsonObject -> obj.getAsJsonObject("photo")
+                else -> obj
+            }
+
+            val keys = listOf("photoUrl", "url", "photo", "picture", "avatarUrl", "imageUrl", "googleImage", "link")
+            for (key in keys) {
+                if (targetObj.has(key) && !targetObj.get(key).isJsonNull) {
+                    val elem = targetObj.get(key)
+                    if (elem.isJsonPrimitive) {
+                        val str = elem.asString.trim()
+                        if (str.startsWith("http://") || str.startsWith("https://")) {
+                            return str
+                        }
+                    }
+                }
+            }
         }
 
         return null

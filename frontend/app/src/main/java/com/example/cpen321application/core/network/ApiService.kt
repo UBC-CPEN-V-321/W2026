@@ -40,6 +40,12 @@ interface ApiService {
     @GET("user/me")
     suspend fun getUserMe(@Header("Authorization") authorization: String): JsonElement
 
+    @GET("users/{userId}/photo")
+    suspend fun getUserPhoto(
+        @Header("Authorization") authorization: String,
+        @Path("userId") userId: String,
+    ): JsonElement
+
     @GET("user/equipment")
     suspend fun getEquipment(@Header("Authorization") authorization: String): JsonElement
 

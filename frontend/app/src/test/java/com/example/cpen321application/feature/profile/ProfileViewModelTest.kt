@@ -77,6 +77,10 @@ class FakeFriendsRepository : FriendsRepository {
     override suspend fun getMatchHistory(session: AuthSession): Result<List<Game>> {
         return Result.success(matchesList)
     }
+
+    override suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?> {
+        return Result.success("https://example.com/photo.jpg")
+    }
 }
 
 class FakeEquipmentRepository : EquipmentRepository {
@@ -204,6 +208,7 @@ class ProfileViewModelTest {
                 override suspend fun refreshTokens(request: RefreshRequestDto) = TODO()
                 override suspend fun logout(request: RefreshRequestDto) = TODO()
                 override suspend fun getUserMe(authorization: String) = TODO()
+                override suspend fun getUserPhoto(authorization: String, userId: String) = TODO()
                 override suspend fun getEquipment(authorization: String) = TODO()
                 override suspend fun createEquipment(authorization: String, request: CreateEquipmentRequestDto) = TODO()
                 override suspend fun updateEquipment(authorization: String, id: Int, request: UpdateEquipmentRequestDto) = TODO()

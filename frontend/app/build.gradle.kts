@@ -101,6 +101,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.maps.compose)
+    implementation(libs.coil.compose)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)

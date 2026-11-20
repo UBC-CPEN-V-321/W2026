@@ -12,14 +12,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import com.example.cpen321application.core.ui.avatarInitials
 import com.example.cpen321application.core.ui.avatarTone
 import com.example.cpen321application.core.ui.theme.DonutTheme
@@ -33,14 +36,46 @@ private val SLOT_DASH = 3.dp
 private val SLOT_OVERLAP = (-10).dp
 
 /**
- * A round avatar with the player's initials, on one of four tones picked from their name, so the
- * same player always gets the same colour. The backend has no profile pictures. Decorative: the
- * name is always shown next to it.
+ * A round avatar with the player's profile picture if available (from GET users/:userid/photo),
+ * otherwise falling back to initials on one of four tones picked from their name.
  * @param name the player's name, e.g. "Alex Rivera" → "AR"
+ * @param avatarUrl the profile picture URL, null/blank to use initials
  * @param size the avatar's diameter
  */
 @Composable
-fun PlayerAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 40.dp) {
+fun PlayerAvatar(
+    name: String,
+    modifier: Modifier = Modifier,
+    avatarUrl: String? = null,
+    size: Dp = 40.dp,
+) {
+    if (!avatarUrl.isNullOrBlank()) {
+        SubcomposeAsyncImage(
+            model = avatarUrl,
+            contentDescription = name,
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+                .clearAndSetSemantics {},
+            contentScale = ContentScale.Crop,
+            loading = {
+                InitialsAvatar(name = name, size = size)
+            },
+            error = {
+                InitialsAvatar(name = name, size = size)
+            },
+        )
+    } else {
+        InitialsAvatar(name = name, modifier = modifier, size = size)
+    }
+}
+
+@Composable
+private fun InitialsAvatar(
+    name: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+) {
     val (container, content) = toneColors(avatarTone(name))
     Box(
         modifier = modifier

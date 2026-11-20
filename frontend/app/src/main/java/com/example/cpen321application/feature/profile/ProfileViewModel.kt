@@ -119,13 +119,29 @@ class ProfileViewModel(
                         elo = newElo,
                         username = newUsername,
                         name = userMe.name.orEmpty().ifBlank { state.name },
+                        avatarUrl = userMe.avatarUrl ?: state.avatarUrl,
                         isLoadingUserMe = false,
                     )
+                }
+                val userId = userMe.id
+                if (!userId.isNullOrBlank()) {
+                    fetchUserPhoto(session, userId)
                 }
             }.onFailure { error ->
                 // Said, not swallowed: otherwise the rating card silently keeps an old or missing rating
                 _uiState.update { state ->
                     state.copy(isLoadingUserMe = false, errorMessage = error.toUserMessage())
+                }
+            }
+        }
+    }
+
+    fun fetchUserPhoto(session: AuthSession, userId: String) {
+        viewModelScope.launch(ioDispatcher) {
+            val result = repository.getUserPhoto(session, userId)
+            result.onSuccess { photoUrl ->
+                if (!photoUrl.isNullOrBlank()) {
+                    _uiState.update { it.copy(avatarUrl = photoUrl) }
                 }
             }
         }

@@ -119,7 +119,7 @@ private fun ProfileContent(uiState: ProfileUiState, actions: ProfileActions) {
     Column(modifier = Modifier.fillMaxSize()) {
         ProfileTopBar(onSignOut = actions.onSignOut)
 
-        ProfileIdentity(name = uiState.name, username = uiState.username)
+        ProfileIdentity(name = uiState.name, username = uiState.username, avatarUrl = uiState.avatarUrl)
         RatingCard(
             rating = uiState.elo,
             lastChange = uiState.matchHistory.firstOrNull()?.ratingChange,

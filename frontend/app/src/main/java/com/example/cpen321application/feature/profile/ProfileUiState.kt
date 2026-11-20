@@ -17,6 +17,7 @@ enum class ProfileTab {
 data class ProfileUiState(
     val username: String = "",
     val name: String = "",  // the real name, empty until the profile loads
+    val avatarUrl: String? = null,
     val elo: Int = 1500,
     val selectedTab: ProfileTab = ProfileTab.FRIENDS,
     val friends: List<FriendDto> = emptyList(),

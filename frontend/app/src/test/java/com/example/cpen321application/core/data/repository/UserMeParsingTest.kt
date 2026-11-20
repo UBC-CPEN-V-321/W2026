@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -102,5 +103,27 @@ class UserMeParsingTest {
         assertEquals("u4", outgoing.userId)
         assertEquals("2026-11-18T09:00:00.000Z", outgoing.requestedAt)
         assertEquals(1612.5, outgoing.rating!!, 0.0)
+    }
+
+    @Test
+    fun getUserPhotoReturnsPhotoUrlFromEndpoint() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody("""{ "photoUrl": "https://lh3.googleusercontent.com/avatar.jpg" }""")
+        )
+        val (repository, session) = repository()
+
+        val photoUrl = repository.getUserPhoto(session, "u1").getOrThrow()
+
+        assertEquals("https://lh3.googleusercontent.com/avatar.jpg", photoUrl)
+    }
+
+    @Test
+    fun getUserPhotoReturnsNullWhenPhotoNotFound() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(404))
+        val (repository, session) = repository()
+
+        val result = repository.getUserPhoto(session, "u1")
+
+        Assert.assertTrue(result.isFailure)
     }
 }
