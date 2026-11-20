@@ -2,7 +2,9 @@ import { Router, type Request, type Response } from "express";
 import { authedUserId, requireAuth } from "../auth/requireAuth";
 import { parseRequest } from "../errors";
 import { joinQueueSchema } from "./matchmaking.schemas";
-import { getNearbyPlayers, getQueueEntry, joinQueue, leaveQueue } from "./matchmaking.service";
+import { getNearbyPlayers, getQueueEntry, joinQueue, leaveQueue, loadQueueEvent } from "./matchmaking.service";
+import { queueStreams } from "./matchmaking.events";
+import { streamRoute } from "../events/streamRoute";
 
 export const matchmakingRouter = Router();
 
@@ -28,3 +30,13 @@ matchmakingRouter.get("/nearby", async (req: Request, res: Response) => {
   const nearby = await getNearbyPlayers(authedUserId(req));
   res.status(200).json(nearby);
 });
+
+// Server-Sent Events stream of the caller's queue: "nearby" (or "notQueued") first, then again whenever anyone
+// joins or leaves the queue, or a match takes players out of it
+matchmakingRouter.get(
+  "/events",
+  streamRoute(queueStreams, async (req) => {
+    const userId = authedUserId(req);
+    return { key: userId, firstEvents: [await loadQueueEvent(userId)] };
+  }),
+);

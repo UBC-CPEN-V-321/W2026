@@ -97,6 +97,36 @@ describe("Unit: EventStreams", () => {
   // Input: refreshEveryone with no client open
   // Expected behavior: nothing is loaded
   // Expected output: load is never called
+  // Input: clients on two keys, two of them on k1, then refreshEach
+  // Expected behavior: each watched key is loaded once, with its own key, and only its clients get its state
+  // Expected output: load called with k1 and k2; k1's clients get k1's event, k2's client gets k2's
+  test("refreshEach loads each watched key's own state once", async () => {
+    const first = new FakeResponse();
+    const second = new FakeResponse();
+    const other = new FakeResponse();
+    streams.open("k1", first.asResponse(), [], "u1");
+    streams.open("k1", second.asResponse(), [], "u1");
+    streams.open("k2", other.asResponse(), [], "u2");
+    const load = jest.fn((key: string) => Promise.resolve([event("x", key)]));
+
+    streams.refreshEach(load);
+    await settle();
+
+    expect(load.mock.calls.map(([key]) => key).sort()).toEqual(["k1", "k2"]);
+    expect(first.events()).toEqual(['event: x\ndata: "k1"\n\n']);
+    expect(second.events()).toEqual(['event: x\ndata: "k1"\n\n']);
+    expect(other.events()).toEqual(['event: x\ndata: "k2"\n\n']);
+  });
+
+  test("refreshEach loads nothing when nobody watches", async () => {
+    const load = jest.fn(() => Promise.resolve([event("x", 1)]));
+
+    streams.refreshEach(load);
+    await settle();
+
+    expect(load).not.toHaveBeenCalled();
+  });
+
   test("refreshEveryone does nothing when nobody watches", async () => {
     const load = jest.fn(() => Promise.resolve([event("feed", [])]));
 

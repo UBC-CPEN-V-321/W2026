@@ -100,7 +100,7 @@ afterAll(async () => {
 });
 
 describe("Unmocked: matchmaking", () => {
-  // Interface POST /matchmaking, GET /games/feed/events, GET /matchmaking, GET /games/me
+  // Interface POST /matchmaking, GET /matchmaking/events, GET /games/feed/events, GET /matchmaking, GET /games/me
   // Input: two 1500-rated players queue for either format at the same place; player 1 has the Games stream open
   // Expected status code: 201 for each join, then 404 for each queue lookup
   // Expected behavior: one run matches them into one open matched singles game, takes both out of the queue in
@@ -110,8 +110,16 @@ describe("Unmocked: matchmaking", () => {
     expect((await request(app).post("/matchmaking").set("Authorization", auth(0)).send(farAway)).status).toBe(201);
     expect((await request(app).post("/matchmaking").set("Authorization", auth(1)).send(farAway)).status).toBe(201);
     const events = await server.watch("/games/feed/events", users[0]?.id ?? "");
+    const queue = await server.watch("/matchmaking/events", users[0]?.id ?? "");
+    // Player 2 searches at the same spot, so player 1's map shows them
+    const nearby = await queue.next();
+    expect(nearby.event).toBe("nearby");
+    expect((nearby.data as { players: unknown[] }).players).toHaveLength(1);
 
     const matches = await runMatchmaking();
+
+    // Out of the queue: the map stops, pushed rather than polled
+    expect((await queue.next()).event).toBe("notQueued");
 
     const ours = matches.find(({ userIds }) => userIds.includes(users[0]?.id ?? ""));
     expect(ours?.userIds.sort()).toEqual(users.map(({ id }) => id).sort());

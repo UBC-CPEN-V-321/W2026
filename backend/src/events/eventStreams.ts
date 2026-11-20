@@ -137,6 +137,17 @@ export class EventStreams {
   }
 
   /**
+   * Refreshes every key being watched with its own state, e.g. each searching player's own nearby players.
+   * Like refresh: loads nothing for keys nobody watches, keeps each key's updates in order, and never throws
+   * @param load the events to send for a key, read when its refresh runs
+   */
+  refreshEach(load: (key: string) => Promise<StreamEvent[]>): void {
+    for (const key of [...this.streams.keys()]) {
+      this.refresh(key, () => load(key));
+    }
+  }
+
+  /**
    * Loads one state and sends it to every open stream, whatever its key, e.g. a feed that is the same for
    * everyone: it is loaded once, not once per client. Does nothing if nobody is watching, never throws, and
    * keeps these refreshes in order like refresh does
