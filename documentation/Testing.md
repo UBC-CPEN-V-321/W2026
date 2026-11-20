@@ -79,7 +79,18 @@ Unknown routes are covered by `Unmocked: GET /does-not-exist` in [health.test.ts
 
 ## Location of .yml files
 
-**Missing:** `.github/workflows/` contains only `.gitkeep`; `backend-tests.yml` is not present. No GitHub Actions run is claimed here. Implementing and verifying the workflow remains a separate outstanding item.
+Workflow: [`.github/workflows/backend-tests.yml`](../.github/workflows/backend-tests.yml). It runs on every push to `main`, pull requests targeting `main`, and manual dispatch. There is no path filter, so documentation-only pushes to main also run the tests as required by the course.
+
+The Ubuntu 24.04 / Node 22 matrix installs locked dependencies with `npm ci`, typechecks and builds the backend, and runs four jobs:
+
+- `all`: unfiltered `npm test -- --ci --runInBand --coverageDirectory=coverage/all`, including all discovered interface/unit tests and any future NFR suites.
+- `no-mock`: `npm run test:no-mock -- --ci`.
+- `mock`: `npm run test:mock -- --ci`.
+- `interface`: `npm run test:interface -- --ci`, for the combined interface coverage report.
+
+Tests create disposable MongoDB instances; no production database, `.env`, or API secrets are supplied. MongoDB binary downloads and Google certificate retrieval require network access. Each job uploads its console output, Jest JSON results, source SHA/runtime versions, and HTML/LCOV coverage as `backend-<suite>-<SHA>` artifacts (30-day retention), including available results from failing tests. A failing test fails its job; the other matrix jobs still run. Download the artifacts before expiry for submission evidence. An empty NFR directory is not evidence of NFR coverage.
+
+Execution status: workflow added; first GitHub run pending verification. The local Android results below do not establish a passing backend CI run.
 
 ## Front-end test suite location
 
