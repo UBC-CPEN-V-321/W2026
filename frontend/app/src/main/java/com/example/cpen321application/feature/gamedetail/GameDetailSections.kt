@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,6 +29,7 @@ import com.example.cpen321application.R
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.GameTournament
+import com.example.cpen321application.core.data.model.Round
 import com.example.cpen321application.core.data.model.TEAMS
 import com.example.cpen321application.core.data.model.playersOnTeam
 import com.example.cpen321application.core.data.model.teamSize
@@ -146,16 +148,24 @@ private fun TeamHeader(team: Int, canJoin: Boolean, onJoin: () -> Unit) {
 }
 
 /**
- * The reported score as a scoreboard, team 1 on top
+ * A score as a scoreboard, team 1 on top
+ * @param rounds the game's own rounds, or a score waiting for confirmation
+ * @param title e.g. "Final", followed by the format
+ * @param footer e.g. who reported a score waiting for confirmation
  */
 @Composable
-internal fun GameScoreboard(game: Game) {
+internal fun GameScoreboard(
+    game: Game,
+    rounds: List<Round> = game.rounds,
+    title: String = if (game.status == GameStatus.COMPLETED) "Final" else "Score",
+    footer: (@Composable RowScope.() -> Unit)? = null
+) {
     val team1 = game.playersOnTeam(1)
     val team2 = game.playersOnTeam(2)
-    val team1Scores = game.rounds.map { it.team1Score }
-    val team2Scores = game.rounds.map { it.team2Score }
+    val team1Scores = rounds.map { it.team1Score }
+    val team2Scores = rounds.map { it.team2Score }
     Scoreboard(
-        title = "${if (game.status == GameStatus.COMPLETED) "Final" else "Score"} · ${game.format.label}",
+        title = "$title · ${game.format.label}",
         sides = listOf(
             ScoreboardSide(
                 playerNames(team1),
@@ -171,7 +181,8 @@ internal fun GameScoreboard(game: Game) {
                 team1Scores,
                 team2.firstOrNull()?.photoUrl,
             )
-        )
+        ),
+        footer = footer
     )
 }
 
@@ -180,12 +191,13 @@ internal fun GameScoreboard(game: Game) {
  */
 @Composable
 internal fun GamePlayerActions(
+    game: Game,
     actions: GameActions,
     isSaving: Boolean,
     onOpenDialog: (GameDialog) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Shown until the game starts; once it has, Report final score takes its place
+        // Shown until the game starts; once it has, the score actions take its place
         if (actions.canStartNow) {
             Button(
                 onClick = { onOpenDialog(GameDialog.START) },
@@ -194,11 +206,12 @@ internal fun GamePlayerActions(
             ) { Text("Start now") }
         }
         if (actions.canReportScore) {
-            Button(
-                onClick = { onOpenDialog(GameDialog.SCORE) },
-                enabled = !isSaving,
-                modifier = Modifier.fillMaxWidth().height(LargeButtonHeight)
-            ) { Text("Report final score") }
+            ScoreActions(
+                game = game,
+                canConfirm = actions.canConfirmScore,
+                isSaving = isSaving,
+                onOpenDialog = onOpenDialog
+            )
         }
         if (actions.canInvite) {
             InviteButton(enabled = !isSaving, onClick = { onOpenDialog(GameDialog.INVITE) })

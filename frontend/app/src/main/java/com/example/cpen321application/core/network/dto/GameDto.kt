@@ -9,6 +9,7 @@ import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.GameTournament
 import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.model.Round
+import com.example.cpen321application.core.data.model.ScoreProposal
 import com.google.gson.annotations.SerializedName
 import java.time.Instant
 
@@ -24,7 +25,14 @@ data class GameDto(
     val players: List<PlayerDto>,
     val rounds: List<RoundDto>,
     val forecast: ForecastDto?,  // null for a completed or cancelled game; GET /games/history leaves it out
-    val tournament: GameTournamentDto?  // null unless the game is a tournament match
+    val tournament: GameTournamentDto?,  // null unless the game is a tournament match
+    val scoreProposal: ScoreProposalDto? = null  // null unless a reported score waits for every player to confirm it
+)
+
+data class ScoreProposalDto(
+    val rounds: List<RoundDto>,
+    val proposedById: String,
+    val proposedAt: String
 )
 
 data class CourtDto(
@@ -44,6 +52,7 @@ data class PlayerDto(
     val ratingBefore: Double? = null,  // null until the game is completed
     val ratingAfter: Double? = null,
     val acceptedAt: String? = null,  // matched games only: null until the player accepts
+    val scoreConfirmedAt: String? = null,  // null until the player agrees with the score waiting
     @SerializedName("photoUrl", alternate = ["avatarUrl", "photo", "picture", "url", "imageUrl", "avatar_url", "photo_url"])
     val photoUrl: String? = null,
     val user: UserMeDto? = null,
@@ -86,6 +95,7 @@ fun PlayerDto.toPlayer(): Player {
         ratingAfter = ratingAfter,
         acceptedAt = acceptedAt?.let(Instant::parse),
         photoUrl = effectivePhotoUrl,
+        scoreConfirmedAt = scoreConfirmedAt?.let(Instant::parse),
     )
 }
 
@@ -99,7 +109,10 @@ fun GameDto.toGame(): Game = Game(
     players = players.map { it.toPlayer() },
     rounds = rounds.map { it.toRound() },
     forecast = forecast?.toForecast(),
-    tournament = tournament?.let { GameTournament(it.id, it.name, it.round) }
+    tournament = tournament?.let { GameTournament(it.id, it.name, it.round) },
+    scoreProposal = scoreProposal?.let {
+        ScoreProposal(it.rounds.map { round -> round.toRound() }, it.proposedById, Instant.parse(it.proposedAt))
+    }
 )
 
 fun ForecastDto.toForecast(): Forecast = Forecast(temperature, description, precipitationChance)

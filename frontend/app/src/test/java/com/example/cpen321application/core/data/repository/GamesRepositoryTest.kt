@@ -421,6 +421,56 @@ class GamesRepositoryTest {
         assertTrue(result.isSuccess)
     }
 
+    // Input: user confirms the score waiting, which the backend answers with { completed: false }
+    // Expected behavior: POST /games/score/confirm with the score the user saw, as [team 1, team 2] pairs
+    // Expected output: success
+    @Test
+    fun confirmScoreSendsTheScoreTheUserSaw() = runBlocking {
+        respond(200, """{ "completed": false }""")
+
+        val result = repository().confirmScore(gameId, listOf(Pair(6, 4), Pair(6, 3)))
+
+        val request = takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/games/score/confirm", request.path)
+        val body = request.jsonBody()
+        assertEquals(gameId, body.getString("gameId"))
+        assertEquals("[[6,4],[6,3]]", body.getJSONArray("rounds").toString())
+        assertTrue(result.isSuccess)
+    }
+
+    // Input: GET /games returns a started game whose score waits for Bob, Alice having reported it
+    // Expected output: the score waiting with numbered rounds, and who has agreed
+    @Test
+    fun getGameParsesTheScoreWaitingForConfirmation() = runBlocking {
+        val waitingJson = completedGameJson
+            .replace(
+                "\"players\": []",
+                "\"players\": [" +
+                    "{ \"id\": \"u1\", \"username\": \"alice\", \"name\": \"Alice A\", \"rating\": 1500, " +
+                    "\"team\": 1, \"scoreConfirmedAt\": \"2026-11-02T19:30:00.000Z\" }, " +
+                    "{ \"id\": \"u2\", \"username\": \"bob\", \"name\": \"Bob B\", \"rating\": 1500, " +
+                    "\"team\": 2, \"scoreConfirmedAt\": null }]"
+            )
+            .replace("\"COMPLETED\"", "\"IN_PROGRESS\"")
+            .replace(
+                "\"gameSource\": \"MATCHED\",",
+                "\"gameSource\": \"MATCHED\", \"scoreProposal\": { \"proposedById\": \"u1\", " +
+                    "\"proposedAt\": \"2026-11-02T19:30:00.000Z\", " +
+                    "\"rounds\": [{ \"number\": 1, \"team1Score\": 6, \"team2Score\": 4 }] },"
+            )
+        respond(200, """{ "game": $waitingJson }""")
+
+        val game = repository().getGame(gameId).getOrThrow()
+
+        val proposal = game.scoreProposal!!
+        assertEquals("u1", proposal.proposedById)
+        assertEquals(Instant.parse("2026-11-02T19:30:00Z"), proposal.proposedAt)
+        assertEquals(listOf(Round(1, 6, 4)), proposal.rounds)
+        assertEquals(Instant.parse("2026-11-02T19:30:00Z"), game.players[0].scoreConfirmedAt)
+        assertNull(game.players[1].scoreConfirmedAt)
+    }
+
     // Input: POST /games/join answers 409 { "error": "Team is full" }
     // Expected output: a failure whose message for the user is the backend's error
     @Test

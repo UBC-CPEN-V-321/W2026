@@ -58,6 +58,7 @@ private const val MAX_SETS = 5
  * @property onOpenCourtPicker loads the courts the game can move to
  * @property onChangeCourt moves the game to the court with this id
  * @property onReportScore reports the final score, then calls onReported if the backend accepted it
+ * @property onConfirmScore agrees with the score waiting, as the user saw it
  * @property onStartNow starts the booked game now, before its start time
  * @property onCancelGame cancels the game for every player
  * @property onOpenTournament opens the bracket of the tournament with this id, for a tournament game
@@ -71,6 +72,7 @@ data class GameDetailCallbacks(
     val onOpenCourtPicker: () -> Unit,
     val onChangeCourt: (courtId: Int) -> Unit,
     val onReportScore: (rounds: List<Pair<Int, Int>>, onReported: () -> Unit) -> Unit,
+    val onConfirmScore: (rounds: List<Pair<Int, Int>>) -> Unit,
     val onStartNow: () -> Unit,
     val onCancelGame: () -> Unit,
     val onOpenTournament: (tournamentId: String) -> Unit,
@@ -98,7 +100,7 @@ private val CANCEL_CONFIRMATION = GameConfirmation(
 )
 
 // The dialogs the game screen opens, at most one at a time
-internal enum class GameDialog { TIME, COURT, SCORE, START, LEAVE, CANCEL, INVITE }
+internal enum class GameDialog { TIME, COURT, SCORE, CONFIRM_SCORE, START, LEAVE, CANCEL, INVITE }
 
 @Composable
 fun GameDetailRoute(
@@ -118,6 +120,7 @@ fun GameDetailRoute(
             onOpenCourtPicker = viewModel::loadCourts,
             onChangeCourt = viewModel::changeCourt,
             onReportScore = viewModel::reportScore,
+            onConfirmScore = viewModel::confirmScore,
             onStartNow = viewModel::startNow,
             onCancelGame = { viewModel.cancel(onCancelled = onBack) },
             onOpenTournament = onOpenTournament,
@@ -186,6 +189,8 @@ private fun GameDetails(
 ) {
     var openDialog by remember { mutableStateOf<GameDialog?>(null) }
 
+    CloseScoreDialogWhenScoreChanges(game = game, openDialog = openDialog, onClose = { openDialog = null })
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -201,9 +206,7 @@ private fun GameDetails(
             onJoin = callbacks.onJoin
         )
 
-        if (game.rounds.isNotEmpty()) {
-            GameScoreboard(game = game)
-        }
+        GameScoreSection(game = game)
 
         if (uiState.errorMessage != null) {
             Text(
@@ -215,6 +218,7 @@ private fun GameDetails(
 
         if (actions.isPlayer) {
             GamePlayerActions(
+                game = game,
                 actions = actions,
                 isSaving = uiState.isSaving,
                 onOpenDialog = { dialog ->
@@ -299,12 +303,23 @@ private fun GameDialogContent(
             }
         )
         GameDialog.SCORE -> ReportScoreDialog(
-            initialRounds = game.rounds,
+            form = scoreFormText(game, uiState.actions?.canConfirmScore == true),
+            initialRounds = game.scoreProposal?.rounds ?: game.rounds,
             isSaving = uiState.isSaving,
             errorMessage = uiState.errorMessage,
             onDismiss = onDismiss,
             onSubmit = { rounds -> callbacks.onReportScore(rounds, onDismiss) }
         )
+        GameDialog.CONFIRM_SCORE -> {
+            // Kept from when the dialog opened: a changed score closes it instead (see GameDetails)
+            val rounds = remember { game.scoreProposal?.rounds.orEmpty() }
+            ConfirmScoreDialog(
+                game = game,
+                rounds = rounds,
+                onConfirm = callbacks.onConfirmScore,
+                onDismiss = onDismiss
+            )
+        }
         GameDialog.START -> GameConfirmDialog(START_CONFIRMATION, callbacks.onStartNow, onDismiss)
         GameDialog.LEAVE -> GameConfirmDialog(LEAVE_CONFIRMATION, callbacks.onLeave, onDismiss)
         GameDialog.CANCEL -> GameConfirmDialog(CANCEL_CONFIRMATION, callbacks.onCancelGame, onDismiss)
@@ -328,8 +343,28 @@ private fun GameConfirmDialog(confirmation: GameConfirmation, onConfirm: () -> U
     )
 }
 
+// The score form's title and the note under it: reporting a first score, correcting someone else's,
+// or changing one's own
+internal data class ScoreFormText(val title: String, val note: String)
+
+internal fun scoreFormText(game: Game, canConfirm: Boolean): ScoreFormText = when {
+    game.scoreProposal == null -> ScoreFormText(
+        title = "Final score",
+        note = "Every player confirms the score before the game is final."
+    )
+    canConfirm -> ScoreFormText(
+        title = "Suggest a correction",
+        note = "Your score replaces the one reported, and every player confirms again."
+    )
+    else -> ScoreFormText(
+        title = "Change score",
+        note = "Your new score replaces this one, and every player confirms again."
+    )
+}
+
 @Composable
 private fun ReportScoreDialog(
+    form: ScoreFormText,
     initialRounds: List<Round>,
     isSaving: Boolean,
     errorMessage: String?,  // the backend's answer to the last submission
@@ -346,8 +381,8 @@ private fun ReportScoreDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Final score") },
-        text = { ScoreForm(rounds = rounds, error = formError ?: errorMessage) },
+        title = { Text(form.title) },
+        text = { ScoreForm(rounds = rounds, note = form.note, error = formError ?: errorMessage) },
         confirmButton = {
             TextButton(
                 onClick = {
@@ -368,8 +403,14 @@ private fun ReportScoreDialog(
 }
 
 @Composable
-private fun ScoreForm(rounds: SnapshotStateList<RoundInput>, error: String?) {
+private fun ScoreForm(rounds: SnapshotStateList<RoundInput>, note: String, error: String?) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = note,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(modifier = Modifier.width(48.dp))
             SectionLabel(text = "Team 1", modifier = Modifier.width(80.dp))

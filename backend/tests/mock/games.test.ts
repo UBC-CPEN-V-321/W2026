@@ -11,7 +11,6 @@ import {
   acceptMatch,
   addPlayerToTeam,
   cancelMatchedGame,
-  completeGame,
   createGame,
   deleteGame,
   deleteGameUser,
@@ -22,6 +21,7 @@ import {
   fetchUserHistory,
   type GameDetails,
   isUserInGame,
+  recordScore,
   startBookedGame,
   updateGame,
 } from "../../src/games/games.repository";
@@ -29,6 +29,7 @@ import {
   cancelGame,
   changeGameLocation,
   changeGameTime,
+  confirmScore,
   gameErrors,
   getFeed,
   getGame,
@@ -63,7 +64,7 @@ jest.mock("../../src/games/games.repository", () => ({
   deleteGameUser: jest.fn(),
   updateGame: jest.fn(),
   startBookedGame: jest.fn(),
-  completeGame: jest.fn(),
+  recordScore: jest.fn(),
   fetchGameDetails: jest.fn(),
   fetchFeedGames: jest.fn(),
   fetchUserGames: jest.fn(),
@@ -111,7 +112,7 @@ const mockedIsUserInGame = jest.mocked(isUserInGame);
 const mockedDeleteGameUser = jest.mocked(deleteGameUser);
 const mockedUpdateGame = jest.mocked(updateGame);
 const mockedStartBookedGame = jest.mocked(startBookedGame);
-const mockedCompleteGame = jest.mocked(completeGame);
+const mockedRecordScore = jest.mocked(recordScore);
 
 const futureStartsAt = () =>
   new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -141,12 +142,14 @@ const gameDetails = (overrides: Partial<GameDetails> = {}): GameDetails => ({
       photoUrl: null,
       team: 1,
       acceptedAt: new Date(),
+      scoreConfirmedAt: null,
       ratingBefore: null,
       ratingAfter: null,
     },
   ],
   rounds: [],
   tournament: null,
+  scoreProposal: null,
   ...overrides,
 });
 
@@ -219,6 +222,13 @@ describe("Mocked: /games requireAuth", () => {
             .post("/games/score")
             .send({ gameId, rounds: [[6, 4]] }),
       ],
+      [
+        "POST /games/score/confirm",
+        () =>
+          request(createApp())
+            .post("/games/score/confirm")
+            .send({ gameId, rounds: [[6, 4]] }),
+      ],
     ] as const;
 
   const expectNoRepositoryCalls = () => {
@@ -229,7 +239,7 @@ describe("Mocked: /games requireAuth", () => {
     expect(mockedDeleteGameUser).not.toHaveBeenCalled();
     expect(mockedUpdateGame).not.toHaveBeenCalled();
     expect(mockedStartBookedGame).not.toHaveBeenCalled();
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    expect(mockedRecordScore).not.toHaveBeenCalled();
     expect(mockedFetchGameDetails).not.toHaveBeenCalled();
     expect(mockedFetchFeedGames).not.toHaveBeenCalled();
     expect(mockedFetchUserGames).not.toHaveBeenCalled();
@@ -693,6 +703,7 @@ describe("Mocked: GET /games/history", () => {
           photoUrl: null,
           team: 1,
           acceptedAt: new Date(),
+          scoreConfirmedAt: null,
           ratingBefore: 1500,
           ratingAfter: 1516,
         },
@@ -1672,6 +1683,14 @@ describe.each([
         .set("Authorization", authHeader)
         .send({ gameId: editGameId, rounds: [[6, 4]] }),
   ],
+  [
+    "POST /games/score/confirm",
+    () =>
+      request(createApp())
+        .post("/games/score/confirm")
+        .set("Authorization", authHeader)
+        .send({ gameId: editGameId, rounds: [[6, 4]] }),
+  ],
 ] as const)("Mocked: %s edit checks", (_route, send) => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -1681,7 +1700,7 @@ describe.each([
 
   const expectNoChanges = () => {
     expect(mockedUpdateGame).not.toHaveBeenCalled();
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    expect(mockedRecordScore).not.toHaveBeenCalled();
   };
 
   test("Returns 404 when the game does not exist", async () => {
@@ -2136,7 +2155,10 @@ describe("Mocked: PATCH /games/location", () => {
   });
 });
 
-describe("Mocked: POST /games/score", () => {
+describe.each([
+  ["POST /games/score", "/games/score", false],
+  ["POST /games/score/confirm", "/games/score/confirm", true],
+] as const)("Mocked: %s", (_route, path, confirming) => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Only a game in progress can be scored
@@ -2150,79 +2172,70 @@ describe("Mocked: POST /games/score", () => {
     [7, 5],
   ];
   const validScoreBody = () => ({ gameId: editGameId, rounds });
+  const send = (body: object = validScoreBody()) =>
+    request(createApp()).post(path).set("Authorization", authHeader).send(body);
 
   const ratingChanges = [
     { userId, ratingBefore: 1500, ratingAfter: 1512.5 },
     { userId: "other-user", ratingBefore: 1500, ratingAfter: 1487.5 },
   ];
 
-  test("Saves the rounds and returns the completed game with rating changes", async () => {
+  // Input: a valid score, while another player still has to agree with it
+  // Expected status code: 200
+  // Expected behavior: the player's agreement is recorded and the game is not completed yet
+  // Expected output: { completed: false }
+  test("Records the player's agreement and waits for the others", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: confirming ? "confirmed" : "proposed" });
+
+    const response = await send();
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ completed: false });
+    expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, editGameId);
+    expect(mockedRecordScore).toHaveBeenCalledWith(editGameId, userId, rounds, confirming, expect.any(Date));
+  });
+
+  // Input: a valid score, and this player is the last one to agree
+  // Expected status code: 200
+  // Expected behavior: the game is completed with the score
+  // Expected output: { completed: true, game, rounds, ratingChanges }
+  test("Returns the completed game with rating changes once every player agrees", async () => {
     const savedRounds = rounds.map(([team1Score, team2Score], index) => ({
       gameId: editGameId,
       number: index + 1,
       team1Score,
       team2Score,
     }));
-    mockedCompleteGame.mockResolvedValue({
-      game: existingGame({ status: GameStatus.COMPLETED }),
-      rounds: savedRounds,
-      ratingChanges,
+    mockedRecordScore.mockResolvedValue({
+      outcome: "completed",
+      completed: { game: existingGame({ status: GameStatus.COMPLETED }), rounds: savedRounds, ratingChanges },
     });
 
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send(validScoreBody());
+    const response = await send();
 
     expect(response.status).toBe(200);
-    expect(response.body.game).toMatchObject({
-      id: editGameId,
-      status: GameStatus.COMPLETED,
-    });
+    expect(response.body.completed).toBe(true);
+    expect(response.body.game).toMatchObject({ id: editGameId, status: GameStatus.COMPLETED });
     expect(response.body.rounds).toEqual(savedRounds);
     expect(response.body.ratingChanges).toEqual(ratingChanges);
-    expect(mockedIsUserInGame).toHaveBeenCalledWith(userId, editGameId);
-    expect(mockedCompleteGame).toHaveBeenCalledTimes(1);
-    expect(mockedCompleteGame).toHaveBeenCalledWith(editGameId, rounds);
-  });
-
-  test("Accepts a single round", async () => {
-    mockedCompleteGame.mockResolvedValue({
-      game: existingGame({ status: GameStatus.COMPLETED }),
-      rounds: [{ gameId: editGameId, number: 1, team1Score: 0, team2Score: 6 }],
-      ratingChanges,
-    });
-
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send({ gameId: editGameId, rounds: [[0, 6]] });
-
-    expect(response.status).toBe(200);
-    expect(mockedCompleteGame).toHaveBeenCalledWith(editGameId, [[0, 6]]);
   });
 
   test("Returns 409 when the teams are not full", async () => {
-    mockedCompleteGame.mockRejectedValue(
-      new IncompleteTeamsError(Format.SINGLES, 1, 0),
-    );
+    mockedRecordScore.mockRejectedValue(new IncompleteTeamsError(Format.SINGLES, 1, 0));
 
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send(validScoreBody());
+    const response = await send();
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual(errorBody(gameErrors.IncompleteTeams));
   });
 
-  test("Returns 409 when another report completes the game first", async () => {
-    mockedCompleteGame.mockResolvedValue(null);
+  // Input: the game was completed or cancelled after the first check, by another player at the same moment
+  // Expected status code: 409
+  // Expected output: GAME_CLOSED
+  test("Returns 409 when the game was closed in the meantime", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: "notInProgress" });
 
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send(validScoreBody());
+    const response = await send();
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual(errorBody(gameErrors.Closed));
@@ -2232,10 +2245,7 @@ describe("Mocked: POST /games/score", () => {
     ["missing gameId", { gameId: undefined }],
     ["non-UUID gameId", { gameId: "not-a-uuid" }],
     ["missing rounds", { rounds: undefined }],
-    [
-      "rounds that are not an array",
-      { rounds: { team1Score: 6, team2Score: 4 } },
-    ],
+    ["rounds that are not an array", { rounds: { team1Score: 6, team2Score: 4 } }],
     [
       "a negative score",
       {
@@ -2253,16 +2263,13 @@ describe("Mocked: POST /games/score", () => {
     ["userId in the body", { userId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d" }],
     ["unknown field", { status: GameStatus.COMPLETED }],
   ])("Rejects a body with %s", async (_description, overrides) => {
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send({ ...validScoreBody(), ...overrides });
+    const response = await send({ ...validScoreBody(), ...overrides });
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe(commonErrors.InvalidRequest.message);
     expect(response.body.details).toBeDefined();
     expect(mockedFetchGame).not.toHaveBeenCalled();
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    expect(mockedRecordScore).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -2285,51 +2292,79 @@ describe("Mocked: POST /games/score", () => {
       "must have a winner",
     ],
   ])("Rejects a score with %s", async (_description, badRounds, message) => {
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send({ gameId: editGameId, rounds: badRounds });
+    const response = await send({ gameId: editGameId, rounds: badRounds });
 
     expect(response.status).toBe(400);
     expect(response.body.details.fieldErrors.rounds).toContain(message);
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    expect(mockedRecordScore).not.toHaveBeenCalled();
   });
 
   // Input: a valid score, while Postgres aborts the transaction as a deadlock
   // Expected status code: 409
-  // Expected behavior: nothing is saved, so the player can report again
+  // Expected behavior: nothing is saved, so the player can try again
   // Expected output: { error: "The score could not be saved, please try again", code: "SCORE_CONFLICT" }
   test("Returns 409 when the transaction is aborted as a deadlock", async () => {
-    mockedCompleteGame.mockRejectedValue(
+    mockedRecordScore.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Transaction failed due to a write conflict or a deadlock", {
         code: "P2034",
         clientVersion: Prisma.prismaVersion.client,
       }),
     );
 
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send(validScoreBody());
+    const response = await send();
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual(errorBody(gameErrors.ScoreConflict));
   });
 
   test("Returns 500 when saving the score throws unexpectedly", async () => {
-    const consoleError = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-    mockedCompleteGame.mockRejectedValue(new Error("Database unavailable"));
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedRecordScore.mockRejectedValue(new Error("Database unavailable"));
 
-    const response = await request(createApp())
-      .post("/games/score")
-      .set("Authorization", authHeader)
-      .send(validScoreBody());
+    const response = await send();
 
     expect(response.status).toBe(500);
     expect(response.body).toEqual(errorBody(commonErrors.Internal));
     consoleError.mockRestore();
+  });
+});
+
+describe("Mocked: POST /games/score/confirm", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
+    mockedIsUserInGame.mockResolvedValue(true);
+  });
+
+  const confirm = () =>
+    request(createApp())
+      .post("/games/score/confirm")
+      .set("Authorization", authHeader)
+      .send({ gameId: editGameId, rounds: [[6, 4]] });
+
+  // Input: confirming before anyone reported a score
+  // Expected status code: 409
+  // Expected output: NO_SCORE_TO_CONFIRM
+  test("Returns 409 when no score was reported", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: "noProposal" });
+
+    const response = await confirm();
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual(errorBody(gameErrors.NoScoreToConfirm));
+  });
+
+  // Input: confirming a score another player replaced after this player saw it
+  // Expected status code: 409
+  // Expected behavior: nothing is confirmed; the app shows the new score from the live update
+  // Expected output: SCORE_CHANGED
+  test("Returns 409 when the score changed since the player saw it", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: "scoreChanged" });
+
+    const response = await confirm();
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual(errorBody(gameErrors.ScoreChanged));
   });
 });
 
@@ -2397,12 +2432,41 @@ describe("Mocked: changeGameLocation", () => {
   });
 });
 
-describe("Mocked: reportScore", () => {
+describe("Mocked: reportScore and confirmScore", () => {
+  const opponentId = "opponent-user-id";
+  const playedGame = gameDetails({
+    id: editGameId,
+    status: GameStatus.IN_PROGRESS,
+    players: [
+      ...gameDetails().players,
+      {
+        id: opponentId,
+        username: "rival",
+        name: "Rival Player",
+        rating: 1500,
+        photoUrl: null,
+        team: 2,
+        acceptedAt: new Date(),
+        scoreConfirmedAt: null,
+        ratingBefore: null,
+        ratingAfter: null,
+      },
+    ],
+  });
+  let changeSpy: jest.SpiedFunction<typeof changes.gameChanged>;
+
   beforeEach(() => {
     jest.clearAllMocks();
     // Only a game in progress can be scored
     mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.IN_PROGRESS }));
     mockedIsUserInGame.mockResolvedValue(true);
+    mockedFetchGameDetails.mockResolvedValue(playedGame);
+    mockedPushToUsers.mockResolvedValue(1);
+    changeSpy = jest.spyOn(changes, "gameChanged");
+  });
+
+  afterEach(() => {
+    changeSpy.mockRestore();
   });
 
   const rounds: [number, number][] = [
@@ -2420,10 +2484,47 @@ describe("Mocked: reportScore", () => {
     mockedFetchGame.mockResolvedValue(game);
 
     await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.NotStarted);
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    await expect(confirmScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.NotStarted);
+    expect(mockedRecordScore).not.toHaveBeenCalled();
   });
 
-  test("Completes the game with the given rounds", async () => {
+  test("Throws Closed and saves nothing when the game is already completed", async () => {
+    mockedFetchGame.mockResolvedValue(existingGame({ status: GameStatus.COMPLETED }));
+
+    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.Closed);
+    expect(mockedRecordScore).not.toHaveBeenCalled();
+  });
+
+  // Input: a player reports a new score
+  // Expected behavior: the game's watchers get the score live, and the other players are asked by push to confirm it
+  // Expected output: { completed: false }
+  test("Asks the other players to confirm a newly reported score", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: "proposed" });
+
+    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({ completed: false });
+
+    expect(mockedRecordScore).toHaveBeenCalledWith(editGameId, userId, rounds, false, expect.any(Date));
+    expect(changeSpy).toHaveBeenCalledWith({ gameId: editGameId });
+    expect(mockedPushToUsers).toHaveBeenCalledWith([opponentId], {
+      title: "Confirm the score",
+      body: "Ace Player reported 6-4, 6-3 for your singles game at Kitsilano Beach Park.",
+      data: { gameId: editGameId, type: "scoreReported" },
+    });
+  });
+
+  // Input: a player confirms the score waiting, and another player still has to
+  // Expected behavior: the game's watchers see the confirmation live; nobody gets a push
+  test("Shows a confirmation live without a push", async () => {
+    mockedRecordScore.mockResolvedValue({ outcome: "confirmed" });
+
+    await expect(confirmScore(editGameId, userId, rounds)).resolves.toEqual({ completed: false });
+
+    expect(mockedRecordScore).toHaveBeenCalledWith(editGameId, userId, rounds, true, expect.any(Date));
+    expect(changeSpy).toHaveBeenCalledWith({ gameId: editGameId });
+    expect(mockedPushToUsers).not.toHaveBeenCalled();
+  });
+
+  test("Returns the completed game once the last player confirms", async () => {
     const completed = {
       game: existingGame({ status: GameStatus.COMPLETED }),
       rounds: [
@@ -2432,51 +2533,39 @@ describe("Mocked: reportScore", () => {
       ],
       ratingChanges: [
         { userId, ratingBefore: 1500, ratingAfter: 1520 },
-        { userId: "other-user", ratingBefore: 1500, ratingAfter: 1480 },
+        { userId: opponentId, ratingBefore: 1500, ratingAfter: 1480 },
       ],
     };
-    mockedCompleteGame.mockResolvedValue(completed);
+    mockedRecordScore.mockResolvedValue({ outcome: "completed", completed });
 
-    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual(completed);
-    expect(mockedCompleteGame).toHaveBeenCalledWith(editGameId, rounds);
+    await expect(confirmScore(editGameId, userId, rounds)).resolves.toEqual({ completed: true, ...completed });
+    expect(changeSpy).toHaveBeenCalledWith({ gameId: editGameId });
   });
 
-  test("Throws the reason and does not save when the game is already completed", async () => {
-    mockedFetchGame.mockResolvedValue(
-      existingGame({ status: GameStatus.COMPLETED }),
-    );
+  // Input: the push to the other players fails
+  // Expected behavior: the error is logged; the score is already saved, so reporting still succeeds
+  test("Still reports the score when the push fails", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedRecordScore.mockResolvedValue({ outcome: "proposed" });
+    mockedPushToUsers.mockRejectedValue(new Error("FCM down"));
 
-    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.Closed);
-    expect(mockedCompleteGame).not.toHaveBeenCalled();
+    await expect(reportScore(editGameId, userId, rounds)).resolves.toEqual({ completed: false });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   test("Throws IncompleteTeams when the teams are not full", async () => {
-    mockedCompleteGame.mockRejectedValue(
-      new IncompleteTeamsError(Format.DOUBLES, 2, 1),
-    );
+    mockedRecordScore.mockRejectedValue(new IncompleteTeamsError(Format.DOUBLES, 2, 1));
 
-    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.IncompleteTeams);
-  });
-
-  test("Rethrows other errors from saving the score", async () => {
-    mockedCompleteGame.mockRejectedValue(new Error("database down"));
-
-    await expect(reportScore(editGameId, userId, rounds)).rejects.toThrow(
-      "database down",
-    );
-  });
-
-  test("Throws Closed when the game is completed between the check and the save", async () => {
-    mockedCompleteGame.mockResolvedValue(null);
-
-    await expect(reportScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.Closed);
+    await expect(confirmScore(editGameId, userId, rounds)).rejects.toMatchObject(gameErrors.IncompleteTeams);
   });
 
   test("Propagates repository errors", async () => {
     const error = new Error("Database unavailable");
-    mockedCompleteGame.mockRejectedValue(error);
+    mockedRecordScore.mockRejectedValue(error);
 
     await expect(reportScore(editGameId, userId, rounds)).rejects.toBe(error);
+    expect(changeSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -2490,6 +2579,7 @@ describe("Mocked: POST /games/accept", () => {
     photoUrl: null,
     team: 2,
     acceptedAt: null,
+    scoreConfirmedAt: null,
     ratingBefore: null,
     ratingAfter: null,
   };
@@ -2668,6 +2758,7 @@ describe("Mocked: matched games can be cancelled but not left or moved", () => {
     photoUrl: null,
     team: 2,
     acceptedAt: null,
+    scoreConfirmedAt: null,
     ratingBefore: null,
     ratingAfter: null,
   };

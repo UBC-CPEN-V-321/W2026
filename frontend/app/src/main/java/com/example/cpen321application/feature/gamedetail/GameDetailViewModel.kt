@@ -74,11 +74,18 @@ class GameDetailViewModel(
     fun changeCourt(courtId: Int) = sendAction { gamesRepository.changeGameLocation(gameId, courtId) }
 
     /**
+     * Reports the final score, or a correction to the score waiting. It waits for every other player to confirm it
      * @param rounds the (team 1, team 2) score of each set, already checked with scoreError
      * @param onReported called once the backend saved the score, to close the score form
      */
     fun reportScore(rounds: List<Pair<Int, Int>>, onReported: () -> Unit) =
         sendAction(onSuccess = onReported) { gamesRepository.reportScore(gameId, rounds) }
+
+    /**
+     * Agrees with the score waiting. The last player to agree completes the game
+     * @param rounds the score waiting, as the user saw it
+     */
+    fun confirmScore(rounds: List<Pair<Int, Int>>) = sendAction { gamesRepository.confirmScore(gameId, rounds) }
 
     /**
      * Cancels the game for every player

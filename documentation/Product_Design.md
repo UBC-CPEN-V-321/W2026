@@ -32,7 +32,7 @@ The creator picks:
 - Date and time
 - Court, picked from a list
 
-Any player in a game can move it to another time or court, leave it (until 30 minutes before the start) or cancel it, and report its final score ([§6](#6-scoring)). There is no owner role.
+Any player in a game can move it to another time or court, leave it (until 30 minutes before the start) or cancel it, and report or confirm its final score ([§6](#6-scoring)). There is no owner role.
 
 Planned: a calendar view of all games, adding games to Google Calendar, checking in at the court, and a live score during the game.
 
@@ -85,9 +85,11 @@ In tennis, a round is a **set** and its score counts **games** (e.g. 6–4).
 
 ### 6.2. Who enters the score
 
-- Any player in the match can enter the score.
-- The **first score entered is final**. Everyone in the match sees it.
-- Scores are trust-based: there is no confirmation or dispute step.
+- Any player in the match can report the final score once the game has started.
+- The score only counts once **every player confirms it**. Until then it waits on the game screen, which shows who reported it and who has confirmed so far. Everyone in the match sees each step live.
+- The other players get a push notification asking them to confirm it.
+- A player who disagrees **suggests a correction**: their score replaces the one waiting, and everyone has to confirm again. The reporter can change their score the same way.
+- When the last player confirms, the game is completed and ratings update. A completed score can't change.
 
 ## 7. Rating
 
@@ -152,12 +154,12 @@ We will likely move to **Glicko** (the system chess.com uses). It adds a rating 
 | Google Sign-In | Signing in |
 | Google Maps Platform (Maps and Places) | Showing a matched game's court on a map, and the address to be matched near |
 | OpenWeather | Forecasts in the feed |
-| Firebase Cloud Messaging | Push notifications for matches and game invites |
+| Firebase Cloud Messaging | Push notifications for matches, game invites and scores to confirm |
 | Google Calendar API (planned) | Adding games to the user's calendar |
 
 ## 9. Out of scope for now
 
 - Recurring games
-- Score confirmation or disputes
+- Settling a score the players never agree on (e.g. a deadline or a moderator): the game stays in progress until they do
 - Glicko ([§7.3](#73-future-glicko))
 - Sports other than tennis (e.g. pickleball and badminton)

@@ -48,11 +48,22 @@ const kOneGame = 250 / 6 ** 0.4;
 
 const auth = (index: number) => users.at(index)?.auth ?? "";
 
-/** Reports a game's score as its team 1 player */
-async function report(gameIndex: number, rounds: [number, number][]) {
-  return await request(app)
+/**
+ * Reports a game's score as the given player
+ * @param playerIndex 0 for player 1 (team 1), 1 for player 2 (team 2)
+ */
+function report(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
+  return request(app)
     .post("/games/score")
-    .set("Authorization", auth(0))
+    .set("Authorization", auth(playerIndex))
+    .send({ gameId: gameIds.at(gameIndex), rounds });
+}
+
+/** Confirms the score waiting in a game as the given player */
+function confirm(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
+  return request(app)
+    .post("/games/score/confirm")
+    .set("Authorization", auth(playerIndex))
     .send({ gameId: gameIds.at(gameIndex), rounds });
 }
 
@@ -95,6 +106,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.gameRound.deleteMany({ where: { gameId: { in: gameIds } } });
+  await prisma.scoreProposal.deleteMany({ where: { gameId: { in: gameIds } } });
   await prisma.gameUser.deleteMany({ where: { gameId: { in: gameIds } } });
   await prisma.game.deleteMany({ where: { id: { in: gameIds } } });
   await prisma.user.deleteMany({ where: { id: { in: users.map(({ id }) => id) } } });
@@ -102,35 +114,84 @@ afterAll(async () => {
 });
 
 describe("Unmocked: games played and player stats", () => {
-  // Interface POST /games/score
-  // Input: two new 1500-rated players, player 1 wins 6-4 6-3
+  // Interface POST /games/score, GET /games
+  // Input: player 1 reports 6-4 6-3
   // Expected status code: 200
-  // Expected behavior: neither player has a rated game yet, so both use the new-player K
-  // Expected output: player 1 gains 131.33 * 0.5 + 1.5 * 5 = 73.16, player 2 loses the same
-  test("Rates a first game with the new-player K", async () => {
-    const response = await report(0, [
+  // Expected behavior: the score waits for player 2: the game stays in progress, with only player 1 agreeing
+  // Expected output: { completed: false }, and the game shows the score waiting
+  test("Keeps a reported score waiting until the other player confirms it", async () => {
+    const response = await report(0, 0, [
       [6, 4],
       [6, 3],
     ]);
 
     expect(response.status).toBe(200);
+    expect(response.body).toEqual({ completed: false });
+
+    const game = await request(app).get("/games").set("Authorization", auth(1)).query({ gameId: gameIds.at(0) });
+    expect(game.body.game).toMatchObject({
+      status: GameStatus.IN_PROGRESS,
+      rounds: [],
+      scoreProposal: {
+        proposedById: users[0]?.id,
+        rounds: [
+          { number: 1, team1Score: 6, team2Score: 4 },
+          { number: 2, team1Score: 6, team2Score: 3 },
+        ],
+      },
+    });
+    const confirmedBy = (game.body.game as { players: { id: string; scoreConfirmedAt: string | null }[] }).players
+      .filter(({ scoreConfirmedAt }) => scoreConfirmedAt !== null)
+      .map(({ id }) => id);
+    expect(confirmedBy).toEqual([users[0]?.id]);
+  });
+
+  // Interface POST /games/score/confirm
+  // Input: two new 1500-rated players, player 2 confirms player 1's 6-4 6-3 win
+  // Expected status code: 200
+  // Expected behavior: both players agree, so the game is completed; neither player has a rated game yet, so both
+  // use the new-player K
+  // Expected output: player 1 gains 131.33 * 0.5 + 1.5 * 5 = 73.16, player 2 loses the same
+  test("Rates a first game with the new-player K once it is confirmed", async () => {
+    const response = await confirm(0, 1, [
+      [6, 4],
+      [6, 3],
+    ]);
+
+    expect(response.status).toBe(200);
+    expect(response.body.completed).toBe(true);
     const [first, second] = (response.body as ScoreBody).ratingChanges;
     expect(first.ratingAfter).toBeCloseTo(1500 + kNew * 0.5 + 7.5, 5);
     expect(second.ratingAfter).toBeCloseTo(1500 - (kNew * 0.5 + 7.5), 5);
   });
 
-  // Interface POST /games/score
-  // Input: the same players' second game, player 2 wins 6-2 6-4
-  // Expected status code: 200
-  // Expected behavior: the first game now counts, so both use the K for 1 game played
+  // Interface POST /games/score, POST /games/score/confirm
+  // Input: the same players' second game: player 1 reports a wrong score, player 2 corrects it to their 6-2 6-4
+  // win, and player 1 confirms the correction. Confirming the replaced score is refused
+  // Expected status code: 200 for each report and the confirmation, 409 for the stale confirmation
+  // Expected behavior: the correction replaces the wrong score; the first game now counts, so both use the K for
+  // 1 game played
   // Expected output: each rating moves by K(1) * (S - E) + 1.5 * (margin - expected margin)
-  test("Rates a second game with the K for one game played", async () => {
-    const response = await report(1, [
+  test("Rates a corrected second game with the K for one game played", async () => {
+    const wrong: [number, number][] = [
+      [6, 2],
+      [6, 4],
+    ];
+    const corrected: [number, number][] = [
       [2, 6],
       [4, 6],
-    ]);
+    ];
+    expect((await report(1, 0, wrong)).body).toEqual({ completed: false });
+    expect((await report(1, 1, corrected)).body).toEqual({ completed: false });
+
+    const stale = await confirm(1, 0, wrong);
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe("SCORE_CHANGED");
+
+    const response = await confirm(1, 0, corrected);
 
     expect(response.status).toBe(200);
+    expect(response.body.completed).toBe(true);
     const [first, second] = (response.body as ScoreBody).ratingChanges;
     const gap = first.ratingBefore - second.ratingBefore;
     const expectedOutcome = 1 / (1 + 10 ** (-gap / 400));

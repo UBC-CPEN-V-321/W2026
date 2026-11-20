@@ -95,6 +95,7 @@ model User {
   preferredCourts Court[]
   availabilities  UserAvailability[]
   games           GameUser[]
+  scoreProposals  ScoreProposal[]
   matchmakingRequest MatchmakingRequest?
   refreshTokens   RefreshToken[]
 
@@ -183,6 +184,7 @@ model Game {
 
   players GameUser[]
   rounds  GameRound[]
+  scoreProposal ScoreProposal?
   equipment GameEquipment[]
 
   // Set for TOURNAMENT games only
@@ -198,6 +200,8 @@ model GameUser {
   userId     String    @db.Uuid
   team       Int
   acceptedAt DateTime? @db.Timestamptz(3) // MATCHED games only; null until the player accepts
+  // When the player agreed to the reported score; null until they do, and reset when the score changes
+  scoreConfirmedAt DateTime? @db.Timestamptz(3)
 
   // Match summary, set by Ranking when the final score is reported; null until the game is completed
   ratingBefore Float?
@@ -312,4 +316,22 @@ model TournamentMatch {
 
   @@id([tournamentId, round, position])
   @@map("tournament_matches")
+}
+
+// A final score a player reported, waiting for every other player of the game to confirm it (game_users
+// .scoreConfirmedAt). The game is completed with it once the last player confirms, and the proposal is deleted.
+// Reporting a different score replaces it and resets every confirmation
+model ScoreProposal {
+  gameId       String   @id @db.Uuid
+  proposedById String   @db.Uuid
+  rounds       Json // [team 1 score, team 2 score] of each round, in order
+  proposedAt   DateTime @db.Timestamptz(3)
+
+  // One-to-one relation between Game and ScoreProposal
+  game Game @relation(fields: [gameId], references: [id])
+
+  // One-to-many relation between User and ScoreProposal
+  proposedBy User @relation(fields: [proposedById], references: [id])
+
+  @@map("score_proposals")
 }

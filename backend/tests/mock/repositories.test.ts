@@ -12,7 +12,6 @@ import {
   acceptMatch,
   addPlayerToTeam,
   cancelMatchedGame,
-  completeGame,
   createGame,
   deleteGame,
   deleteGameUser,
@@ -20,6 +19,7 @@ import {
   fetchGameDetails,
   fetchUserGames,
   fetchUserHistory,
+  recordScore,
   startBookedGame,
 } from "../../src/games/games.repository";
 import { applyGameResult } from "../../src/ranking/ranking.service";
@@ -49,6 +49,7 @@ function mockPrismaClient() {
       updateMany: jest.fn(),
     },
     gameRound: { deleteMany: jest.fn(), createManyAndReturn: jest.fn() },
+    scoreProposal: { upsert: jest.fn(), deleteMany: jest.fn() },
     gameEquipment: { deleteMany: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
@@ -91,6 +92,7 @@ const gameRow = () => ({
     {
       team: 1,
       acceptedAt: new Date("2026-11-01T12:00:00Z"),
+      scoreConfirmedAt: null as Date | null,
       ratingBefore: null as number | null,
       ratingAfter: null as number | null,
       user: { id: userId, username: "ace", name: "Ace Player", rating: 1520 },
@@ -101,6 +103,7 @@ const gameRow = () => ({
     round: number;
     tournament: { id: string; name: string };
   } | null,
+  scoreProposal: null as { rounds: unknown; proposedById: string; proposedAt: Date } | null,
 });
 
 const flattenedPlayers = [
@@ -111,6 +114,7 @@ const flattenedPlayers = [
     rating: 1520,
     team: 1,
     acceptedAt: new Date("2026-11-01T12:00:00Z"),
+    scoreConfirmedAt: null,
     ratingBefore: null,
     ratingAfter: null,
   },
@@ -122,6 +126,7 @@ const expectedDetails = () => ({
   tournamentMatch: undefined,
   players: flattenedPlayers,
   tournament: null,
+  scoreProposal: null,
 });
 
 // The tagged template given to $queryRaw, as one string
@@ -193,6 +198,39 @@ describe("Mocked: fetchGameDetails", () => {
 
     expect(game?.tournament).toEqual({ ...tournament, round: 2 });
     expect(game).not.toHaveProperty("tournamentMatch");
+  });
+
+  // Input: a game whose score waits for confirmation, stored as [team 1, team 2] pairs
+  // Expected behavior: the rounds come back shaped like the game's own rounds, numbered from 1
+  test("Returns the score waiting for confirmation with numbered rounds", async () => {
+    const proposedAt = new Date("2026-11-03T19:30:00Z");
+    db.game.findUnique.mockResolvedValue({
+      ...gameRow(),
+      scoreProposal: { rounds: [[6, 4], [3, 6], [7, 5]], proposedById: userId, proposedAt },
+    });
+
+    const game = await fetchGameDetails(gameId);
+
+    expect(game?.scoreProposal).toEqual({
+      proposedById: userId,
+      proposedAt,
+      rounds: [
+        { number: 1, team1Score: 6, team2Score: 4 },
+        { number: 2, team1Score: 3, team2Score: 6 },
+        { number: 3, team1Score: 7, team2Score: 5 },
+      ],
+    });
+  });
+
+  test("Returns no rounds for a stored score that is not a list of pairs", async () => {
+    db.game.findUnique.mockResolvedValue({
+      ...gameRow(),
+      scoreProposal: { rounds: { team1: 6 }, proposedById: userId, proposedAt: new Date() },
+    });
+
+    const game = await fetchGameDetails(gameId);
+
+    expect(game?.scoreProposal?.rounds).toEqual([]);
   });
 
   test("Only selects the user fields that are safe to show other players", async () => {
@@ -447,15 +485,16 @@ describe("Mocked: deleteGame", () => {
     jest.clearAllMocks();
   });
 
-  // Input: an open or booked game with players (and possibly rounds or equipment)
+  // Input: an open, booked or started game with players (and possibly rounds, a score waiting, or equipment)
   // Expected behavior: the game is locked, then its rows in the tables that point at it are deleted before the game,
   // in one transaction
   // Expected output: true
-  test("Deletes the game's players, rounds and equipment before the game", async () => {
+  test("Deletes the game's players, rounds, score waiting and equipment before the game", async () => {
     const order: string[] = [];
     db.game.count.mockResolvedValueOnce(1);
     db.gameUser.deleteMany.mockImplementationOnce(() => Promise.resolve(order.push("players")));
     db.gameRound.deleteMany.mockImplementationOnce(() => Promise.resolve(order.push("rounds")));
+    db.scoreProposal.deleteMany.mockImplementationOnce(() => Promise.resolve(order.push("score")));
     db.gameEquipment.deleteMany.mockImplementationOnce(() => Promise.resolve(order.push("equipment")));
     db.game.delete.mockImplementationOnce(() => Promise.resolve(order.push("game")));
 
@@ -468,9 +507,10 @@ describe("Mocked: deleteGame", () => {
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(db.gameUser.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
     expect(db.gameRound.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
+    expect(db.scoreProposal.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
     expect(db.gameEquipment.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
     expect(db.game.delete).toHaveBeenCalledWith({ where: { id: gameId } });
-    expect(order).toEqual(["players", "rounds", "equipment", "game"]);
+    expect(order).toEqual(["players", "rounds", "score", "equipment", "game"]);
   });
 
   // Input: a game that is completed or cancelled, or no longer exists
@@ -519,46 +559,146 @@ describe("Mocked: deleteGameUser", () => {
   });
 });
 
-describe("Mocked: completeGame", () => {
+describe("Mocked: recordScore", () => {
   const rounds: [number, number][] = [
     [6, 4],
     [6, 3],
   ];
+  const now = new Date("2026-11-03T19:30:00Z");
   const ratingChanges = [{ userId, ratingBefore: 1500, ratingAfter: 1512 }];
+
+  // The locked game, in progress, with the given score waiting (or none)
+  const inProgress = (waiting: [number, number][] | null) => ({
+    status: GameStatus.IN_PROGRESS,
+    scoreProposal: waiting === null ? null : { rounds: waiting },
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
-    db.game.updateMany.mockResolvedValue({ count: 1 });
+    db.game.findUnique.mockResolvedValue(inProgress(null));
+    db.gameUser.updateMany.mockResolvedValue({ count: 1 });
+    // Another player still has to agree
+    db.gameUser.count.mockResolvedValue(1);
+    db.game.update.mockResolvedValue({ ...gameRow(), status: GameStatus.COMPLETED });
     db.gameRound.createManyAndReturn.mockResolvedValue([]);
     mockedApplyGameResult.mockResolvedValue(ratingChanges);
   });
 
-  test("Rates a tournament game and then moves its winner on in the same transaction", async () => {
-    const game = { ...gameRow(), gameSource: GameSource.TOURNAMENT, status: GameStatus.COMPLETED };
-    db.game.findUniqueOrThrow.mockResolvedValue(game);
+  // Input: a game that is gone, or not in progress (not started, completed or cancelled), once locked
+  // Expected behavior: nothing is written
+  // Expected output: "notInProgress"
+  test.each([
+    ["gone", null],
+    ["completed", { status: GameStatus.COMPLETED, scoreProposal: null }],
+    ["booked", { status: GameStatus.BOOKED, scoreProposal: null }],
+  ])("Saves nothing for a game that is %s", async (_description, game) => {
+    db.game.findUnique.mockResolvedValue(game);
 
-    const result = await completeGame(gameId, rounds);
-
-    expect(result).toEqual({ game, rounds: [], ratingChanges });
-    expect(mockedAdvanceBracket).toHaveBeenCalledWith(db, gameId, rounds, expect.any(Date));
-    expect(firstCallOrder(mockedApplyGameResult)).toBeLessThan(firstCallOrder(mockedAdvanceBracket));
+    await expect(recordScore(gameId, userId, rounds, false, now)).resolves.toEqual({ outcome: "notInProgress" });
+    expect(lockQuery()).toMatch(/FOR UPDATE/);
+    expect(db.scoreProposal.upsert).not.toHaveBeenCalled();
+    expect(db.gameUser.updateMany).not.toHaveBeenCalled();
   });
 
-  test("Does not touch any bracket for a scheduled game", async () => {
-    db.game.findUniqueOrThrow.mockResolvedValue({ ...gameRow(), status: GameStatus.COMPLETED });
+  // Input: the first score reported for a game, with another player still to agree
+  // Expected behavior: the score is saved as waiting, every other player's agreement is reset, the reporter agrees
+  // Expected output: "proposed"
+  test("Saves a new score as waiting, with only its reporter agreeing", async () => {
+    await expect(recordScore(gameId, userId, rounds, false, now)).resolves.toEqual({ outcome: "proposed" });
 
-    await completeGame(gameId, rounds);
+    expect(db.scoreProposal.upsert).toHaveBeenCalledWith({
+      where: { gameId },
+      create: { gameId, proposedById: userId, rounds, proposedAt: now },
+      update: { proposedById: userId, rounds, proposedAt: now },
+    });
+    expect(db.gameUser.updateMany).toHaveBeenCalledWith({
+      where: { gameId, userId: { not: userId } },
+      data: { scoreConfirmedAt: null },
+    });
+    expect(db.gameUser.updateMany).toHaveBeenCalledWith({ where: { gameId, userId }, data: { scoreConfirmedAt: now } });
+    expect(db.game.update).not.toHaveBeenCalled();
+  });
 
+  // Input: a score different from the one waiting
+  // Expected behavior: it replaces the waiting score and everyone else has to agree again
+  // Expected output: "proposed"
+  test("Replaces a different score waiting and resets the others' agreement", async () => {
+    db.game.findUnique.mockResolvedValue(inProgress([[6, 4], [3, 6], [6, 2]]));
+
+    await expect(recordScore(gameId, userId, rounds, false, now)).resolves.toEqual({ outcome: "proposed" });
+    expect(db.scoreProposal.upsert).toHaveBeenCalledTimes(1);
+    expect(db.gameUser.updateMany).toHaveBeenCalledWith({
+      where: { gameId, userId: { not: userId } },
+      data: { scoreConfirmedAt: null },
+    });
+  });
+
+  // Input: the score waiting, reported or confirmed again, while another player still has to agree
+  // Expected behavior: only this player's agreement is saved; the score and the others' agreement stay
+  // Expected output: "confirmed"
+  test.each([
+    ["reporting", false],
+    ["confirming", true],
+  ])("Agrees with the score waiting when %s the same score", async (_description, confirming) => {
+    db.game.findUnique.mockResolvedValue(inProgress(rounds));
+
+    await expect(recordScore(gameId, userId, rounds, confirming, now)).resolves.toEqual({ outcome: "confirmed" });
+    expect(db.scoreProposal.upsert).not.toHaveBeenCalled();
+    expect(db.gameUser.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.gameUser.updateMany).toHaveBeenCalledWith({
+      where: { gameId, userId, scoreConfirmedAt: null },
+      data: { scoreConfirmedAt: now },
+    });
+    expect(db.gameUser.count).toHaveBeenCalledWith({ where: { gameId, scoreConfirmedAt: null } });
+  });
+
+  // Input: confirming when no score is waiting, or a score different from the one waiting
+  // Expected behavior: nothing is written, so a player never proposes a score by confirming a stale one
+  // Expected output: "noProposal" or "scoreChanged"
+  test.each([
+    ["no score is waiting", null, "noProposal"],
+    ["a different score is waiting", [[7, 5]] as [number, number][], "scoreChanged"],
+  ])("Saves nothing when confirming and %s", async (_description, waiting, outcome) => {
+    db.game.findUnique.mockResolvedValue(inProgress(waiting));
+
+    await expect(recordScore(gameId, userId, rounds, true, now)).resolves.toEqual({ outcome });
+    expect(db.scoreProposal.upsert).not.toHaveBeenCalled();
+    expect(db.gameUser.updateMany).not.toHaveBeenCalled();
+  });
+
+  // Input: the last player agrees with the score waiting
+  // Expected behavior: in the same transaction the game is completed, the score waiting is deleted, the rounds are
+  // saved and the ratings updated
+  // Expected output: "completed" with the completed game, its rounds and rating changes
+  test("Completes the game once the last player agrees", async () => {
+    db.game.findUnique.mockResolvedValue(inProgress(rounds));
+    db.gameUser.count.mockResolvedValue(0);
+    const savedRounds = [{ gameId, number: 1, team1Score: 6, team2Score: 4 }];
+    db.gameRound.createManyAndReturn.mockResolvedValue(savedRounds);
+
+    const result = await recordScore(gameId, userId, rounds, true, now);
+
+    expect(result).toEqual({
+      outcome: "completed",
+      completed: { game: { ...gameRow(), status: GameStatus.COMPLETED }, rounds: savedRounds, ratingChanges },
+    });
+    expect(db.game.update).toHaveBeenCalledWith({ where: { id: gameId }, data: { status: GameStatus.COMPLETED } });
+    expect(db.scoreProposal.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
+    expect(db.gameRound.deleteMany).toHaveBeenCalledWith({ where: { gameId } });
     expect(mockedApplyGameResult).toHaveBeenCalledWith(db, gameId, Format.DOUBLES, rounds);
     expect(mockedAdvanceBracket).not.toHaveBeenCalled();
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  test("Returns null without rating or advancing when the game is already closed", async () => {
-    db.game.updateMany.mockResolvedValue({ count: 0 });
+  test("Rates a tournament game and then moves its winner on in the same transaction", async () => {
+    db.game.findUnique.mockResolvedValue(inProgress(rounds));
+    db.gameUser.count.mockResolvedValue(0);
+    db.game.update.mockResolvedValue({ ...gameRow(), gameSource: GameSource.TOURNAMENT });
 
-    await expect(completeGame(gameId, rounds)).resolves.toBeNull();
-    expect(mockedApplyGameResult).not.toHaveBeenCalled();
-    expect(mockedAdvanceBracket).not.toHaveBeenCalled();
+    await recordScore(gameId, userId, rounds, true, now);
+
+    expect(mockedAdvanceBracket).toHaveBeenCalledWith(db, gameId, rounds, now);
+    expect(firstCallOrder(mockedApplyGameResult)).toBeLessThan(firstCallOrder(mockedAdvanceBracket));
   });
 });
 

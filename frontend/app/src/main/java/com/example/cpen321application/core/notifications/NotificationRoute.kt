@@ -11,6 +11,12 @@ const val EXTRA_NOTIFICATION_TYPE = "type"
 // The type of a push inviting the user to a friend's game
 const val GAME_INVITE_TYPE = "gameInvite"
 
+// The type of a push asking the user to confirm the score another player reported
+const val SCORE_REPORTED_TYPE = "scoreReported"
+
+// The pushes that open their game's screen when tapped
+private val GAME_SCREEN_TYPES = setOf(GAME_INVITE_TYPE, SCORE_REPORTED_TYPE)
+
 /**
  * @param data the push's data
  * @return whether the push is about a matched game (found, accepted or cancelled): it has a game id and no type
@@ -28,7 +34,7 @@ fun notificationRoute(gameId: String?, type: String? = null): String? {
     if (gameId == null) {
         return null
     }
-    if (type == GAME_INVITE_TYPE) {
+    if (type in GAME_SCREEN_TYPES) {
         return Screen.GameDetail.createRoute(gameId)
     }
     // TODO: open the game screen for gameId

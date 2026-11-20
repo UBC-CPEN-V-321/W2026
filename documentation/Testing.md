@@ -15,6 +15,7 @@
 | 11-18-2026        | 2.1.1                 | Added tests for `GET /stats` (mocked, no-mock and the `stats.test.ts` unit tests) and for the games-played count in `fetchGamePlayerRatingsForUpdate` |
 | 11-18-2026        | 2.1.1                 | Added tests for `POST /games/start` (mocked, `startBookedGame`, and starting a quarterfinal early in the no-mock tournament flow) |
 | 11-20-2026        | 2.1.1                 | Added the no-mock matchmaking flow (`tests/no-mock/matchmaking.test.ts`): a run takes both players out of the queue, puts the match in both players' games and on the live Games stream, keeps them from queueing again, and books it once both accept. Added tests for `GET /matchmaking/events` (mocked, `refreshEach`, the queue changes `runMatchmaking` announces, and the queue stream in the no-mock flow) |
+| 11-20-2026        | 2.1.1                 | Score confirmation: added tests for `POST /games/score/confirm` and `recordScore`, and changed the `POST /games/score` tests so a game completes only once every player confirms (the no-mock flows now confirm as the other player, and test a correction and a stale confirmation) |
 
 ---
 
@@ -52,7 +53,8 @@
 | **PATCH /games/time**         | ...                                                  | [`tests/mock/games.test.ts`](#)                    | Game DB                            |
 | **PATCH /games/location**     | ...                                                  | [`tests/mock/games.test.ts`](#)                    | Game DB                            |
 | **POST /games/start**         | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#) | Game DB                            |
-| **POST /games/score**         | [`tests/no-mock/tournaments.test.ts`](#), [`tests/no-mock/playerStats.test.ts`](#) | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#), [`tests/mock/bracket.repository.test.ts`](#) | Game DB, Tournament DB             |
+| **POST /games/score**         | [`tests/no-mock/tournaments.test.ts`](#), [`tests/no-mock/playerStats.test.ts`](#) | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#), [`tests/mock/bracket.repository.test.ts`](#) | Game DB, Tournament DB, Firebase Cloud Messaging |
+| **POST /games/score/confirm** | [`tests/no-mock/tournaments.test.ts`](#), [`tests/no-mock/playerStats.test.ts`](#) | [`tests/mock/games.test.ts`](#), [`tests/mock/repositories.test.ts`](#) | Game DB, Tournament DB             |
 | **POST /tournaments**         | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#) | Tournament DB                      |
 | **GET /tournaments**          | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#) | Tournament DB                      |
 | **GET /tournaments/feed**     | [`tests/no-mock/tournaments.test.ts`](#)             | [`tests/mock/tournaments.test.ts`](#), [`tests/mock/tournaments.repository.test.ts`](#), [`tests/mock/weather.test.ts`](#) | Tournament DB, OpenWeather API     |

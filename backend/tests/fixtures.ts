@@ -39,6 +39,7 @@ export function testPlayer(id: string, team: number): GameDetails["players"][num
     rating: 1500,
     team,
     acceptedAt: new Date(),
+    scoreConfirmedAt: null,
     ratingBefore: null,
     ratingAfter: null,
   };
@@ -54,6 +55,7 @@ export function gameDetails(overrides: Partial<GameDetails> = {}): GameDetails {
     players: [],
     rounds: [],
     tournament: null,
+    scoreProposal: null,
     ...overrides,
   };
 }
