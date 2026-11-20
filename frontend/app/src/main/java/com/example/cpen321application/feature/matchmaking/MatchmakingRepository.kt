@@ -1,10 +1,16 @@
 package com.example.cpen321application.feature.matchmaking
 
 import com.example.cpen321application.core.auth.AuthSession
+import com.example.cpen321application.core.data.repository.liveEvents
 import com.example.cpen321application.core.network.ApiService
+import com.example.cpen321application.core.network.EventStreamApi
 import com.example.cpen321application.core.network.RetrofitClient
+import com.example.cpen321application.core.network.ServerSentEvent
 import com.example.cpen321application.core.network.dto.JoinQueueRequestDto
+import com.example.cpen321application.core.network.dto.NearbyPlayersDto
 import com.example.cpen321application.core.network.dto.PointDto
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -30,14 +36,26 @@ interface MatchmakingRepository {
     suspend fun queuedFormat(): Result<MatchFormat?>
 
     /**
-     * @return the other players searching near the player, null if they are not waiting
+     * The player's queue pushed by the backend (GET /matchmaking/events): the players searching near them first,
+     * then again whenever anyone joins or leaves the queue or is matched, or NotQueued once the player isn't in it.
+     * Ends right away if signed out. Throws IOException if the connection drops, HttpException if refused
      */
-    suspend fun nearbyPlayers(): Result<NearbyPlayers?>
+    fun queueUpdates(): Flow<QueueUpdate>
+}
+
+// What the backend pushes about the player's place in the queue
+sealed interface QueueUpdate {
+    data class Nearby(val players: NearbyPlayers) : QueueUpdate
+
+    // Left the queue, or matchmaking took the player out of it with a match
+    data object NotQueued : QueueUpdate
 }
 
 class MatchmakingRepositoryImpl(
     private val session: AuthSession,
-    private val api: ApiService = RetrofitClient.apiService
+    private val api: ApiService = RetrofitClient.apiService,
+    private val eventStreamApi: EventStreamApi = RetrofitClient.eventStreamApi,
+    private val gson: Gson = Gson()
 ) : MatchmakingRepository {
 
     override suspend fun joinQueue(format: MatchFormat, location: MatchLocation): Result<Unit> {
@@ -65,13 +83,18 @@ class MatchmakingRepositoryImpl(
         return result.map { MatchFormat.valueOf(it.request.format) }
     }
 
-    override suspend fun nearbyPlayers(): Result<NearbyPlayers?> {
-        val result = callWithToken { authorization -> api.getNearbyPlayers(authorization) }
-        if (result.httpCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-            return Result.success(null)
+    override fun queueUpdates(): Flow<QueueUpdate> =
+        session.liveEvents(eventStreamApi, "matchmaking/events", read = ::toUpdate)
+
+    // Null for events this version of the app doesn't know
+    private fun toUpdate(event: ServerSentEvent): QueueUpdate? =
+        when (event.name) {
+            "nearby" -> gson.fromJson(event.data, NearbyPlayersDto::class.java).let {
+                QueueUpdate.Nearby(NearbyPlayers(it.center.toMapPoint(), it.players.map { point -> point.toMapPoint() }))
+            }
+            "notQueued" -> QueueUpdate.NotQueued
+            else -> null
         }
-        return result.map { NearbyPlayers(center = it.center.toMapPoint(), players = it.players.map { point -> point.toMapPoint() }) }
-    }
 
     // Fails if nobody is signed in, the backend rejected the call, or it is unreachable
     private suspend fun <T> callWithToken(route: suspend (authorization: String) -> T): Result<T> {

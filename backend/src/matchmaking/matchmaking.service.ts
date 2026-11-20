@@ -15,7 +15,8 @@ import {
 import type { JoinQueueInput } from './matchmaking.schemas';
 import { distanceKm, midpoint, type Location } from './geo';
 import { pushToUsers } from '../users/users.service';
-import { gameChanged } from '../events/changes';
+import { gameChanged, queueChanged } from '../events/changes';
+import type { StreamEvent } from '../events/eventStreams';
 import { MATCH_ANSWER_DEADLINE_MS } from '../games/games.repository';
 
 const MATCH_START_DELAY_MS = 60 * 60 * 1000;
@@ -256,6 +257,8 @@ export async function runMatchmaking(): Promise<Match[]> {
     await notifyMatch(match, claimedGame);
   }
 
+  // The matched players left the queue, so they drop off the other searching players' maps
+  if (claimedMatches.length > 0) queueChanged();
   return claimedMatches;
 }
 
@@ -323,7 +326,10 @@ async function notifyMatchExpired(match: CancelledMatch): Promise<void> {
  */
 export async function joinQueue(userId: string, input: JoinQueueInput): Promise<QueueEntry> {
   if (await hasActiveMatch(userId, new Date())) throw new AppError(matchmakingErrors.ActiveMatch);
-  return await mapPrismaErrors(createRequest(userId, input), { P2002: matchmakingErrors.AlreadyQueued });
+  const entry = await mapPrismaErrors(createRequest(userId, input), { P2002: matchmakingErrors.AlreadyQueued });
+  // A new dot on the maps of the players searching near them
+  queueChanged();
+  return entry;
 }
 
 /**
@@ -333,6 +339,7 @@ export async function joinQueue(userId: string, input: JoinQueueInput): Promise<
  */
 export async function leaveQueue(userId: string): Promise<void> {
   await deleteRequest(userId);
+  queueChanged();
 }
 
 /**
@@ -377,8 +384,29 @@ export function playersNear(center: Location, others: Location[]): Location[] {
  * @throws AppError if the player is not in the queue.
  */
 export async function getNearbyPlayers(userId: string): Promise<NearbyPlayers> {
-  const entry = await getQueueEntry(userId);
+  return await nearbyPlayersOf(userId, await getQueueEntry(userId));
+}
+
+/**
+ * @param userId - The player asking, left out of the list.
+ * @param entry - Their queue entry.
+ * @returns Where they are searching and the players near them.
+ */
+async function nearbyPlayersOf(userId: string, entry: QueueEntry): Promise<NearbyPlayers> {
   const center = { latitude: entry.latitude, longitude: entry.longitude };
   const others = await getQueuedLocations(userId);
   return { center, players: playersNear(center, others) };
+}
+
+/**
+ * A searching player's queue as their live stream sends it (GET /matchmaking/events): "nearby" with the players
+ * searching near them, like GET /matchmaking/nearby, or "notQueued" once they are no longer in the queue.
+ *
+ * @param userId - The player watching.
+ * @returns The event to send them.
+ */
+export async function loadQueueEvent(userId: string): Promise<StreamEvent> {
+  const entry = await findRequest(userId);
+  if (entry === null) return { event: 'notQueued', data: {} };
+  return { event: 'nearby', data: await nearbyPlayersOf(userId, entry) };
 }

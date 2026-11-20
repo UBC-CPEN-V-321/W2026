@@ -22,7 +22,7 @@ import {
 } from '../../src/matchmaking/matchmaking.service';
 import type { Location } from '../../src/matchmaking/geo';
 import { pushToUsers } from '../../src/users/users.service';
-import { gameChanged } from '../../src/events/changes';
+import { gameChanged, queueChanged } from '../../src/events/changes';
 
 jest.mock('../../src/matchmaking/matchmaking.repository', () => ({
   getCandidates: jest.fn(),
@@ -34,6 +34,7 @@ jest.mock('../../src/matchmaking/matchmaking.repository', () => ({
 
 jest.mock('../../src/events/changes', () => ({
   gameChanged: jest.fn(),
+  queueChanged: jest.fn(),
 }));
 
 jest.mock('../../src/users/users.service', () => ({
@@ -331,13 +332,45 @@ describe('runMatchmaking', () => {
   });
 
   // Input: repository returns candidates that cannot be matched
-  // Expected behavior: everyone stays in the queue
-  // Expected output: []; claimMatch not called
+  // Expected behavior: everyone stays in the queue, so no searching player's map changes
+  // Expected output: []; claimMatch not called, queueChanged not announced
   test('Leaves the queue untouched when nobody is matched', async () => {
+    jest.mocked(queueChanged).mockClear();
     jest.mocked(getCandidates).mockResolvedValue([playerStub('a'), playerStub('b', { rating: 2000 })]);
 
     await expect(runMatchmaking()).resolves.toEqual([]);
     expect(claimMatch).not.toHaveBeenCalled();
+    expect(queueChanged).not.toHaveBeenCalled();
+  });
+
+  // Input: two matches found in one run
+  // Expected behavior: the matched players left the queue, so the other searching players' maps are refreshed, once
+  // Expected output: queueChanged announced once
+  test('Announces the queue change once after claiming matches', async () => {
+    jest.mocked(queueChanged).mockClear();
+    jest.mocked(getCandidates).mockResolvedValue([
+      playerStub('a', { createdAt: new Date(1) }),
+      playerStub('b', { createdAt: new Date(2) }),
+      playerStub('c', { rating: 2000, createdAt: new Date(3) }),
+      playerStub('d', { rating: 2000, createdAt: new Date(4) }),
+    ]);
+
+    await runMatchmaking();
+
+    expect(queueChanged).toHaveBeenCalledTimes(1);
+  });
+
+  // Input: one match found, but a player left the queue before it was claimed
+  // Expected behavior: nobody was taken out of the queue by this run
+  // Expected output: queueChanged not announced
+  test('Does not announce a queue change when no match is claimed', async () => {
+    jest.mocked(queueChanged).mockClear();
+    jest.mocked(getCandidates).mockResolvedValue([playerStub('a'), playerStub('b')]);
+    jest.mocked(claimMatch).mockResolvedValue(null);
+
+    await runMatchmaking();
+
+    expect(queueChanged).not.toHaveBeenCalled();
   });
 
   // Input: a claimed singles match

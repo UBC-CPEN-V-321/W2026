@@ -1,13 +1,22 @@
 // Live updates: turns the changes the services announce (events/changes.ts) into pushes to the clients watching,
 // over the Server-Sent Events streams. Every step does nothing when nobody is watching what it would update.
 import { logFailure } from "../errors";
-import { type GameChange, onGameChanged, onTournamentChanged, type TournamentChange, tournamentChanged } from "../events/changes";
+import {
+  type GameChange,
+  onGameChanged,
+  onQueueChanged,
+  onTournamentChanged,
+  type TournamentChange,
+  tournamentChanged,
+} from "../events/changes";
 import type { StreamEvent } from "../events/eventStreams";
 import { anyoneWatchingPlayers } from "../events/watchers";
 import { refreshFriendsOfPlayers, refreshFriendsWhenPlayingEnds } from "../friends/friends.service";
 import { GameSource } from "../generated/prisma/enums";
 import { gameListStreams, gameStreams } from "../games/games.events";
 import { fetchGameDetails, type GameDetails } from "../games/games.repository";
+import { queueStreams } from "../matchmaking/matchmaking.events";
+import { loadQueueEvent } from "../matchmaking/matchmaking.service";
 import { getFeed, getUserGames, withForecast } from "../games/games.service";
 import { tournamentStreams } from "../tournaments/tournaments.events";
 import { fetchTournamentDetails } from "../tournaments/tournaments.repository";
@@ -29,6 +38,10 @@ export function registerLiveUpdates(): void {
   });
   onTournamentChanged((change) => {
     logFailure(pushTournamentChange(change), `push the change of tournament ${change.tournamentId}`);
+  });
+  // Each searching player gets their own nearby players; loads nothing when nobody is watching the queue
+  onQueueChanged(() => {
+    queueStreams.refreshEach(async (userId) => [await loadQueueEvent(userId)]);
   });
 }
 

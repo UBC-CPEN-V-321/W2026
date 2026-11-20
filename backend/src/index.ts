@@ -6,6 +6,7 @@ import { startMatchDeadlineJob } from './jobs/matchDeadline.job';
 import { gameListStreams, gameStreams } from './games/games.events';
 import { friendStreams } from './friends/friends.events';
 import { tournamentStreams } from './tournaments/tournaments.events';
+import { queueStreams } from './matchmaking/matchmaking.events';
 
 const app = createApp();
 
@@ -25,6 +26,7 @@ async function shutdown(): Promise<void> {
   friendStreams.closeAll();
   gameListStreams.closeAll();
   tournamentStreams.closeAll();
+  queueStreams.closeAll();
   await new Promise<void>((resolve, reject) => {
     server.close((err) => {
       if (err) {

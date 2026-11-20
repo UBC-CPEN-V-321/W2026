@@ -43,6 +43,21 @@ export function tournamentChanged(change: TournamentChange): void {
 }
 
 /**
+ * Announces that the matchmaking queue changed: a player joined or left it, or a match took players out of it.
+ * Never throws: listeners handle their own errors
+ */
+export function queueChanged(): void {
+  emitter.emit("queue");
+}
+
+/**
+ * @param listener called every time the matchmaking queue changes
+ */
+export function onQueueChanged(listener: () => void): void {
+  emitter.on("queue", listener);
+}
+
+/**
  * @param listener called with every game change
  */
 export function onGameChanged(listener: (change: GameChange) => void): void {

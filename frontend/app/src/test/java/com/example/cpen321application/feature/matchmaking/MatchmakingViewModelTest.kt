@@ -6,12 +6,18 @@ import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
 import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.Player
+import com.example.cpen321application.core.data.repository.GameListUpdate
+import com.example.cpen321application.core.data.repository.GameListUpdates
 import com.example.cpen321application.testing.UnusedGamesRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.HttpException
@@ -26,12 +32,15 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
     var joinResult: Result<Unit> = Result.success(Unit)
     var leaveResult: Result<Unit> = Result.success(Unit)
     var queuedResult: Result<MatchFormat?> = Result.success(null)
-    var nearbyResult: Result<NearbyPlayers?> = Result.success(null)
+    var queueStream: Flow<QueueUpdate> = emptyFlow()
     val joined = mutableListOf<Pair<MatchFormat, MatchLocation>>()
+    // Runs while the join request is on its way, e.g. a match push arriving before its answer
+    var duringJoin: suspend () -> Unit = {}
     var leaveCalls = 0
 
     override suspend fun joinQueue(format: MatchFormat, location: MatchLocation): Result<Unit> {
         joined.add(format to location)
+        duringJoin()
         return joinResult
     }
 
@@ -42,7 +51,7 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
 
     override suspend fun queuedFormat(): Result<MatchFormat?> = queuedResult
 
-    override suspend fun nearbyPlayers(): Result<NearbyPlayers?> = nearbyResult
+    override fun queueUpdates(): Flow<QueueUpdate> = queueStream
 }
 
 /**
@@ -71,12 +80,23 @@ private class FakeGamesRepository : UnusedGamesRepository() {
     }
 }
 
+/**
+ * Stands in for the Games tab's live lists: replays whatever each test sets, then ends
+ */
+private class FakeGameListUpdates : GameListUpdates {
+    var stream: Flow<GameListUpdate> = emptyFlow()
+
+    override fun updates(): Flow<GameListUpdate> = stream
+}
+
 class MatchmakingViewModelTest {
     private val ubc = MatchLocation("UBC Tennis Centre", 49.2606, -123.2460)
     private val repository = FakeMatchmakingRepository()
     private val games = FakeGamesRepository()
 
-    private fun newViewModel() = MatchmakingViewModel(repository, games)
+    private val gameLists = FakeGameListUpdates()
+
+    private fun newViewModel() = MatchmakingViewModel(repository, games, gameLists)
 
     // A singles match between alice (the signed-in user) and bob, still waiting for answers
     private fun match(
@@ -836,52 +856,75 @@ class MatchmakingViewModelTest {
     }
 
     private val nearbyUbc = NearbyPlayers(MapPoint(49.2606, -123.246), listOf(MapPoint(49.268, -123.168)))
+    private val nearbyTwo = NearbyPlayers(
+        MapPoint(49.2606, -123.246),
+        listOf(MapPoint(49.268, -123.168), MapPoint(49.264, -123.2))
+    )
 
-    // Input: waiting in the queue; backend lists one player nearby
-    // Expected output: the map gets that player
+    // Input: waiting in the queue; the stream sends one player nearby, then a second one who joined
+    // Expected output: the map follows the pushes and ends with both players, with nothing polled
     @Test
-    fun refreshNearbyShowsThePlayersNearby() = runBlocking {
+    fun followQueueShowsEachPushOfThePlayersNearby() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc), QueueUpdate.Nearby(nearbyTwo))
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
-        assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+        assertEquals(nearbyTwo, viewModel.uiState.value.nearby)
     }
 
-    // Input: not in the queue
-    // Expected output: nothing is loaded, the map stays empty
+    // Input: not in the queue, and the stream sends players nearby anyway
+    // Expected output: the map stays empty
     @Test
-    fun refreshNearbyDoesNothingWhenNotSearching() = runBlocking {
+    fun followQueueIgnoresPushesWhenNotSearching() = runBlocking {
         val viewModel = newViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc))
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
         assertNull(viewModel.uiState.value.nearby)
     }
 
-    // Input: dots already loaded, then a load fails
-    // Expected output: the last dots stay, the next load tries again
+    // Input: dots already shown, then the backend refuses the stream when it reconnects
+    // Expected output: the last dots stay, and no error is shown
     @Test
-    fun refreshNearbyKeepsTheLastDotsWhenALoadFails() = runBlocking {
+    fun followQueueKeepsTheLastDotsWhenRefused() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
-        viewModel.refreshNearby()
-        repository.nearbyResult = Result.failure(IOException("offline"))
+        repository.queueStream = flow {
+            emit(QueueUpdate.Nearby(nearbyUbc))
+            throw HttpException(Response.error<Unit>(401, "".toResponseBody()))
+        }
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
         assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+        assertNull(viewModel.uiState.value.errorMessage)
     }
 
-    // Input: dots loaded during a search, then the player leaves and searches again
+    // Input: searching; the stream says the player is no longer queued (matchmaking took them out)
+    // Expected behavior: the map stops, nothing else is fetched: the match comes from the live games (followMatches)
+    // Expected output: still showing the search, no match, no "fell through"
+    @Test
+    fun followQueueLeavesTheMatchToTheLiveGames() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc), QueueUpdate.NotQueued)
+
+        viewModel.followQueue()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.match)
+        assertFalse(viewModel.uiState.value.matchFellThrough)
+    }
+
+    // Input: dots shown during a search, then the player leaves and searches again
     // Expected output: the new search starts with no dots instead of the old search's
     @Test
     fun searchingAgainClearsTheOldDots() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
-        viewModel.refreshNearby()
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc))
+        viewModel.followQueue()
         viewModel.onLeaveQueue()
 
         viewModel.onFindMatch()
@@ -889,5 +932,107 @@ class MatchmakingViewModelTest {
         assertTrue(viewModel.uiState.value.isSearching)
         assertNull(viewModel.uiState.value.nearby)
     }
-}
 
+    // Input: searching; the live games list pushes the new match, and no push arrives
+    // Expected output: not searching, the match pop-up shows that game
+    @Test
+    fun followMatchesShowsAMatchWhosePushNeverArrived() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+        gameLists.stream = flowOf(GameListUpdate.Mine(listOf(match()), emptyList()))
+
+        viewModel.followMatches()
+
+        assertFalse(viewModel.uiState.value.isSearching)
+        assertEquals(match(), viewModel.uiState.value.match)
+    }
+
+    // Input: searching; the live games list arrives on connect while the player is still in the queue
+    // Expected output: still searching, no match
+    @Test
+    fun followMatchesKeepsSearchingWhileQueued() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(MatchFormat.EITHER)
+        gameLists.stream = flowOf(GameListUpdate.Mine(emptyList(), emptyList()))
+
+        viewModel.followMatches()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.match)
+    }
+
+    // Input: searching; only the feed (games open to everyone) changes
+    // Expected output: still searching: the feed says nothing about this player's match, so it isn't checked
+    @Test
+    fun followMatchesIgnoresTheFeed() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+        gameLists.stream = flowOf(GameListUpdate.Feed(listOf(match()), emptyList()))
+
+        viewModel.followMatches()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.match)
+    }
+
+    // Input: the match pop-up is open, and the other player accepts it, which changes the user's games
+    // Expected output: the pop-up shows the game with the other player's answer
+    @Test
+    fun followMatchesShowsTheOtherPlayersAnswer() = runBlocking {
+        val viewModel = matchedViewModel()
+        val answered = match().copy(
+            players = match().players.map { if (it.username == "bob") it.copy(acceptedAt = Instant.EPOCH) else it }
+        )
+        games.gameResult = Result.success(answered)
+        gameLists.stream = flowOf(GameListUpdate.Mine(listOf(answered), emptyList()))
+
+        viewModel.followMatches()
+
+        assertEquals(answered, viewModel.uiState.value.match)
+    }
+
+    // Input: the match pop-up is open, and the other player cancels the match
+    // Expected output: the pop-up closes and "Match fell through" shows
+    @Test
+    fun followMatchesShowsAMatchCancelledByTheOtherPlayer() = runBlocking {
+        val viewModel = matchedViewModel()
+        games.gameResult = Result.success(match(status = GameStatus.CANCELLED))
+        gameLists.stream = flowOf(GameListUpdate.Mine(emptyList(), emptyList()))
+
+        viewModel.followMatches()
+
+        assertNull(viewModel.uiState.value.match)
+        assertTrue(viewModel.uiState.value.matchFellThrough)
+    }
+
+    // Input: the backend refuses the live stream
+    // Expected behavior: following ends quietly; pushes and returning to the app still catch the match
+    // Expected output: still searching
+    @Test
+    fun followMatchesEndsQuietlyWhenRefused() = runBlocking {
+        val viewModel = queuedViewModel()
+        gameLists.stream = flow { throw HttpException(Response.error<Unit>(401, "".toResponseBody())) }
+
+        viewModel.followMatches()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    // Input: the match is found and shown (its push beat the answer) while the join request is still on its way
+    // Expected output: the answer doesn't put the player back to searching, the match pop-up stays
+    @Test
+    fun aMatchShownWhileJoiningEndsTheSearch() = runBlocking {
+        val viewModel = newViewModel()
+        viewModel.onLocationFound(ubc)
+        games.myGamesResult = Result.success(listOf(match()))
+        repository.duringJoin = { viewModel.loadMatch() }
+
+        viewModel.onFindMatch()
+
+        assertFalse(viewModel.uiState.value.isSearching)
+        assertEquals(match(), viewModel.uiState.value.match)
+    }
+}

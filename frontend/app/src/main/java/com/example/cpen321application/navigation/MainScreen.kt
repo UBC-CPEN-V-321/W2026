@@ -13,6 +13,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.cpen321application.core.auth.AuthViewModel
+import com.example.cpen321application.core.data.repository.GameListUpdatesImpl
 import com.example.cpen321application.core.data.repository.GamesRepositoryImpl
 import com.example.cpen321application.feature.matchmaking.MatchPopups
 import com.example.cpen321application.feature.matchmaking.MatchmakingRepositoryImpl
@@ -43,7 +44,8 @@ fun MainScreen(
     val matchmakingViewModel = viewModel(key = "matchmaking:${user?.username}") {
         MatchmakingViewModel(
             MatchmakingRepositoryImpl(authViewModel.session),
-            GamesRepositoryImpl(authViewModel.session)
+            GamesRepositoryImpl(authViewModel.session),
+            GameListUpdatesImpl(authViewModel.session)
         )
     }
 
