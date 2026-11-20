@@ -26,7 +26,6 @@ const STORED_ITINERARY: Itinerary = {
       id: ACTIVITY_ID,
       type: 'activity',
       name: 'Museum of Anthropology',
-      image: '',
       category: 'art',
       location: '6393 NW Marine Drive, Vancouver, BC',
       startTime: '2027-11-30T17:00:00.000Z',
@@ -54,7 +53,6 @@ const STORED_ITINERARY: Itinerary = {
 const CONFLICTING_ACTIVITY = {
   type: 'activity',
   name: 'New activity',
-  image: '',
   category: 'outdoors',
   location: 'UBC',
   startTime: '2027-11-30T17:30:00.000Z',

@@ -466,7 +466,6 @@ internal fun String.isAfter(startTime: String): Boolean =
 internal fun Event.toActivityInput(endTime: String): CreateActivityInput =
     CreateActivityInput(
         name = title,
-        image = imageUrl,
         description = description,
         category = category,
         location = "$venueName, $city",

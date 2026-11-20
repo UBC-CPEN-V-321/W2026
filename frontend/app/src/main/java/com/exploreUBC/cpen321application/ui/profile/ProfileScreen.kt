@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,7 @@ import com.exploreUBC.cpen321application.data.users.UserUpdate
 import com.exploreUBC.cpen321application.data.users.UsersRepository
 import com.exploreUBC.cpen321application.ui.trips.AddressAutocompleteField
 import com.exploreUBC.cpen321application.ui.trips.AddressAutocompleteOptions
+import coil.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -97,6 +100,189 @@ fun ProfileRoute(
     )
 }
 
+@Composable
+fun CreateProfileRoute(
+    userId: String,
+    usersRepository: UsersRepository,
+    modifier: Modifier = Modifier,
+    onProfileCreated: () -> Unit = {},
+    onLogout: () -> Unit = {},
+) {
+    val state = remember { CreateProfileState() }
+    val scope = rememberCoroutineScope()
+    CreateProfileScreen(
+        state = state,
+        modifier = modifier,
+        onLogout = onLogout,
+        onSave = {
+            saveNewProfile(scope, userId, usersRepository, state, onProfileCreated)
+        },
+    )
+}
+
+private class CreateProfileState {
+    var startLocation by mutableStateOf("")
+    var transportationMode by mutableStateOf(TransportationMode.WALKING)
+    var budget by mutableStateOf(BudgetPreference.ECONOMICAL)
+    var interest by mutableStateOf(InterestPreference.FOOD)
+    var isSaving by mutableStateOf(false)
+    var errorMessage by mutableStateOf<String?>(null)
+
+    val canSave: Boolean
+        get() = startLocation.isNotBlank() &&
+            startLocation.length <= START_LOCATION_MAX_LENGTH && !isSaving
+}
+
+@Composable
+private fun CreateProfileScreen(
+    state: CreateProfileState,
+    modifier: Modifier,
+    onLogout: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Scaffold(
+        modifier = modifier.fillMaxSize().testTag("create_profile_screen"),
+        bottomBar = { CreateProfileLogoutButton(state.isSaving, onLogout) },
+    ) { innerPadding ->
+        CreateProfileContent(state, innerPadding, onSave)
+    }
+}
+
+@Composable
+private fun CreateProfileLogoutButton(isSaving: Boolean, onLogout: () -> Unit) {
+    Surface(shadowElevation = 4.dp) {
+        OutlinedButton(
+            onClick = onLogout,
+            enabled = !isSaving,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .testTag("create_profile_logout"),
+        ) {
+            Text("Log out")
+        }
+    }
+}
+
+@Composable
+private fun CreateProfileContent(
+    state: CreateProfileState,
+    innerPadding: PaddingValues,
+    onSave: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+    ) {
+        CreateProfileHeader()
+        CreateProfileFields(state)
+        CreateProfileSaveControls(state, onSave)
+    }
+}
+
+@Composable
+private fun CreateProfileHeader() {
+    Text(
+        text = "Create profile",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold,
+    )
+    Text(
+        text = "Choose your starting location and preferences to personalize ExploreUBC.",
+        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+    )
+}
+
+@Composable
+private fun CreateProfileFields(state: CreateProfileState) {
+    AddressAutocompleteField(
+        value = state.startLocation,
+        onValueChange = { state.startLocation = it },
+        label = "Start location",
+        tag = "create_profile_start_location",
+        options = AddressAutocompleteOptions(
+            placeholder = "Enter a starting location",
+            maxLength = START_LOCATION_MAX_LENGTH,
+        ),
+    )
+    PreferenceDropdown(
+        title = "Transportation",
+        options = TransportationMode.entries,
+        selected = state.transportationMode,
+        label = { it.displayName },
+        dropdownTag = "create_profile_transportation_dropdown",
+        tag = { "create_profile_transportation_${it.apiValue}" },
+        onSelected = { state.transportationMode = it },
+    )
+    PreferenceDropdown(
+        title = "Budget",
+        options = BudgetPreference.entries,
+        selected = state.budget,
+        label = { it.displayName },
+        dropdownTag = "create_profile_budget_dropdown",
+        tag = { "create_profile_budget_${it.apiValue}" },
+        onSelected = { state.budget = it },
+    )
+    PreferenceDropdown(
+        title = "Interest",
+        options = InterestPreference.entries,
+        selected = state.interest,
+        label = { it.displayName },
+        dropdownTag = "create_profile_interest_dropdown",
+        tag = { "create_profile_interest_${it.apiValue}" },
+        onSelected = { state.interest = it },
+    )
+}
+
+@Composable
+private fun CreateProfileSaveControls(state: CreateProfileState, onSave: () -> Unit) {
+    state.errorMessage?.let {
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(vertical = 8.dp).testTag("create_profile_status"),
+        )
+    }
+    Button(
+        onClick = onSave,
+        enabled = state.canSave,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp)
+            .testTag("create_profile_save"),
+    ) {
+        Text(if (state.isSaving) "Creating…" else "Create profile")
+    }
+}
+
+private fun saveNewProfile(
+    scope: CoroutineScope,
+    userId: String,
+    usersRepository: UsersRepository,
+    state: CreateProfileState,
+    onProfileCreated: () -> Unit,
+) {
+    scope.launch {
+        state.isSaving = true
+        state.errorMessage = null
+        val update = UserUpdate(
+            startLocation = state.startLocation,
+            preferences = UserPreferences(
+                transportation = TransportationPreference(state.transportationMode),
+                budget = state.budget,
+                interest = state.interest,
+            ),
+        )
+        runCatching { usersRepository.updateUser(userId, update) }
+            .onSuccess { onProfileCreated() }
+            .onFailure { state.errorMessage = it.message ?: "Could not create profile." }
+        state.isSaving = false
+    }
+}
+
 private class ProfileRouteState(val userId: String?) {
     var user by mutableStateOf<User?>(null)
     var preferences by mutableStateOf(defaultPreferences)
@@ -111,6 +297,7 @@ private class ProfileRouteState(val userId: String?) {
     val screenState: ProfileScreenState
         get() = ProfileScreenState(
             displayName = user?.displayName,
+            profileImageUrl = user?.profileImageUrl,
             startLocation = user?.startLocation,
             preferences = preferences,
             isSaving = isSaving,
@@ -286,6 +473,7 @@ private fun ProfileLoadError(modifier: Modifier, message: String) {
 
 data class ProfileScreenState(
     val displayName: String? = null,
+    val profileImageUrl: String? = null,
     val startLocation: String? = null,
     val preferences: UserPreferences,
     val isSaving: Boolean,
@@ -357,7 +545,7 @@ private fun ProfileDetailsSection(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ProfileImage()
+            ProfileImage(state.profileImageUrl)
             if (state.isEditingProfile) {
                 ProfileEditFields(
                     displayName = displayNameText,
@@ -497,19 +685,31 @@ private fun ProfileHeader(
 }
 
 @Composable
-private fun ProfileImage() {
+private fun ProfileImage(profileImageUrl: String?) {
+    val fallback = painterResource(R.drawable.ic_account_box)
     Surface(
         modifier = Modifier.size(72.dp),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.secondaryContainer,
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                painter = painterResource(R.drawable.ic_account_box),
+        if (profileImageUrl.isNullOrBlank()) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = fallback,
+                    contentDescription = "Profile image",
+                    modifier = Modifier
+                        .size(44.dp)
+                        .testTag("profile_image"),
+                )
+            }
+        } else {
+            AsyncImage(
+                model = profileImageUrl,
                 contentDescription = "Profile image",
-                modifier = Modifier
-                    .size(44.dp)
-                    .testTag("profile_image"),
+                contentScale = ContentScale.Crop,
+                error = fallback,
+                fallback = fallback,
+                modifier = Modifier.fillMaxSize().testTag("profile_image"),
             )
         }
     }

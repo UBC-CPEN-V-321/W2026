@@ -80,11 +80,41 @@ if (
   );
 }
 
+function parsePositiveMilliseconds(
+  variableName: string,
+  defaultValue: number,
+): number {
+  const rawValue = process.env[variableName]?.trim();
+  const value = rawValue === undefined || rawValue === ""
+    ? defaultValue
+    : Number(rawValue);
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`Invalid ${variableName}: ${rawValue}`);
+  }
+  return value;
+}
+
+const soclaasTimeoutMs = parsePositiveMilliseconds(
+  "SOCLAAS_TIMEOUT_MS",
+  120_000,
+);
+const qwenTimeoutMs = parsePositiveMilliseconds("QWEN_TIMEOUT_MS", 120_000);
+
+const recommendationClient =
+  process.env.RECOMMENDATION_CLIENT?.trim().toLowerCase() || "soclaas";
+if (recommendationClient !== "soclaas" && recommendationClient !== "qwen") {
+  throw new Error(
+    `Invalid RECOMMENDATION_CLIENT: ${process.env.RECOMMENDATION_CLIENT}`,
+  );
+}
+
 export const env = {
   port,
   mongodbUri,
   googleClientId,
   sessionTtlDays,
+  recommendationClient,
   ticketmaster: {
     apiKey: process.env.TICKETMASTER_API_KEY,
     baseUrl:
@@ -99,6 +129,13 @@ export const env = {
     apiKey: process.env.SOCLAAS_API_KEY?.trim(),
     model: process.env.SOCLAAS_MODEL?.trim(),
     maxOutputTokens: soclaasMaxOutputTokens,
+    timeoutMs: soclaasTimeoutMs,
+  },
+  qwen: {
+    endpoint: process.env.QWEN_ENDPOINT?.trim(),
+    apiKey: process.env.QWEN_API_KEY?.trim(),
+    model: process.env.QWEN_MODEL?.trim(),
+    timeoutMs: qwenTimeoutMs,
   },
   googleMaps: {
     mapsApiKey: process.env.MAPS_API_KEY,

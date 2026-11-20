@@ -9,19 +9,19 @@ import org.json.JSONObject
 data class GoogleAuthenticationResult(
     val userId: String,
     val displayName: String,
-    val onboardingRequired: Boolean,
+    val onboardingCompletedAt: String?,
 )
 
 data class SessionRestorationResult(
     val userId: String,
     val displayName: String,
-    val onboardingRequired: Boolean,
+    val onboardingCompletedAt: String?,
 )
 
 internal data class GoogleAuthenticationResponse(
     val session: AuthenticatedSession,
     val displayName: String,
-    val onboardingRequired: Boolean,
+    val onboardingCompletedAt: String?,
 )
 
 class AuthRepository(
@@ -47,7 +47,7 @@ class AuthRepository(
         return GoogleAuthenticationResult(
             userId = response.session.userId,
             displayName = response.displayName,
-            onboardingRequired = response.onboardingRequired,
+            onboardingCompletedAt = response.onboardingCompletedAt,
         )
     }
 
@@ -82,7 +82,7 @@ class AuthRepository(
         return SessionRestorationResult(
             userId = response.userId,
             displayName = response.displayName,
-            onboardingRequired = response.onboardingRequired,
+            onboardingCompletedAt = response.onboardingCompletedAt,
         )
     }
 
@@ -103,7 +103,7 @@ class AuthRepository(
 private data class SessionRestorationResponse(
     val userId: String,
     val displayName: String,
-    val onboardingRequired: Boolean,
+    val onboardingCompletedAt: String?,
     val expiresAtEpochMillis: Long,
 )
 
@@ -140,7 +140,11 @@ private fun parseGoogleAuthenticationResponse(responseBody: String): GoogleAuthe
     return GoogleAuthenticationResponse(
         session = session,
         displayName = user.getString("displayName"),
-        onboardingRequired = response.getBoolean("onboardingRequired"),
+        onboardingCompletedAt = if (user.isNull("onboardingCompletedAt")) {
+            null
+        } else {
+            user.getString("onboardingCompletedAt")
+        },
     )
 }
 
@@ -150,7 +154,11 @@ private fun parseSessionRestorationResponse(responseBody: String): SessionRestor
     return SessionRestorationResponse(
         userId = user.getString("id"),
         displayName = user.getString("displayName"),
-        onboardingRequired = response.getBoolean("onboardingRequired"),
+        onboardingCompletedAt = if (user.isNull("onboardingCompletedAt")) {
+            null
+        } else {
+            user.getString("onboardingCompletedAt")
+        },
         expiresAtEpochMillis = Instant.parse(response.getString("expiresAt")).toEpochMilli(),
     )
 }

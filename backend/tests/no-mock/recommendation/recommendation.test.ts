@@ -61,7 +61,6 @@ function validCandidate(index = 1) {
       {
         type: 'activity',
         name: `Gallery ${index}`,
-        image: '',
         description: 'View local art.',
         category: 'art',
         location: 'UBC Art Gallery',
@@ -318,6 +317,7 @@ describe('POST /api/v1/users/:userId/recommendations — no mocks', () => {
         apiKey: undefined,
         model: '',
         maxOutputTokens: 1,
+        timeoutMs: 120_000,
       }),
       recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
       recommendationRepository: new RecommendationDao(database),
@@ -339,6 +339,7 @@ describe('POST /api/v1/users/:userId/recommendations — no mocks', () => {
         apiKey: 'no-mock-test-key',
         model: 'no-mock-test-model',
         maxOutputTokens: 1,
+        timeoutMs: 1_000,
       }),
       recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
       recommendationRepository: new RecommendationDao(database),
@@ -358,7 +359,6 @@ describe('Recommendation response parsing — no mocks', () => {
   test('accepts fenced JSON, trims strings, and normalizes optional fields', () => {
     const payload = validPayload();
     payload.itineraries[0]!.name = '  Trimmed name  ';
-    delete (payload.itineraries[0]!.items[0] as Record<string, unknown>).image;
     delete (payload.itineraries[0]!.items[0] as Record<string, unknown>).description;
     delete (payload.itineraries[0]!.items[0] as Record<string, unknown>).category;
     delete (payload.itineraries[0] as Record<string, unknown>).description;
@@ -370,7 +370,6 @@ describe('Recommendation response parsing — no mocks', () => {
     expect(parsed).toHaveLength(4);
     expect(parsed[0]).toMatchObject({ name: 'Trimmed name' });
     expect(parsed[0]).not.toHaveProperty('description');
-    expect(parsed[0]!.items[0]).toMatchObject({ image: '' });
     expect(parsed[0]!.items[0]).not.toHaveProperty('description');
     expect(parsed[0]!.items[0]).not.toHaveProperty('category');
   });
@@ -471,6 +470,7 @@ describe('Recommendation response parsing — no mocks', () => {
       apiKey: 'no-mock-test-key',
       model: 'no-mock-test-model',
       maxOutputTokens: 1,
+      timeoutMs: 1_000,
     });
 
     await expect(unreachableClient.generateItineraries({

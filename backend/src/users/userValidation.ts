@@ -1,11 +1,10 @@
-import { InvalidOnboardingError, InvalidUserUpdateError } from './userErrors';
+import { InvalidUserUpdateError } from './userErrors';
 import {
   BUDGET_PREFERENCES,
   INTEREST_PREFERENCES,
   TRANSPORTATION_MODES,
   type BudgetPreference,
   type InterestPreference,
-  type OnboardingInput,
   type TransportationMode,
   type UserUpdate,
 } from './userTypes';
@@ -80,13 +79,11 @@ function parsePreferences(
 
   return update;
 }
-
 const USER_UPDATE_FIELDS = new Set([
   'displayName',
   'start_location',
   'preferences',
 ]);
-const ONBOARDING_FIELDS = new Set(['start_location', 'preferences']);
 
 function parseUserFields(
   value: Record<string, unknown>,
@@ -147,48 +144,4 @@ export function parseUserUpdate(value: unknown): UserUpdate {
   }
 
   return update;
-}
-
-export function parseOnboarding(value: unknown): OnboardingInput {
-  if (!isObject(value)) {
-    throw new InvalidOnboardingError(['Request body must be an object.']);
-  }
-
-  const { update, details } = parseUserFields(value, ONBOARDING_FIELDS);
-
-  if (!('start_location' in value)) {
-    details.push('start_location is required.');
-  }
-
-  if (!('preferences' in value)) {
-    details.push('preferences is required.');
-  } else if (isObject(value.preferences)) {
-    if (!('transportation' in value.preferences)) {
-      details.push('preferences.transportation is required.');
-    }
-    if (!('budget' in value.preferences)) {
-      details.push('preferences.budget is required.');
-    }
-    if (!('interest' in value.preferences)) {
-      details.push('preferences.interest is required.');
-    }
-  }
-
-  const transportation = update.preferences?.transportation;
-  const budget = update.preferences?.budget;
-  const interest = update.preferences?.interest;
-  if (
-    details.length > 0 ||
-    update.start_location === undefined ||
-    transportation === undefined ||
-    budget === undefined ||
-    interest === undefined
-  ) {
-    throw new InvalidOnboardingError(details);
-  }
-
-  return {
-    start_location: update.start_location,
-    preferences: { transportation, budget, interest },
-  };
 }

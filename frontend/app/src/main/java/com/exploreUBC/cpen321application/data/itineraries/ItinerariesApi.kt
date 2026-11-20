@@ -168,7 +168,7 @@ class ItinerariesApi(backendClient: BackendClient) : ItinerariesRepository {
                 method = "POST",
                 path = "/users/${apiClient.encode(userId)}/recommendations",
                 requestBody = JSONObject().toString(),
-                timeoutMillis = 60_000,
+                timeoutMillis = 100_000,
             )
             val itineraries = response.getJSONArray("itineraries")
             List(itineraries.length()) { index ->
@@ -235,7 +235,6 @@ class ItinerariesApi(backendClient: BackendClient) : ItinerariesRepository {
         val requestBody = JSONObject()
             .put("type", "activity")
             .put("name", activity.name)
-            .put("image", activity.image)
             .put("location", activity.location)
             .put("startTime", activity.startTime)
             .put("endTime", activity.endTime)
@@ -303,7 +302,6 @@ class ItinerariesApi(backendClient: BackendClient) : ItinerariesRepository {
     ): ActivityItem = withContext(Dispatchers.IO) {
         val requestBody = JSONObject()
             .put("name", update.name)
-            .put("image", update.image)
             .put("location", update.location)
             .put("startTime", update.startTime)
             .put("endTime", update.endTime)

@@ -15,6 +15,7 @@ module.exports = {
     'src/itineraries/**/*.ts',
     'src/maps/**/*.ts',
     'src/recommendation/**/*.ts',
+    '!src/recommendation/qwenClient.ts',
     'src/auth/**/*.ts',
     'src/session/**/*.ts',
     'src/events/**/*.ts',

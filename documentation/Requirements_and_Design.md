@@ -1,29 +1,28 @@
 # Requirements and Design
 
-> **NOTE: The transportation calculator feature is to be removed from this document.**
-
 ## 1. Change History
 
 | **Change Date**  | **Modified Sections** | **Rationale**                                                                                                                                                        |
 | ---------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | October 1, 2026  | 3.3, 3.4, 3.5         | Added actors, use case descriptions, and formal use case specifications for Feature Sets 2 and 3.                                                                    |
 | October 14, 2026 | 4.1, 4.3, 4.4         | Added main components and interfaces from the View Itinerary on Map and Browse Popular Locations sequence diagrams, plus the Google Maps API and project frameworks. |
+| November 19, 2026 | 3.4, 3.5             | Added the Create Profile first-login use case and its formal specification.                                                                                           |
 
 ---
 
 ## 2. Project Description
 
-Our project is called Explore UBC - a travel itinerary planner for UBC exchange students who want to explore British Columbia. It is an Android application built with Kotlin and JetPack Compose for the front-end, Node.js for the backend, MongoDB for the database and uses Vercel for deployment.
+Our project is called Explore UBC - a travel itinerary planner for UBC users who want to explore British Columbia. It is an Android application built with Kotlin and JetPack Compose for the front-end, Node.js for the backend, MongoDB for the database and uses Vercel for deployment.
 
 Planning a trip often means finding ideas, checking routes, and building a schedule. Travellers can sign up to create a profile with their interests, budget preference, and preferred transportation mode. They can also update their profile at any time. Our application uses Google Credential manager for authentication and session management.
 
 The central use case is creating an itinerary. Travellers can add activities and transportation to their itinerary. At any time, they can also edit, remove and reorder these activities and transportation segments when those plans change. They can also request AI itinerary recommendations based on their profile. External LLMs provide the ideas, but our backend owns the final recommendation logic. This is the technical highlight of our project.
 
-After adding activities, travellers can view activity locations on a map and see routes between them. The map also features pins for popular destinations nearby. Google Maps SDK supports these features. The app also includes a transportation cost calculator, helping travellers consider their budget. The calculator takes in vehicle type, fuel efficiency, fuel price, and distance to calculate the total cost.
+After adding activities, travellers can view activity locations on a map and see routes between them. The map also features pins for popular destinations nearby. Google Maps SDK supports these features.
 
 Finally, travellers can view live event recommendations. Local events are retrieved from an external event service API and are matched to the user’s location and profile preferences. While the application is open, it refreshes recommendations after the user moves at least 10 km or saves updated preferences and displays an in-app notification when the recommendations change.
 
-The features in this app will facilitate the entire trip planning process for UBC Exchange students, from choosing where to go and to getting there, leaving little room for unwanted surprises and making the journey a breeze.
+The features in this app will facilitate the entire trip planning process for UBC Users, from choosing where to go and to getting there, leaving little room for unwanted surprises and making the journey a breeze.
 
 ---
 
@@ -37,15 +36,14 @@ The features in this app will facilitate the entire trip planning process for UB
 4. **Authentication**: Authenticates users with Google and connects them to their ExploreUBC account.
 5. **Google Maps Integration**: Displays itinerary routes, activity locations, and popular nearby locations on an interactive map.
 6. **Live Events**: Retrieves upcoming events from Ticketmaster and recommends them using the user's interest and location.
-7. **Transportation Budget Calculator**: Calculates and displays estimated transportation costs for an itinerary and its individual segments.
 
 ### **3.2. Use Case Diagram**
 
-![Use case diagram](images/Usecase_diagram_recreated.png)
+![Use case diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/Usecase_diagram_recreated.png)
 
 ### **3.3. Actors Description**
 
-1. **Exchange Student**: The primary user of ExploreUBC. An incoming or current UBC exchange student who plans trips around campus and Vancouver, maintains a travel profile, creates itineraries, views maps, estimates transportation costs, and receives live event recommendations.
+1. **User**: The primary user of ExploreUBC. An incoming or current UBC user who plans trips around campus and Vancouver, maintains a travel profile, creates itineraries, views maps, and receives live event recommendations.
 2. **Google Maps Service**: An external mapping service that supplies map tiles, geocoded activity coordinates, transportation routes between itinerary stops, and popular nearby locations.
 3. **Ticketmaster Discovery API**: An external event service that supplies upcoming event details, venues, locations, prices, images, and ticket links used to generate live-event recommendations.
 4. **Google Authentication Service**: An external identity service that authenticates users with Google and provides identity credentials for the backend to validate.
@@ -62,16 +60,24 @@ The features in this app will facilitate the entire trip planning process for UB
 #### Use Cases for Feature 2: Itinerary Management
 
 1. **Create an Itinerary**: The user creates a blank saved itinerary and provides its basic details.
-2. **Modify Itinerary Details**: The user changes an itinerary's name or description.
-3. **Add Activities or Transportation Segments**: The user adds an activity or transportation segment to a saved itinerary.
-4. **Remove Activities or Transportation Segments**: The user removes an activity or transportation segment from a saved itinerary.
-5. **Reorder Activities or Transportation Segments**: The user changes the order of activities and their associated transportation segments.
-6. **Edit Activities or Transportation Segments**: The user changes details such as an activity's name, description, location, or time, or a transportation segment's mode and timing.
-7. **Delete an Itinerary**: The user permanently removes a saved itinerary.
+2. **View an Itinerary**: The user opens a saved itinerary and reviews its details and scheduled items.
+3. **Modify Itinerary Details**: The user changes an itinerary's name or description.
+4. **Add an Activity**: The user adds an activity to a saved itinerary.
+5. **Add a Transportation Segment**: The user adds a transportation segment to a saved itinerary.
+6. **Remove an Activity**: The user removes an activity from a saved itinerary.
+7. **Remove a Transportation Segment**: The user removes a transportation segment from a saved itinerary.
+8. **Reorder Itinerary Items**: The user changes the order of activities and their associated transportation segments.
+9. **Edit an Activity**: The user changes an activity's name, description, location, or time.
+10. **Edit a Transportation Segment**: The user changes a transportation segment's mode or timing.
+11. **Delete an Itinerary**: The user permanently removes a saved itinerary.
 
 #### Use Cases for Feature 3: User Profile
 
-1. **Update Preferences**: The user selects preferred transportation modes for future itinerary recommendations. The user sets or changes the default budget used for future recommendations. The user selects interests, such as food, art, or outdoor activities, that the system uses to personalize future itinerary and live-event recommendations.
+1. **Create Profile**: On first login, the user enters a starting location and selects transportation, budget, and interest preferences. The system saves the profile before opening the main application.
+2. **Update Profile**: The user changes their display name or starting location.
+3. **Set Interests**: The user selects interests used to personalize future itinerary and live-event recommendations.
+4. **Set Budget Preference**: The user selects the default budget used for future itinerary recommendations.
+5. **Set Transportation Preference**: The user selects the preferred transportation mode used for future itinerary recommendations.
 
 #### Use Cases for Feature 4: Authentication
 
@@ -81,8 +87,9 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### Use Cases for Feature 5: Google Maps Integration
 
-1. **View Itinerary on Map**: The exchange student selects a saved itinerary and the system plots its activity locations and connecting transportation routes on an interactive Google Map.
-2. **Browse Popular Locations**: The exchange student opens the map and the system displays pins for popular locations in the current map region so the student can inspect them and consider adding them to a trip.
+1. **View Itinerary on Map**: The user selects a saved itinerary and the system plots its activity locations and connecting transportation routes on an interactive Google Map.
+2. **View Routes Between Activities**: The user selects an itinerary route leg and the system highlights its route and displays its directions.
+3. **Browse Popular Locations**: The user opens the map and the system displays pins for popular locations in the current map region so the user can inspect them and consider adding them to a trip.
 
 #### Use Cases for Feature 6: Live Events
 
@@ -90,10 +97,6 @@ The features in this app will facilitate the entire trip planning process for UB
 2. **View Event Details**: The user reviews an event's title, description, date, venue, distance, and available price information, and can open its Ticketmaster page for complete details.
 3. **Add an Event to an Itinerary**: The user selects or creates an itinerary, confirms or changes the event's suggested end time, and adds the event as a scheduled activity. If the event overlaps with existing itinerary items, the user can keep the existing schedule or replace the conflicting items with the event.
 4. **Refresh Event Recommendations**: While the application is open, the system refreshes recommendations when the user moves at least 10 km or saves updated preferences. If the recommendations change while the user is viewing another screen, the system displays an in-app notification that can open Live Events.
-
-#### Use Cases for Feature 7: Transportation Budget Calculator
-
-1. **View Transportation Cost Estimate**: The user views an itinerary's total estimated transportation cost and can open a per-segment breakdown showing how the estimate was calculated.
 
 ### **3.5. Formal Use Case Specifications (5 Most Major Use Cases)**
 
@@ -154,42 +157,42 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### Use Case 3: View Itinerary on Map
 
-**Description**: The exchange student visualizes a selected trip itinerary on a map, including activity pins and transportation routes between consecutive activities.
+**Description**: The user visualizes a selected trip itinerary on a map, including activity pins and transportation routes between consecutive activities.
 
-**Primary actor(s)**: Exchange Student
+**Primary actor(s)**: User
 
 **Main success scenario**:
 
-1. The exchange student opens ExploreUBC and navigates to their saved itineraries.
-2. The exchange student selects the itinerary they want to visualize.
-3. The exchange student opens the map view for that itinerary.
+1. The user opens ExploreUBC and navigates to their saved itineraries.
+2. The user selects the itinerary they want to visualize.
+3. The user opens the map view for that itinerary.
 4. The system loads the itinerary's scheduled activities (type, name, start/end time, location) and transportation segments (type, start/end time, pick-up/drop-off location, distance).
 5. The system places the itinerary locations on the map and determines the routes between consecutive activities.
 6. The system displays an interactive map with activity pins in chronological order and routes drawn between consecutive activities.
-7. The exchange student selects a route leg.
+7. The user selects a route leg.
 8. The system highlights the selected route and displays its directions.
 
 **Failure scenario(s)**:
 
-- 1a. The exchange student is not authenticated.
-  - 1a1. The system prompts the student to sign in.
+- 1a. The user is not authenticated.
+  - 1a1. The system prompts the user to sign in.
   - 1a2. After successful authentication, the use case resumes at step 1. Otherwise, the use case ends.
-- 2a. The student has no saved itineraries.
+- 2a. The user has no saved itineraries.
   - 2a1. The system shows an empty-state message explaining that an itinerary must be created first.
   - 2a2. The use case ends.
 - 2b. The selected itinerary contains no activities.
-  - 2b1. The system informs the student that the itinerary has nothing to plot.
+  - 2b1. The system informs the user that the itinerary has nothing to plot.
   - 2b2. The use case ends.
 - 4a. The system cannot load itinerary data because of a network or database error.
   - 4a1. The system displays an error and offers a retry action.
   - 4a2. If retry succeeds, the use case resumes at step 4. Otherwise, the use case ends.
 - 5a. One or more activities have a missing or invalid location.
   - 5a1. The system shows the activities that have a usable location and marks the others as not shown on the map.
-  - 5a2. The system warns the student that some activities could not be shown on the map.
+  - 5a2. The system warns the user that some activities could not be shown on the map.
   - 5a3. The use case continues with the remaining activities that can be shown.
 - 5b. A route between two consecutive activities is unavailable.
   - 5b1. The system still shows both activity pins and omits only that route.
-  - 5b2. The system notifies the student that this transportation leg could not be drawn.
+  - 5b2. The system notifies the user that this transportation leg could not be drawn.
   - 5b3. The use case continues with the remaining routes.
 - 6a. The system cannot display the interactive map.
   - 6a1. The system displays a map-unavailable message and offers the existing list view of the itinerary.
@@ -224,41 +227,34 @@ The features in this app will facilitate the entire trip planning process for UB
 - 6a. The next page cannot be loaded.
   - 6a1. The system keeps the existing event cards visible and allows the user to retry.
 
-#### Use Case 5: View Transportation Cost Estimate
+#### Use Case 5: Create Profile
 
-**Description**: When an itinerary is created or modified, the system automatically calculates and stores a transportation cost estimate based on its transportation segments. The system uses the transportation mode and route information stored with each segment. For a car segment, it uses the vehicle type specified by the itinerary or, if none is specified, the vehicle type saved in the user's profile. The itinerary card displays the total estimated transportation cost, and the user can select it to open a detailed cost breakdown without first opening the itinerary.
+**Description**: A first-time user creates an ExploreUBC profile by entering a starting location and selecting the preferences used to personalize itinerary and live-event recommendations.
 
-**Primary actor**: User
-
-**Supporting actor**: External fuel price data source
+**Primary actor(s)**: User
 
 **Preconditions**:
 
-- An itinerary containing transportation segments with route information has been created or modified.
-- The system has attempted to calculate and store its total transportation cost and per-segment breakdown.
+- The user has successfully signed in with Google.
+- The authenticated account has not completed profile creation.
 
 **Main success scenario**:
 
-1. The user views a screen containing an itinerary card.
-2. The system retrieves the itinerary's stored total transportation cost estimate.
-3. The system displays the total estimated transportation cost on the itinerary card.
-4. The user selects the transportation cost on the card.
-5. The system retrieves the stored per-segment cost breakdown.
-6. The system displays a pop-up containing the estimated cost for each transportation segment, including the mode and the pricing information used.
+1. The system detects that profile creation is required after the user's first login.
+2. The system displays the Create Profile page with a starting-location field and transportation, budget, and interest preference controls.
+3. The user enters a starting location.
+4. The user selects transportation, budget, and interest preferences.
+5. The user selects **Create profile**.
+6. The system validates and saves the starting location and preferences, marks profile creation complete, and opens the main application.
 
-**Failure scenario**:
+**Failure scenario(s)**:
 
-- 2a. The system could not calculate a total because route or pricing information was unavailable for one or more transportation segments.
-  - 2a1. The itinerary card identifies the transportation cost as unavailable.
-  - 2a2. The system identifies the affected segments when breakdown information is available.
-- 2b. The system could not calculate a car segment because neither the itinerary nor the user's profile specified a vehicle type.
-  - 2b1. The itinerary card identifies the transportation cost as unavailable.
-  - 2b2. The system informs the user that a vehicle type must be added to the itinerary or their profile before the total can be estimated.
-- 5a. The cost breakdown cannot be loaded because of a server or network error.
-  - 5a1. The system keeps the itinerary card visible.
-  - 5a2. The system informs the user that the breakdown is temporarily unavailable and allows another attempt.
+- 5a. The starting location is missing or exceeds the supported length.
+  - 5a1. The system disables **Create profile** and identifies the invalid field.
+- 6a. The profile cannot be saved because of a server or network error.
+  - 6a1. The system keeps the entered values on the page, displays an error, and allows another attempt.
 
-**Postcondition:** The itinerary card displays its total estimated transportation cost and makes a per-segment breakdown available, or clearly indicates that the estimate is unavailable.
+**Postcondition:** The user's starting location and preferences are saved, profile creation is marked complete, and subsequent logins open the main application.
 
 ### **3.6. Screen Mock-ups**
 
@@ -278,110 +274,68 @@ The features in this app will facilitate the entire trip planning process for UB
 ### **4.1. Main Components**
 
 1. **Itineraries**
-   - **Purpose**: Manages saved itineraries and their activities.
+   - **Purpose and rationale**: Owns the saved-itinerary aggregate, including itinerary details, activities, transportation segments, ordering, conflict resolution, and deletion. These operations are grouped because they enforce the same ownership, scheduling, and item-order invariants; keeping them in one component prevents those rules from being duplicated across activity and transportation workflows.
    - **Interfaces**:
      1. `Itinerary createItinerary(String userId, ItineraryDetails details)`
         - **Purpose [3.4.2.1]**: Creates a saved itinerary for a user.
-     2. `Itinerary insertItinerary(String userId, ItineraryDetails details)`
-        - **Purpose [3.4.2.1]**: Stores a new itinerary in MongoDB.
+     2. `Itinerary[] getItineraries(String userId, ItineraryFilters filters)`
+        - **Purpose [3.4.2.2]**: Lists a user's saved itineraries.
      3. `Itinerary getItinerary(String userId, String itineraryId)`
-        - **Purpose [3.4.2.2, 3.4.2.8]**: Retrieves a user's saved itinerary.
-     4. `Itinerary findItinerary(String userId, String itineraryId)`
-        - **Purpose [3.4.2.2, 3.4.2.8]**: Retrieves an itinerary document from MongoDB.
-     5. `Itinerary updateItineraryDetails(String userId, String itineraryId, ItineraryDetails details)`
-        - **Purpose [3.4.2.2]**: Updates the details of a saved itinerary.
-     6. `bool updateItineraryDetails(String userId, String itineraryId, ItineraryDetails details)`
-        - **Purpose [3.4.2.2]**: Stores updated itinerary details in MongoDB.
-     7. `Activity addActivity(String userId, String itineraryId, ActivityInput activity, bool replaceConflicts)`
-        - **Purpose [3.4.2.3, 3.4.6.3]**: Adds an activity to a saved itinerary and optionally replaces conflicting itinerary items.
-     8. `bool insertEmbeddedActivity(String userId, String itineraryId, Activity activity)`
-        - **Purpose [3.4.2.3]**: Stores an activity in an itinerary document in MongoDB.
-     9. `TransportationSegment addTransportationSegment(String userId, String itineraryId, TransportationSegmentInput segment, bool replaceConflicts)`
-        - **Purpose [3.4.2.3]**: Adds a transportation segment to a saved itinerary and optionally replaces conflicting itinerary items.
-     10. `bool insertEmbeddedTransportationSegment(String userId, String itineraryId, TransportationSegment segment)`
-         - **Purpose [3.4.2.3]**: Stores a transportation segment in an itinerary document in MongoDB.
-     11. `bool removeActivity(String userId, String itineraryId, String activityId)`
-         - **Purpose [3.4.2.4]**: Removes an activity from a saved itinerary.
-     12. `bool removeEmbeddedActivity(String userId, String itineraryId, String activityId)`
-         - **Purpose [3.4.2.4]**: Removes an activity from an itinerary document in MongoDB.
-     13. `bool removeTransportationSegment(String userId, String itineraryId, String segmentId)`
-         - **Purpose [3.4.2.4]**: Removes a transportation segment from a saved itinerary.
-     14. `bool removeEmbeddedTransportationSegment(String userId, String itineraryId, String segmentId)`
-         - **Purpose [3.4.2.4]**: Removes a transportation segment from an itinerary document in MongoDB.
-     15. `Itinerary reorderActivities(String userId, String itineraryId, String[] orderedActivityIds)`
-         - **Purpose [3.4.2.5]**: Reorders activities and their associated transportation segments.
-     16. `bool updateItineraryOrder(String userId, String itineraryId, String[] orderedActivityIds, TransportationSegment[] segments)`
-         - **Purpose [3.4.2.5]**: Stores an updated itinerary order in MongoDB.
-     17. `Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update, bool replaceConflicts)`
-         - **Purpose [3.4.2.6]**: Updates an activity and optionally replaces conflicting itinerary items.
-     18. `bool updateEmbeddedActivity(String userId, String itineraryId, String activityId, ActivityUpdate update)`
-         - **Purpose [3.4.2.6]**: Stores an updated activity in MongoDB.
-     19. `TransportationSegment updateTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update, bool replaceConflicts)`
-         - **Purpose [3.4.2.6]**: Updates a transportation segment and optionally replaces conflicting itinerary items.
-     20. `bool updateEmbeddedTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update)`
-         - **Purpose [3.4.2.6]**: Stores an updated transportation segment in MongoDB.
-     21. `bool replaceEmbeddedItems(String userId, String itineraryId, String[] removedItemIds, ItineraryItem replacement)`
-         - **Purpose [3.4.2.3, 3.4.2.6, 3.4.6.3]**: Atomically removes conflicting items and stores their replacement in MongoDB.
-     22. `bool deleteItinerary(String userId, String itineraryId)`
-         - **Purpose [3.4.2.7]**: Deletes a user's saved itinerary.
-     23. `bool removeItinerary(String userId, String itineraryId)`
-         - **Purpose [3.4.2.7]**: Removes an itinerary document from MongoDB.
+        - **Purpose [3.4.2.2]**: Retrieves one saved itinerary.
+     4. `Itinerary updateItineraryDetails(String userId, String itineraryId, ItineraryDetailsUpdate details)`
+        - **Purpose [3.4.2.3]**: Updates a saved itinerary's editable details.
+     5. `Activity addActivity(String userId, String itineraryId, ActivityInput activity, bool replaceConflicts)`
+        - **Purpose [3.4.2.4]**: Adds an activity and optionally replaces conflicting items.
+     6. `TransportationSegment addTransportationSegment(String userId, String itineraryId, TransportationSegmentInput segment, bool replaceConflicts)`
+        - **Purpose [3.4.2.5]**: Adds a transportation segment and optionally replaces conflicting items.
+     7. `bool removeActivity(String userId, String itineraryId, String activityId)`
+        - **Purpose [3.4.2.6]**: Removes an activity.
+     8. `bool removeTransportationSegment(String userId, String itineraryId, String segmentId)`
+        - **Purpose [3.4.2.7]**: Removes a transportation segment.
+     9. `Itinerary reorderItineraryItems(String userId, String itineraryId, String[] orderedItemIds)`
+        - **Purpose [3.4.2.8]**: Reorders itinerary items while preserving their associations.
+     10. `Activity updateActivity(String userId, String itineraryId, String activityId, ActivityUpdate update, bool replaceConflicts)`
+         - **Purpose [3.4.2.9]**: Updates an activity and optionally replaces conflicts.
+     11. `TransportationSegment updateTransportationSegment(String userId, String itineraryId, String segmentId, TransportationSegmentUpdate update, bool replaceConflicts)`
+         - **Purpose [3.4.2.10]**: Updates a transportation segment and optionally replaces conflicts.
+     12. `bool deleteItinerary(String userId, String itineraryId)`
+         - **Purpose [3.4.2.11]**: Deletes a saved itinerary.
 2. **Users**
-   - **Purpose**: It represents ExploreUBC accounts and persistent traveler preferences. It supports CRUD operations on the account. It provides profile data to the `Recommendation` and `LiveEvents` components. It exchanges a verified external identity for an ExploreUBC session.
+   - **Purpose and rationale**: Owns account identity, authentication state, profile fields, and personalization preferences. These concerns are grouped around the user lifecycle and share the same authorization boundary; centralizing them also gives `Recommendations` and `LiveEvents` one authoritative source for profile data.
    - **Interfaces**:
      1. `User getUser(String userId)`
         - **Purpose**: Retrieves a user's complete profile.
-     2. `User findUser(String userId)`
-        - **Purpose**: Retrieves a user's complete profile from MongoDB.
-     3. `UserPreferences findPreferences(String userId)`
-        - **Purpose**: Retrieves a user's preferences from MongoDB.
-     4. `User updateUser(String userId, UserUpdate update)`
+     2. `User updateUser(String userId, UserUpdate update)`
         - **Purpose**: Updates editable profile fields or preferences and returns the complete user.
-     5. `bool updateUser(String userId, UserUpdate update)`
-        - **Purpose**: Stores editable profile fields or nested preferences in MongoDB.
+     3. `AuthResult authenticateWithGoogle(String idToken)`
+        - **Purpose [3.4.4.1, 3.4.4.2]**: Verifies a Google identity and returns the associated user and ExploreUBC session.
+     4. `SessionResult getCurrentSession(String sessionToken)`
+        - **Purpose [3.4.4.1]**: Validates and refreshes the current authenticated session.
+     5. `void logout(String sessionToken)`
+        - **Purpose [3.4.4.3]**: Revokes the current session.
 3. **LiveEvents**
-   - **Purpose**: Synchronizes Ticketmaster events into MongoDB and returns nearby upcoming events ranked using the user's saved interest, distance, and event date.
+   - **Purpose and rationale**: Owns Ticketmaster synchronization, event normalization, nearby-event filtering, and personalized event ranking. This logic is isolated because it depends on an external provider and geospatial/time-based rules with a refresh cadence separate from saved-itinerary operations.
    - **Interfaces**:
-     1. `SyncResult syncEvents(EventRepository repository)`
+     1. `SyncResult syncEvents()`
         - **Purpose [3.4.6.1]**: Retrieves available Ticketmaster pages, maps the results, upserts events, and removes expired or stale events after a successful complete sync.
      2. `RecommendedLiveEvent[] getRecommendedEvents(String userId, EventRecommendationOptions options)`
         - **Purpose [3.4.6.1]**: Retrieves, scores, filters, sorts, and paginates personalized event recommendations.
-     3. `LiveEventCandidate[] findNearbyUpcomingEvents(NearbyEventQuery options)`
-        - **Purpose [3.4.6.1]**: Queries MongoDB for upcoming events within the requested distance.
-     4. `EventUpsertResult upsertEvents(LiveEvent[] events)`
-        - **Purpose [3.4.6.1]**: Inserts new events and updates existing events using the Ticketmaster event identifier.
 4. **Recommendations**
-   - **Purpose**: It owns itinerary generation, rank calculation, and the create and read of latest recommendation set. It's responsible for requesting the LLM for itineraries, persisting the latest recommendation set.
+   - **Purpose and rationale**: Owns the recommendation pipeline from profile-aware generation through validation, ranking, and publication of the latest recommendation set. These steps are grouped because they form one consistency boundary: invalid or incomplete generated candidates must never replace the user's last valid recommendations.
    - **Interfaces**:
      1. `RecommendationSet findLatestRecommendations(String userId)`
-        - **Purpose [3.4.1.2]**: Retrieves a user's latest recommendation set from MongoDB.
+        - **Purpose [3.4.1.2]**: Retrieves the user's latest recommendation set.
      2. `RecommendationSet generateRecommendations(String userId, TripRequest tripRequest)`
         - **Purpose [3.4.1.1]**: Generates itinerary recommendations for a user.
-     3. `String generateItineraries(TripRequest tripRequest, UserPreferences preferences)`
-        - **Purpose [3.4.1.1]**: Requests generated itinerary JSON from the LLM Service.
-     4. `Itinerary[] parseItineraries(String itineraryJson)`
-        - **Purpose [3.4.1.1]**: Converts generated itinerary JSON into itinerary objects.
-     5. `bool replaceLatestRecommendations(String userId, Itinerary[] rankedItineraries)`
-        - **Purpose [3.4.1.1]**: Stores a user's latest recommendation set in MongoDB.
 5. **Maps:**
-   - **Purpose**: Generates and caches itinerary markers and routes in the backend. The Android client displays this data through the Google Maps SDK and retrieves popular nearby locations through the Google Places API.
+   - **Purpose and rationale**: Owns map-specific translation of itinerary locations into markers and routes, plus cache reuse and invalidation. Geocoding, directions, and provider fallbacks are grouped here to shield the rest of the application from Google Maps details and to keep partial-location and unavailable-route behavior consistent.
    - **Interfaces**:
      1. `ItineraryMap getItineraryMap(String userId, String itineraryId)`
         - **Purpose [3.4.5.1]**: Returns current cached map data or generates new markers and routes for an itinerary.
-     2. `ItineraryMap? findByItineraryId(String itineraryId)`
-        - **Purpose [3.4.5.1]**: Retrieves cached itinerary map data from MongoDB.
-     3. `void upsertMapData(ItineraryMap mapData)`
-        - **Purpose [3.4.5.1]**: Inserts or replaces the cached map data for an itinerary.
-     4. `GeocodedLocation? geocodeAddress(String address)`
-        - **Purpose [3.4.5.1]**: Converts an itinerary address into coordinates and Google location details.
-     5. `TravelOption? getRoute(MapCoordinates origin, MapCoordinates destination, TransportationMode transportationMode)`
-        - **Purpose [3.4.5.1]**: Retrieves a route polyline, distance, duration, and directions between two locations.
-     6. `AddressAutocompleteResult autocompleteAddresses(String query)`
+     2. `AddressAutocompleteResult autocompleteAddresses(String query)`
         - **Purpose [3.4.5.1]**: Retrieves Google Places address suggestions for itinerary locations.
-     7. `PopularPlace[]? fetchPopularPlaces(LatLng center)`
-        - **Purpose [3.4.5.2]**: Retrieves popular locations near the selected map region.
-     8. `void deleteItineraryMap(String itineraryId)`
-        - **Purpose [3.4.5.1]**: Removes cached map data after its itinerary is deleted.
+     3. `PopularPlace[] browsePopularLocations(LatLng center)`
+        - **Purpose [3.4.5.3]**: Returns popular locations near the selected map region.
 
 ### **4.2. Databases**
 
@@ -416,7 +370,6 @@ The features in this app will facilitate the entire trip planning process for UB
                type ActivityItem = {
                    id: string;
                    name: string;
-                   image: string;
                    description?: string;
                    category?: string;
                    location: string;
@@ -523,9 +476,9 @@ The features in this app will facilitate the entire trip planning process for UB
 
 ![View Event Recommendations sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/view_events_seq_diagram.png)
 
-#### 4.6.5. [**View Transportation Cost Estimate**](#use-case-5-view-transportation-cost-estimate)
+#### 4.6.5. [**Create Profile**](#use-case-6-create-profile)
 
-![View Transportation Cost Estimate sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/transportation_cost_seq_diagram.png)
+![Create Profile sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/create_profile_seq_diagram.png)
 
 ### **4.7. Design of Non-Functional Requirements**
 

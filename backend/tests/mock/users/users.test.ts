@@ -28,7 +28,6 @@ function createMockRepository(): jest.Mocked<UserRepository> {
     findOrCreateByGoogleIdentity: jest.fn(),
     findPreferences: jest.fn(),
     findUser: jest.fn(),
-    completeOnboarding: jest.fn(),
     updateUser: jest.fn(),
   };
 }
@@ -134,7 +133,6 @@ describe('GET /api/v1/users/:userId — mocks', () => {
     expect(repository.findUser).toHaveBeenCalledWith(USER_ID);
   });
 });
-
 describe('PATCH /api/v1/users/:userId — mocks', () => {
   test('returns 500 when the database update fails', async () => {
     // Input: valid profile update. Expect: 500 INTERNAL_SERVER_ERROR.
@@ -167,28 +165,5 @@ describe('PATCH /api/v1/users/:userId — mocks', () => {
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('USER_NOT_FOUND');
     expect(repository.updateUser).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('PUT /api/v1/users/:userId/onboarding — mocks', () => {
-  test('returns 404 when the user disappears before onboarding is saved', async () => {
-    const repository = createMockRepository();
-    repository.completeOnboarding.mockResolvedValue(null);
-    const app = createApp({ userRepository: repository });
-
-    const response = await request(app)
-      .put(`/api/v1/users/${USER_ID}/onboarding`)
-      .send({
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'walking' },
-          budget: 'balanced',
-          interest: 'food',
-        },
-      });
-
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('USER_NOT_FOUND');
-    expect(repository.completeOnboarding).toHaveBeenCalledTimes(1);
   });
 });

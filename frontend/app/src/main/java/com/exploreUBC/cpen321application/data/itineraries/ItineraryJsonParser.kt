@@ -27,7 +27,6 @@ internal object ItineraryJsonParser {
         "activity" -> ActivityItem(
             id = json.getString("id"),
             name = json.getString("name"),
-            image = json.getString("image"),
             description = json.optionalString("description"),
             category = json.optionalString("category"),
             location = json.getString("location"),

@@ -11,10 +11,14 @@ const { MongoClient, ObjectId } = require('mongodb');
 const E2E_URI = process.env.E2E_MONGODB_URI?.trim() || 'mongodb://localhost:27018';
 const DATABASE_NAME = 'cpen321';
 const TEST_USER_ID = new ObjectId('6acd519c76376cefc61e97f1');
+const CREATE_PROFILE_USER_ID = new ObjectId('6acd519c76376cefc61e97f2');
+const LOGOUT_PROFILE_USER_ID = new ObjectId('6acd519c76376cefc61e97f3');
 const BASELINE_ITINERARY_ID = new ObjectId('6705f1000000000000000001');
 const EVENT_ID_PREFIX = 'e2e-';
 // Session of the seeded user. The E2E tests install this token in the app, so no Google sign-in is needed.
 const E2E_SESSION_TOKEN = 'e2e-live-events-session-token';
+const CREATE_PROFILE_SESSION_TOKEN = 'e2e-create-profile-session-token';
+const LOGOUT_PROFILE_SESSION_TOKEN = 'e2e-create-profile-logout-session-token';
 const E2E_SESSION_DAYS = 30;
 
 // UBC, the app's default location.
@@ -97,7 +101,6 @@ function buildBaselineItinerary(firstEvent, base) {
         id: '33333333-3333-4333-8333-333333333333',
         type: 'activity',
         name: 'E2E Overlapping Activity',
-        image: 'https://example.com/e2e-activity.jpg',
         description: 'Overlaps the first seeded event.',
         category: 'outdoors',
         location: 'UBC',
@@ -144,6 +147,48 @@ async function seed(database, { withEvents = true } = {}) {
     expiresAt: new Date(base.getTime() + E2E_SESSION_DAYS * DAY_MS),
   });
 
+  const onboardingUsers = [
+    [CREATE_PROFILE_USER_ID, 'create'],
+    [LOGOUT_PROFILE_USER_ID, 'logout'],
+  ];
+  for (const [userId, suffix] of onboardingUsers) {
+    await database.collection('users').replaceOne(
+      { _id: userId },
+      {
+        _id: userId,
+        googleSubject: `e2e-onboarding-${suffix}`,
+        email: `e2e-onboarding-${suffix}@example.com`,
+        displayName: 'E2E New User',
+        profileImageUrl: null,
+        start_location: '',
+        preferences: {
+          transportation: { mode: 'walking' },
+          budget: 'economical',
+          interest: 'food',
+        },
+        onboardingCompletedAt: null,
+        create_at: base,
+        updated_at: base,
+      },
+      { upsert: true },
+    );
+    await database.collection('sessions').deleteMany({ userId });
+  }
+  await database.collection('sessions').insertMany([
+    {
+      userId: CREATE_PROFILE_USER_ID,
+      tokenHash: createHash('sha256').update(CREATE_PROFILE_SESSION_TOKEN, 'utf8').digest('hex'),
+      createdAt: base,
+      expiresAt: new Date(base.getTime() + E2E_SESSION_DAYS * DAY_MS),
+    },
+    {
+      userId: LOGOUT_PROFILE_USER_ID,
+      tokenHash: createHash('sha256').update(LOGOUT_PROFILE_SESSION_TOKEN, 'utf8').digest('hex'),
+      createdAt: base,
+      expiresAt: new Date(base.getTime() + E2E_SESSION_DAYS * DAY_MS),
+    },
+  ]);
+
   console.log(
     withEvents
       ? `E2E data ready: ${SPORTS_EVENT_COUNT} Sports events, ${MUSIC_EVENT_COUNT} Music events, ${FAR_EVENT_COUNT} far-away Sports events, 1 itinerary.`
@@ -158,7 +203,11 @@ async function clean(database) {
   const itineraries = await database
     .collection('itineraries')
     .deleteMany({ ownerId: TEST_USER_ID });
-  const sessions = await database.collection('sessions').deleteMany({ userId: TEST_USER_ID });
+  const e2eUserIds = [TEST_USER_ID, CREATE_PROFILE_USER_ID, LOGOUT_PROFILE_USER_ID];
+  const sessions = await database.collection('sessions').deleteMany({ userId: { $in: e2eUserIds } });
+  await database.collection('users').deleteMany({
+    _id: { $in: [CREATE_PROFILE_USER_ID, LOGOUT_PROFILE_USER_ID] },
+  });
   console.log(
     `E2E data removed: ${events.deletedCount} events, ${itineraries.deletedCount} itineraries, ${sessions.deletedCount} sessions.`,
   );

@@ -127,7 +127,6 @@ internal class InMemoryItinerariesRepository : ItinerariesRepository {
         val added = ActivityItem(
             id = "activity-${nextId++}",
             name = activity.name,
-            image = activity.image,
             description = activity.description,
             category = activity.category,
             location = activity.location,
@@ -169,7 +168,6 @@ internal class InMemoryItinerariesRepository : ItinerariesRepository {
                     if (item is ActivityItem && item.id == activityId) {
                         item.copy(
                             name = update.name,
-                            image = update.image,
                             description = update.description,
                             category = update.category,
                             location = update.location,
@@ -269,7 +267,6 @@ private fun sampleItinerary() = Itinerary(
         ActivityItem(
             id = E2E_ACTIVITY_ID,
             name = "Museum Visit",
-            image = "",
             description = "Visit the museum.",
             category = "museum",
             location = "Museum of Anthropology",

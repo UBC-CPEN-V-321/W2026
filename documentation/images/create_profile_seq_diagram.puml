@@ -1,0 +1,68 @@
+@startuml
+title Use Case 6: Create Profile
+
+skinparam ArrowFontStyle plain
+skinparam ParticipantStyle rectangle
+skinparam Shadowing false
+skinparam DefaultTextAlignment center
+skinparam SequenceMessageAlign center
+skinparam FontName Arial
+hide footbox
+
+actor User
+
+box "User Interface"
+participant ":CreateProfileRoute" as App
+end box
+
+box "Application Logic"
+participant ":UsersApi" as UsersApi
+participant ":UserService" as UserService
+participant ":UserDao" as UserDao
+end box
+
+box "Storage"
+database "db:MongoDB" as DB
+end box
+
+App -> App : Check onboardingCompletedAt
+App --> User : Display Create Profile page
+User -> App : Enter starting location and preferences
+
+alt starting location is missing or exceeds supported length
+    App --> User : Disable Create profile and identify invalid field
+else profile input is valid
+    User -> App : Select Create profile
+    App -> UsersApi : updateUser(userId, profile): User
+    activate UsersApi
+    UsersApi -> UserService : PATCH /users/:userId
+    activate UserService
+    UserService -> UserDao : updateUser(userId, profile): User
+    activate UserDao
+    UserDao -> DB : findOneAndUpdate(profile, onboardingCompletedAt)
+    activate DB
+
+    alt profile saved successfully
+        DB --> UserDao : updated user
+        deactivate DB
+        UserDao --> UserService : user
+        deactivate UserDao
+        UserService --> UsersApi : user
+        deactivate UserService
+        UsersApi --> App : updated user
+        deactivate UsersApi
+        App --> User : Open main application
+    else profile save fails because of a server or network error
+        DB --> UserDao : database error
+        deactivate DB
+        UserDao --> UserService : update error
+        deactivate UserDao
+        UserService --> UsersApi : error response
+        deactivate UserService
+        UsersApi --> App : network or server error
+        deactivate UsersApi
+        App --> User : Keep entries and allow retry
+    end
+end
+
+@enduml

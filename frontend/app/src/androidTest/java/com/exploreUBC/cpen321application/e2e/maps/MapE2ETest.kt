@@ -1,6 +1,5 @@
 package com.exploreUBC.cpen321application.e2e.maps
 
-import android.Manifest
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -16,16 +15,15 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
-import androidx.test.platform.app.InstrumentationRegistry
-import com.exploreUBC.cpen321application.BuildConfig
-import com.exploreUBC.cpen321application.MainActivity
+import com.exploreUBC.cpen321application.MainActivity2
 import com.exploreUBC.cpen321application.R
-import com.exploreUBC.cpen321application.data.auth.SessionManager
-import com.exploreUBC.cpen321application.data.auth.SessionStore
 import com.exploreUBC.cpen321application.data.itineraries.CreateActivityInput
 import com.exploreUBC.cpen321application.data.itineraries.CreateItineraryInput
 import com.exploreUBC.cpen321application.data.itineraries.ItinerariesApi
-import com.exploreUBC.cpen321application.data.network.ApiClient
+import com.exploreUBC.cpen321application.testutil.REAL_BACKEND_USER_ID
+import com.exploreUBC.cpen321application.testutil.grantLocationPermissionRule
+import com.exploreUBC.cpen321application.testutil.realBackendClient
+import com.exploreUBC.cpen321application.testutil.signedInTestUserRule
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.hamcrest.Matchers.containsString
@@ -34,30 +32,16 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
-import org.junit.rules.TestRule
-import org.junit.runners.model.Statement
 
 class MapE2ETest {
-    private val locationPermissionRule = TestRule { base, _ ->
-        object : Statement() {
-            override fun evaluate() {
-                val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-                listOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                ).forEach { permission ->
-                    automation.executeShellCommand(
-                        "pm grant ${BuildConfig.APPLICATION_ID} $permission",
-                    ).close()
-                }
-                base.evaluate()
-            }
-        }
-    }
-    private val composeRule = createAndroidComposeRule<MainActivity>()
+    private val locationPermissionRule = grantLocationPermissionRule()
+    private val composeRule = createAndroidComposeRule<MainActivity2>()
 
     @get:Rule
-    val rules: RuleChain = RuleChain.outerRule(locationPermissionRule).around(composeRule)
+    val rules: RuleChain = RuleChain
+        .outerRule(locationPermissionRule)
+        .around(signedInTestUserRule())
+        .around(composeRule)
 
     private lateinit var itinerariesApi: ItinerariesApi
     private lateinit var fixtureName: String
@@ -65,20 +49,11 @@ class MapE2ETest {
 
     @Before
     fun createBackendFixture() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val session = checkNotNull(SessionStore(context).load()) {
-            "Sign in to ExploreUBC on the emulator before running the E2E suite."
-        }
-        itinerariesApi = ItinerariesApi(
-            ApiClient(
-                apiBaseUrl = BuildConfig.API_BASE_URL,
-                sessionManager = SessionManager(session),
-            ),
-        )
+        itinerariesApi = ItinerariesApi(realBackendClient())
         fixtureName = "Map E2E ${UUID.randomUUID().toString().take(8)}"
         runBlocking {
             val itinerary = itinerariesApi.createItinerary(
-                session.userId,
+                REAL_BACKEND_USER_ID,
                 CreateItineraryInput(
                     name = fixtureName,
                     description = "Created by the non-mocked map E2E test.",
@@ -87,11 +62,10 @@ class MapE2ETest {
             )
             fixtureId = itinerary.id
             itinerariesApi.addActivity(
-                session.userId,
+                REAL_BACKEND_USER_ID,
                 itinerary.id,
                 CreateActivityInput(
                     name = FIRST_ACTIVITY,
-                    image = "",
                     category = "food",
                     location = "UBC Nest, Vancouver, BC",
                     startTime = "2027-11-30T18:00:00.000Z",
@@ -99,11 +73,10 @@ class MapE2ETest {
                 ),
             )
             itinerariesApi.addActivity(
-                session.userId,
+                REAL_BACKEND_USER_ID,
                 itinerary.id,
                 CreateActivityInput(
                     name = SECOND_ACTIVITY,
-                    image = "",
                     category = "museum",
                     location = "Museum of Anthropology at UBC, Vancouver, BC",
                     startTime = "2027-11-30T20:00:00.000Z",
@@ -117,10 +90,10 @@ class MapE2ETest {
     @After
     fun removeBackendFixture() {
         val itineraryId = fixtureId ?: return
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val userId = SessionStore(context).load()?.userId ?: return
         runCatching {
-            runBlocking { itinerariesApi.deleteItinerary(userId, itineraryId) }
+            runBlocking {
+                itinerariesApi.deleteItinerary(REAL_BACKEND_USER_ID, itineraryId)
+            }
         }
     }
 

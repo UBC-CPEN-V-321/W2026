@@ -39,10 +39,10 @@ class AuthRepositoryNfrTest {
                     {
                       "sessionToken": "exploreubc-session-token",
                       "expiresAt": "2026-10-25T08:00:00.000Z",
-                      "onboardingRequired": true,
                       "user": {
                         "id": "backend-user-id",
-                        "displayName": "Backend Name"
+                        "displayName": "Backend Name",
+                        "onboardingCompletedAt": null
                       }
                     }
                 """.trimIndent()
@@ -93,10 +93,10 @@ class AuthRepositoryNfrTest {
                 """
                     {
                       "expiresAt": "1970-01-01T00:16:39.999Z",
-                      "onboardingRequired": false,
                       "user": {
                         "id": "backend-user-id",
-                        "displayName": "Backend Name"
+                        "displayName": "Backend Name",
+                        "onboardingCompletedAt": "2026-10-24T08:00:00.000Z"
                       }
                     }
                 """.trimIndent()
@@ -113,7 +113,7 @@ class AuthRepositoryNfrTest {
         assertEquals(999_999L, persistedSession?.expiresAtEpochMillis)
         assertSame(persistedSession, sessionManager.currentSession())
         assertEquals("Backend Name", result.displayName)
-        assertFalse(result.onboardingRequired)
+        assertEquals("2026-10-24T08:00:00.000Z", result.onboardingCompletedAt)
     }
 
     @Test

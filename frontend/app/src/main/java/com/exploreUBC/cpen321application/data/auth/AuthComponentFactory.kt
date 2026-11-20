@@ -27,6 +27,7 @@ class LoginAuthComponents internal constructor(
 
 class AuthenticatedAuthComponents internal constructor(
     val userId: String,
+    val onboardingCompletedAt: String?,
     val apiClient: ApiClient,
     private val logoutAction: suspend () -> Unit,
 ) {
@@ -72,6 +73,7 @@ class AuthComponentFactory(
 
         return AuthenticatedAuthComponents(
             userId = restored.userId,
+            onboardingCompletedAt = restored.onboardingCompletedAt,
             apiClient = apiClient,
             logoutAction = {
                 try {
