@@ -169,6 +169,12 @@ describe('Itinerary repository malformed-ID guards — no mocks', () => {
       itineraryDao.findItinerary('invalid-owner', ITINERARY_ID.toHexString()),
     ).resolves.toBeNull();
     await expect(
+      itineraryDao.findItineraryDetails(
+        'invalid-owner',
+        ITINERARY_ID.toHexString(),
+      ),
+    ).resolves.toBeNull();
+    await expect(
       itineraryDao.findItineraries('invalid-owner', {}),
     ).resolves.toEqual([]);
     await expect(
@@ -198,6 +204,20 @@ describe('Itinerary repository malformed-ID guards — no mocks', () => {
         ITINERARY_ID.toHexString(),
         activity.id,
         { name: 'Ignored' },
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      itineraryDao.replaceEmbeddedItems(
+        'invalid-owner',
+        ITINERARY_ID.toHexString(),
+        [],
+        activity,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      itineraryDao.removeItinerary(
+        'invalid-owner',
+        ITINERARY_ID.toHexString(),
       ),
     ).resolves.toBe(false);
   });

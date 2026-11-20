@@ -71,7 +71,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities?replace
     replace.mockResolvedValue(true);
     const app = createApp({ itineraryRepository: repository });
 
-    const response = await request(app).post(ADD_REPLACING_PATH).send(CONFLICTING_ACTIVITY);
+    const response = await request(app)
+      .post(ADD_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(CONFLICTING_ACTIVITY);
 
     expect(response.status).toBe(201);
     expect(replace).toHaveBeenCalledTimes(1);
@@ -92,7 +95,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities?replace
     replace.mockRejectedValue(new Error('write failed'));
     const app = createApp({ itineraryRepository: repository });
 
-    const response = await request(app).post(ADD_REPLACING_PATH).send(CONFLICTING_ACTIVITY);
+    const response = await request(app)
+      .post(ADD_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(CONFLICTING_ACTIVITY);
 
     expect(response.status).toBe(500);
     expect(response.body.error.code).toBe('INTERNAL_SERVER_ERROR');
@@ -106,7 +112,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities?replace
     replace.mockResolvedValue(false);
     const app = createApp({ itineraryRepository: repository });
 
-    const response = await request(app).post(ADD_REPLACING_PATH).send(CONFLICTING_ACTIVITY);
+    const response = await request(app)
+      .post(ADD_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(CONFLICTING_ACTIVITY);
 
     expect(response.status).toBe(404);
     expect(response.body.error.code).toBe('ITINERARY_NOT_FOUND');
@@ -120,7 +129,10 @@ describe('POST /api/v1/users/:userId/itineraries/:itineraryId/activities?replace
     const app = createApp({ itineraryRepository: repository });
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    const response = await request(app).post(ADD_REPLACING_PATH).send(CONFLICTING_ACTIVITY);
+    const response = await request(app)
+      .post(ADD_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(CONFLICTING_ACTIVITY);
 
     expect(response.status).toBe(500);
     expect(repository.insertEmbeddedActivity).not.toHaveBeenCalled();
@@ -139,7 +151,10 @@ describe('PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activ
     replace.mockResolvedValue(true);
     const app = createApp({ itineraryRepository: repository });
 
-    const response = await request(app).patch(EDIT_REPLACING_PATH).send(MOVE_INTO_SEGMENT);
+    const response = await request(app)
+      .patch(EDIT_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(MOVE_INTO_SEGMENT);
 
     expect(response.status).toBe(200);
     expect(response.body.activity).toMatchObject({ id: ACTIVITY_ID, ...MOVE_INTO_SEGMENT });
@@ -162,7 +177,10 @@ describe('PATCH /api/v1/users/:userId/itineraries/:itineraryId/activities/:activ
     replace.mockImplementation(outcome);
     const app = createApp({ itineraryRepository: repository });
 
-    const response = await request(app).patch(EDIT_REPLACING_PATH).send(MOVE_INTO_SEGMENT);
+    const response = await request(app)
+      .patch(EDIT_REPLACING_PATH)
+      .set('Authorization', `Bearer ${USER_ID}`)
+      .send(MOVE_INTO_SEGMENT);
 
     expect(response.status).toBe(status);
     expect(response.body.error.code).toBe(code);

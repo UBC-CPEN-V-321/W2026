@@ -4,6 +4,7 @@
 
 | **Change Date**  | **Modified Sections** | **Rationale**                                                                                                                                                        |
 | ---------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| November 20, 2026 | 3.1, 3.4, 3.7, 4.1, 4.7 | Separated functional Google Authentication from the Security NFR and aligned the Security design with session restoration, renewal, hash-only persistence, and ownership enforcement. |
 | October 1, 2026  | 3.3, 3.4, 3.5         | Added actors, use case descriptions, and formal use case specifications for Feature Sets 2 and 3.                                                                    |
 | October 14, 2026 | 4.1, 4.3, 4.4         | Added main components and interfaces from the View Itinerary on Map and Browse Popular Locations sequence diagrams, plus the Google Maps API and project frameworks. |
 | November 19, 2026 | 3.4, 3.5             | Added the Create Profile first-login use case and its formal specification.                                                                                           |
@@ -33,7 +34,7 @@ The features in this app will facilitate the entire trip planning process for UB
 1. **Itinerary Recommendation**: Generates and ranks itinerary recommendations using trip constraints and user preferences.
 2. **Itinerary Management**: Allows users to create, view, modify, and delete saved itineraries and their activities or transportation segments.
 3. **User Profile**: Stores user details and preferences used to personalize itineraries and live-event recommendations.
-4. **Authentication**: Authenticates users with Google and connects them to their ExploreUBC account.
+4. **Authentication**: Signs users in or up with Google, connects them to their ExploreUBC account, and signs them out by revoking the current ExploreUBC session.
 5. **Google Maps Integration**: Displays itinerary routes, activity locations, and popular nearby locations on an interactive map.
 6. **Live Events**: Retrieves upcoming events from Ticketmaster and recommends them using the user's interest and location.
 
@@ -74,16 +75,16 @@ The features in this app will facilitate the entire trip planning process for UB
 #### Use Cases for Feature 3: User Profile
 
 1. **Create Profile**: On first login, the user enters a starting location and selects transportation, budget, and interest preferences. The system saves the profile before opening the main application.
-2. **Update Profile**: The user changes their display name or starting location.
+2. **Update Profile**: The user changes their display name, starting location, or transportation, budget, and interest preferences.
 3. **Set Interests**: The user selects interests used to personalize future itinerary and live-event recommendations.
 4. **Set Budget Preference**: The user selects the default budget used for future itinerary recommendations.
 5. **Set Transportation Preference**: The user selects the preferred transportation mode used for future itinerary recommendations.
 
 #### Use Cases for Feature 4: Authentication
 
-1. **Sign In with Google**: The user authenticates with Google, and the backend validates the Google identity before granting access to the associated ExploreUBC account.
-2. **Sign Up with Google**: A first-time user authenticates with Google, after which the system creates an ExploreUBC account linked to the validated Google identity.
-3. **Sign Out**: The user ends the current ExploreUBC session and returns to the authentication screen.
+1. **Sign In with Google**: The user obtains a Google identity credential through Android Credential Manager. The backend verifies the credential's signature, issuer, audience, and expiration, resolves the linked ExploreUBC account, and issues an ExploreUBC session.
+2. **Sign Up with Google**: A first-time user authenticates with a verified Google identity. The backend creates exactly one ExploreUBC account for that Google subject and issues an ExploreUBC session; subsequent authentication with the same subject resolves the existing account.
+3. **Sign Out**: The user ends the current ExploreUBC session. The backend revokes that session, the frontend clears its locally stored session and Google credential state, and the application returns to the authentication screen.
 
 #### Use Cases for Feature 5: Google Maps Integration
 
@@ -121,7 +122,7 @@ The features in this app will facilitate the entire trip planning process for UB
   - 3a2. The user corrects the inputs and submits the request again.
 - 4a. An external generation or place-resolution service is unavailable or returns invalid data.
   - 4a1. The system does not replace the user's previous recommendation set.
-  - 4b2. The system informs the user that recommendations could not be generated and allows another attempt.
+  - 4a2. The system informs the user that recommendations could not be generated and allows another attempt.
 - 4b. Fewer than four feasible itineraries satisfy the user's constraints.
   - 4b1. The system displays the feasible itineraries that were found.
   - 4b2. The system suggests relaxing the time, transportation, or interest constraints.
@@ -261,8 +262,8 @@ The features in this app will facilitate the entire trip planning process for UB
 ### **3.7. Non-Functional Requirements**
 
 1. <a id="nfr1"></a>**Security**
-   - **Description**: For 100% of authentication requests, the backend must verify the Google identity token's signature, issuer, audience, and expiration before granting access. Invalid or expired tokens must be rejected with no user record created and no session issued. For a valid first-time identity, exactly one ExploreUBC user record must be created; subsequent sign-ins must resolve to that same account. All client-server authentication traffic must use HTTPS, and automated tests and log checks must find zero session or identity tokens in application logs.
-   - **Justification**: These criteria make identity verification, account linking, and token handling testable and reduce the risk of unauthorized access to user profiles and itineraries.
+   - **Description**: On application startup, a stored ExploreUBC session must be restored only when the backend validates it; a valid restored session must have its expiry renewed. Missing, malformed, unknown, expired, or revoked sessions must be rejected, and an expired session must be removed from persistence. The backend must store only a cryptographic hash of each session token. Every protected user-scoped request must be authenticated, and a session for one user must receive `403 Forbidden` when it requests a resource owned by another user. When restoration is rejected with `401 Unauthorized`, the frontend must clear the stored session and return to the authentication screen.
+   - **Justification**: Session validation, renewal, revocation, hash-only persistence, and ownership enforcement prevent a previously issued or cross-user credential from granting unauthorized access after authentication has completed.
 2. <a id="nfr2"></a>**Accessibility**
    - **Description**: 100% of the primary navigation destinations (Events, Trips, Map, and Profile) must expose their destination names to TalkBack, consistent with WCAG 2.2 Success Criterion 4.1.2 (Name, Role, Value). Each navigation target must be at least 48 x 48 dp, addressing WCAG 2.2 Success Criterion 2.5.8 (Target Size (Minimum)); the 48 dp target follows Android guidance and is larger than WCAG's minimum target. At 200% Android font scaling, the primary navigation labels must remain visible and each destination must remain operable, consistent with WCAG 2.2 Success Criterion 1.4.4 (Resize Text).
    - **Justification**: Clear navigation labels, sufficiently large touch targets, and support for larger text make the app's main sections easier to identify and access.
@@ -304,13 +305,13 @@ The features in this app will facilitate the entire trip planning process for UB
    - **Purpose and rationale**: Owns account identity, authentication state, profile fields, and personalization preferences. These concerns are grouped around the user lifecycle and share the same authorization boundary; centralizing them also gives `Recommendations` and `LiveEvents` one authoritative source for profile data.
    - **Interfaces**:
      1. `User getUser(String userId)`
-        - **Purpose**: Retrieves a user's complete profile.
+        - **Purpose [3.4.3.1, 3.4.3.2]**: Retrieves a user's complete profile and profile-creation state.
      2. `User updateUser(String userId, UserUpdate update)`
-        - **Purpose**: Updates editable profile fields or preferences and returns the complete user.
+        - **Purpose [3.4.3.1–3.4.3.5]**: Creates or updates editable profile fields and preferences and returns the complete user.
      3. `AuthResult authenticateWithGoogle(String idToken)`
         - **Purpose [3.4.4.1, 3.4.4.2]**: Verifies a Google identity and returns the associated user and ExploreUBC session.
      4. `SessionResult getCurrentSession(String sessionToken)`
-        - **Purpose [3.4.4.1]**: Validates and refreshes the current authenticated session.
+        - **Purpose [NFR1]**: Restores a valid authenticated session and refreshes its expiry.
      5. `void logout(String sessionToken)`
         - **Purpose [3.4.4.3]**: Revokes the current session.
 3. **LiveEvents**
@@ -340,23 +341,39 @@ The features in this app will facilitate the entire trip planning process for UB
 ### **4.2. Databases**
 
 1. **Users**
-   - **Purpose**: Represents an application user in ExploreUBC
+   - **Purpose**: Represents an application user, profile-creation state, and personalization preferences in ExploreUBC.
    ```javascript
-       "googleSubject",
-       "email",
-       "displayName",
-       "start_location",
-       "preferences":{
-           "transportation":{
-               "mode": "'walking' | 'cycling' | 'transit' | 'driving' | 'other'"
-           }
-       "budget": "'economical' | 'balanced' | 'premium'",
-       "interest": "'food' | 'art' | 'outdoors' | 'markets' | 'live_music' | 'gaming'",
-       "create_at",
-       "updated_at"
-     },
+       type User = {
+           _id: ObjectId;
+           googleSubject: string;
+           email: string;
+           displayName: string;
+           profileImageUrl: string | null;
+           start_location: string;
+           preferences: {
+               transportation: {
+                   mode: 'walking' | 'cycling' | 'transit' | 'driving' | 'other';
+               };
+               budget: 'economical' | 'balanced' | 'premium';
+               interest: 'food' | 'art' | 'outdoors' | 'markets' | 'live_music' | 'gaming';
+           };
+           onboardingCompletedAt: Date | null;
+           create_at: Date;
+           updated_at: Date;
+       };
    ```
-2. **Itineraries**
+2. **Sessions**
+   - **Purpose**: Stores revocable ExploreUBC sessions. Only the SHA-256 token hash is persisted; the raw session token is returned to the client only when the session is created.
+   ```javascript
+       type Session = {
+           _id: ObjectId;
+           userId: ObjectId;
+           tokenHash: string;
+           createdAt: Date;
+           expiresAt: Date;
+       };
+   ```
+3. **Itineraries**
    - **Purpose**: Represents a saved itinerary
 
    ```javascript
@@ -397,7 +414,7 @@ The features in this app will facilitate the entire trip planning process for UB
        };
    ```
 
-3. **Live Events**
+4. **Live Events**
    - **Purpose**: Stores normalized Ticketmaster events for synchronization, nearby searches, and recommendation scoring.
    ```javascript
        type LiveEvent = {
@@ -476,13 +493,13 @@ The features in this app will facilitate the entire trip planning process for UB
 
 ![View Event Recommendations sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/view_events_seq_diagram.png)
 
-#### 4.6.5. [**Create Profile**](#use-case-6-create-profile)
+#### 4.6.5. [**Create Profile**](#use-case-5-create-profile)
 
 ![Create Profile sequence diagram](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/create_profile_seq_diagram.png)
 
 ### **4.7. Design of Non-Functional Requirements**
 
 1. **[Security](#nfr1)**
-   - **Implementation**: In [MainActivity.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/MainActivity.kt), pass the Google ID token from Credential Manager to a dedicated backend sign-in endpoint over HTTPS; do not treat the client-side credential result alone as an authenticated ExploreUBC session. Add the endpoint in [userRouter.ts](../backend/src/users/userRouter.ts) and authentication logic in [userService.ts](../backend/src/users/userService.ts). Verify the token's signature and claims (issuer, configured audience, and expiration) using Google's supported verification library. Use the verified Google subject as the account key: create a user only if that subject is not already stored, otherwise return the existing user. Define the persistence operations in [userRepository.ts](../backend/src/users/userRepository.ts) and implement them in [userDao.ts](../backend/src/users/userDao.ts). Return a short-lived ExploreUBC session credential after verification; store it on Android using Keystore-backed secure storage, attach it to subsequent protected requests, and clear it on sign-out. Never log either token. Add backend tests for valid, invalid, expired, and wrong-audience tokens, first-time and repeat sign-in, and token-free error/log paths; verify the deployed authentication endpoint uses HTTPS. These backend files currently handle profile operations, so the authentication endpoint, verification, and session issuance remain to be implemented.
+   - **Implementation**: [SessionStore.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/SessionStore.kt) encrypts the locally persisted ExploreUBC session with an Android Keystore-backed key. At startup, [SessionStartupCoordinator.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/SessionStartupCoordinator.kt) loads the stored session and asks [AuthRepository.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/AuthRepository.kt) to restore it through `GET /api/v1/auth/session`; sessions near expiry are renewed through the credential-based renewal path. A backend `401 Unauthorized` clears both the persisted session and the in-memory session before returning the application to its signed-out state. On the backend, [sessionService.ts](../backend/src/session/sessionService.ts) hashes tokens before repository access, validates expiry, removes expired sessions, and rolls a restored session's expiry forward. [authMiddleware.ts](../backend/src/auth/authMiddleware.ts) authenticates protected requests and compares the authenticated user ID with the `:userId` route parameter, returning `403 Forbidden` for cross-user access. [authService.ts](../backend/src/auth/authService.ts) revokes a session whose user no longer exists. Authentication itself—including Google credential verification, account creation or lookup, session issuance, and sign-out—is the functional behavior of use cases 3.4.4.1 through 3.4.4.3 rather than part of this NFR.
 2. **[Accessibility](#nfr2)**
    - **Implementation**: In [MainActivity2.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/MainActivity2.kt), the visible text labels for Events, Trips, Map, and Profile were retained, and each navigation icon's `contentDescription` was set to the same destination name so TalkBack announces a useful label. Every navigation item has a minimum interactive size of 48 x 48 dp through the Material navigation component. Emulator testing confirmed that each destination was announced and could be activated with TalkBack and that all four labels remained visible and usable without overlap or clipping at 200% Android font scaling.

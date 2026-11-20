@@ -1,5 +1,5 @@
 @startuml
-title Use Case 6: Create Profile
+title Use Case 5: Create Profile
 
 skinparam ArrowFontStyle plain
 skinparam ParticipantStyle rectangle
