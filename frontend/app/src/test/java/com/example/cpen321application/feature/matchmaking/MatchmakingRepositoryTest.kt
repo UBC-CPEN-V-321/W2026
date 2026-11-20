@@ -3,7 +3,12 @@ package com.example.cpen321application.feature.matchmaking
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.auth.User
 import com.example.cpen321application.core.network.ApiService
+import com.example.cpen321application.core.network.EventStreamApi
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
@@ -15,6 +20,7 @@ import org.junit.Before
 import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 /**
  * MatchmakingRepositoryImpl against a fake backend (MockWebServer), so no emulator is needed.
@@ -42,7 +48,8 @@ class MatchmakingRepositoryTest {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
-        return MatchmakingRepositoryImpl(AuthSession(api, user) {}, api)
+        val events = EventStreamApi(OkHttpClient.Builder().readTimeout(5, TimeUnit.SECONDS).build(), server.url("/"))
+        return MatchmakingRepositoryImpl(AuthSession(api, user) {}, api, events)
     }
 
     private fun respond(code: Int, body: String = "") {
@@ -161,39 +168,43 @@ class MatchmakingRepositoryTest {
         assertTrue(repository().queuedFormat().isFailure)
     }
 
-    // Input: load the players nearby while queued; backend answers 200
-    // Expected behavior: GET /matchmaking/nearby with the token
-    // Expected output: the center and the other players' points
+    // Input: the backend's queue stream sends the players nearby, then the player is matched out of the queue
+    // Expected behavior: GET /matchmaking/events with the token, held open rather than polled
+    // Expected output: Nearby with the center and the other players' points, then NotQueued
     @Test
-    fun nearbyPlayersReturnsTheCenterAndPlayers() = runBlocking {
-        respond(
-            200,
-            """{"center":{"latitude":49.2596,"longitude":-123.2432},"players":[{"latitude":49.268,"longitude":-123.168}]}"""
+    fun queueUpdatesEmitsNearbyThenNotQueued() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                "event: nearby\n" +
+                    "data: {\"center\":{\"latitude\":49.2596,\"longitude\":-123.2432}," +
+                    "\"players\":[{\"latitude\":49.268,\"longitude\":-123.168}]}\n\n" +
+                    ": ping\n\n" +
+                    "event: notQueued\ndata: {}\n\n"
+            )
         )
 
-        val nearby = repository().nearbyPlayers().getOrThrow()
+        val updates = withTimeout(5_000) { repository().queueUpdates().take(2).toList() }
 
-        val request = server.takeRequest()
-        assertEquals("/matchmaking/nearby", request.path)
+        val request = server.takeRequest(1, TimeUnit.SECONDS)!!
+        assertEquals("/matchmaking/events", request.path)
         assertEquals("Bearer access", request.getHeader("Authorization"))
-        assertEquals(NearbyPlayers(MapPoint(49.2596, -123.2432), listOf(MapPoint(49.268, -123.168))), nearby)
+        assertEquals(
+            listOf(
+                QueueUpdate.Nearby(NearbyPlayers(MapPoint(49.2596, -123.2432), listOf(MapPoint(49.268, -123.168)))),
+                QueueUpdate.NotQueued
+            ),
+            updates
+        )
     }
 
-    // Input: load the players nearby after being matched; backend answers 404
-    // Expected output: success with null, the player is no longer searching
+    // Input: signed out
+    // Expected behavior: no stream is opened
+    // Expected output: the flow ends right away with nothing
     @Test
-    fun nearbyPlayersNotInQueueIsNull() = runBlocking {
-        respond(404, """{"error":"Not in the queue"}""")
+    fun queueUpdatesSignedOutEndsRightAway() = runBlocking {
+        val updates = withTimeout(5_000) { repository(user = null).queueUpdates().toList() }
 
-        assertNull(repository().nearbyPlayers().getOrThrow())
-    }
-
-    // Input: load the players nearby; backend answers 500
-    // Expected output: failure
-    @Test
-    fun nearbyPlayersServerErrorFails() = runBlocking {
-        respond(500)
-
-        assertTrue(repository().nearbyPlayers().isFailure)
+        assertTrue(updates.isEmpty())
+        assertEquals(0, server.requestCount)
     }
 }

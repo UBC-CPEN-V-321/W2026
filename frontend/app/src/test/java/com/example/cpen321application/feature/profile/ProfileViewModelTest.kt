@@ -212,7 +212,6 @@ class ProfileViewModelTest {
                 override suspend fun getQueueEntry(authorization: String) = TODO()
                 override suspend fun joinQueue(authorization: String, request: JoinQueueRequestDto) = TODO()
                 override suspend fun leaveQueue(authorization: String) = TODO()
-                override suspend fun getNearbyPlayers(authorization: String) = TODO()
                 override suspend fun getFriends(authorization: String) = TODO()
                 override suspend fun removeFriend(authorization: String, userId: String) = TODO()
                 override suspend fun getFriendRequests(authorization: String) = TODO()

@@ -32,7 +32,7 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
     var joinResult: Result<Unit> = Result.success(Unit)
     var leaveResult: Result<Unit> = Result.success(Unit)
     var queuedResult: Result<MatchFormat?> = Result.success(null)
-    var nearbyResult: Result<NearbyPlayers?> = Result.success(null)
+    var queueStream: Flow<QueueUpdate> = emptyFlow()
     val joined = mutableListOf<Pair<MatchFormat, MatchLocation>>()
     // Runs while the join request is on its way, e.g. a match push arriving before its answer
     var duringJoin: suspend () -> Unit = {}
@@ -51,7 +51,7 @@ private class FakeMatchmakingRepository : MatchmakingRepository {
 
     override suspend fun queuedFormat(): Result<MatchFormat?> = queuedResult
 
-    override suspend fun nearbyPlayers(): Result<NearbyPlayers?> = nearbyResult
+    override fun queueUpdates(): Flow<QueueUpdate> = queueStream
 }
 
 /**
@@ -856,74 +856,81 @@ class MatchmakingViewModelTest {
     }
 
     private val nearbyUbc = NearbyPlayers(MapPoint(49.2606, -123.246), listOf(MapPoint(49.268, -123.168)))
+    private val nearbyTwo = NearbyPlayers(
+        MapPoint(49.2606, -123.246),
+        listOf(MapPoint(49.268, -123.168), MapPoint(49.264, -123.2))
+    )
 
-    // Input: waiting in the queue; backend lists one player nearby
-    // Expected output: the map gets that player
+    // Input: waiting in the queue; the stream sends one player nearby, then a second one who joined
+    // Expected output: the map follows the pushes and ends with both players, with nothing polled
     @Test
-    fun refreshNearbyShowsThePlayersNearby() = runBlocking {
+    fun followQueueShowsEachPushOfThePlayersNearby() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc), QueueUpdate.Nearby(nearbyTwo))
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
-        assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+        assertEquals(nearbyTwo, viewModel.uiState.value.nearby)
     }
 
-    // Input: not in the queue
-    // Expected output: nothing is loaded, the map stays empty
+    // Input: not in the queue, and the stream sends players nearby anyway
+    // Expected output: the map stays empty
     @Test
-    fun refreshNearbyDoesNothingWhenNotSearching() = runBlocking {
+    fun followQueueIgnoresPushesWhenNotSearching() = runBlocking {
         val viewModel = newViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc))
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
         assertNull(viewModel.uiState.value.nearby)
     }
 
-    // Input: dots already loaded, then a load fails
-    // Expected output: the last dots stay, the next load tries again
+    // Input: dots already shown, then the backend refuses the stream when it reconnects
+    // Expected output: the last dots stay, and no error is shown
     @Test
-    fun refreshNearbyKeepsTheLastDotsWhenALoadFails() = runBlocking {
+    fun followQueueKeepsTheLastDotsWhenRefused() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
-        viewModel.refreshNearby()
-        repository.nearbyResult = Result.failure(IOException("offline"))
+        repository.queueStream = flow {
+            emit(QueueUpdate.Nearby(nearbyUbc))
+            throw HttpException(Response.error<Unit>(401, "".toResponseBody()))
+        }
 
-        viewModel.refreshNearby()
+        viewModel.followQueue()
 
         assertEquals(nearbyUbc, viewModel.uiState.value.nearby)
+        assertNull(viewModel.uiState.value.errorMessage)
     }
 
-    // Input: dots loaded during a search, then the player leaves and searches again
+    // Input: searching; the stream says the player is no longer queued (matchmaking took them out)
+    // Expected behavior: the map stops, nothing else is fetched: the match comes from the live games (followMatches)
+    // Expected output: still showing the search, no match, no "fell through"
+    @Test
+    fun followQueueLeavesTheMatchToTheLiveGames() = runBlocking {
+        val viewModel = queuedViewModel()
+        repository.queuedResult = Result.success(null)
+        games.myGamesResult = Result.success(listOf(match()))
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc), QueueUpdate.NotQueued)
+
+        viewModel.followQueue()
+
+        assertTrue(viewModel.uiState.value.isSearching)
+        assertNull(viewModel.uiState.value.match)
+        assertFalse(viewModel.uiState.value.matchFellThrough)
+    }
+
+    // Input: dots shown during a search, then the player leaves and searches again
     // Expected output: the new search starts with no dots instead of the old search's
     @Test
     fun searchingAgainClearsTheOldDots() = runBlocking {
         val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(nearbyUbc)
-        viewModel.refreshNearby()
+        repository.queueStream = flowOf(QueueUpdate.Nearby(nearbyUbc))
+        viewModel.followQueue()
         viewModel.onLeaveQueue()
 
         viewModel.onFindMatch()
 
         assertTrue(viewModel.uiState.value.isSearching)
         assertNull(viewModel.uiState.value.nearby)
-    }
-
-    // Input: searching on the Play tab; the map's load answers "not in the queue" because matchmaking took the
-    // player out with a game, and its push never arrived
-    // Expected output: not searching, the match pop-up shows that game
-    @Test
-    fun refreshNearbyShowsTheMatchOnceOutOfTheQueue() = runBlocking {
-        val viewModel = queuedViewModel()
-        repository.nearbyResult = Result.success(null)
-        repository.queuedResult = Result.success(null)
-        games.myGamesResult = Result.success(listOf(match()))
-
-        viewModel.refreshNearby()
-
-        assertFalse(viewModel.uiState.value.isSearching)
-        assertEquals(match(), viewModel.uiState.value.match)
     }
 
     // Input: searching; the live games list pushes the new match, and no push arrives

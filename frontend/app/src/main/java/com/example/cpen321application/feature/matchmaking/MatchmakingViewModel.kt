@@ -178,21 +178,19 @@ class MatchmakingViewModel(
     }
 
     /**
-     * Loads the players searching near this one, for the queue card's map.
-     * A failed load keeps the last dots, the next one tries again. The backend answering that the player is no
-     * longer queued means matchmaking took them out, so the match is looked up then
+     * Shows the players searching near this one on the queue card's map, as the backend pushes them: when the
+     * stream opens, then whenever anyone joins or leaves the queue. Nothing is polled. Reconnects after the
+     * connection drops, keeping the last dots meanwhile; a refused stream leaves the map as it is
      */
-    suspend fun refreshNearby() {
-        if (!_uiState.value.isSearching) {
-            return
-        }
-        val result = repository.nearbyPlayers()
-        val nearby = result.getOrNull()
-        when {
-            result.isSuccess && nearby == null -> checkQueue()
-            // Not if the player was matched or left while this load was on its way
-            nearby != null && _uiState.value.isSearching -> _uiState.update { it.copy(nearby = nearby) }
-        }
+    suspend fun followQueue() {
+        repository.queueUpdates()
+            .reconnecting { }
+            .collect { update ->
+                // Not once the player was matched or left: the map is gone, and the match comes from followMatches
+                if (update is QueueUpdate.Nearby && _uiState.value.isSearching) {
+                    _uiState.update { it.copy(nearby = update.players) }
+                }
+            }
     }
 
     /**
