@@ -48,12 +48,6 @@
 | **DELETE /api/v1/auth/session** | [`backend/tests/no-mock/auth/auth.test.ts`](../backend/tests/no-mock/auth/auth.test.ts) | [`backend/tests/mock/auth/auth.test.ts`](../backend/tests/mock/auth/auth.test.ts) | `GoogleTokenVerifier`; `UserRepository`; `SessionRepository` |
 | **GET /api/v1/users/:userId/events** | [`backend/tests/no-mock/events/events.test.ts`](../backend/tests/no-mock/events/events.test.ts) | [`backend/tests/mock/events/events.test.ts`](../backend/tests/mock/events/events.test.ts) | `UserRepository`; `EventRepository`; `SessionService` path-validator test double |
 
-The authentication and session endpoints intentionally use two test locations. Functional Authentication tests are stored alongside the other feature tests: `POST /api/v1/auth/google` covers use cases **3.4.4.1 Sign In with Google** and **3.4.4.2 Sign Up with Google**, while `DELETE /api/v1/auth/session` covers **3.4.4.3 Sign Out**. `GET /api/v1/auth/session`, session expiry and revocation, hash-only persistence, missing-session rejection, and cross-user ownership enforcement implement **Security NFR1**, so those tests are stored under `backend/tests/nfr/{mock,no-mock}/session/`.
-
-Live Events exposes only this one HTTP interface. Ticketmaster synchronization (`syncEvents`) is run by a script (`npm run sync:events`, in `backend/scripts/sync-events.ts`) rather than an HTTP route, so it has no row above. The Ticketmaster client, event synchronization, `EventDao`, and event recommendation service are covered by supporting tests in the same `events` test folders. The Ticketmaster API is never called from the automated suite. The no-mock supporting tests ([`backend/tests/no-mock/events/eventSync.test.ts`](../backend/tests/no-mock/events/eventSync.test.ts)) run the real client and `syncEvents` over real HTTP against a small local server that stands in for Ticketmaster, with a real database. The mock supporting tests replace `fetch` and the repository to cover the failure cases.
-
-Itinerary time conflicts for activities (an added or edited activity that overlaps stored items, and the `replaceConflicts=true` option that replaces them) are covered in [`backend/tests/no-mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/no-mock/itineraries/itineraryConflicts.test.ts) (real database: the 409 conflict response, the touching-boundary and one-millisecond cases, replacing one or several items, validation before replacement, and the repository guards) and [`backend/tests/mock/itineraries/itineraryConflicts.test.ts`](../backend/tests/mock/itineraries/itineraryConflicts.test.ts) (replacement write failures and a repository without replace support). Time conflicts for transportation segments are not yet covered by these tests.
-
 #### 2.1.2. Commit Hash Where Tests Run
 
 `e6ef990670878b6254742872eb9716887a76a2d7`
@@ -86,8 +80,6 @@ Run `npm run test:mock` to generate the HTML report under `backend/coverage/mock
 ![Mocked test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-mock.png)
 The mocked suites cover 76.40% of statements, 66.62% of branches, 79.69% of functions, and 77.40% of lines. The map router has 100% coverage in this run. Lower standalone mock coverage is expected because these tests focus on provider failures, database exceptions, vector edge cases, and concurrency-related error handling rather than normal API behavior.
 
-**Live Events:** The mocked Live Events suites are included in this report. They cover controlled Ticketmaster configuration and transport failures, retry behavior, repository failures, invalid pagination, and optional-field fallbacks.
-
 ### 2.4. Jest Coverage Report Screenshots Without Mocks
 
 
@@ -95,16 +87,12 @@ Run `npm run test:no-mock` to generate the HTML report under `backend/coverage/n
 ![No-mock test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-no-mock.png)
 The latest `npm run test:no-mock` run passed all 10 suites and all 291 tests in 131.444 seconds. It covers 96.07% of statements, 90.68% of branches, 99.65% of functions, and 96.21% of lines. The enforced no-mock thresholds are 95% of statements, 89% of branches, 99% of functions, and 95% of lines. The map suite exercises the real Express router, services, MongoDB DAOs, session ownership middleware, Google Geocoding API, and Google Routes API. External-provider clients use real HTTP against deterministic local provider servers where practical, while MongoDB and application components remain unmocked.
 
-**Live Events:** In the no-mock report, `src/events` reaches 95.00% statement, 84.42% branch, 100% function, and 94.83% line coverage. These tests exercise the real Express, service, DAO, synchronization, and HTTP-client paths against MongoDB and a deterministic local Ticketmaster-compatible server.
-
 ### 2.5. Jest Coverage Report Screenshots (Mock + No-Mocks)
 
 
 Run `npm run test:combined` to generate the HTML report under `backend/coverage/combined`.
 ![Combined test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-combined.png)
 The latest `npm run test:combined` run passed all 23 suites and all 529 tests in 214.405 seconds. It covers 98.94% of statements, 97.26% of branches, 100% of functions, and 99.03% of lines. The maps feature reaches 98.97% of statements, 98.49% of branches, 100% of functions, and 98.95% of lines. This exceeds the combined global thresholds of 98% statements, 96% branches, 99% functions, and 98% lines.
-
-**Live Events:** In the combined report, `src/events` reaches 100% statement, 99.18% branch, 100% function, and 100% line coverage.
 
 ### 2.6. Coverage Justifications
 
@@ -128,16 +116,6 @@ The only uncovered area is:
 | **Accessibility**               | [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityTest.kt)<br>[`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AccessibilityScreenScalingTest.kt) |
 | **Security** | Frontend component test: [`SessionRestorationNfrTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/SessionRestorationNfrTest.kt)<br>Frontend real-backend NFR integration test: [`AuthorizationNfrTest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AuthorizationNfrTest.kt)<br>Backend with mocks: [`nfr/mock/session/session.test.ts`](../backend/tests/nfr/mock/session/session.test.ts)<br>Backend without mocks: [`nfr/no-mock/session/session.test.ts`](../backend/tests/nfr/no-mock/session/session.test.ts) |
 
-All frontend NFR tests are run by [`scripts/run-frontend-nfr-tests.sh`](../scripts/run-frontend-nfr-tests.sh). The runner discovers every Kotlin test class under `app/src/androidTest/**/nfr`, recreates the disposable `e2e-mongo` database, starts the backend against that database, starts or reuses the Android emulator, installs the app, and runs the discovered classes through `:app:connectedDebugAndroidTest`. The authorization test installs its seeded session fixture automatically, so the runner does not require an interactive Google sign-in.
-
-Prerequisites are Docker, an Android SDK, an available AVD (`Pixel_9` by default), `backend/.env`, and `frontend/local.properties`. From the repository root, run:
-
-```bash
-./scripts/run-frontend-nfr-tests.sh
-```
-
-Use `AVD_NAME=YourAvdName ./scripts/run-frontend-nfr-tests.sh` to select another emulator. The backend and databases remain available after the tests. No cleanup is required; `docker compose down` is only an optional way to stop all ExploreUBC Docker services when they are no longer needed.
-
 ### 3.2. Test Verification and Logs
 
 #### Security
@@ -151,7 +129,7 @@ Use `AVD_NAME=YourAvdName ./scripts/run-frontend-nfr-tests.sh` to select another
 | **NFR-SEC-FE-2** | A logged-in user requests another user's protected resource. | The real backend rejects the request with `403 Forbidden`, and the other user's resource is not returned. | `AuthorizationNfrTest.authenticatedUserCannotReadDatabaseInitUser`. |
 
 - **Verification:** The backend NFR suites cover restoration, rolling renewal, missing and malformed credentials, expiry, revocation, hash-only persistence, missing users, and ownership middleware. `SessionRestorationNfrTest` verifies the frontend restore contract and fail-closed clearing with a controlled backend boundary. `AuthorizationNfrTest` is a separate real-backend NFR integration test: it sends one request without a token and one request using an authenticated session against another user's ID. Neither frontend NFR test exercises Google login or logout, and neither is part of the frontend feature-E2E package.
-- **Run instructions:** Run `./scripts/run-frontend-nfr-tests.sh` from the repository root. The script supplies the seeded cross-user session and real backend required by `AuthorizationNfrTest`; `SessionRestorationNfrTest` uses a controlled backend boundary and needs no external account. Run the backend NFR suites separately with `./scripts/run-backend-nfr-tests.sh`.
+
 - **Frontend NFR success log:**
 
   ```text
@@ -190,10 +168,7 @@ Use `AVD_NAME=YourAvdName ./scripts/run-frontend-nfr-tests.sh` to select another
 - **Accessibility: Automated Test Suite Execution**
 
   - **Verification:** The accessibility tests are included automatically with the Security frontend NFR tests because the runner discovers every test class in the `nfr` package.
-  - **Run command:**
-    ```
-    ./scripts/run-frontend-nfr-tests.sh
-    ```
+
 - **Accessibility: Manual TalkBack Verification**
 
   - **Verification:** TalkBack was enabled on the Pixel 9 API 36 emulator. Each primary navigation destination was focused and activated. TalkBack announced the same destination name shown in the interface, and each item remained operable.
@@ -225,8 +200,6 @@ Use `AVD_NAME=YourAvdName ./scripts/run-frontend-nfr-tests.sh` to select another
 ## 4. Front-end Test Specification
 
 ### 4.1. Location in Git of Front-end Test Suite:
-
-Authentication use cases 3.4.4.1 through 3.4.4.3 are outside the selected frontend feature-E2E scope. Google sign-in, first-time account creation, and sign-out are covered by the backend functional Authentication suites listed in Section 2. The frontend E2E fixtures begin with a seeded authenticated ExploreUBC session and therefore do not claim to test Google login. Session rejection and cross-user authorization are covered separately as Security NFR scenarios in Section 3.
 
 - Itinerary scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/itineraries/ItineraryE2ETest.kt)
 - Map scenarios: [`frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt`](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/e2e/maps/MapE2ETest.kt)
