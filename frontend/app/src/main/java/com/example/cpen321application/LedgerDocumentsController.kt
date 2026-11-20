@@ -24,8 +24,8 @@ internal class LedgerDocumentsController(private val model: LedgerViewModel) {
                         val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                         if (nameIndex >= 0) name = cursor.getString(nameIndex).orEmpty().take(180)
                         val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                        if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) require(cursor.getLong(sizeIndex) <= 100L * 1024 * 1024) {
-                            "This file is too large. PDFs and CSVs support up to 20 MB; source images up to 100 MB."
+                        if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) require(cursor.getLong(sizeIndex) <= LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) {
+                            "This file is too large. Choose a file of 20 MB or smaller."
                         }
                     }
                 }
@@ -40,7 +40,7 @@ internal class LedgerDocumentsController(private val model: LedgerViewModel) {
                                 val count = input.read(buffer)
                                 if (count < 0) break
                                 total += count
-                                require(total <= if (mime.startsWith("image/")) 100L * 1024 * 1024 else LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) { "This file is too large. PDFs and CSVs support up to 20 MB; source images up to 100 MB." }
+                                require(total <= LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) { "This file is too large. Choose a file of 20 MB or smaller." }
                                 output.write(buffer, 0, count)
                             }
                         }
@@ -92,7 +92,7 @@ internal class LedgerDocumentsController(private val model: LedgerViewModel) {
             runOperation("Reading photo…") {
                 try {
                     val bytes = withContext(Dispatchers.IO) {
-                        require(file.length() in 1..100L * 1024 * 1024) { "Choose an image smaller than 100 MB." }
+                        require(file.length() in 1..LedgerRepository.MAX_DOCUMENT_BYTES.toLong()) { "Choose a nonempty image of 20 MB or smaller." }
                         if (file.length() > LedgerRepository.MAX_IMAGE_BYTES) compressReceiptImage(file) else file.readBytes()
                     }
                     setDocument("Receipt photo.jpg", "image/jpeg", bytes)

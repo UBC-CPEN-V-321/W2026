@@ -97,27 +97,27 @@ internal fun AccountScreen(session: Session, onAccountUpdated: (Account) -> Unit
         dismissButton = { BarButton(onClick = { confirmLogout = false }) { Text(t("Cancel")) } })
 }
 
-private enum class GuestPage { Home, SignIn, SignUp, Contact }
+internal enum class GuestPage { Home, SignIn, SignUp, Contact }
 
 /** Me while signed out: device settings stay available, and sign-in or sign-up opens on request. */
 @Composable
-internal fun GuestAccountScreen(notice: String?, onSignedIn: (Session) -> Unit, onNavigate: suspend () -> Unit = {}) {
-    var page by rememberSaveable { mutableStateOf(GuestPage.Home) }
+internal fun GuestAccountScreen(notice: String?, page: GuestPage, onPageChange: (GuestPage) -> Unit,
+    onSignedIn: (Session) -> Unit, onNavigate: suspend () -> Unit = {}) {
     var message by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(page) { onNavigate() }
-    BackHandler(page != GuestPage.Home) { page = GuestPage.Home }
-    if (page == GuestPage.Contact) BackBar("Back", onClick = { page = GuestPage.Home })
+    BackHandler(page != GuestPage.Home) { onPageChange(GuestPage.Home) }
+    if (page == GuestPage.Contact) BackBar("Back", onClick = { onPageChange(GuestPage.Home) })
     when (page) {
         GuestPage.Home -> {
             Text(t("Me"), style = MaterialTheme.typography.headlineMedium)
             (message ?: notice)?.let { Text(t(it), modifier = Modifier.testTag("account-notice")) }
-            GuestProfileCard(onSignIn = { page = GuestPage.SignIn }, onSignUp = { page = GuestPage.SignUp })
+            GuestProfileCard(onSignIn = { onPageChange(GuestPage.SignIn) }, onSignUp = { onPageChange(GuestPage.SignUp) })
             AccountSectionTitle("Preferences")
-            SettingRowsWithoutAccount(true, onContact = { page = GuestPage.Contact },
+            SettingRowsWithoutAccount(true, onContact = { onPageChange(GuestPage.Contact) },
                 onNotice = { message = it })
         }
         GuestPage.SignIn, GuestPage.SignUp -> key(page) {
-            SignInPage(notice = notice, startWithSignUp = page == GuestPage.SignUp, onSignedIn = onSignedIn, onBack = { page = GuestPage.Home })
+            SignInPage(notice = notice, startWithSignUp = page == GuestPage.SignUp, onSignedIn = onSignedIn, onBack = { onPageChange(GuestPage.Home) })
         }
         GuestPage.Contact -> ContactSettings()
     }
