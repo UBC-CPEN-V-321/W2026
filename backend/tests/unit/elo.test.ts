@@ -128,6 +128,16 @@ describe('Unit: calculateELOChange — behavior', () => {
     expect(blowout[0]?.ratingAfter).toBeGreaterThan(narrow[0]?.ratingAfter ?? Infinity);
   });
 
+  // Input: the same matchup won 8-6, 6-4 and won 99-97, 6-4: a long advantage set against a short one
+  // Expected behavior: the margin of victory counts the games difference, 2 in both sets, not their size
+  // Expected output: the same rating change for both players
+  test('A long set won by 2 counts like a short set won by 2', () => {
+    const short = calculateELOChange(players, singlesGame([[8, 6], [6, 4]]));
+    const long = calculateELOChange(players, singlesGame([[99, 97], [6, 4]]));
+
+    expect(long).toEqual(short);
+  });
+
   // Input: the same 7-5, 7-5 win by a 1500-rated player against a 1300 and a 1700
   // Expected behavior: beating a stronger opponent earns more rating
   // Expected output: the upset winner gains more than the favorite

@@ -50,6 +50,25 @@ class ScoreInputTest {
         )
     }
 
+    // Input: sets that can happen in tennis: 7–5, a 7–6 tiebreak set, and long advantage sets won by 2
+    // Expected output: no error
+    @Test
+    fun acceptsSetsWonBy2PastSixGamesOrSevenSix() {
+        assertNull(scoreError(listOf(RoundInput("7", "5"), RoundInput("6", "7"), RoundInput("7", "6"))))
+        assertNull(scoreError(listOf(RoundInput("8", "6"), RoundInput("97", "99"), RoundInput("99", "97"))))
+    }
+
+    // Input: sets past 6 games that weren't won by 2 and aren't 7–6: the 99–0 blowout from the review, 9–3 and 8–5
+    // Expected output: says which set to fix and what a set past 6 games looks like
+    @Test
+    fun rejectsSetsPastSixGamesNotWonBy2() {
+        val expected = { set: Int -> "Set $set: past 6 games, a set is won by 2 games, or 7–6." }
+
+        assertEquals(expected(1), scoreError(listOf(RoundInput("99", "0"), RoundInput("6", "4"))))
+        assertEquals(expected(2), scoreError(listOf(RoundInput("6", "4"), RoundInput("9", "3"))))
+        assertEquals(expected(2), scoreError(listOf(RoundInput("6", "4"), RoundInput("5", "8"), RoundInput("6", "1"))))
+    }
+
     // Input: each team won one set
     // Expected output: explains there is no winner
     @Test

@@ -66,6 +66,24 @@ export const changeGameLocationSchema = z.strictObject({
   courtId: courtIdSchema,
 });
 
+// A set is won at 6 games. Past 6, it is won by exactly 2 games, or 7-6 after a tiebreak
+const SET_GAMES = 6;
+
+/**
+ * Checks that a set's score could happen in tennis: any score up to 6 games, and past 6 a 2-game margin or 7-6.
+ * This also bounds each set's games difference, which the rating's margin of victory counts: 99-97 counts like 8-6,
+ * and 99-0 can't be entered
+ * @param round the [team 1 score, team 2 score] of one set, not tied
+ * @returns whether the set is allowed
+ */
+function isLegalSet([team1, team2]: [number, number]): boolean {
+  const winner = Math.max(team1, team2);
+  const loser = Math.min(team1, team2);
+  const wonByTwo = winner - loser === 2;
+  const tiebreak = winner === SET_GAMES + 1 && loser === SET_GAMES;
+  return winner <= SET_GAMES || wonByTwo || tiebreak;
+}
+
 export const reportScoreSchema = z.strictObject({
   gameId: z.uuid(),
   rounds: z
@@ -75,6 +93,15 @@ export const reportScoreSchema = z.strictObject({
       const tiedRound = rounds.findIndex(([team1, team2]) => team1 === team2);
       if (tiedRound !== -1) {
         ctx.addIssue({ code: "custom", message: `round ${tiedRound + 1} is tied` });
+        return;
+      }
+
+      const illegalRound = rounds.findIndex((round) => !isLegalSet(round));
+      if (illegalRound !== -1) {
+        ctx.addIssue({
+          code: "custom",
+          message: `round ${illegalRound + 1}: past 6 games a set is won by 2 games, or 7-6`,
+        });
         return;
       }
 

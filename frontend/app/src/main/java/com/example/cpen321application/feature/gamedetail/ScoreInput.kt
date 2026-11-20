@@ -26,6 +26,9 @@ fun scoreError(rounds: List<RoundInput>): String? {
         if (team1 == team2) {
             return "Set ${index + 1} is tied. A set needs a winner."
         }
+        if (!isLegalSet(team1, team2)) {
+            return "Set ${index + 1}: past 6 games, a set is won by 2 games, or 7–6."
+        }
         if (team1 > team2) {
             team1Wins++
         }
@@ -40,6 +43,18 @@ fun scoreError(rounds: List<RoundInput>): String? {
 }
 
 private fun parseNonNegativeScore(text: String): Int? = text.trim().toIntOrNull()?.takeIf { it >= 0 }
+
+// A set is won at 6 games. Past 6, it is won by exactly 2 games, or 7–6 after a tiebreak
+private const val SET_GAMES = 6
+
+// Same rule as the backend: any score up to 6 games, and past 6 a 2-game margin or 7–6. The set isn't tied
+private fun isLegalSet(team1: Int, team2: Int): Boolean {
+    val winner = maxOf(team1, team2)
+    val loser = minOf(team1, team2)
+    val wonByTwo = winner - loser == 2
+    val tiebreak = winner == SET_GAMES + 1 && loser == SET_GAMES
+    return winner <= SET_GAMES || wonByTwo || tiebreak
+}
 
 /**
  * @return the (team 1, team 2) score of each set. Only call it once scoreError returned null
