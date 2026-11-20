@@ -54,6 +54,16 @@ if (
   throw new Error(`Invalid EVENT_SEARCH_PAGE_SIZE: ${rawEventSearchPageSize}`);
 }
 
+const eventSearchStateCode = process.env.EVENT_SEARCH_STATE_CODE?.trim();
+if (eventSearchStateCode === undefined || eventSearchStateCode === "") {
+  throw new Error("EVENT_SEARCH_STATE_CODE is required.");
+}
+
+const eventSearchCountryCode = process.env.EVENT_SEARCH_COUNTRY_CODE?.trim();
+if (eventSearchCountryCode === undefined || eventSearchCountryCode === "") {
+  throw new Error("EVENT_SEARCH_COUNTRY_CODE is required.");
+}
+
 const rawSoclaasMaxOutputTokens = process.env.SOCLAAS_MAX_OUTPUT_TOKENS;
 const soclaasMaxOutputTokens =
   rawSoclaasMaxOutputTokens === undefined || rawSoclaasMaxOutputTokens === ""
@@ -80,9 +90,8 @@ export const env = {
     baseUrl:
       process.env.TICKETMASTER_BASE_URL ??
       "https://app.ticketmaster.com/discovery/v2",
-    city: process.env.EVENT_SEARCH_CITY ?? "Vancouver",
-    stateCode: process.env.EVENT_SEARCH_STATE_CODE ?? "BC",
-    countryCode: process.env.EVENT_SEARCH_COUNTRY_CODE ?? "CA",
+    stateCode: eventSearchStateCode,
+    countryCode: eventSearchCountryCode,
     pageSize: eventSearchPageSize,
   },
   soclaas: {
