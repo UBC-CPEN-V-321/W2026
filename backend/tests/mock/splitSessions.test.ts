@@ -137,6 +137,31 @@ describe('Mocked: POST /api/split-sessions/:sessionId/claims', () => {
 
 // Interface POST /api/split-sessions/:sessionId/finalize
 describe('Mocked: POST /api/split-sessions/:sessionId/finalize', () => {
+  // Input: a retry after finalization; mock: authorization reads the pre-finalization snapshot
+  // Expected status code: 200 for identical details; 409 for a changed version
+  // Expected behavior: a concurrent completion is replayed, but changed payloads are still rejected
+  // Expected output: the original expense for a valid replay; one persisted expense/operation/event
+  test.each([{ version: 1, status: 200 }, { version: 0, status: 409 }])(
+    'Handles a stale authorization read with version $version', async ({ version, status }) => {
+      const sessionId = await startedSession();
+      expect((await claim(sessionId)).status).toBe(200);
+      const stale = await SplitSessionModel.findById(sessionId);
+      const completed = await finalize(sessionId);
+      expect(completed.status).toBe(200);
+      const query = SplitSessionModel.findById(sessionId);
+      jest.spyOn(query, 'exec').mockResolvedValueOnce(stale);
+      jest.spyOn(SplitSessionModel, 'findById').mockReturnValueOnce(query);
+      const replay = await request(fixture.app).post(`/api/split-sessions/${sessionId}/finalize`)
+        .set('Authorization', fixture.ownerAuth).send({ version, operationKey: 'mock-final-000000001' });
+      expect(replay.status).toBe(status);
+      if (status === 200) expect(replay.body.expense.id).toBe(completed.body.expense.id);
+      else expect(replay.body).toHaveProperty('error');
+      expect(await ExpenseModel.countDocuments({ splitSessionId: sessionId })).toBe(1);
+      const stored = await SplitSessionModel.findById(sessionId).lean();
+      expect(stored?.operations.filter(op => op.type === 'finalize')).toHaveLength(1);
+      expect(stored?.events.filter(event => event.type === 'finalized')).toHaveLength(1);
+    });
+
   // Input: the owner finalizes a fully claimed session twice; mock: the first expense insert rejects
   // Expected status code: 500, then 200
   // Expected behavior: the persisted finalize intent lets the retry post exactly one expense

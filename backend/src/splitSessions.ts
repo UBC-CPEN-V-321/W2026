@@ -436,7 +436,16 @@ export function createSplitSessionsRouter(users: UserStore, sessions: SessionSto
       } else {
         const elsewhere = await SplitSessionModel.findOne().setOptions({ sanitizeFilter: true })
           .where('operations.operationKey').equals(operationKey).lean<SplitSessionRecord>();
-        if (elsewhere) { claimError(res, 409, 'This operation key has already been used.', session); return; }
+        if (elsewhere) {
+          // Another identical request can persist its intent after authorization read
+          // the old snapshot. Recover that same operation instead of reporting a collision.
+          const replay = currentOperation(elsewhere, operationKey, user.id);
+          if (elsewhere._id.toString() !== session._id.toString() || !replay ||
+              !sameOperationPayload(replay, 'finalize', payload)) {
+            claimError(res, 409, 'This operation key has already been used.', session); return;
+          }
+          session = elsewhere;
+        }
       }
       if (session.status === 'finalized') {
         const expense = session.finalizedExpenseId ? await ExpenseModel.findById(session.finalizedExpenseId).lean() : null;
@@ -463,7 +472,8 @@ export function createSplitSessionsRouter(users: UserStore, sessions: SessionSto
           if (latest?.status === 'finalizing' && latest.finalizeOperationKey === operationKey && replay &&
               sameOperationPayload(replay, 'finalize', payload)) {
             session = latest;
-          } else if (latest?.status === 'finalized' && latest.finalizeOperationKey === operationKey && replay?.expenseId) {
+          } else if (latest?.status === 'finalized' && latest.finalizeOperationKey === operationKey && replay?.expenseId &&
+              sameOperationPayload(replay, 'finalize', payload)) {
             const expense = await ExpenseModel.findById(replay.expenseId).lean();
             if (!expense) { res.status(503).json({ error: 'The finalized split expense is unavailable. Retry shortly.' }); return; }
             res.json({ session: splitSessionJson(latest), operation: operationJson(latest, replay), expense: expenseJson(expense) });
