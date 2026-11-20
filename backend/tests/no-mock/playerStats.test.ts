@@ -52,16 +52,16 @@ const auth = (index: number) => users.at(index)?.auth ?? "";
  * Reports a game's score as the given player
  * @param playerIndex 0 for player 1 (team 1), 1 for player 2 (team 2)
  */
-async function report(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
-  return await request(app)
+function report(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
+  return request(app)
     .post("/games/score")
     .set("Authorization", auth(playerIndex))
     .send({ gameId: gameIds.at(gameIndex), rounds });
 }
 
 /** Confirms the score waiting in a game as the given player */
-async function confirm(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
-  return await request(app)
+function confirm(gameIndex: number, playerIndex: number, rounds: [number, number][]) {
+  return request(app)
     .post("/games/score/confirm")
     .set("Authorization", auth(playerIndex))
     .send({ gameId: gameIds.at(gameIndex), rounds });

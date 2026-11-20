@@ -95,20 +95,20 @@ function authOfSeed(players: Player[], seed: number | null): string {
  * Starts a bracket match, reports its score as its team 1 player, and confirms it as its team 2 player, which
  * completes it (the tournament is singles). Only a started game can be scored; a match started earlier answers the
  * start with 409, which is fine here
- * @returns the response to the confirmation, the one that completes the game
+ * @returns the response to the confirmation, the one that completes the game, or to the report if it failed. A
+ * promise chain rather than an async helper: a failed request rejects it, which fails the test awaiting it
  */
-async function reportMatch(players: Player[], match: Match, rounds: [number, number][]) {
+function reportMatch(players: Player[], match: Match, rounds: [number, number][]): Promise<request.Response> {
   const reporter = authOfSeed(players, match.team1);
   const body = { gameId: match.game?.id, rounds };
-  await request(app).post("/games/start").set("Authorization", reporter).send({ gameId: match.game?.id });
-  const reported = await request(app).post("/games/score").set("Authorization", reporter).send(body);
-  if (reported.status !== 200) {
-    return reported;
-  }
-  return await request(app)
-    .post("/games/score/confirm")
-    .set("Authorization", authOfSeed(players, match.team2))
-    .send(body);
+  const confirm = () =>
+    request(app).post("/games/score/confirm").set("Authorization", authOfSeed(players, match.team2)).send(body);
+  return request(app)
+    .post("/games/start")
+    .set("Authorization", reporter)
+    .send({ gameId: match.game?.id })
+    .then(() => request(app).post("/games/score").set("Authorization", reporter).send(body))
+    .then((reported) => (reported.status === 200 ? confirm() : reported));
 }
 
 const join = (user: TestUser | undefined, id = tournamentId) =>
