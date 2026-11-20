@@ -8,6 +8,7 @@
 
 | Change Date | Modified Sections | Rationale |
 | --- | --- | --- |
+| 2026-11-19 | 2.4 | Each use case now names a single action. Combined use cases were split, the planned repayment and archival use cases were removed, reconnect recovery was removed because it is a failure scenario rather than a use case, and **View Live Allocations and Totals** was added. Shared expenses are now called group expenses, and every description was rewritten to match the current app. |
 | 2026-11-06 | 2.5 (UC-03), 3.4 | Imported shares are recorded per member on the backend and shown as a disabled **Imported** button. A receipt on one device could not stop a duplicate after a reinstall, a cloud-save load or a sign-in on another device. |
 | 2026-11-06 | 2.4, 2.5 (UC-01, UC-04) | Let's Go Dutch is now started only from the group expense form, through a dedicated button. The group page shows **Claim items** while a split is open, because a separate permanent entry duplicated **Add a bill**. |
 | 2026-11-06 | 2.1, 2.4, 2.5 (UC-01, UC-F1-04), 3.4 | My Expenses, group expenses and Let's Go Dutch now share one **Add a bill** entry, so photos and files work for all three. Receipt recognition returns items, tax and tip, every group split accepts tax and tip, and Let's Go Dutch shares them in proportion to claimed items. Users had to enter the same bill differently in each place, and group bills could not use a receipt. |
@@ -62,47 +63,54 @@ Figure 1 shows every use case in Section 2.4, its actors, and the external syste
 
 | Use case | Description |
 | --- | --- |
-| **Sign In** | Sign in with a Ledger username/password or Google. App then returns to My Expenses or a pending invitation continues.|
-| **Register an Account** | Create an account with a username (3–30 letters, digits, dots, hyphens or underscores), a password of 8–128 characters, and its confirmation. A first-time Google user chooses a username and password, or links an existing Ledger account by entering its username and password. Duplicate usernames and Google identities are rejected. |
-| **View and Edit Account Information** | View the display name, username, sign-in methods, account creation date, and session expiry under Me. Edit the display name and a cropped profile photo, and change the password. A password change requires the current password, or Google confirmation for an account without one. |
-| **Sign Out** | Clear the local session and return to My Expenses. Attempt server-session revocation; if the network is unavailable, the server session still expires at its configured expiry. |
+| **Sign In** | Sign in with a Ledger username and password, or with Google. The app then returns to My Expenses, or continues an invitation that was waiting for sign-in. |
+| **Register an Account** | Create an account with a username (3–30 letters, digits, dots, hyphens or underscores) and a password of 8–128 characters, entered twice. A first-time Google user either sets a username and password for a new account, or links an existing Ledger account by entering its username and password. Each username and Google identity can belong to only one account. |
+| **View Account Information** | Open Me to see the profile photo, display name and contact email. Account settings also show the username and how the account signs in. |
+| **Edit Account Information** | Change the profile photo (take or choose a picture, then crop it), the display name, the optional email and phone number, and the password. Changing the email or password needs the current password, or a Google confirmation for an account without one, and signs out the user's other devices. |
+| **Sign Out** | Log out from Me. If the device holds personal records, the app first asks whether to save them to a cloud slot or delete them from the device. The local session is cleared and the server session is revoked; if the network is unavailable, the server session simply expires. |
 
 #### Feature 1 — Personal Account Management
 
 | Use case | Description |
 | --- | --- |
-| **Import and Review a Receipt (UC-01)** | While signed in, submit a receipt image or PDF for OpenAI Document Recognition through the backend, then review/correct transaction fields and warnings on Android.|
-| **Import a Bank Statement (UC-F1-03)** | Parse supported CSV formats on Android, or submit a supported text PDF to the backend's statement parser. OpenAI extraction is an explicit alternative for documents. Review up to 200 candidate transactions before saving selected entries locally. “Local statement” parsing means parsing within the Ledger backend without external AI. |
-| **Manually Add an Entry (UC-F1-04)** | Enter an income or expense with amount, currency, date, merchant, category, and optional notes. Correct validation errors before saving to SQLite. |
-| **Review and Edit Personal Records (UC-F1-05)** | Browse, filter, edit, and delete local records. Revision checks protect edits and deletion from stale local data. A record shared to a group is an independent copy, so later edits are not propagated. |
-| **Resolve Duplicate Candidates (UC-02)** | Compare draft entries with local records and other selected import rows. Review amount/date/merchant evidence, skip a candidate row or explicitly keep it, then commit selected valid entries locally. |
-| **Convert Currency (UC-F1-06)** | Convert original amounts to a chosen currency using historical quotes, preserving the original amount, rate, effective date, and source.|
-| **Save and Load Cloud Saves (UC-F1-07)** | An authenticated user saves the whole device ledger to one of three named slots, renames or deletes a save, or replaces the device ledger with a save after confirmation. Revisions stop two devices from silently overwriting the same slot.|
+| **Import a Receipt (UC-01)** | While signed in, choose **Add a bill**, then take a receipt photo or choose an image or PDF. Images are compressed on the device to 5 MiB; PDFs can be up to 20 MB. The backend sends the document to OpenAI Document Recognition, which returns the transaction and, for a single receipt, its items, tax and tip. |
+| **Review a Receipt** | Check the recognized transaction before anything is saved: correct the amount, date, merchant or category, and read any warnings. A personal bill is saved to the device only after confirmation; a group bill opens the group expense form with the receipt filled in. |
+| **Import a Bank Statement (UC-F1-03)** | Choose a CSV file, which is parsed on the device, or a text PDF from a supported bank, which the backend parses without AI and checks against the statement totals. OpenAI extraction is available as an explicit alternative. Up to 200 rows appear for review; only the selected, valid rows are saved. |
+| **Manually Add an Entry (UC-F1-04)** | Enter an income or expense with amount, currency, date, merchant, category and optional notes. The form points out invalid fields, and the entry is saved on the device. |
+| **View Personal Records** | My Expenses shows each month's income, spending, net movement and spending by category. Records can be searched by merchant, category or notes and filtered by month and type; each one shows its source and original currency. |
+| **Edit Personal Records** | Open a record to change or delete it, or select several and delete them together after confirmation. A revision check stops an edit from overwriting a newer version. A record already shared to a group is a separate copy, so later edits do not reach the group. |
+| **Resolve Duplicate Candidates (UC-02)** | Extends receipt and statement import. A row that matches an existing record or another row in the same import is marked as a possible duplicate, with the matching amount, date and merchant shown. The user skips the row or chooses to keep it anyway; the import cannot be confirmed until every flagged row is decided. |
+| **Convert Currency (UC-F1-06)** | Choose a reporting currency. Each record is converted with the latest Frankfurter (ECB) rate on or before its date, and keeps its original amount, the rate, the rate date and the source. Saved rates keep working offline. |
+| **Save to the Cloud (UC-F1-07)** | A signed-in user saves the whole device ledger to one of three named cloud slots, and can rename, overwrite or delete a save. Each save has a revision, so two devices cannot silently overwrite the same slot. |
+| **Load a Cloud Save** | Choose a save and confirm to replace the ledger on this device with it. Records not saved to the cloud are lost; the save itself stays in the account. |
 
 #### Feature 2 — Expense Group Management
 
 | Use case | Description |
 | --- | --- |
-| **Create an Expense Group** |An Authenticated user supplies a name and currency, optionally a description. The creator becomes the owner and first member. |
-| **Invite and Join Group Members** |Any member can create an invitation; a signed-in invitee previews and accepts it. Accepting twice adds the member once. Groups allow up to 100 members. |
-| **Rename an Expense Group** |Any Group Member can update the group name. |
-| **Leave Groups or Remove Members** |A Group Member can leave a group, and the Group Owner can remove another members. If the owner leaves, the group is deleted for everyone. Saved expense allocations are kept, and a former member loses access immediately. |
-| **Record and View a Shared Expense** | Any Group Member manually enters a description, group-currency amount, payer, participants, and split mode. The backend calculates/stores shares in integer cents. The app retrieves spending totals and allocated shares, and other members' open group pages update automatically. |
-| **Edit or Delete a Shared Expense** |The expense creator or Group Owner can edit or delete an expense. A change or deletion must match the saved revision; an identical edit returns the existing record. Expenses posted by Let's Go Dutch cannot be edited or deleted. |
-| **Delete an Expense Group** |Only the Group Owner can delete it. It disappears from members' active lists and its invitations stop working. This action has no settlement prerequisite and provides no read-only archive interface. |
-| **Reuse and Split a Personal Bill (UC-03)** |Share one or more personal expenses to groups with the same currency after confirming which fields become visible. Each group receives an independent copy split equally among its current members, with the sharer as payer. In the other direction, a member imports their own share of a group expense into the personal ledger. |
-| **Choose an Extended Split Method** |Equal split, Percentage and Custom amounts. The form's **Let's Go Dutch** button hands the bill over for itemized allocation. Custom amounts can share a receipt's own tax and tip in proportion to each person's pretax amount. |
-| **Record and Confirm a Repayment** | Planned. Record a payment between members and obtain the recipient's confirmation before updating net balances. Ledger will record payments, not transfer money. |
-| **Archive an Expense Group** | Planned. Make a settled group read-only while preserving expense and repayment history. Archival is a separate lifecycle requirement from the implemented deletion action. |
+| **Create an Expense Group** | A signed-in user enters a group name, an optional description and the group currency. The creator becomes the owner and first member, and gets an invitation link right away. |
+| **Invite Group Members** | Any Group Member creates an invitation link, valid for 7 days, and shares or copies it. |
+| **Join a Group** | A signed-in user opens an invitation link, or pastes it into **Join group**, sees the group and who sent the invitation, and accepts or rejects it. Accepting again changes nothing. A group holds up to 100 members. |
+| **Rename an Expense Group** | Any Group Member renames the group in Group settings. |
+| **Leave a Group** | A Group Member leaves a group and loses access to it immediately. Their shares in saved expenses are kept. If the owner leaves, the group is deleted for everyone. |
+| **Remove a Member** | The Group Owner removes a member, who loses access immediately. The member's shares in saved expenses are kept, and invitations they created stop working. |
+| **Record a Group Expense** | A Group Member adds a bill through **Add a bill**, either typed in or filled from a receipt. They enter the description, total in the group currency, optional tax and tip, payer, participants and split method. The backend calculates and stores each share in whole cents. |
+| **View Group Expenses** | The group page shows total spending, the number of expenses and members, the member's own share, each member's allocated share, and the latest 50 bills with their splits. It updates on its own when members or expenses change. |
+| **Edit a Group Expense** | The bill's creator or the Group Owner edits it. The edit must start from the saved version; an unchanged edit writes nothing. If someone in the split has left the group, only the description can change unless the split is entered again for current members. Bills posted by Let's Go Dutch cannot be edited. |
+| **Delete a Group Expense** | The bill's creator or the Group Owner deletes it after confirmation, which also checks the saved version. Bills posted by Let's Go Dutch cannot be deleted. |
+| **Delete an Expense Group** | Only the Group Owner deletes a group. It disappears from every member's list and its invitations stop working. |
+| **Reuse a Personal Bill in a Group (UC-03)** | Select personal expenses, choose **Share to groups** and pick groups in the same currency. Each group gets a copy paid by the sharer and split equally among its current members; the date, category and notes are shared too. The copy is a one-time snapshot. |
+| **Import My Share of a Group Expense** | From a group bill, a member chooses **Import my share** to save their allocated share as a personal expense. If the original personal record is on this device, it is updated to that share instead, so the expense is not counted twice. The button then shows **Imported**. |
+| **Choose an Extended Split Method** | Split a bill with Equal split, Custom amounts or Percentage; every method accepts tax and tip. With Custom amounts, members can enter pretax amounts and share the tax and tip in proportion. The **Let's Go Dutch** button hands the bill over for an itemized split. |
 
 #### Feature 3 — Let's Go Dutch
 
 | Use case | Description |
 | --- | --- |
-| **Start a Split Session** |A Group Owner adds a bill, chooses **Let's Go Dutch**, reviews the items, quantities, unit prices, tax and tip, and confirms that they add up exactly to the total. Receipt recognition fills them in when a document was used. Each unit becomes separately claimable. |
-| **Claim or Unclaim Receipt Items Live (UC-04)** | A Group Member claims an available unit or releases their own unit. At most one member can own a unit. |
-| **Recover Live State After Reconnect (UC-05)** |Retrieve authoritative state and resolve pending operations after a disconnect or missed event without applying a financial operation twice. |
-| **Finalize a Split Session** | A Group Owner finalizes only when every unit is assigned. Tax and tip are added in proportion to each member's items, with extra cents going to the largest remainders, so the shares equal the total. Finalization posts one group expense, which cannot be edited afterwards, and closes the session to claims. |
+| **Start a Split Session** | From the bill form, the Group Owner chooses **Let's Go Dutch**, checks or enters each item's name, quantity (1–20) and unit price, the tax, the tip and the payer, and confirms that they add up to the total. Receipt recognition fills these in when a receipt was used. Each unit, up to 200, can be claimed separately. |
+| **Claim or Unclaim Receipt Items Live (UC-04)** | A Group Member claims an available unit or releases one of their own. Each unit has at most one owner, and every change appears on the other members' screens right away. |
+| **View Live Allocations and Totals** | Every member sees how much is assigned and unassigned, how many units are claimed, the subtotal, tax and tip, and each member's running total with their share of tax and tip. The figures update live and are reloaded after a reconnect. |
+| **Finalize a Split Session** | The Group Owner finalizes once every unit is claimed. Tax and tip are added in proportion to each member's items, with leftover cents going to the largest remainders, so the shares equal the total. One group expense is posted; it cannot be edited, and the session closes to claims. |
 
 ### 2.5. Formal Use Case Specifications
 
