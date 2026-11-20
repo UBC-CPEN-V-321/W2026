@@ -43,26 +43,29 @@ const farAway = { format: "EITHER", latitude: 64.1466, longitude: -21.9426 };
 
 const auth = (index: number) => users.at(index)?.auth ?? "";
 
+const isPendingMatch = ({ gameSource, status }: GameBody) =>
+  gameSource === GameSource.MATCHED && status === GameStatus.OPEN;
+
+// Promise chains rather than async helpers: a failed request or stream rejects the promise, which fails the test
+// that awaits it
+
 /** The player's open matched game in their games, if any */
-async function pendingMatchOf(index: number): Promise<GameBody | undefined> {
-  const response = await request(app).get("/games/me").set("Authorization", auth(index));
-  expect(response.status).toBe(200);
-  return (response.body as GameListBody).games.find(
-    ({ gameSource, status }) => gameSource === GameSource.MATCHED && status === GameStatus.OPEN,
-  );
+function pendingMatchOf(index: number): Promise<GameBody | undefined> {
+  return request(app)
+    .get("/games/me")
+    .set("Authorization", auth(index))
+    .then((response) => {
+      expect(response.status).toBe(200);
+      return (response.body as GameListBody).games.find(isPendingMatch);
+    });
 }
 
 /** Reads the stream until a "mine" event lists the player's open matched game, and returns it */
-async function nextMatchOn(events: EventReader): Promise<GameBody> {
-  for (;;) {
-    const { event, data } = await events.next();
-    const match = (data as GameListBody).games.find(
-      ({ gameSource, status }) => gameSource === GameSource.MATCHED && status === GameStatus.OPEN,
-    );
-    if (event === "mine" && match) {
-      return match;
-    }
-  }
+function nextMatchOn(events: EventReader): Promise<GameBody> {
+  return events.next().then(({ event, data }) => {
+    const match = (data as GameListBody).games.find(isPendingMatch);
+    return event === "mine" && match ? match : nextMatchOn(events);
+  });
 }
 
 beforeAll(async () => {
