@@ -1,0 +1,180 @@
+@startuml
+title Use Case 3: View Itinerary on Map
+
+skinparam ArrowFontStyle plain
+skinparam ParticipantStyle rectangle
+skinparam Shadowing false
+skinparam DefaultTextAlignment center
+skinparam SequenceMessageAlign center
+skinparam SequenceBoxFontSize 15
+skinparam SequenceBoxPadding 0
+skinparam FontName Arial
+skinparam NoteBackgroundColor white
+skinparam NoteBorderColor black
+hide footbox
+
+actor User
+
+box "User Interface"
+participant ":ExploreUBCApp" as App
+end box
+
+box "Application Logic"
+participant ":ItineraryMapService" as MapService
+end box
+
+box "Storage"
+participant "db:MongoDB" as DB
+end box
+
+box "External Service"
+participant ":GoogleMapsService" as GoogleMaps
+end box
+
+User -> App : Open saved itineraries
+activate App
+App -> App : validateSession(): SessionResult
+
+alt user is not authenticated
+    App --> User : Prompt user to sign in
+    User -> App : signIn(): AuthResult
+    alt authentication fails
+        break authentication fails
+            App --> User : Remain on authentication screen
+        end
+    else authentication succeeds
+        App --> User : Resume saved itineraries
+    end
+else user is authenticated
+    note over App
+    Continue with the current session.
+    end note
+end
+
+App -> MapService : getSavedItineraries(userId: UserId): ItinerarySummary[]
+activate MapService
+MapService -> DB : findItineraries(userId: UserId): ItinerarySummary[]
+activate DB
+DB --> MapService : itineraries: ItinerarySummary[]
+deactivate DB
+MapService --> App : itineraries: ItinerarySummary[]
+deactivate MapService
+
+alt user has no saved itineraries (itineraries.length == 0)
+    App --> User : Display create-itinerary empty state
+else saved itineraries are available
+    App --> User : Display saved itineraries
+    User -> App : Open map for itinerary
+
+    App -> MapService : getItineraryMap(userId: UserId, itineraryId: ItineraryId): ItineraryMap
+    activate MapService
+
+    MapService -> DB : findItinerary(userId: UserId, itineraryId: ItineraryId): Itinerary
+    activate DB
+
+    alt itinerary load fails because of a network or database error
+        DB --> MapService : error: ItineraryLoadError
+        deactivate DB
+        MapService --> App : error: ItineraryLoadError
+        App --> User : Display load error and offer retry
+        User -> App : Retry loading itinerary
+        App -> MapService : getItineraryMap(userId: UserId, itineraryId: ItineraryId): ItineraryMap
+        MapService -> DB : findItinerary(userId: UserId, itineraryId: ItineraryId): Itinerary
+        activate DB
+        alt retry fails
+            DB --> MapService : error: ItineraryLoadError
+            deactivate DB
+            MapService --> App : error: ItineraryLoadError
+            deactivate MapService
+            break retry fails
+                App --> User : End map use case
+            end
+        else retry succeeds
+            DB --> MapService : itinerary: Itinerary
+            deactivate DB
+        end
+    else itinerary loads successfully
+        DB --> MapService : itinerary: Itinerary
+        deactivate DB
+    end
+
+    alt selected itinerary has no activities (itinerary.activities.length == 0)
+        MapService --> App : error: NoActivities
+        deactivate MapService
+        App --> User : Display nothing-to-plot message
+    else itinerary contains activities
+        MapService -> DB : findByItineraryId(itineraryId: ItineraryId): ItineraryMap?
+        activate DB
+        DB --> MapService : cachedMap: ItineraryMap?
+        deactivate DB
+
+        alt cached map is current
+            note over MapService
+            Reuse the stored markers and routes.
+            end note
+        else cache is missing or outdated
+            loop each itinerary location
+                MapService -> GoogleMaps : geocodeAddress(address: String): GeocodedLocation?
+                activate GoogleMaps
+                alt address is valid
+                    GoogleMaps --> MapService : location: GeocodedLocation
+                else address is missing or invalid
+                    GoogleMaps --> MapService : location: null
+                    note over MapService
+                    Record the activity as not shown and continue.
+                    end note
+                end
+                deactivate GoogleMaps
+            end
+
+            loop each pair of consecutive mapped stops
+                MapService -> GoogleMaps : getRoute(origin: Coordinates, destination: Coordinates, mode: TravelMode): TravelOption?
+                activate GoogleMaps
+                alt route is available
+                    GoogleMaps --> MapService : route: TravelOption
+                else route cannot be computed
+                    GoogleMaps --> MapService : route: null
+                    note over MapService
+                    Keep both pins, omit this leg, and continue.
+                    end note
+                end
+                deactivate GoogleMaps
+            end
+
+            MapService -> DB : upsertMapData(mapData: ItineraryMap): void
+            activate DB
+            DB --> MapService
+            deactivate DB
+        end
+
+        MapService --> App : itineraryMap: ItineraryMap
+        deactivate MapService
+
+        App -> GoogleMaps : loadMapTiles(): MapTiles
+        activate GoogleMaps
+        alt map tiles load successfully
+            GoogleMaps --> App : mapTiles: MapTiles
+            deactivate GoogleMaps
+
+            App --> User : Display mapped activity pins and available route legs
+
+            opt map contains unmapped activities
+                App --> User : Mark omitted activities and display warning
+            end
+
+            opt map contains unavailable route legs
+                App --> User : Warn that some route legs could not be drawn
+            end
+
+            User -> App : Select route leg
+            App --> User : Highlight polyline and display directions
+        else map tiles fail to load
+            GoogleMaps --> App : error: MapUnavailable
+            deactivate GoogleMaps
+            App --> User : Display map-unavailable message and itinerary list
+        end
+    end
+end
+
+deactivate App
+@enduml

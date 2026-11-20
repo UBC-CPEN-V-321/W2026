@@ -26,8 +26,8 @@ BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://localhost:${BACKEND_PORT:-3000}
 # Backend
 # ---------------------------------------------------------------------------
 
-info "Starting backend (docker compose up --build -d)..."
-docker compose up --build -d
+info "Starting backend and waiting for Compose services (docker compose up --build -d --wait)..."
+docker compose up --build -d --wait --wait-timeout 120
 
 info "Waiting for $BACKEND_HEALTH_URL ..."
 for _ in $(seq 1 120); do

@@ -111,7 +111,11 @@ run_instrumented_tests() {
   configure_android_home
   command -v adb >/dev/null 2>&1 || die "adb not found."
 
-  wait_for_app_sign_in
+  if [[ "${FRONTEND_TESTS_REQUIRE_SIGN_IN:-1}" == "1" ]]; then
+    wait_for_app_sign_in
+  else
+    info "Tests provide their own authenticated fixture; skipping manual sign-in."
+  fi
   adb shell am force-stop "$app_id" >/dev/null 2>&1 || true
 
   for file in "${TEST_FILES[@]}"; do
