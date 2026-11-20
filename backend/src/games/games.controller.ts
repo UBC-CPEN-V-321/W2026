@@ -5,6 +5,7 @@ import {
   acceptMatchSchema,
   changeGameLocationSchema,
   changeGameTimeSchema,
+  confirmScoreSchema,
   createGameSchema,
   gameIdSchema,
   inviteFriendSchema,
@@ -18,6 +19,7 @@ import {
   cancelGame,
   changeGameLocation,
   changeGameTime,
+  confirmScore,
   getFeed,
   getGame,
   getUserGames,
@@ -132,8 +134,14 @@ gamesRouter.patch("/location", async (req: Request, res: Response) => {
   res.status(200).json({ game });
 });
 
+// Reports the final score, which waits for every other player to confirm it; the game completes once all agree
 gamesRouter.post("/score", async (req: Request, res: Response) => {
   const { gameId, rounds } = parseRequest(reportScoreSchema, req.body);
-  const { game, rounds: savedRounds, ratingChanges } = await reportScore(gameId, authedUserId(req), rounds);
-  res.status(200).json({ game, rounds: savedRounds, ratingChanges });
+  res.status(200).json(await reportScore(gameId, authedUserId(req), rounds));
+});
+
+// Agrees with the score waiting for confirmation, sent back as the player saw it
+gamesRouter.post("/score/confirm", async (req: Request, res: Response) => {
+  const { gameId, rounds } = parseRequest(confirmScoreSchema, req.body);
+  res.status(200).json(await confirmScore(gameId, authedUserId(req), rounds));
 });

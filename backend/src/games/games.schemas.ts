@@ -14,6 +14,10 @@ const roundScoreSchema = z.tuple([
   z.number().nonnegative().int(),
 ]);
 
+// The rounds of a score waiting for confirmation, as stored in score_proposals.rounds
+export const storedRoundsSchema = z.array(roundScoreSchema);
+export type RoundScores = z.infer<typeof storedRoundsSchema>;
+
 export const createGameSchema = z.strictObject({
   format: z.enum(Format),
   startsAt: startsAtSchema,
@@ -93,3 +97,7 @@ export type StartGameInput = z.infer<typeof startGameSchema>;
 export type ChangeGameTimeInput = z.infer<typeof changeGameTimeSchema>;
 export type ChangeGameLocationInput = z.infer<typeof changeGameLocationSchema>;
 export type ReportScoreInput = z.infer<typeof reportScoreSchema>;
+
+// Confirming sends back the score the player saw, so a score changed in the meantime is not confirmed by accident
+export const confirmScoreSchema = reportScoreSchema;
+export type ConfirmScoreInput = ReportScoreInput;

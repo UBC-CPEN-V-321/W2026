@@ -15,7 +15,6 @@ import {
   acceptMatch as recordAcceptance,
   addPlayerToTeam,
   cancelMatchedGame,
-  completeGame,
   createGame,
   deleteGame,
   deleteGameUser,
@@ -24,15 +23,19 @@ import {
   fetchGameDetails,
   fetchUserGames,
   fetchUserHistory,
+  type CompletedGame,
   type GameDetails,
   isUserInGame,
+  recordScore,
   startBookedGame,
   updateGame,
 } from "./games.repository";
 import {
+  ConfirmScoreInput,
   CreateGameInput,
   GameIdInput,
   ReportScoreInput,
+  type RoundScores,
 } from "./games.schemas";
 import { gameChanged } from "../events/changes";
 import { anyoneWatchingPlayers } from "../events/watchers";
@@ -73,6 +76,9 @@ export const gameErrors = {
   NotFriends: { status: 403, code: "NOT_FRIENDS", message: "Users are not friends" },
   // Two games sharing a player finished at the same moment and Postgres aborted one of them
   ScoreConflict: { status: 409, code: "SCORE_CONFLICT", message: "The score could not be saved, please try again" },
+  NoScoreToConfirm: { status: 409, code: "NO_SCORE_TO_CONFIRM", message: "No score has been reported yet" },
+  // Another player reported a different score after this player saw it
+  ScoreChanged: { status: 409, code: "SCORE_CHANGED", message: "The score was changed, check it again" },
 } satisfies Record<string, ErrorDefinition>;
 
 const teamSize: Record<Format, number> = {
@@ -599,19 +605,56 @@ export async function changeGameLocation(
 }
 
 /**
- * Reports the final score of a game in progress: saves its rounds, marks it as completed and updates every
- * player's rating
+ * What reporting or confirming a score did: completed is true once every player agreed, and then comes with the
+ * completed game, its rounds and each player's rating change
+ */
+export type ScoreResult = { completed: false } | ({ completed: true } & CompletedGame);
+
+/**
+ * Reports the final score of a game in progress. It waits for every other player to confirm it: the game is only
+ * completed, and ratings updated, once every player agrees. A score different from the one waiting replaces it, and
+ * everyone has to agree again; the same score counts as confirming it
  * @param gameId the game ID of the game the score is for
  * @param userId the user reporting the score, who must be in the game
  * @param rounds the [team 1 score, team 2 score] of each round, in order
- * @returns the completed game, its rounds and each player's rating change
+ * @returns whether the game is completed, with its result if it is
  * @throws AppError with the reason the score cannot be reported
  */
 export async function reportScore(
   gameId: string,
   userId: string,
   rounds: ReportScoreInput["rounds"],
-) {
+): Promise<ScoreResult> {
+  return await saveScore(gameId, userId, rounds, false);
+}
+
+/**
+ * Agrees with the score waiting for confirmation. The last player to agree completes the game and updates every
+ * player's rating. Confirming twice is fine
+ * @param gameId the game ID of the game the score is for
+ * @param userId the user confirming the score, who must be in the game
+ * @param rounds the score the user saw, which must still be the one waiting
+ * @returns whether the game is completed, with its result if it is
+ * @throws AppError with the reason the score cannot be confirmed
+ */
+export async function confirmScore(
+  gameId: string,
+  userId: string,
+  rounds: ConfirmScoreInput["rounds"],
+): Promise<ScoreResult> {
+  return await saveScore(gameId, userId, rounds, true);
+}
+
+/**
+ * Records a player's agreement with a score, see reportScore and confirmScore
+ * @param confirming true to only confirm the score waiting
+ */
+async function saveScore(
+  gameId: string,
+  userId: string,
+  rounds: RoundScores,
+  confirming: boolean,
+): Promise<ScoreResult> {
   const game = await checkCanEditGame(gameId, userId);
 
   // Only a game a player started can be scored, like the app's Report score button
@@ -619,20 +662,60 @@ export async function reportScore(
     throw new AppError(gameErrors.NotStarted);
   }
 
-  let completed;
+  let result;
   try {
-    completed = await mapPrismaErrors(completeGame(gameId, rounds), { P2034: gameErrors.ScoreConflict });
+    result = await mapPrismaErrors(recordScore(gameId, userId, rounds, confirming, new Date()), {
+      P2034: gameErrors.ScoreConflict,
+    });
   } catch (e) {
     if (e instanceof IncompleteTeamsError) {
       throw new AppError(gameErrors.IncompleteTeams);
     }
     throw e;
   }
-  if (completed === null) {
-    // Another report completed the game after the check above
-    throw new AppError(gameErrors.Closed);
-  }
 
-  gameChanged({ gameId });
-  return completed;
+  switch (result.outcome) {
+    case "notInProgress":
+      // Another player's confirmation completed the game, or it was cancelled, after the check above
+      throw new AppError(gameErrors.Closed);
+    case "noProposal":
+      throw new AppError(gameErrors.NoScoreToConfirm);
+    case "scoreChanged":
+      throw new AppError(gameErrors.ScoreChanged);
+    case "proposed":
+      gameChanged({ gameId });
+      await notifyScoreReported(gameId, userId, rounds);
+      return { completed: false };
+    case "confirmed":
+      gameChanged({ gameId });
+      return { completed: false };
+    case "completed":
+      gameChanged({ gameId });
+      return { completed: true, ...result.completed };
+  }
+}
+
+/**
+ * Asks the other players of a game to confirm the score a player reported. A failed push is logged, since the score
+ * is already saved and shows on the game screen
+ * @param gameId the game ID of the game
+ * @param userId the player who reported the score
+ * @param rounds the reported score
+ */
+async function notifyScoreReported(gameId: string, userId: string, rounds: RoundScores) {
+  try {
+    const audience = await fetchMatchAudience(gameId, userId);
+    if (!audience) {
+      return;
+    }
+
+    const score = rounds.map(([team1, team2]) => `${team1}-${team2}`).join(", ");
+    await pushToUsers(audience.otherIds, {
+      title: "Confirm the score",
+      body: `${audience.actorName} reported ${score} for your ${audience.where}.`,
+      data: { gameId, type: "scoreReported" },
+    });
+  } catch (err) {
+    console.error(`Could not ask the players of game ${gameId} to confirm the score`, err);
+  }
 }

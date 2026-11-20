@@ -3,6 +3,7 @@ import { Game, Prisma } from "../generated/prisma/client";
 import { GameSource, GameStatus } from "../generated/prisma/enums";
 import { applyGameResult } from "../ranking/ranking.service";
 import { advanceBracket } from "../tournaments/bracket.repository";
+import { type RoundScores, storedRoundsSchema } from "./games.schemas";
 
 export const MATCH_ANSWER_DEADLINE_MS = 30 * 60 * 1000;
 
@@ -21,6 +22,7 @@ const gameDetailsInclude = {
     select: {
       team: true,
       acceptedAt: true,
+      scoreConfirmedAt: true,
       ratingBefore: true,
       ratingAfter: true,
       user: { select: playerUserSelect },
@@ -30,6 +32,9 @@ const gameDetailsInclude = {
   rounds: {
     select: { number: true, team1Score: true, team2Score: true },
     orderBy: { number: "asc" },
+  },
+  scoreProposal: {
+    select: { rounds: true, proposedById: true, proposedAt: true },
   },
   tournamentMatch: {
     select: { round: true, tournament: { select: { id: true, name: true } } },
@@ -41,19 +46,31 @@ type GameDetailsRow = Prisma.GameGetPayload<{
 }>;
 
 /**
+ * Reads the rounds a score proposal stored as JSON
+ * @param rounds the stored [team 1 score, team 2 score] of each round
+ * @returns the rounds, or an empty list if they are not in that shape
+ */
+function parseStoredRounds(rounds: Prisma.JsonValue): RoundScores {
+  const parsed = storedRoundsSchema.safeParse(rounds);
+  return parsed.success ? parsed.data : [];
+}
+
+/**
  * Flattens each player's user into the player, like the friends list does, and names the tournament a game is in
  * @param game a game fetched with gameDetailsInclude
- * @returns the game with players as { id, username, name, rating, team, acceptedAt, ratingBefore, ratingAfter },
- * and its tournament as { id, name, round }, or null if it is not a tournament game.
+ * @returns the game with players as { id, username, name, rating, team, acceptedAt, scoreConfirmedAt, ratingBefore,
+ * ratingAfter }, its tournament as { id, name, round }, or null if it is not a tournament game, and its scoreProposal
+ * as { rounds, proposedById, proposedAt } with rounds shaped like the game's, or null if no score is waiting.
  * ratingBefore and ratingAfter are null until the game is completed
  */
-function toGameDetails({ players, tournamentMatch, ...game }: GameDetailsRow) {
+function toGameDetails({ players, tournamentMatch, scoreProposal, ...game }: GameDetailsRow) {
   return {
     ...game,
-    players: players.map(({ user, team, acceptedAt, ratingBefore, ratingAfter }) => ({
+    players: players.map(({ user, team, acceptedAt, scoreConfirmedAt, ratingBefore, ratingAfter }) => ({
       ...user,
       team,
       acceptedAt,
+      scoreConfirmedAt,
       ratingBefore,
       ratingAfter,
     })),
@@ -61,6 +78,17 @@ function toGameDetails({ players, tournamentMatch, ...game }: GameDetailsRow) {
       tournamentMatch === null
         ? null
         : { ...tournamentMatch.tournament, round: tournamentMatch.round },
+    scoreProposal:
+      scoreProposal === null
+        ? null
+        : {
+            ...scoreProposal,
+            rounds: parseStoredRounds(scoreProposal.rounds).map(([team1Score, team2Score], index) => ({
+              number: index + 1,
+              team1Score,
+              team2Score,
+            })),
+          },
   };
 }
 
@@ -216,6 +244,7 @@ export async function deleteGame(gameId: string): Promise<boolean> {
 
     await tx.gameUser.deleteMany({ where: { gameId } });
     await tx.gameRound.deleteMany({ where: { gameId } });
+    await tx.scoreProposal.deleteMany({ where: { gameId } });
     await tx.gameEquipment.deleteMany({ where: { gameId } });
     await tx.game.delete({ where: { id: gameId } });
     return true;
@@ -272,43 +301,118 @@ export async function startBookedGame(
 }
 
 /**
- * Saves the final rounds of a game, marks it as completed, updates every player's rating and, for a tournament game,
- * moves the winner on through the bracket, in one transaction, replacing any rounds saved during the game
+ * Saves the final rounds of a game in progress, marks it as completed, updates every player's rating and, for a
+ * tournament game, moves the winner on through the bracket, replacing any rounds saved during the game. Its score
+ * proposal is deleted, since the rounds now hold the score. The caller holds the game's lock
+ * @param tx the transaction to complete the game in
  * @param gameId the game ID of the game to complete
  * @param rounds the [team 1 score, team 2 score] of each round, in order
- * @returns the completed game, its rounds and each player's rating change, or null if the game is not in progress
- * @throws IncompleteTeamsError if either team is missing players; nothing is saved
+ * @param now the current time
+ * @returns the completed game, its rounds and each player's rating change
+ * @throws IncompleteTeamsError if either team is missing players; the transaction is rolled back
  */
-export async function completeGame(gameId: string, rounds: [number, number][]) {
+async function completeGame(tx: Prisma.TransactionClient, gameId: string, rounds: RoundScores, now: Date) {
+  const game = await tx.game.update({
+    where: { id: gameId },
+    data: { status: GameStatus.COMPLETED },
+  });
+
+  await tx.scoreProposal.deleteMany({ where: { gameId } });
+  await tx.gameRound.deleteMany({ where: { gameId } });
+  const savedRounds = await tx.gameRound.createManyAndReturn({
+    data: rounds.map(([team1Score, team2Score], index) => ({
+      gameId,
+      number: index + 1,
+      team1Score,
+      team2Score,
+    })),
+  });
+  const ratingChanges = await applyGameResult(tx, gameId, game.format, rounds);
+
+  if (game.gameSource === GameSource.TOURNAMENT) {
+    await advanceBracket(tx, gameId, rounds, now);
+  }
+
+  return { game, rounds: savedRounds, ratingChanges };
+}
+
+export type CompletedGame = Awaited<ReturnType<typeof completeGame>>;
+
+/**
+ * What recordScore did:
+ * - "notInProgress": the game is gone, not started, or already completed or cancelled; nothing is saved
+ * - "noProposal": confirming, but no score is waiting
+ * - "scoreChanged": confirming, but the score waiting is not the one the player saw
+ * - "proposed": the score is new or different, so it replaced any score waiting and only its reporter agrees so far
+ * - "confirmed": the player agrees with the score waiting, and others still have to
+ * - "completed": every player now agrees, so the game is completed with the score
+ */
+export type RecordScoreResult =
+  | { outcome: "notInProgress" | "noProposal" | "scoreChanged" | "proposed" | "confirmed" }
+  | { outcome: "completed"; completed: CompletedGame };
+
+const sameRounds = (a: RoundScores, b: RoundScores) =>
+  a.length === b.length && a.every(([team1, team2], index) => b[index]?.[0] === team1 && b[index]?.[1] === team2);
+
+/**
+ * Records that a player agrees with a final score. A score that matches the one waiting confirms it; any other score
+ * replaces it, resets everyone's agreement and waits for the other players. Once every player agrees, the game is
+ * completed with the score, in the same transaction. Runs under the game's lock, so two players agreeing at once
+ * can't both complete the game, or miss completing it
+ * @param gameId the game ID of the game in progress
+ * @param userId the player, who must be in the game
+ * @param rounds the [team 1 score, team 2 score] of each round, in order
+ * @param confirming true to only agree with the score waiting, which must equal rounds: a player confirming what
+ * they saw never proposes a score by accident
+ * @param now the current time
+ * @returns what was recorded, see RecordScoreResult
+ * @throws IncompleteTeamsError if the game completes but either team is missing players; nothing is saved
+ */
+export async function recordScore(
+  gameId: string,
+  userId: string,
+  rounds: RoundScores,
+  confirming: boolean,
+  now: Date,
+): Promise<RecordScoreResult> {
   return await prisma.$transaction(async (tx) => {
-    // Only complete a game in progress, so two reports at once can't both save rounds, and a game cancelled
-    // since the caller checked it is left alone
-    const { count } = await tx.game.updateMany({
-      where: { id: gameId, status: GameStatus.IN_PROGRESS },
-      data: { status: GameStatus.COMPLETED },
-    });
+    await lockGame(tx, gameId);
 
-    if (count === 0) {
-      return null;
+    const game = await tx.game.findUnique({
+      where: { id: gameId },
+      select: { status: true, scoreProposal: { select: { rounds: true } } },
+    });
+    if (game?.status !== GameStatus.IN_PROGRESS) {
+      return { outcome: "notInProgress" };
     }
 
-    await tx.gameRound.deleteMany({ where: { gameId } });
-    const savedRounds = await tx.gameRound.createManyAndReturn({
-      data: rounds.map(([team1Score, team2Score], index) => ({
-        gameId,
-        number: index + 1,
-        team1Score,
-        team2Score,
-      })),
-    });
-    const game = await tx.game.findUniqueOrThrow({ where: { id: gameId } });
-    const ratingChanges = await applyGameResult(tx, gameId, game.format, rounds);
-
-    if (game.gameSource === GameSource.TOURNAMENT) {
-      await advanceBracket(tx, gameId, rounds, new Date());
+    const waiting = game.scoreProposal === null ? null : parseStoredRounds(game.scoreProposal.rounds);
+    const agreesWithWaiting = waiting !== null && sameRounds(waiting, rounds);
+    if (confirming && !agreesWithWaiting) {
+      return { outcome: waiting === null ? "noProposal" : "scoreChanged" };
     }
 
-    return { game, rounds: savedRounds, ratingChanges };
+    if (agreesWithWaiting) {
+      await tx.gameUser.updateMany({
+        where: { gameId, userId, scoreConfirmedAt: null },
+        data: { scoreConfirmedAt: now },
+      });
+    } else {
+      await tx.scoreProposal.upsert({
+        where: { gameId },
+        create: { gameId, proposedById: userId, rounds, proposedAt: now },
+        update: { proposedById: userId, rounds, proposedAt: now },
+      });
+      await tx.gameUser.updateMany({ where: { gameId, userId: { not: userId } }, data: { scoreConfirmedAt: null } });
+      await tx.gameUser.updateMany({ where: { gameId, userId }, data: { scoreConfirmedAt: now } });
+    }
+
+    const unconfirmed = await tx.gameUser.count({ where: { gameId, scoreConfirmedAt: null } });
+    if (unconfirmed > 0) {
+      return { outcome: agreesWithWaiting ? "confirmed" : "proposed" };
+    }
+
+    return { outcome: "completed", completed: await completeGame(tx, gameId, rounds, now) };
   });
 }
 
