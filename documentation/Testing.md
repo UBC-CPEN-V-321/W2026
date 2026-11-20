@@ -16,6 +16,7 @@
 | 11-18-2026        | 2.1.1                 | Added tests for `POST /games/start` (mocked, `startBookedGame`, and starting a quarterfinal early in the no-mock tournament flow) |
 | 11-20-2026        | 2.1.1                 | Added the no-mock matchmaking flow (`tests/no-mock/matchmaking.test.ts`): a run takes both players out of the queue, puts the match in both players' games and on the live Games stream, keeps them from queueing again, and books it once both accept. Added tests for `GET /matchmaking/events` (mocked, `refreshEach`, the queue changes `runMatchmaking` announces, and the queue stream in the no-mock flow) |
 | 11-20-2026        | 2.1.1                 | Score confirmation: added tests for `POST /games/score/confirm` and `recordScore`, and changed the `POST /games/score` tests so a game completes only once every player confirms (the no-mock flows now confirm as the other player, and test a correction and a stale confirmation) |
+| 11-20-2026        | 2.1.1                 | Set score rule: added tests that past 6 games a set is won by 2 games or 7–6 on both score routes, that 99–97 rates like 8–6 (`elo.test.ts`), and that an unaccepted matched game can't be scored |
 
 ---
 

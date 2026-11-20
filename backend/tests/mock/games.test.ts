@@ -2291,12 +2291,33 @@ describe.each([
       ],
       "must have a winner",
     ],
+    // The other group's review: a 99-0 blowout moved ratings by about 440 points
+    ["a 99-0 set", [[99, 0], [6, 4]], "round 1: past 6 games a set is won by 2 games, or 7-6"],
+    ["a set won 9-3", [[6, 4], [9, 3]], "round 2: past 6 games a set is won by 2 games, or 7-6"],
+    ["a set won 8-5", [[5, 8], [6, 4], [8, 5]], "round 1: past 6 games a set is won by 2 games, or 7-6"],
   ])("Rejects a score with %s", async (_description, badRounds, message) => {
     const response = await send({ gameId: editGameId, rounds: badRounds });
 
     expect(response.status).toBe(400);
     expect(response.body.details.fieldErrors.rounds).toContain(message);
     expect(mockedRecordScore).not.toHaveBeenCalled();
+  });
+
+  // Input: sets that can happen in tennis: up to 6 games, won by 2 past 6 (however long), and a 7-6 tiebreak set
+  // Expected status code: 200
+  // Expected behavior: the score is recorded as given
+  test.each([
+    ["sets up to 6 games", [[6, 0], [4, 2]]],
+    ["a set won 7-5", [[7, 5], [6, 3]]],
+    ["a 7-6 tiebreak set", [[7, 6], [3, 6], [6, 4]]],
+    ["a long advantage set", [[99, 97], [6, 4]]],
+  ])("Accepts a score with %s", async (_description, goodRounds) => {
+    mockedRecordScore.mockResolvedValue({ outcome: confirming ? "confirmed" : "proposed" });
+
+    const response = await send({ gameId: editGameId, rounds: goodRounds });
+
+    expect(response.status).toBe(200);
+    expect(mockedRecordScore).toHaveBeenCalledWith(editGameId, userId, goodRounds, confirming, expect.any(Date));
   });
 
   // Input: a valid score, while Postgres aborts the transaction as a deadlock
@@ -2474,12 +2495,14 @@ describe("Mocked: reportScore and confirmScore", () => {
     [6, 3],
   ];
 
-  // Input: games nobody started yet: an open one, and a booked one (even past its start time)
+  // Input: games nobody started yet: an open one, a booked one (even past its start time), and a matched game its
+  // players never accepted, which can't be started at all (Use Case 3's precondition)
   // Expected behavior: nothing is saved, since a game is scored only once a player started it
   // Expected output: GAME_NOT_STARTED
   test.each([
     ["open", existingGame()],
     ["booked", existingGame({ status: GameStatus.BOOKED, startsAt: new Date(Date.now() - 60 * 60 * 1000) })],
+    ["unaccepted matched", existingGame({ gameSource: GameSource.MATCHED, startsAt: new Date(Date.now() - 60_000) })],
   ])("Rejects a score for an %s game nobody started", async (_description, game) => {
     mockedFetchGame.mockResolvedValue(game);
 
