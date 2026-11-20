@@ -1,5 +1,6 @@
 package com.example.cpen321application.core.data.repository
 
+import android.util.Log
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.network.ApiService
@@ -17,6 +18,7 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import retrofit2.HttpException
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 interface FriendsRepository {
@@ -39,6 +41,30 @@ interface FriendsRepository {
     suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?>
 }
 
+fun safeLog(tag: String, msg: String) {
+    try {
+        Log.d(tag, msg)
+    } catch (_: Throwable) {
+        println("[$tag] $msg")
+    }
+}
+
+object UserPhotoCache {
+    private val cache = ConcurrentHashMap<String, String>()
+
+    fun get(userId: String): String? = cache[userId]
+
+    fun put(userId: String, photoUrl: String?) {
+        if (!photoUrl.isNullOrBlank()) {
+            cache[userId] = photoUrl
+        }
+    }
+
+    fun clear() {
+        cache.clear()
+    }
+}
+
 class FriendsRepositoryImpl(
     private val apiService: ApiService = RetrofitClient.apiService,
     private val gamesApi: GamesApi = RetrofitClient.gamesApi,
@@ -52,6 +78,7 @@ class FriendsRepositoryImpl(
             }
             val userMe = parseUserMe(jsonElement)
             if (userMe != null) {
+                userMe.id?.let { id -> UserPhotoCache.put(id, userMe.avatarUrl) }
                 Result.success(userMe)
             } else {
                 Result.failure(Exception("Failed to parse user profile"))
@@ -69,6 +96,9 @@ class FriendsRepositoryImpl(
                 apiService.getFriends(auth)
             }
             val friends = parseFlexibleList<FriendDto>(jsonElement, "friends")
+            friends.forEach { friend ->
+                UserPhotoCache.put(friend.userId, friend.avatarUrl)
+            }
             Result.success(friends)
         } catch (e: HttpException) {
             Result.failure(e)
@@ -190,11 +220,17 @@ class FriendsRepositoryImpl(
     }
 
     override suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?> {
+        UserPhotoCache.get(userId)?.let { cachedUrl ->
+            return Result.success(cachedUrl)
+        }
         return try {
             val jsonElement = session.authorized { auth ->
                 apiService.getUserPhoto(auth, userId)
             }
             val photoUrl = parsePhotoUrl(jsonElement)
+            if (!photoUrl.isNullOrBlank()) {
+                UserPhotoCache.put(userId, photoUrl)
+            }
             Result.success(photoUrl)
         } catch (e: HttpException) {
             Result.failure(e)

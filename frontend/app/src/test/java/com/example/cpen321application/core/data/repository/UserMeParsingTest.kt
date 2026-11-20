@@ -23,6 +23,7 @@ class UserMeParsingTest {
 
     @Before
     fun startServer() {
+        UserPhotoCache.clear()
         server.start()
     }
 

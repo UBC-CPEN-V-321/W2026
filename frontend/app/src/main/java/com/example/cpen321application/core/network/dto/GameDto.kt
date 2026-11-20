@@ -9,6 +9,7 @@ import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.GameTournament
 import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.model.Round
+import com.google.gson.annotations.SerializedName
 import java.time.Instant
 
 // A game with its court, players and rounds, as GET /games, /games/feed, /games/me and /games/history return it.
@@ -34,15 +35,19 @@ data class CourtDto(
 )
 
 data class PlayerDto(
-    val id: String,
-    val username: String,
-    val name: String,
-    val rating: Double,
-    val team: Int,
+    @SerializedName("id", alternate = ["userId", "_id"])
+    val id: String? = null,
+    val username: String? = null,
+    val name: String? = null,
+    val rating: Double? = null,
+    val team: Int? = null,
     val ratingBefore: Double? = null,  // null until the game is completed
     val ratingAfter: Double? = null,
     val acceptedAt: String? = null,  // matched games only: null until the player accepts
-    val photoUrl: String? = null
+    @SerializedName("photoUrl", alternate = ["avatarUrl", "photo", "picture", "url", "imageUrl", "avatar_url", "photo_url"])
+    val photoUrl: String? = null,
+    val user: UserMeDto? = null,
+    val player: UserMeDto? = null,
 )
 
 data class RoundDto(
@@ -63,6 +68,27 @@ data class ForecastDto(
     val precipitationChance: Double
 )
 
+fun PlayerDto.toPlayer(): Player {
+    val effectiveId = user?.id ?: player?.id ?: id.orEmpty()
+    val effectiveUsername = user?.username ?: player?.username ?: username.orEmpty()
+    val effectiveName = user?.name ?: player?.name ?: name.orEmpty().ifBlank { effectiveUsername }
+    val effectiveRating = rating ?: user?.elo?.toDouble() ?: 1500.0
+    val effectiveTeam = team ?: 1
+    val effectivePhotoUrl = user?.avatarUrl ?: player?.avatarUrl ?: photoUrl
+
+    return Player(
+        id = effectiveId,
+        username = effectiveUsername,
+        name = effectiveName,
+        rating = effectiveRating,
+        team = effectiveTeam,
+        ratingBefore = ratingBefore,
+        ratingAfter = ratingAfter,
+        acceptedAt = acceptedAt?.let(Instant::parse),
+        photoUrl = effectivePhotoUrl,
+    )
+}
+
 fun GameDto.toGame(): Game = Game(
     id = id,
     format = Format.valueOf(format),
@@ -70,19 +96,7 @@ fun GameDto.toGame(): Game = Game(
     source = GameSource.valueOf(gameSource),
     startsAt = Instant.parse(startsAt),
     court = court.toCourt(),
-    players = players.map {
-        Player(
-            it.id,
-            it.username,
-            it.name,
-            it.rating,
-            it.team,
-            it.ratingBefore,
-            it.ratingAfter,
-            it.acceptedAt?.let(Instant::parse),
-            it.photoUrl,
-        )
-    },
+    players = players.map { it.toPlayer() },
     rounds = rounds.map { it.toRound() },
     forecast = forecast?.toForecast(),
     tournament = tournament?.let { GameTournament(it.id, it.name, it.round) }

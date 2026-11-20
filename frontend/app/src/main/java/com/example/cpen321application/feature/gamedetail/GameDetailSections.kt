@@ -116,7 +116,7 @@ internal fun TeamsCard(game: Game, canJoin: (team: Int) -> Boolean, onJoin: (tea
             val players = game.playersOnTeam(team)
             // Not the username: until onboarding lets players pick one, it is their email
             players.forEach { player ->
-                PersonRow(name = player.name) {
+                PersonRow(name = player.name, avatarUrl = player.photoUrl) {
                     Text(text = player.rating.roundToInt().toString(), style = DonutTextStyles.numericSmall)
                 }
             }

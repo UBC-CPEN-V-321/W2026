@@ -45,7 +45,7 @@ class TournamentDetailFollowTest {
 
     // Viewed by bob
     private fun viewModel(updates: Flow<Tournament>) =
-        TournamentDetailViewModel("t1", FakeTournamentsRepository(updates)) { "bob" }
+        TournamentDetailViewModel("t1", FakeTournamentsRepository(updates), currentUsername = { "bob" })
 
     // Input: the screen opens (loading), then the backend pushes the tournament, then again once bob joined
     // Expected output: the latest tournament and its actions: bob is in, so he can leave, not join

@@ -1,5 +1,6 @@
 package com.example.cpen321application.feature.gamedetail
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cpen321application.core.auth.AuthSession
@@ -9,6 +10,7 @@ import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.core.data.repository.GamesRepository
 import com.example.cpen321application.core.data.repository.reconnecting
+import com.example.cpen321application.core.data.repository.safeLog
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -210,6 +212,8 @@ class GameDetailViewModel(
         val actions = gameActions(game, currentUsername(), now)
         _uiState.update { it.copy(game = game, actions = actions) }
 
+        enrichMissingGamePhotos(game)
+
         // Shows the game again once its actions change with the time, e.g. Join closes at its start time
         actionsTimer?.cancel()
         val changeAt = nextActionsChange(game, now) ?: return
@@ -217,6 +221,35 @@ class GameDetailViewModel(
             // + 1 ms: wait until just past the moment, so the time rule has already changed
             delay(Duration.between(now, changeAt).toMillis() + 1)
             showGame(game)
+        }
+    }
+
+    private fun enrichMissingGamePhotos(game: Game) {
+        val missingPlayers = game.players.filter { it.photoUrl.isNullOrBlank() }
+        if (missingPlayers.isEmpty()) return
+
+        viewModelScope.launch {
+            var updatedPlayers = game.players
+            var changed = false
+
+            for (player in missingPlayers) {
+                val result = friendsRepository.getUserPhoto(session, player.id)
+                result.onSuccess { photoUrl ->
+                    if (!photoUrl.isNullOrBlank()) {
+                        safeLog("GameDetail", "Fetched photoUrl for player ${player.name} (${player.id}): $photoUrl")
+                        updatedPlayers = updatedPlayers.map { p ->
+                            if (p.id == player.id) p.copy(photoUrl = photoUrl) else p
+                        }
+                        changed = true
+                    }
+                }
+            }
+
+            if (changed) {
+                val updatedGame = game.copy(players = updatedPlayers)
+                val actions = gameActions(updatedGame, currentUsername(), Instant.now())
+                _uiState.update { it.copy(game = updatedGame, actions = actions) }
+            }
         }
     }
 
