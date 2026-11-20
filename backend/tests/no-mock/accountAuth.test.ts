@@ -1,3 +1,4 @@
+import { passwordConfirmationCases } from '../helpers/passwordConfirmation';
 import request from 'supertest';
 import { connectDatabase, migrateLegacyUsernames, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
 import { hashPassword } from '../../src/password';
@@ -11,6 +12,54 @@ beforeEach(() => { app = db.app; });
 
 // Interface POST /api/auth/register
 describe('Unmocked: POST /api/auth/register', () => {
+  // Input: 30 invalid registrations from one client, then a valid one
+  // Expected status code: 400 thirty times, then 429
+  // Expected behavior: registration attempts are rate-limited per client
+  // Expected output: Retry-After header equal to retryAfterSeconds in the body
+  test('Limits registration attempts per client', async () => {
+    for (let i = 0; i < 30; i++) expect((await request(app).post('/api/auth/register').send({})).status).toBe(400);
+    const limited = await request(app).post('/api/auth/register').send(account);
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    expect(limited.body.retryAfterSeconds).toBe(Number(limited.headers['retry-after']));
+    expect(await UserModel.countDocuments()).toBe(0);
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
+  // Input: password and confirmation pairs that differ in type, length, bytes or Unicode form
+  // Expected status code: 400 for every mismatch, 201 for exact matches
+  // Expected behavior: confirmation is compared exactly; nothing is stored on mismatch
+  // Expected output: { error: "Passwords do not match." } on mismatch; { user, token, expiresAt } on success
+  test.each(passwordConfirmationCases)('Password confirmation: %s', async (_label, password, confirmPassword, status) => {
+    const res = await request(app).post('/api/auth/register').send({ username: 'joy_tao', password, confirmPassword });
+    expect(res.status).toBe(status);
+    if (status === 400) expect(res.body.error).toBe('Passwords do not match.');
+    else expect(res.body).toMatchObject({ user: { username: 'joy_tao' }, token: expect.any(String), expiresAt: expect.any(Number) });
+    expect(await UserModel.countDocuments()).toBe(status === 400 ? 0 : 1);
+    expect(await SessionModel.countDocuments()).toBe(status === 400 ? 0 : 1);
+  });
+
+  // Input: invalid username, short/long/missing password, or a missing/different confirmation
+  // Expected status code: 400
+  // Expected behavior: nothing is stored
+  // Expected output: error naming the problem
+  test.each([
+    [{ ...account, username: 'bad name' }, 'username'],
+    [{ ...account, password: 'short' }, 'at least 8'],
+    [{ ...account, password: 'x'.repeat(129) }, 'at most 128'],
+    [{ ...account, password: undefined }, 'password'],
+    [{ ...account, username: '' }, 'name'],
+    [{ ...account, username: 'x'.repeat(31) }, 'name'],
+    [{ ...account, confirmPassword: undefined }, 'Passwords do not match'],
+    [{ ...account, confirmPassword: 'different' }, 'Passwords do not match'],
+  ])('Rejects invalid input %#', async (body, message) => {
+    const res = await request(app).post('/api/auth/register').send(body);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain(message);
+    expect(await UserModel.countDocuments()).toBe(0);
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
   // Input: three simultaneous registrations for the same username
   // Expected status code: one 201, two 409
   // Expected behavior: the unique index admits exactly one account and one session
@@ -76,6 +125,33 @@ describe('Unmocked: POST /api/auth/register', () => {
 
 // Interface POST /api/auth/login
 describe('Unmocked: POST /api/auth/login', () => {
+  // Input: 60 invalid login attempts from one client, then another
+  // Expected status code: 400 sixty times, then 429
+  // Expected behavior: repeated login attempts are limited and no session is created
+  // Expected output: rate-limit error
+  test('Limits login attempts per client', async () => {
+    for (let i = 0; i < 60; i++) expect((await request(app).post('/api/auth/login').send({})).status).toBe(400);
+    const limited = await request(app).post('/api/auth/login').send({});
+    expect(limited.status).toBe(429);
+    expect(typeof limited.body.error).toBe('string');
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    expect(limited.body.retryAfterSeconds).toBe(Number(limited.headers['retry-after']));
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
+  // Input: missing fields, an invalid username, or a non-string password
+  // Expected status code: 400
+  // Expected behavior: no account or session is created
+  // Expected output: error message
+  test.each([{}, { username: account.username }, { username: '!', password: 'password1' }, { username: account.username, password: 5 }])(
+    'Rejects incomplete input %#', async body => {
+      const res = await request(app).post('/api/auth/login').send(body);
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'Enter your username and password.' });
+      expect(await UserModel.countDocuments()).toBe(0);
+      expect(await SessionModel.countDocuments()).toBe(0);
+    });
+
   // Input: correct password for a migrated legacy account
   // Expected status code: 200
   // Expected behavior: the repeatable migration assigns unique usernames without touching identities or passwords

@@ -5,19 +5,32 @@
 | Date | Description |
 | --- | --- |
 | 11/02/2026 | Creation of this file. Reporting E2E testing results for Feature 1 and backend testing results for Bill Import component. |
+| 11/19/2026 | Checked the CP2 backend structure against Project Description section 9 and Testing II slides 58-61; moved registration/login input-validation, password-confirmation and rate-limit cases to real MongoDB tests; added mocked dependency-isolation checks for public endpoints. |
 | 11/18/2026 | Backend tests restructured to one unmocked and one mocked `describe` per interface with Input/Expected comments; added mocked tests for every interface with a mockable component; added full-stack E2E tests that run the app against the Node backend. |
 
 
 ## Locations of Backend Tests
 
+Local structure-fix verification (2026-11-19): based on main `f4deaf3`, with uncommitted changes on `fix/backend-test-course-compliance`. `npm run typecheck` passed; `npm run test:interface -- --silent` passed **24 suites / 567 tests**. Combined coverage: statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. This run used Node 24.11.1 / npm 11.6.2; the supported project environment remains Node 22.x. These local results are not a replacement for the final tested main-branch submission SHA.
+
+Backend test conventions (Project Description, section 9):
+
+- Use one `Unmocked: METHOD /path` and one `Mocked: METHOD /path` group for each exposed interface. Socket.IO groups name the namespace and event.
+- Exercise normal behavior and controllable errors against real components in `tests/no-mock/`. `mongodb-memory-server` launches a real isolated MongoDB process; an injected JavaScript store is a test double and belongs in `tests/mock/`.
+- Use the mocked group to force dependency failures and races. Existing extra tests with in-memory stores remain mock tests; they do not replace the real-database cases.
+- Immediately precede each test or parameterized table with `Input`, `Expected status code`, `Expected behavior` and `Expected output`. Describe the injected behavior for mock cases. For sockets, specify the acknowledgement/event instead of inventing an HTTP status.
+- Assert the response and relevant persistent effects, including unchanged state after rejected writes. Restore mocks and isolate stored data between cases.
+- Public infrastructure endpoints have mocked authentication-store failures to verify they remain independent of those stores; these are availability/isolation checks, not invented error responses. Live Google/OpenAI success paths are not established by forged-token/configuration tests.
+
+
 Each interface has one `describe` without mocks (`backend/tests/no-mock/`) and one with mocks (`backend/tests/mock/`), both named after the interface (`Unmocked: <interface>` / `Mocked: <interface>`). Every test starts with the four comments `Input`, `Expected status code`, `Expected behavior` and `Expected output`. The unmocked groups run the real Express app, sessions and MongoDB (an isolated in-memory `mongod` per suite); authenticated interfaces also include the shared missing/unknown/expired-session checks from [sessionRejection.ts](../backend/tests/helpers/sessionRejection.ts). Socket.IO interfaces are listed by namespace and event. Store-level checks that call no interface are in [backend/tests/unit/](../backend/tests/unit/).
 
 | Interfaces | Describe group without mocks | Describe group with mocks | Components mocked |
 | --- | --- | --- | --- |
-| `POST /api/auth/register` | [accountAuth.test.ts:13](../backend/tests/no-mock/accountAuth.test.ts#L13) | [accountAuth.test.ts:25](../backend/tests/mock/accountAuth.test.ts#L25) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/login` | [accountAuth.test.ts:78](../backend/tests/no-mock/accountAuth.test.ts#L78) | [accountAuth.test.ts:128](../backend/tests/mock/accountAuth.test.ts#L128) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `GET /api/users/me` | [accountAuth.test.ts:146](../backend/tests/no-mock/accountAuth.test.ts#L146) | [accountAuth.test.ts:232](../backend/tests/mock/accountAuth.test.ts#L232) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/logout` | [accountAuth.test.ts:172](../backend/tests/no-mock/accountAuth.test.ts#L172) | [accountAuth.test.ts:194](../backend/tests/mock/accountAuth.test.ts#L194) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/register` | [accountAuth.test.ts:14](../backend/tests/no-mock/accountAuth.test.ts#L14) | [accountAuth.test.ts:24](../backend/tests/mock/accountAuth.test.ts#L24) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/login` | [accountAuth.test.ts:127](../backend/tests/no-mock/accountAuth.test.ts#L127) | [accountAuth.test.ts:82](../backend/tests/mock/accountAuth.test.ts#L82) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `GET /api/users/me` | [accountAuth.test.ts:222](../backend/tests/no-mock/accountAuth.test.ts#L222) | [accountAuth.test.ts:167](../backend/tests/mock/accountAuth.test.ts#L167) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/logout` | [accountAuth.test.ts:248](../backend/tests/no-mock/accountAuth.test.ts#L248) | [accountAuth.test.ts:129](../backend/tests/mock/accountAuth.test.ts#L129) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
 | `PATCH /api/users/me` | [accountSettings.test.ts:12](../backend/tests/no-mock/accountSettings.test.ts#L12) | [accountSettings.test.ts:23](../backend/tests/mock/accountSettings.test.ts#L23) | MongoDB user and session stores (in-memory replacements whose methods fail or race); Google ID-token verifier |
 | `POST /api/groups/:groupId/shared-entries` | [entrySharing.test.ts:27](../backend/tests/no-mock/entrySharing.test.ts#L27) | [entrySharing.test.ts:19](../backend/tests/mock/entrySharing.test.ts#L19) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
 | `GET /api/groups/:groupId/expenses/:expenseId/personal-entry` | [entrySharing.test.ts:124](../backend/tests/no-mock/entrySharing.test.ts#L124) | [entrySharing.test.ts:62](../backend/tests/mock/entrySharing.test.ts#L62) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
@@ -37,10 +50,10 @@ Each interface has one `describe` without mocks (`backend/tests/no-mock/`) and o
 | `PUT /api/groups/:groupId/name` | [groupManagement.test.ts:253](../backend/tests/no-mock/groupManagement.test.ts#L253) | [groupManagement.test.ts:126](../backend/tests/mock/groupManagement.test.ts#L126) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
 | `DELETE /api/groups/:groupId` | [groupManagement.test.ts:281](../backend/tests/no-mock/groupManagement.test.ts#L281) | [groupManagement.test.ts:156](../backend/tests/mock/groupManagement.test.ts#L156) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
 | `GET /invite/:token` | [groupManagement.test.ts:316](../backend/tests/no-mock/groupManagement.test.ts#L316) | [groupManagement.test.ts:175](../backend/tests/mock/groupManagement.test.ts#L175) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `GET /.well-known/assetlinks.json` | [groupManagement.test.ts:350](../backend/tests/no-mock/groupManagement.test.ts#L350) | — | — (reads only deployment configuration; nothing to mock) |
+| `GET /.well-known/assetlinks.json` | [groupManagement.test.ts:350](../backend/tests/no-mock/groupManagement.test.ts#L350) | [publicEndpoints.test.ts:30](../backend/tests/mock/publicEndpoints.test.ts#L30) | Authentication-store reads reject if called; verify neither store is consulted |
 | `POST /api/groups/:groupId/leave` | [groupMembership.test.ts:26](../backend/tests/no-mock/groupMembership.test.ts#L26) | [groupMembership.test.ts:22](../backend/tests/mock/groupMembership.test.ts#L22) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
 | `DELETE /api/groups/:groupId/members/:memberId` | [groupMembership.test.ts:94](../backend/tests/no-mock/groupMembership.test.ts#L94) | [groupMembership.test.ts:42](../backend/tests/mock/groupMembership.test.ts#L42) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
-| `GET /health` | [health.test.ts:6](../backend/tests/no-mock/health.test.ts#L6) | — | — (no database or external component) |
+| `GET /health` | [health.test.ts:6](../backend/tests/no-mock/health.test.ts#L6) | [publicEndpoints.test.ts:15](../backend/tests/mock/publicEndpoints.test.ts#L15) | Authentication-store reads reject if called; verify neither store is consulted |
 | `GET /api/ledger-saves` | [ledgerSaves.test.ts:44](../backend/tests/no-mock/ledgerSaves.test.ts#L44) | [ledgerSaves.test.ts:28](../backend/tests/mock/ledgerSaves.test.ts#L28) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
 | `GET /api/ledger-saves/:slot` | [ledgerSaves.test.ts:62](../backend/tests/no-mock/ledgerSaves.test.ts#L62) | [ledgerSaves.test.ts:76](../backend/tests/mock/ledgerSaves.test.ts#L76) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
 | `PUT /api/ledger-saves/:slot` | [ledgerSaves.test.ts:79](../backend/tests/no-mock/ledgerSaves.test.ts#L79) | [ledgerSaves.test.ts:121](../backend/tests/mock/ledgerSaves.test.ts#L121) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
