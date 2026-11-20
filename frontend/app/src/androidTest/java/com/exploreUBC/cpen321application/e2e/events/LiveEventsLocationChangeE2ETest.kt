@@ -53,12 +53,9 @@ class LiveEventsLocationChangeE2ETest {
         composeRule.waitForText("E2E Event 01")
         composeRule.onAllNodesWithText("0.1 km away").onFirst().assertIsDisplayed()
 
-        // Keep the device at the nearby place for longer than one location update interval (60 s).
-        val end = System.currentTimeMillis() + NO_REFRESH_OBSERVATION_MS
-        while (System.currentTimeMillis() < end) {
-            mockLocation.moveTo(NEARBY_LATITUDE, NEARBY_LONGITUDE)
-            Thread.sleep(RESEND_INTERVAL_MS)
-        }
+        // Hold the nearby location for longer than one location update interval (60 s).
+        mockLocation.moveTo(NEARBY_LATITUDE, NEARBY_LONGITUDE)
+        Thread.sleep(NO_REFRESH_OBSERVATION_MS)
 
         // A refetch would recompute distances from the new place (about 5.6 km), so the
         // seeded "0.1 km away" label would be gone.
