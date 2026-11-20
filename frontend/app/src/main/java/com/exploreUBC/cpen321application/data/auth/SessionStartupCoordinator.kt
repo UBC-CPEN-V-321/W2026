@@ -10,7 +10,7 @@ sealed interface SessionStartupResult {
     data class Authenticated(
         val userId: String,
         val displayName: String,
-        val onboardingRequired: Boolean,
+        val onboardingCompletedAt: String?,
     ) : SessionStartupResult
 
     data object RetryableFailure : SessionStartupResult
@@ -35,14 +35,14 @@ class SessionStartupCoordinator(
                 SessionStartupResult.Authenticated(
                     userId = renewed.userId,
                     displayName = renewed.displayName,
-                    onboardingRequired = renewed.onboardingRequired,
+                    onboardingCompletedAt = renewed.onboardingCompletedAt,
                 )
             } else {
                 val restored = restoreSession()
                 SessionStartupResult.Authenticated(
                     userId = restored.userId,
                     displayName = restored.displayName,
-                    onboardingRequired = restored.onboardingRequired,
+                    onboardingCompletedAt = restored.onboardingCompletedAt,
                 )
             }
         } catch (error: ApiException) {

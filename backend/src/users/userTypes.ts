@@ -53,11 +53,6 @@ export type GoogleUserIdentity = {
   profileImageUrl: string | null;
 };
 
-export type OnboardingInput = {
-  start_location: string;
-  preferences: UserPreferences;
-};
-
 export type UserUpdate = Partial<
   Pick<User, 'displayName' | 'start_location'>
 > & {

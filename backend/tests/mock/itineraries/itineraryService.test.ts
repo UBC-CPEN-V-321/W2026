@@ -15,7 +15,6 @@ const ACTIVITY: ActivityItem = {
   id: 'activity-1',
   type: 'activity',
   name: 'Museum of Anthropology',
-  image: '',
   location: 'UBC',
   startTime: '2027-11-30T17:00:00.000Z',
   endTime: '2027-11-30T18:00:00.000Z',
@@ -115,7 +114,6 @@ describe('ItineraryService', () => {
     const activityInput = {
       type: 'activity' as const,
       name: 'Nitobe Garden',
-      image: '',
       location: 'UBC',
       startTime: '2027-11-30T19:00:00.000Z',
       endTime: '2027-11-30T20:00:00.000Z',
@@ -148,7 +146,6 @@ describe('ItineraryService', () => {
     const overlapping = {
       type: 'activity' as const,
       name: 'Overlapping activity',
-      image: '',
       location: 'UBC',
       startTime: '2027-11-30T17:30:00.000Z',
       endTime: '2027-11-30T17:45:00.000Z',
@@ -303,7 +300,6 @@ describe('ItineraryService', () => {
       {
         type: 'activity',
         name: 'Overlap',
-        image: '',
         location: 'UBC',
         startTime: '2027-11-30T17:30:00.000Z',
         endTime: '2027-11-30T17:45:00.000Z',

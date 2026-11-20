@@ -75,7 +75,6 @@ beforeEach(async () => {
     updated_at: new Date('2026-10-12T12:00:00.000Z'),
   });
 });
-
 afterAll(async () => {
   await database.collection('users').deleteMany({});
   await database.collection('sessions').deleteMany({});
@@ -252,58 +251,5 @@ describe('PATCH /api/v1/users/:userId — no mocks', () => {
 
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe('FORBIDDEN');
-  });
-});
-
-describe('PUT /api/v1/users/:userId/onboarding — no mocks', () => {
-  test('completes onboarding and persists all required profile fields', async () => {
-    const response = await request(app)
-      .put(`/api/v1/users/${USER_ID}/onboarding`)
-      .send({
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'cycling' },
-          budget: 'premium',
-          interest: 'markets',
-        },
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      onboardingRequired: false,
-      user: {
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'cycling' },
-          budget: 'premium',
-          interest: 'markets',
-        },
-        onboardingCompletedAt: expect.any(String),
-      },
-    });
-    await expect(database.collection('users').findOne({ _id: USER_ID }))
-      .resolves.toMatchObject({
-        start_location: 'UBC Bookstore',
-        onboardingCompletedAt: expect.any(Date),
-      });
-  });
-
-  test('safely rejects malformed IDs at the DAO boundary', async () => {
-    const userDao = new UserDao(database);
-
-    await expect(
-      userDao.completeOnboarding(
-        'not-an-object-id',
-        {
-          start_location: 'UBC Bookstore',
-          preferences: {
-            transportation: { mode: 'walking' },
-            budget: 'balanced',
-            interest: 'food',
-          },
-        },
-        new Date('2026-11-17T12:00:00.000Z'),
-      ),
-    ).resolves.toBeNull();
   });
 });

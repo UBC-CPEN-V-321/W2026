@@ -31,7 +31,6 @@ import type { NewSession, Session } from '../../../../src/session/sessionTypes';
 import type { UserRepository } from '../../../../src/users/userRepository';
 import type {
   GoogleUserIdentity,
-  OnboardingInput,
   User,
   UserPreferences,
   UserUpdate,
@@ -96,25 +95,6 @@ class TestUserRepository implements UserRepository {
 
   async findUser(userId: string): Promise<User | null> {
     return userId === this.user?.id ? this.user : null;
-  }
-
-  async completeOnboarding(
-    userId: string,
-    onboarding: OnboardingInput,
-    completedAt: Date,
-  ): Promise<User | null> {
-    if (this.user === null || userId !== this.user.id) {
-      return null;
-    }
-
-    this.user = {
-      ...this.user,
-      start_location: onboarding.start_location,
-      preferences: onboarding.preferences,
-      onboardingCompletedAt: completedAt,
-      updated_at: completedAt,
-    };
-    return this.user;
   }
 
   async updateUser(_userId: string, _update: UserUpdate): Promise<User | null> {
@@ -201,7 +181,6 @@ describe('Authentication endpoints — with mocks', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       expiresAt: '2026-10-23T12:00:00.000Z',
-      onboardingRequired: true,
       user: {
         id: USER_ID,
         googleSubject: 'google-subject-123',
@@ -236,8 +215,7 @@ describe('Authentication endpoints — with mocks', () => {
     expect(currentSession.status).toBe(200);
     expect(currentSession.body).toMatchObject({
       expiresAt: '2026-10-23T18:00:00.000Z',
-      onboardingRequired: true,
-      user: { id: USER_ID },
+      user: { id: USER_ID, onboardingCompletedAt: null },
     });
     expect(currentSession.body).not.toHaveProperty('sessionToken');
     expect(currentSession.body.expiresAt).not.toBe(authenticated.body.expiresAt);
@@ -319,84 +297,6 @@ describe('Authentication endpoints — with mocks', () => {
     expect(response.body.error.code).toBe('SESSION_REQUIRED');
   });
 
-  test('completes onboarding and changes current session state', async () => {
-    const app = createTestApp();
-    const authenticated = await login(app);
-    const authorization = `Bearer ${authenticated.body.sessionToken}`;
-
-    const incomplete = await request(app)
-      .put(`/api/v1/users/${USER_ID}/onboarding`)
-      .set('Authorization', authorization)
-      .send({ start_location: 'UBC Bookstore' });
-    expect(incomplete.status).toBe(400);
-    expect(incomplete.body.error.code).toBe('INVALID_ONBOARDING');
-
-    const completed = await request(app)
-      .put(`/api/v1/users/${USER_ID}/onboarding`)
-      .set('Authorization', authorization)
-      .send({
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'transit' },
-          budget: 'balanced',
-          interest: 'outdoors',
-        },
-      });
-    expect(completed.status).toBe(200);
-    expect(completed.body).toMatchObject({
-      onboardingRequired: false,
-      user: {
-        start_location: 'UBC Bookstore',
-        onboardingCompletedAt: expect.any(String),
-      },
-    });
-
-    const currentSession = await request(app)
-      .get('/api/v1/auth/session')
-      .set('Authorization', authorization);
-    expect(currentSession.status).toBe(200);
-    expect(currentSession.body.onboardingRequired).toBe(false);
-  });
-
-  test('rejects invalid onboarding preferences', async () => {
-    const app = createTestApp();
-    const authenticated = await login(app);
-
-    const response = await request(app)
-      .put(`/api/v1/users/${USER_ID}/onboarding`)
-      .set('Authorization', `Bearer ${authenticated.body.sessionToken}`)
-      .send({
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'teleporting' },
-          budget: 'balanced',
-          interest: 'sports',
-        },
-      });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('INVALID_ONBOARDING');
-  });
-
-  test('onboarding cannot be completed for another user', async () => {
-    const app = createTestApp();
-    const authenticated = await login(app);
-
-    const response = await request(app)
-      .put('/api/v1/users/6705f0000000000000000099/onboarding')
-      .set('Authorization', `Bearer ${authenticated.body.sessionToken}`)
-      .send({
-        start_location: 'UBC Bookstore',
-        preferences: {
-          transportation: { mode: 'transit' },
-          budget: 'balanced',
-          interest: 'outdoors',
-        },
-      });
-
-    expect(response.status).toBe(403);
-    expect(response.body.error.code).toBe('FORBIDDEN');
-  });
 });
 
 {

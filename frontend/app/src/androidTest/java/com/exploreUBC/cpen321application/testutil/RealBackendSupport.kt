@@ -32,8 +32,12 @@ import org.junit.rules.TestRule
 
 /** User the app signs in as; seeded, together with its session, by backend `npm run e2e:seed`. */
 internal const val REAL_BACKEND_USER_ID = "6acd519c76376cefc61e97f1"
+internal const val CREATE_PROFILE_USER_ID = "6acd519c76376cefc61e97f2"
+internal const val LOGOUT_PROFILE_USER_ID = "6acd519c76376cefc61e97f3"
 
 private const val SEEDED_USER_SESSION_TOKEN = "e2e-live-events-session-token"
+internal const val CREATE_PROFILE_SESSION_TOKEN = "e2e-create-profile-session-token"
+internal const val LOGOUT_PROFILE_SESSION_TOKEN = "e2e-create-profile-logout-session-token"
 private const val SESSION_VALID_FOR_MILLIS = 24L * 60 * 60 * 1000
 
 private fun realBackendSession() = AuthenticatedSession(
@@ -43,9 +47,18 @@ private fun realBackendSession() = AuthenticatedSession(
 )
 
 /** Client that calls the real backend as the seeded user, for resetting and reading test data. */
-internal fun realBackendClient(): ApiClient = ApiClient(
+internal fun realBackendClient(
+    userId: String = REAL_BACKEND_USER_ID,
+    token: String = SEEDED_USER_SESSION_TOKEN,
+): ApiClient = ApiClient(
     apiBaseUrl = BuildConfig.API_BASE_URL,
-    sessionManager = SessionManager(realBackendSession()),
+    sessionManager = SessionManager(
+        AuthenticatedSession(
+            token = token,
+            userId = userId,
+            expiresAtEpochMillis = System.currentTimeMillis() + SESSION_VALID_FOR_MILLIS,
+        ),
+    ),
 )
 
 /**
@@ -57,6 +70,22 @@ internal fun signedInTestUserRule(): TestRule = TestRule { base, _ ->
         override fun evaluate() {
             val context = InstrumentationRegistry.getInstrumentation().targetContext
             SessionStore(context).save(realBackendSession())
+            base.evaluate()
+        }
+    }
+}
+
+internal fun signedInTestUserRule(userId: String, token: String): TestRule = TestRule { base, _ ->
+    object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            SessionStore(context).save(
+                AuthenticatedSession(
+                    token = token,
+                    userId = userId,
+                    expiresAtEpochMillis = System.currentTimeMillis() + SESSION_VALID_FOR_MILLIS,
+                ),
+            )
             base.evaluate()
         }
     }
@@ -149,7 +178,6 @@ internal fun resetItineraries(withOverlap: Boolean = true) {
                 baseline.id,
                 CreateActivityInput(
                     name = OVERLAPPING_ACTIVITY_NAME,
-                    image = "https://example.com/e2e-activity.jpg",
                     category = "outdoors",
                     location = "UBC",
                     startTime = start.plusSeconds(30 * 60).toString(),

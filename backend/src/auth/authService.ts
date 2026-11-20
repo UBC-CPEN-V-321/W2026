@@ -19,7 +19,6 @@ export class AuthService {
     return {
       sessionToken: session.token,
       expiresAt: session.expiresAt,
-      onboardingRequired: user.onboardingCompletedAt === null,
       user,
     };
   }
@@ -35,7 +34,6 @@ export class AuthService {
 
     return {
       expiresAt: session.expiresAt,
-      onboardingRequired: user.onboardingCompletedAt === null,
       user,
     };
   }

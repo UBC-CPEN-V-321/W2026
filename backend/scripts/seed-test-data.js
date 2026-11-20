@@ -39,7 +39,6 @@ async function seedTestData(database) {
           id: '11111111-1111-4111-8111-111111111111',
           type: 'activity',
           name: 'Visit the Museum of Anthropology',
-          image: 'https://example.com/moa.jpg',
           description: 'Explore the museum collections.',
           category: 'art',
           location: 'Museum of Anthropology at UBC',

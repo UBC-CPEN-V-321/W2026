@@ -4,7 +4,6 @@ export type ActivityItem = {
   id: string;
   type: 'activity';
   name: string;
-  image: string;
   description?: string;
   category?: string;
   location: string;

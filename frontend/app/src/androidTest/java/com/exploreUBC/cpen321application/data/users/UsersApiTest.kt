@@ -21,6 +21,7 @@ class UsersApiTest {
             "googleSubject": "google-subject",
             "email": "person@example.com",
             "displayName": "Example Person",
+            "profileImageUrl": "https://example.com/profile.jpg",
             "start_location": "UBC Exchange",
             "preferences": {
               "transportation": { "mode": "transit" },
@@ -46,6 +47,7 @@ class UsersApiTest {
         assertNull(request.body)
         assertTrue(request.requiresAuthentication)
         assertEquals("Example Person", user.displayName)
+        assertEquals("https://example.com/profile.jpg", user.profileImageUrl)
         assertEquals(TransportationMode.TRANSIT, user.preferences.transportation.mode)
     }
 

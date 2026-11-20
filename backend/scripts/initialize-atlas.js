@@ -80,12 +80,11 @@ const numberTypes = ['double', 'int', 'long', 'decimal'];
 const activityItemSchema = {
   bsonType: 'object',
   additionalProperties: false,
-  required: ['id', 'type', 'name', 'image', 'location', 'startTime', 'endTime'],
+  required: ['id', 'type', 'name', 'location', 'startTime', 'endTime'],
   properties: {
     id: { bsonType: 'string' },
     type: { enum: ['activity'] },
     name: { bsonType: 'string' },
-    image: { bsonType: 'string' },
     description: { bsonType: 'string' },
     category: { bsonType: 'string' },
     location: { bsonType: 'string' },
@@ -202,6 +201,10 @@ async function initializeDatabase() {
     await ensureCollection(database, 'itineraries', itineraryValidator, [
       [{ ownerId: 1, updatedAt: -1 }, { name: 'owner_updated_at' }],
     ]);
+    await database.collection('itineraries').updateMany(
+      { 'items.image': { $exists: true } },
+      { $unset: { 'items.$[].image': '' } },
+    );
     await ensureCollection(database, 'sessions', sessionValidator, [
       [
         { tokenHash: 1 },

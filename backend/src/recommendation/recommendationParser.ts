@@ -62,7 +62,6 @@ function parseActivity(
   return {
     type: 'activity',
     name,
-    image: typeof item.image === 'string' ? item.image : '',
     location,
     startTime,
     endTime,

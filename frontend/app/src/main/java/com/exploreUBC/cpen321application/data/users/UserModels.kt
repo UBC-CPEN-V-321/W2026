@@ -61,6 +61,7 @@ data class User(
     val googleSubject: String,
     val email: String,
     val displayName: String,
+    val profileImageUrl: String? = null,
     val startLocation: String,
     val preferences: UserPreferences,
     val createdAt: String,

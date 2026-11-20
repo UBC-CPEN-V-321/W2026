@@ -12,6 +12,8 @@ import com.exploreUBC.cpen321application.data.users.UsersRepository
 internal const val E2E_PROFILE_USER_ID = "6705f0000000000000000001"
 
 internal class InMemoryUsersRepository : UsersRepository {
+    var onboardingCompleted = false
+        private set
     var user = User(
         googleSubject = E2E_PROFILE_USER_ID,
         email = "explorer@ubc.ca",
@@ -34,6 +36,9 @@ internal class InMemoryUsersRepository : UsersRepository {
 
     override suspend fun updateUser(userId: String, update: UserUpdate): User {
         require(userId == E2E_PROFILE_USER_ID)
+        if (update.startLocation != null && update.preferences != null) {
+            onboardingCompleted = true
+        }
         user = user.copy(
             displayName = update.displayName ?: user.displayName,
             startLocation = update.startLocation ?: user.startLocation,
@@ -42,4 +47,5 @@ internal class InMemoryUsersRepository : UsersRepository {
         )
         return user
     }
+
 }

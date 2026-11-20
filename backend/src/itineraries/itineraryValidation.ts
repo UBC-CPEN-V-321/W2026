@@ -97,13 +97,12 @@ function parseActivity(
 ): CreateActivityInput | undefined {
   addUnexpectedFields(
     value,
-    ['type', 'name', 'image', 'description', 'category', 'location', 'startTime', 'endTime'],
+    ['type', 'name', 'description', 'category', 'location', 'startTime', 'endTime'],
     path,
     details,
   );
 
   const name = requiredString(value.name, `${path}name`, 200, details);
-  const image = optionalString(value.image, `${path}image`, 2_000, details);
   const location = requiredString(value.location, `${path}location`, 500, details);
   const description = optionalString(value.description, `${path}description`, 1_000, details);
   const category = requiredString(value.category, `${path}category`, 100, details);
@@ -119,7 +118,6 @@ function parseActivity(
   return {
     type: 'activity',
     name,
-    image: image ?? '',
     location,
     startTime,
     endTime,
@@ -248,7 +246,7 @@ export function parseActivityUpdate(value: unknown): ActivityUpdate {
   const details: string[] = [];
   addUnexpectedFields(
     value,
-    ['name', 'image', 'description', 'category', 'location', 'startTime', 'endTime'],
+    ['name', 'description', 'category', 'location', 'startTime', 'endTime'],
     '',
     details,
   );
@@ -257,10 +255,6 @@ export function parseActivityUpdate(value: unknown): ActivityUpdate {
   if ('name' in value) {
     const name = requiredString(value.name, 'name', 200, details);
     if (name !== undefined) update.name = name;
-  }
-  if ('image' in value) {
-    const image = optionalString(value.image, 'image', 2_000, details);
-    if (image !== undefined) update.image = image;
   }
   if ('description' in value) {
     const description = optionalString(value.description, 'description', 1_000, details);

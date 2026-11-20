@@ -208,14 +208,13 @@ private fun EditActivityForm(
     onSave: (ActivityUpdate) -> Unit,
 ) {
     var name by remember(activity) { mutableStateOf(activity.name) }
-    var image by remember(activity) { mutableStateOf(activity.image) }
     var description by remember(activity) { mutableStateOf(activity.description.orEmpty()) }
     var category by remember(activity) { mutableStateOf(activity.category.orEmpty()) }
     var location by remember(activity) { mutableStateOf(activity.location) }
     var startTime by remember(activity) { mutableStateOf(activity.startTime) }
     var endTime by remember(activity) { mutableStateOf(activity.endTime) }
     val isValid = name.isNotBlank() && name.length <= ACTIVITY_NAME_MAX_LENGTH &&
-        image.length <= IMAGE_URL_MAX_LENGTH && category.isNotBlank() &&
+        category.isNotBlank() &&
         description.length <= DESCRIPTION_MAX_LENGTH &&
         location.isNotBlank() && location.length <= LOCATION_MAX_LENGTH &&
         timesAreOrdered(startTime, endTime)
@@ -227,10 +226,6 @@ private fun EditActivityForm(
     FormField(
         name, { name = it }, "Name", "edit_activity_name",
         required = true, maxLength = ACTIVITY_NAME_MAX_LENGTH,
-    )
-    FormField(
-        image, { image = it }, "Image URL (optional)", "edit_activity_image",
-        maxLength = IMAGE_URL_MAX_LENGTH,
     )
     FormField(
         description, { description = it }, "Description (optional)",
@@ -260,7 +255,7 @@ private fun EditActivityForm(
     )
     TimeOrderErrorMessage(hasTimeOrderError(startTime, endTime))
     ActivityFormSaveButton(isValid, isSaving) {
-        onSave(ActivityUpdate(name, image, description, category, location, startTime, endTime))
+        onSave(ActivityUpdate(name, description, category, location, startTime, endTime))
     }
 }
 
@@ -383,7 +378,6 @@ private fun ActivityDetails(activity: ActivityItem) {
     DetailField("Location", activity.location)
     DetailField("Start time", activity.startTime.toPacificDisplayDateTime())
     DetailField("End time", activity.endTime.toPacificDisplayDateTime())
-    DetailField("Image", activity.image)
 }
 
 @Composable

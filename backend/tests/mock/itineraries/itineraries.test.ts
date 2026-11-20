@@ -35,7 +35,6 @@ const request = (app: Express) => authenticatedAgent(app);
 const ACTIVITY_INPUT: CreateActivityInput = {
   type: 'activity',
   name: 'Museum of Anthropology',
-  image: '',
   category: 'art',
   location: '6393 NW Marine Drive, Vancouver, BC',
   startTime: '2027-11-30T17:00:00.000Z',

@@ -128,10 +128,10 @@ describe('Authentication endpoints — no mocks', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
-      onboardingRequired: false,
       user: {
         id: USER_ID.toHexString(),
         email: 'student@example.com',
+        onboardingCompletedAt: expect.any(String),
       },
     });
     expect(response.body).not.toHaveProperty('sessionToken');

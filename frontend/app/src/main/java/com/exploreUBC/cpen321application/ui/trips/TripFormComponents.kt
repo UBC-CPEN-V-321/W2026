@@ -39,7 +39,6 @@ internal val activityCategories = listOf(
 internal val transportationModes = listOf("walking", "cycling", "transit", "driving", "other")
 internal const val ITINERARY_NAME_MAX_LENGTH = 100
 internal const val ACTIVITY_NAME_MAX_LENGTH = 200
-internal const val IMAGE_URL_MAX_LENGTH = 2_000
 internal const val DESCRIPTION_MAX_LENGTH = 1_000
 internal const val LOCATION_MAX_LENGTH = 500
 
@@ -59,14 +58,12 @@ private data class ItemFormActions(
 
 private data class ActivityDetailsFieldValues(
     val name: String,
-    val image: String,
     val description: String,
     val category: String,
 )
 
 private data class ActivityDetailsFieldActions(
     val onNameChange: (String) -> Unit,
-    val onImageChange: (String) -> Unit,
     val onDescriptionChange: (String) -> Unit,
     val onCategoryChange: (String) -> Unit,
 )
@@ -118,7 +115,6 @@ private fun NewActivityScreen(
     modifier: Modifier,
 ) {
     var name by remember { mutableStateOf("") }
-    var image by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
@@ -126,7 +122,7 @@ private fun NewActivityScreen(
     var endTime by remember { mutableStateOf("") }
     val showTimeOrderError = hasTimeOrderError(startTime, endTime)
     val isValid = name.isNotBlank() && name.length <= ACTIVITY_NAME_MAX_LENGTH &&
-        image.length <= IMAGE_URL_MAX_LENGTH && category.isNotBlank() &&
+        category.isNotBlank() &&
         description.length <= DESCRIPTION_MAX_LENGTH &&
         location.isNotBlank() && location.length <= LOCATION_MAX_LENGTH &&
         timesAreOrdered(startTime, endTime)
@@ -134,7 +130,6 @@ private fun NewActivityScreen(
         onCreate(
             CreateActivityInput(
                 name,
-                image,
                 description.takeIf(String::isNotBlank),
                 category.takeIf(String::isNotBlank),
                 location,
@@ -157,10 +152,9 @@ private fun NewActivityScreen(
         modifier,
     ) {
         NewActivityDetailsFields(
-            values = ActivityDetailsFieldValues(name, image, description, category),
+            values = ActivityDetailsFieldValues(name, description, category),
             actions = ActivityDetailsFieldActions(
                 onNameChange = { name = it },
-                onImageChange = { image = it },
                 onDescriptionChange = { description = it },
                 onCategoryChange = { category = it },
             ),
@@ -179,10 +173,6 @@ private fun NewActivityDetailsFields(
     FormField(
         values.name, actions.onNameChange, "Name", "new_activity_name",
         required = true, maxLength = ACTIVITY_NAME_MAX_LENGTH,
-    )
-    FormField(
-        values.image, actions.onImageChange, "Image URL (optional)", "new_activity_image",
-        maxLength = IMAGE_URL_MAX_LENGTH,
     )
     FormField(
         values.description, actions.onDescriptionChange, "Description (optional)",
