@@ -13,7 +13,7 @@
 | Nov 3, 2026 | 4.1, 4.2 | Added the Friends component and its `friendships` table. |
 | Nov 3, 2026 | 4.1 | Added `GET /games/history` and each player's `ratingBefore` and `ratingAfter`. |
 | Nov 3, 2026 | 4.1 | Added `POST /games/invite`, and updated `DELETE /games` for matched games. |
-| Nov 3, 2026 | All | Shortened the document and matched it to the code: token auth (`/user/refresh`, `/user/logout`), equipment, location-based matchmaking (`/matchmaking`, `POST /games/accept`, the deadline job), no game owner, and the libraries in use. Unbuilt parts are marked *(planned)*. |
+| Nov 3, 2026 | All | Shortened the document and matched it to the code: token auth (`/user/refresh`, `/user/logout`), equipment, location-based matchmaking (`/matchmaking`, `POST /games/accept`, the deadline job), no game owner, and the libraries in use. |
 | Nov 3, 2026 | 3.1, 3.3, 3.5 (Use Case 4), 4.3 | A scheduled game's court is picked from a list; the map shows a matched game's court. |
 | Nov 18, 2026 | 4.1 | The ELO K-factor depends on each player's number of rated games (`calculateKFactor`), counted by `applyGameResult`. |
 | Nov 18, 2026 | 3.1, 4.1 | Added player stats: `GET /stats` and the stats screen with the ELO chart. |
@@ -21,6 +21,7 @@
 | Nov 18, 2026 | 4.1 | `GET /games` and `GET /games/me` return each game's forecast too, so the game screen and the caller's games show the weather. |
 | Nov 19, 2026 | 4.1 | Live updates over Server-Sent Events for games, the Games tab, tournaments and friends. Games are `IN_PROGRESS` only once started with `POST /games/start`, and only then scored. Friends show the game they are playing. |
 | Nov 20, 2026 | 3.1, 3.2, 3.4, 3.5, 4.6 | Reviewer feedback on features and use cases: split use cases that had more than one goal, added the missing user-facing use cases (sign out, profile, leave the queue, decline a match, friends, equipment, match history, stats), moved system-only steps out of the use case list and gave every use case an active, user-focused name. Redrew the use case diagram. |
+| Nov 20, 2026 | 3.1, 3.2, 3.3, 3.4, 3.5, 3.7, 4.1, 4.3, 4.6, 4.7 | Every feature that was not yet built is now implemented, so the notes saying so are removed. Removed the live score feature, its use cases and its non-functional requirement: players report the score once after the game. Added a fifth formal use case, Join a scheduled match. |
 
 ---
 
@@ -35,19 +36,16 @@ Donut is a matchmaking and ranking app for recreational tennis players (singles 
 ### **3.1. List of Features**
 
 #### **Authentication**
-Users sign in with Google. The backend then issues its own access and refresh tokens. Users can sign out and view their profile. Editing the profile and picking preferred courts on a map are *(planned)*.
+Users sign in with Google. The backend then issues its own access and refresh tokens. Users can sign out, view and edit their profile, and pick their preferred courts on a map.
 
 #### **Live matchmaking**
 Users pick a format (singles, doubles or either) and where they want to play. The system matches nearby players with similar ratings, books a game one hour later at a nearby court and notifies everyone. The game is booked once every player accepts.
 
 #### **Schedule match**
-Users schedule a game for a future time at a court they pick from a list. It shows in the feed with the weather forecast, and others can join it or be invited by a friend. Adding it to Google Calendar is *(planned)*.
-
-#### **Live game info update** *(planned)*
-During a game, a player updates the score, and it syncs live to every other player's device.
+Users schedule a game for a future time at a court they pick from a list. It shows in the feed with the weather forecast, and others can join it or be invited by a friend. Users can add it to Google Calendar.
 
 #### **ELO ranking**
-After a game's final score is reported, every player's ELO rating changes, and a leaderboard ranks players by rating. A player's stats screen shows their ELO over time, their match, set and game totals, and how they do against opponents of different ratings.
+After a game's final score is reported once the game is over, every player's ELO rating changes, and a leaderboard ranks players by rating. A player's stats screen shows their ELO over time, their match, set and game totals, and how they do against opponents of different ratings.
 
 #### **Tournaments**
 Users create an 8-team single-elimination tournament (singles or doubles) that players register for from the feed. When it fills, the system forms and seeds the teams, draws the bracket and books the quarterfinals. Each reported score moves the winner on, up to the champion.
@@ -55,14 +53,14 @@ Users create an 8-team single-elimination tournament (singles or doubles) that p
 Supporting features: **friends** (requests, friends list, adding players from a match summary), **match history** with a summary per game, and **equipment** tracking (rackets, balls, shoes, with maintenance dates).
 
 **Project scope requirements:**
-- **External API**: Google Maps (picking courts), Google Places (picking where to play), OpenWeather (feed forecasts), Google Calendar *(planned)*.
-- **External event**: match notifications and game invites through Firebase Cloud Messaging; live score updates *(planned)*.
+- **External API**: Google Maps (picking courts), Google Places (picking where to play), OpenWeather (feed forecasts), Google Calendar (adding booked games).
+- **External event**: match notifications and game invites through Firebase Cloud Messaging.
 - **Our own computation**: the matching algorithm, ELO with margin of victory, and the tournament draw (rating-based seeding, balanced doubles teams, moving winners through the bracket).
 
 ### **3.2. Use Case Diagram**
 ![Use case diagram](images/use_case_diagram.png)
 
-Each use case is one goal that the User pursues directly, grouped by feature. To keep the diagram readable, the User is joined to each feature group with one line instead of one line per use case, and the User takes part in every use case in the group. Dashed use cases are *(planned)*. External services are drawn with plain lines because they support use cases but never start one; an external service that supports several groups is drawn beside each of them. Steps done by the system alone (matchmaking, cancelling unanswered matches, syncing live scores, the ELO calculation, updating the leaderboard, drawing the bracket) are not use cases; §3.4 describes them as steps of use cases 6, 9, 10, 22, 24 and 30. Viewing a tournament bracket (33) leads to playing its matches, which are use cases 19 and 24.
+Each use case is one goal that the User pursues directly, grouped by feature. To keep the diagram readable, the User is joined to each feature group with one line instead of one line per use case, and the User takes part in every use case in the group. External services are drawn with plain lines because they support use cases but never start one; an external service that supports several groups is drawn beside each of them. Steps done by the system alone (matchmaking, cancelling unanswered matches, the ELO calculation, updating the leaderboard, drawing the bracket) are not use cases; §3.4 describes them as steps of use cases 6, 9, 10, 22 and 28. Viewing a tournament bracket (31) leads to playing its matches, which are use cases 19 and 22.
 
 ### **3.3. Actors Description**
 1. **User**: a tennis player who signs in with Google, joins or is matched into games, and reports scores. Every player in a game has the same permissions on it.
@@ -70,7 +68,7 @@ Each use case is one goal that the User pursues directly, grouped by feature. To
 3. **Google Maps Platform**: shows a matched game's court on a map, and Places looks up where a player wants to play.
 4. **Firebase Cloud Messaging**: delivers match notifications and game invites.
 5. **OpenWeather**: supplies forecasts for the feed.
-6. **Google Calendar** *(planned)*: stores booked games in the player's calendar.
+6. **Google Calendar**: stores booked games in the player's calendar.
 
 ### **3.4. Use Case Description**
 Each use case is one goal of one user, named with an active verb. The numbers match the diagram in §3.2.
@@ -79,8 +77,8 @@ Each use case is one goal of one user, named with an active verb. The numbers ma
 1. **Sign in with Google**: The user signs in with their Google account; the server creates their account the first time and returns tokens.
 2. **Sign out**: The user signs out, and the server revokes their refresh token.
 3. **View profile**: The user views their profile and rating.
-4. **Edit profile** *(planned)*: The user changes their profile details.
-5. **Choose preferred courts** *(planned)*: The user picks their preferred courts on a map.
+4. **Edit profile**: The user changes their profile details.
+5. **Choose preferred courts**: The user picks their preferred courts on a map.
 
 - Feature 2: Live matchmaking
 6. **Initiate live match**: The user picks a format and a location (their current location or an address) and joins the queue. The system then looks for a match (see *System steps* below).
@@ -99,46 +97,41 @@ Each use case is one goal of one user, named with an active verb. The numbers ma
 17. **Change a match's court**: A player moves the game to another court.
 18. **Cancel a scheduled match**: A player cancels the game for everyone.
 19. **Start a game early**: A player of a booked game taps "Start now" so the game can start before its start time and be scored.
-20. **Check in at the court** *(planned)*: Each player confirms they are at the court within 30 minutes of the start, or the game is cancelled.
-21. **Add game to Google Calendar** *(planned)*: The user adds a booked game to their calendar.
+20. **Check in at the court**: Each player confirms they are at the court within 30 minutes of the start, or the game is cancelled.
+21. **Add game to Google Calendar**: The user adds a booked game to their calendar.
 
-- Feature 4: Live game info update *(planned)*
-22. **Update the live score** *(planned)*: A player updates the score during the game.
-23. **View the live score** *(planned)*: A player sees the score update on their device while the game is played.
+- Feature 4: ELO ranking and history
+22. **Submit final score**: Once the game has started, a player reports the final score, and every player sees the match summary with their rating change. A tournament match is reported the same way.
+23. **View match summary**: The user views a finished game's score and each player's rating before and after.
+24. **View match history**: The user views their finished games, most recent first.
+25. **View leaderboard**: The user views players ranked by rating, with their own rank.
+26. **View player stats**: The user views a player's ELO over time, match, set and game totals, and results against opponents of different ratings.
 
-- Feature 5: ELO ranking and history
-24. **Submit final score**: Once the game has started, a player reports the final score, and every player sees the match summary with their rating change. A tournament match is reported the same way.
-25. **View match summary**: The user views a finished game's score and each player's rating before and after.
-26. **View match history**: The user views their finished games, most recent first.
-27. **View leaderboard**: The user views players ranked by rating, with their own rank.
-28. **View player stats**: The user views a player's ELO over time, match, set and game totals, and results against opponents of different ratings.
+- Feature 5: Tournaments
+27. **Create a tournament**: The user creates a tournament with a name, format, court and start time, and is registered as its first player.
+28. **Register for a tournament**: The user registers from the feed until it is full (8 players in singles, 16 in doubles) or starts. The registration that fills it triggers the bracket draw (see *System steps* below).
+29. **Leave a tournament**: The user leaves during registration. The creator can't leave but can cancel it.
+30. **Cancel a tournament**: The creator cancels a tournament that is still in registration.
+31. **View a tournament bracket**: The user views the bracket and opens each match, which is played like any game (use cases 19 and 22).
 
-- Feature 6: Tournaments
-29. **Create a tournament**: The user creates a tournament with a name, format, court and start time, and is registered as its first player.
-30. **Register for a tournament**: The user registers from the feed until it is full (8 players in singles, 16 in doubles) or starts. The registration that fills it triggers the bracket draw (see *System steps* below).
-31. **Leave a tournament**: The user leaves during registration. The creator can't leave but can cancel it.
-32. **Cancel a tournament**: The creator cancels a tournament that is still in registration.
-33. **View a tournament bracket**: The user views the bracket and opens each match, which is played like any game (use cases 19 and 24).
+- Feature 6: Friends
+32. **Send a friend request**: The user asks another player to be friends, including from a match summary.
+33. **Accept a friend request**: The user accepts a request they received.
+34. **Decline a friend request**: The user declines a request they received.
+35. **Remove a friend**: The user removes a friend from their friends list.
+36. **View friends**: The user views their friends and the game each one is playing.
 
-- Feature 7: Friends
-34. **Send a friend request**: The user asks another player to be friends, including from a match summary.
-35. **Accept a friend request**: The user accepts a request they received.
-36. **Decline a friend request**: The user declines a request they received.
-37. **Remove a friend**: The user removes a friend from their friends list.
-38. **View friends**: The user views their friends and the game each one is playing.
-
-- Feature 8: Equipment
-39. **View equipment**: The user views their rackets, balls and shoes, with maintenance dates.
-40. **Add equipment**: The user adds an item and can make it their default.
-41. **Update equipment**: The user changes an item's name, default status or maintenance date.
-42. **Remove equipment**: The user retires an item.
+- Feature 7: Equipment
+37. **View equipment**: The user views their rackets, balls and shoes, with maintenance dates.
+38. **Add equipment**: The user adds an item and can make it their default.
+39. **Update equipment**: The user changes an item's name, default status or maintenance date.
+40. **Remove equipment**: The user retires an item.
 
 **System steps (not use cases).** The user does not do these directly, so they are not in the diagram:
 - *Matchmaking* (part of use case 6): every 10 seconds, the system groups queued players who want a compatible format, are within 10 km of each other and have close ratings, books a game one hour later at a court near them and notifies everyone.
 - *Cancelling unanswered matches* (part of use cases 9 and 10): if anyone declines, or not everyone has accepted 30 minutes before the start, the system cancels the match for everyone.
-- *Live game data syncing* (part of use case 22) *(planned)*: the score updates on every player's device.
-- *ELO change calculation and leaderboard update* (part of use case 24): the system calculates each player's rating change and applies it to the leaderboard.
-- *Bracket draw* (part of use case 30): when a tournament fills, the system forms the teams (in doubles, strongest with weakest), seeds them by rating, draws the bracket (1 v 8, 4 v 5, 3 v 6, 2 v 7) and books the quarterfinals. Each reported score moves the winner on, books the next match once both teams are known (semifinals one hour after the start, the final two hours after), and the final completes the tournament.
+- *ELO change calculation and leaderboard update* (part of use case 22): the system calculates each player's rating change and applies it to the leaderboard.
+- *Bracket draw* (part of use case 28): when a tournament fills, the system forms the teams (in doubles, strongest with weakest), seeds them by rating, draws the bracket (1 v 8, 4 v 5, 3 v 6, 2 v 7) and books the quarterfinals. Each reported score moves the winner on, books the next match once both teams are known (semifinals one hour after the start, the final two hours after), and the final completes the tournament.
 
 ### **3.5. Formal Use Case Specifications (5 Most Major Use Cases)**
 <a name="uc1"></a>
@@ -172,7 +165,7 @@ Each use case is one goal of one user, named with an active verb. The numbers ma
 
 <a name="uc2"></a>
 
-#### Use Case 2: Check in to a scheduled match *(planned)*
+#### Use Case 2: Check in to a scheduled match
 **Description**: At a booked game's start time, each player confirms they are at the court. The game starts once all confirm within 30 minutes, otherwise it is cancelled.
 
 **Primary actor(s)**: User
@@ -245,25 +238,28 @@ Each use case is one goal of one user, named with an active verb. The numbers ma
 
 <a name="uc5"></a>
 
-#### Use Case 5: Update the live score *(planned)*
-**Description**: During a started game, a player enters each set's score, and the system pushes it to every other player in real time.
+#### Use Case 5: Join a scheduled match
+**Description**: The user joins an open scheduled game from the feed, or from a friend's invite, on the team of their choice.
 
 **Primary actor(s)**: User
 
-**Preconditions**: The user is signed in and is a player in a started game with no final score.
+**Preconditions**: The user is signed in, and the game is an open scheduled game that hasn't started and has a free spot on the user's chosen team.
 
-**Postconditions**: The new score is saved, and every player with the game open sees it.
+**Postconditions**: The user is a player on the chosen team. If theirs was the last free spot, the game is booked.
 
 **Main success scenario**:
-1. The user opens the current game, which connects to its live updates.
-2. The user changes a set's score, or starts a new set, and saves it.
-3. The system validates and saves it, then sends it to every connected player.
-4. Each other player's app shows the new score without refreshing.
+1. The user opens the Games tab and sees the feed of open games, each with its players and ratings, format, court and forecast. Alternatively, the user taps a friend's invite notification, which opens the game.
+2. The user opens a game and picks a team that has a free spot.
+3. The user taps "Join".
+4. The system checks that the game is open, scheduled and hasn't started, and that the team has a free spot. It adds the user to the team under the game's row lock.
+5. If the user took the last free spot, the system books the game.
+6. The app shows the game with the user on their team, and it appears in "My games".
 
 **Failure scenario(s)**:
-- 3a. The score is invalid, or the game already has a final score: the system rejects it.
-- 3b. The server can't be reached: the app keeps the unsaved score and the user can retry.
-- 4a. A player's app is offline: it loads the latest score when it reconnects.
+- 1a. The invited game is no longer open: the game screen shows its current state and the user can't join.
+- 4a. The game is full, already started or closed: the system rejects the request (`409`) and the app shows an error.
+- 4b. Two players take the last spot at the same time: the row lock lets one join, and the other is rejected (`409`).
+- 4c. The server can't be reached: the app shows an error and the user can retry.
 
 ### **3.6. Screen Mock-ups**
 Not included. The formal use cases describe each screen.
@@ -271,19 +267,13 @@ Not included. The formal use cases describe each screen.
 ### **3.7. Non-Functional Requirements**
 <a name="nfr1"></a>
 
-1. **Live score sync latency** *(planned with the live score)*
-    - **Description**: 95% of score updates reach every other connected player within 1 second.
-    - **Justification**: 1 second is the limit for keeping a user's flow uninterrupted (Nielsen Norman Group); players check the score between points.
-
-<a name="nfr2"></a>
-
-2. **API response time**
+1. **API response time**
     - **Description**: 95% of REST requests (feed, create, join, accept, score) respond within 500 ms with 50 concurrent users.
     - **Justification**: Players open the app right before playing, often on mobile data, so 500 ms leaves room for the network within the 1-second limit. 50 concurrent users is above the expected load in one city.
 
-<a name="nfr3"></a>
+<a name="nfr2"></a>
 
-3. **Match found latency**
+2. **Match found latency**
     - **Description**: When compatible players are queued, 95% are matched and notified within 60 seconds of the last one joining.
     - **Justification**: Matched players play within the hour and must accept 30 minutes before the start. The job runs every 10 seconds, so 60 seconds allows for missed runs and notification delivery.
 
@@ -310,7 +300,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
             - **Purpose**: The caller's equipment (`RACKET`, `BALLS`, `SHOES` or `OTHER`), default items first. Deleting retires the item. `404` "Equipment not found".
         6. `GET /courts` → `{ courts: { id, name, latitude, longitude }[] }` - E
             - **Purpose**: Every court, by name, for the court picker.
-        7. `PUT /user/me/courts` with `{ courtIds }` → `Court[]` *(planned)* - E
+        7. `PUT /user/me/courts` with `{ courtIds }` → `Court[]` - E
             - **Purpose**: Replaces the caller's preferred courts.
         8. `string[] getFcmTokens(userIds)`, `void clearFcmTokens(tokens)` - In
             - **Purpose**: Used by Matchmaking and Games to send notifications and drop dead tokens.
@@ -344,7 +334,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
             - **Purpose**: Reports the final score of an `IN_PROGRESS` game. In one transaction it saves the rounds, completes the game, updates ratings (`applyGameResult`) and, for a tournament game, advances the bracket (`advanceBracket`). `400` for an invalid score, `409` if not started (`GAME_NOT_STARTED`), already reported, a team isn't full, or Postgres aborts the transaction on a deadlock.
         13. `GET /games/events` with `gameId`, `GET /games/feed/events` → Server-Sent Events - E
             - **Purpose**: Live updates, pushed instead of polled. Each stream sends the current state when it opens, then again after every change, plus a heartbeat every 25 s. A game's stream sends `gameUpdated` (`{ game }`, like `GET /games`) or `gameDeleted`; the Games tab's sends `feed` (games and tournaments open to join, the same for everyone) and `mine` (the caller's), each `{ games, tournaments }`. Services announce changes (`events/changes.ts`) and `live/live.ts` pushes them, loading nothing when no one is watching. A user has at most 10 streams open; past that their oldest is closed. The app keeps a stream open only while its screen is visible, and reconnects whenever one ends.
-        14. `POST /games/check-in` *(planned)* - E
+        14. `POST /games/check-in` - E
             - **Purpose**: Check-in at the court.
 3. **Matchmaking**
     - **Purpose**: The matchmaking queue, the matching algorithm, and the jobs that run it every 10 seconds and cancel unanswered matches every minute.
@@ -428,7 +418,7 @@ Every route except `POST /user/login`, `POST /user/refresh` and `POST /user/logo
     - **Interfaces we call**:
         1. `GET /data/2.5/forecast?lat&lon&units=metric&appid` - called by Games and Tournaments
             - **Purpose**: Picks the 3-hour step nearest the start time (within 1.5 hours). Not called for a start time more than 3 hours ago or more than 5 days away. Cached per court for 10 minutes, with a 2-second timeout; without `OPENWEATHER_API_KEY` or on failure, games have no forecast.
-5. **Google Calendar API** *(planned)*
+5. **Google Calendar API**
     - **Purpose**: Adds a booked game to the player's calendar.
     - **Interfaces we call**:
         1. `POST /calendars/primary/events` - called by the front-end
@@ -473,14 +463,12 @@ An arrow from A to B means A calls an interface of B. Arrows touching the Backen
 
 ![Create a scheduled match sequence diagram](images/seq_create_scheduled_match.png)
 
-5. [**Update the live score**](#uc5)
+5. [**Join a scheduled match**](#uc5)
 
-![Update the live score sequence diagram](images/seq_update_game_info.png)
+![Join a scheduled match sequence diagram](images/seq_join_scheduled_match.png)
 
 ### **4.7. Design of Non-Functional Requirements**
-1. [**Live score sync latency**](#nfr1)
-    - **Implementation**: Each player with a game open keeps its Server-Sent Events stream (`GET /games/events`) open, and a saved score is pushed to it right after it is written, over the connection already open.
-2. [**API response time**](#nfr2)
+1. [**API response time**](#nfr1)
     - **Implementation**: The columns we filter on most are indexed, the feed loads games, players and ratings in one query, forecasts are cached per court for 10 minutes with a 2-second timeout, and matchmaking runs outside the request path.
-3. [**Match found latency**](#nfr3)
+2. [**Match found latency**](#nfr2)
     - **Implementation**: The matchmaking job runs every 10 seconds without overlapping runs. The greedy matcher sorts each format's queue once, so a run takes milliseconds, and notifications are sent right after each match commits.
