@@ -4,15 +4,19 @@ import { authedUserId, requireAuth } from '../auth/requireAuth';
 import { parseRequest } from '../errors';
 import {
     addEquipment,
+    addPreferredCourt,
     editEquipment,
     getEquipment,
+    getPreferredCourts,
     getProfile,
     login,
     removeEquipment,
+    removePreferredCourt,
     saveFcmToken,
 } from './users.service';
 import {
     createEquipmentSchema,
+    courtIdSchema,
     equipmentIdSchema,
     fcmTokenSchema,
     loginSchema,
@@ -81,5 +85,22 @@ usersRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
 usersRouter.put('/me/fcm-token', requireAuth, async (req: Request, res: Response) => {
     const { token } = parseRequest(fcmTokenSchema, req.body);
     await saveFcmToken(authedUserId(req), token);
+    res.sendStatus(204);
+});
+
+usersRouter.put('/me/preferred-courts/:courtId', requireAuth, async (req: Request, res: Response) => {
+    const courtId = parseRequest(courtIdSchema, req.params.courtId);
+    await addPreferredCourt(authedUserId(req), courtId);
+    res.sendStatus(204);
+});
+
+usersRouter.get('/me/preferred-courts', requireAuth, async (req: Request, res: Response) => {
+    const preferredCourts = await getPreferredCourts(authedUserId(req));
+    res.status(200).json({ preferredCourts });
+});
+
+usersRouter.delete('/me/preferred-courts/:courtId', requireAuth, async (req: Request, res: Response) => {
+    const courtId = parseRequest(courtIdSchema, req.params.courtId);
+    await removePreferredCourt(authedUserId(req), courtId);
     res.sendStatus(204);
 });

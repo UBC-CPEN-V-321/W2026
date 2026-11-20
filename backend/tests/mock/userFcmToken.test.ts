@@ -62,4 +62,5 @@ describe('Mocked: PUT /user/me/fcm-token', () => {
     expect(response.body).toEqual(errorBody(authErrors.MissingToken));
     expect(mockedSaveFcmToken).not.toHaveBeenCalled();
   });
+
 });

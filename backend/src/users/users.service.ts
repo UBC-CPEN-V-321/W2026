@@ -3,14 +3,17 @@ import { AppError, commonErrors, type ErrorDefinition } from '../errors';
 import { sendPush, type PushMessage } from '../external/fcm';
 import { validateToken } from './helpers/validateToken';
 import {
+  addPreferredCourt as addPreferredCourtRecord,
   clearFcmTokens,
   createEquipment as createEquipmentRecord,
   createUser,
   getFcmTokens,
+  listPreferredCourts as listPreferredCourtsRecord,
   getUserByGoogleSub,
   getUserById,
   listEquipment as listEquipmentRecords,
   retireEquipment as retireEquipmentRecord,
+  removePreferredCourt as removePreferredCourtRecord,
   saveFcmToken as saveFcmTokenRecord,
   updateEquipment as updateEquipmentRecord,
 } from './users.repository';
@@ -109,6 +112,46 @@ export async function getProfile(userId: string) {
  */
 export async function saveFcmToken(userId: string, token: string) {
   await saveFcmTokenRecord(userId, token);
+}
+
+/**
+ * Adds a court to the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @param courtId The court to add
+ * @throws AppError 404 if the court does not exist
+ */
+export async function addPreferredCourt(userId: string, courtId: number): Promise<void> {
+  const added = await addPreferredCourtRecord(userId, courtId);
+  if (!added) {
+    throw new AppError(commonErrors.CourtNotFound);
+  }
+}
+
+/**
+ * Removes a court from the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @param courtId The court to remove
+ * @throws AppError 404 if the court does not exist
+ */
+export async function removePreferredCourt(userId: string, courtId: number): Promise<void> {
+  const removed = await removePreferredCourtRecord(userId, courtId);
+  if (!removed) {
+    throw new AppError(commonErrors.CourtNotFound);
+  }
+}
+
+/**
+ * Gets the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @returns The user's preferred courts
+ * @throws AppError 404 if the user does not exist
+ */
+export async function getPreferredCourts(userId: string) {
+  const preferredCourts = await listPreferredCourtsRecord(userId);
+  if (!preferredCourts) {
+    throw new AppError(commonErrors.UserNotFound);
+  }
+  return preferredCourts;
 }
 
 /**
