@@ -351,8 +351,9 @@ export type RecordScoreResult =
   | { outcome: "notInProgress" | "noProposal" | "scoreChanged" | "proposed" | "confirmed" }
   | { outcome: "completed"; completed: CompletedGame };
 
-const sameRounds = (a: RoundScores, b: RoundScores) =>
-  a.length === b.length && a.every(([team1, team2], index) => b[index]?.[0] === team1 && b[index]?.[1] === team2);
+// Both are validated lists of [team 1 score, team 2 score] number pairs, so equal JSON means the same score in the
+// same order, with no indexing by a variable
+const sameRounds = (a: RoundScores, b: RoundScores) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * Records that a player agrees with a final score. A score that matches the one waiting confirms it; any other score
