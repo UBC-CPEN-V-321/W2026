@@ -3,6 +3,7 @@ package com.example.cpen321application.feature.gamedetail
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.GameSource
 import com.example.cpen321application.core.data.model.GameStatus
+import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.model.TEAMS
 import com.example.cpen321application.core.data.model.isClosed
 import com.example.cpen321application.core.data.model.playersOnTeam
@@ -24,11 +25,18 @@ data class GameActions(
     val canLeave: Boolean,
     val leaveTooLate: Boolean,  // a player who can't leave because the game starts too soon
     val canChangeTimeOrCourt: Boolean,
-    val canReportScore: Boolean,
+    val canReportScore: Boolean,  // also to correct the score waiting for confirmation
     val canStartNow: Boolean,  // a player of a booked game, which only starts when a player starts it
     val canCancel: Boolean,
-    val canInvite: Boolean = false  // a player of a game that friends can still join
+    val canInvite: Boolean = false,  // a player of a game that friends can still join
+    val canConfirmScore: Boolean = false  // a player who hasn't agreed with the score waiting yet
 )
+
+/**
+ * The players who still have to agree with the score waiting, in team order; empty when no score is waiting
+ */
+fun playersYetToConfirm(game: Game): List<Player> =
+    if (game.scoreProposal == null) emptyList() else game.players.filter { it.scoreConfirmedAt == null }
 
 /**
  * The friends who can be invited to a game: those not already playing in it
@@ -91,6 +99,8 @@ fun gameActions(game: Game, username: String?, now: Instant): GameActions {
         canChangeTimeOrCourt = canLeaveOrMove && !hasStarted,
         // The score is reported once the game was started and played
         canReportScore = canEdit && hasStarted,
+        // Every player has to agree with the reported score before the game counts
+        canConfirmScore = canEdit && hasStarted && playersYetToConfirm(game).any { it.username == username },
         // Players can start a booked game, early or late: every spot is filled and every player accepted
         canStartNow = canEdit && game.status == GameStatus.BOOKED,
         canCancel = canLeaveOrCancel,
