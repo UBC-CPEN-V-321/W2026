@@ -1,5 +1,7 @@
 import 'dotenv/config';
 
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 
 import type { Express } from 'express';
@@ -494,3 +496,107 @@ describe('Recommendation response parsing — no mocks', () => {
     })).rejects.toBeInstanceOf(RecommendationGenerationError);
   });
 });
+
+describe('Qwen client HTTP boundary — no mocks', () => {
+  const profile = {
+    start_location: 'UBC Bus Exchange',
+    preferences: {
+      transportation: { mode: 'transit' as const },
+      budget: 'balanced' as const,
+      interest: 'art' as const,
+    },
+  };
+
+  test.each([
+    [{ endpoint: '', apiKey: 'key', model: 'model' }, 'QWEN_ENDPOINT'],
+    [{ endpoint: 'http://127.0.0.1', apiKey: '', model: 'model' }, 'QWEN_API_KEY'],
+    [{ endpoint: 'http://127.0.0.1', apiKey: 'key', model: '' }, 'QWEN_MODEL'],
+  ])('rejects missing configuration %#', async (config, variableName) => {
+    const qwenClient = new QwenClient({ ...config, timeoutMs: 1_000 });
+
+    await expect(qwenClient.generateItineraries(profile))
+      .rejects.toThrow(variableName);
+  });
+
+  test('extracts nested output text through the real HTTP client', async () => {
+    await withQwenHttpResponse({
+      status: 'completed',
+      output: [{
+        type: 'message',
+        content: [{ type: 'output_text', text: JSON.stringify(validPayload()) }],
+      }],
+    }, async (endpoint) => {
+      await expect(createLocalQwenClient(endpoint).generateItineraries(profile))
+        .resolves.toBe(JSON.stringify(validPayload()));
+    });
+  });
+
+  test.each([
+    ['max_output_tokens', 'reached its output token limit'],
+    ['content_filter', 'returned an incomplete response'],
+  ])('rejects incomplete response reason %s', async (reason, message) => {
+    await withQwenHttpResponse({
+      status: 'incomplete',
+      incomplete_details: { reason },
+      output: [],
+    }, async (endpoint) => {
+      await expect(createLocalQwenClient(endpoint).generateItineraries(profile))
+        .rejects.toThrow(message);
+    });
+  });
+
+  test('rejects a response without output text', async () => {
+    await withQwenHttpResponse({ status: 'completed', output: [] }, async (endpoint) => {
+      await expect(createLocalQwenClient(endpoint).generateItineraries(profile))
+        .rejects.toThrow('returned no output text');
+    });
+  });
+
+  test('reports an HTTP provider status', async () => {
+    await withQwenHttpResponse(
+      { error: { message: 'rate limited' } },
+      async (endpoint) => {
+        await expect(createLocalQwenClient(endpoint).generateItineraries(profile))
+          .rejects.toThrow('returned 429');
+      },
+      429,
+    );
+  });
+
+  test('maps a real connection failure without a provider status', async () => {
+    const qwenClient = createLocalQwenClient('http://127.0.0.1:65534/v1');
+
+    await expect(qwenClient.generateItineraries(profile))
+      .rejects.toThrow('Qwen generation service failed');
+  });
+});
+
+function createLocalQwenClient(endpoint: string): QwenClient {
+  return new QwenClient({
+    endpoint,
+    apiKey: 'no-mock-qwen-key',
+    model: 'no-mock-qwen-model',
+    timeoutMs: 2_000,
+  });
+}
+
+async function withQwenHttpResponse(
+  body: object,
+  action: (endpoint: string) => Promise<void>,
+  status = 200,
+): Promise<void> {
+  const server = createServer((_request, response) => {
+    response.writeHead(status, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify(body));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+
+  try {
+    await action(`http://127.0.0.1:${address.port}/v1`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error === undefined ? resolve() : reject(error));
+    });
+  }
+}
