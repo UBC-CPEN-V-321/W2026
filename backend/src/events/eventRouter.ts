@@ -13,7 +13,8 @@ import type { EventService } from './eventService';
 export function createEventRouter(eventService: EventService): Router {
   const router = Router({ mergeParams: true });
 
-  router.get('/', async (request, response) => {
+  router.get('/', (request, response) => {
+    void (async () => {
     const { userId } = request.params as { userId?: string };
     const latitude = Number(request.query.latitude);
     const longitude = Number(request.query.longitude);
@@ -84,6 +85,7 @@ export function createEventRouter(eventService: EventService): Router {
       console.error('Failed to retrieve events:', error);
       response.status(500).json({ error: 'Failed to retrieve events' });
     }
+    })();
   });
 
   return router;

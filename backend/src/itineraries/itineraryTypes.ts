@@ -1,6 +1,6 @@
 import type { TransportationMode } from '../users/userTypes';
 
-export type ActivityItem = {
+export interface ActivityItem {
   id: string;
   type: 'activity';
   name: string;
@@ -9,9 +9,9 @@ export type ActivityItem = {
   location: string;
   startTime: string;
   endTime: string;
-};
+}
 
-export type TransportationItem = {
+export interface TransportationItem {
   id: string;
   type: 'transportation';
   mode: TransportationMode;
@@ -20,17 +20,17 @@ export type TransportationItem = {
   distanceMeters: number;
   startTime: string;
   endTime: string;
-};
+}
 
 export type ItineraryItem = ActivityItem | TransportationItem;
 
-export type ItineraryTimeConflict = {
+export interface ItineraryTimeConflict {
   id: string;
   type: ItineraryItem['type'];
   name: string;
   startTime: string;
   endTime: string;
-};
+}
 
 export type CreateActivityInput = Omit<ActivityItem, 'id'>;
 export type CreateTransportationInput = Omit<TransportationItem, 'id'>;
@@ -44,7 +44,7 @@ export type CreateItineraryItemInput =
 
 export type ItineraryScore = Record<string, number>;
 
-export type Itinerary = {
+export interface Itinerary {
   id: string;
   ownerId: string;
   name: string;
@@ -56,7 +56,7 @@ export type Itinerary = {
   saved: boolean;
   inRecommendation: boolean;
   score: ItineraryScore;
-};
+}
 
 export type CreateItineraryInput = Omit<
   Itinerary,
@@ -65,11 +65,11 @@ export type CreateItineraryInput = Omit<
   items: CreateItineraryItemInput[];
 };
 
-export type ItineraryDetails = {
+export interface ItineraryDetails {
   name: string;
   description?: string;
   startingLocation?: string;
-};
+}
 
 export type ItineraryDetailsUpdate = Partial<
   ItineraryDetails & Pick<Itinerary, 'saved' | 'inRecommendation'>

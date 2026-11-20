@@ -64,7 +64,8 @@ export function createRecommendationRouter(
 ): Router {
   const router = Router({ mergeParams: true });
 
-  router.post('/', async (request, response) => {
+  router.post('/', (request, response) => {
+    void (async () => {
     try {
       const { userId } = request.params as { userId?: string };
       if (userId === undefined || userId === '') {
@@ -75,9 +76,11 @@ export function createRecommendationRouter(
     } catch (error: unknown) {
       sendError(response, error);
     }
+    })();
   });
 
-  router.get('/', async (request, response) => {
+  router.get('/', (request, response) => {
+    void (async () => {
     try {
       const { userId } = request.params as { userId?: string };
       if (userId === undefined || userId === '') {
@@ -88,6 +91,7 @@ export function createRecommendationRouter(
     } catch (error: unknown) {
       sendError(response, error);
     }
+    })();
   });
 
   return router;

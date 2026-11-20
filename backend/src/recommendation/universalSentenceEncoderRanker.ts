@@ -15,14 +15,14 @@ const STOP_WORDS = new Set([
   'that', 'the', 'their', 'then', 'this', 'to', 'with', 'your',
 ]);
 
-type EmbeddingTensor = {
+interface EmbeddingTensor {
   array(): Promise<number[][]>;
   dispose(): void;
-};
+}
 
-type SentenceEncoderModel = {
+interface SentenceEncoderModel {
   embed(input: string[]): Promise<EmbeddingTensor>;
-};
+}
 
 type ModelLoader = () => Promise<SentenceEncoderModel>;
 
@@ -44,8 +44,8 @@ function cosineSimilarity(
   let leftMagnitudeSquared = 0;
   let rightMagnitudeSquared = 0;
   for (let index = 0; index < left.length; index += 1) {
-    const leftValue = left[index]!;
-    const rightValue = right[index]!;
+    const leftValue = left.at(index) ?? 0;
+    const rightValue = right.at(index) ?? 0;
     dotProduct += leftValue * rightValue;
     leftMagnitudeSquared += leftValue * leftValue;
     rightMagnitudeSquared += rightValue * rightValue;
@@ -79,11 +79,11 @@ export class UniversalSentenceEncoderItineraryRanker implements ItineraryRanker 
     const interestEmbedding = embeddings[0];
 
     const scoredItineraries = itineraries.map((itinerary, index) => {
-        const interestSimilarity = cleanedDescriptions[index] === ''
+        const interestSimilarity = cleanedDescriptions.at(index) === ''
           ? 0
           : Number(
             cosineSimilarity(
-              embeddings[index + 1],
+              embeddings.at(index + 1),
               interestEmbedding,
             ).toFixed(6),
           );
@@ -117,8 +117,8 @@ export class UniversalSentenceEncoderItineraryRanker implements ItineraryRanker 
         originalIndex,
       }))
       .sort((left, right) =>
-        right.itinerary.score.interestSimilarity! -
-          left.itinerary.score.interestSimilarity! ||
+        (right.itinerary.score.interestSimilarity ?? 0) -
+          (left.itinerary.score.interestSimilarity ?? 0) ||
         left.originalIndex - right.originalIndex,
       )
       .map(({ itinerary }) => itinerary);

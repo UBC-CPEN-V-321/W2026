@@ -74,7 +74,7 @@ export class EventDao implements EventRepository {
   }
 
   /** Finds nearby upcoming events for recommendation scoring. */
-  async findNearbyUpcomingEvents(
+  findNearbyUpcomingEvents(
     options: NearbyEventQuery,
   ): Promise<LiveEventCandidate[]> {
     return this.events

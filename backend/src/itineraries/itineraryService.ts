@@ -352,16 +352,14 @@ export class ItineraryService {
     replacement: ItineraryItem,
     replacedItemId?: string,
   ): Promise<void> {
-    const replaceEmbeddedItems = this.repository.replaceEmbeddedItems;
-    if (replaceEmbeddedItems === undefined) {
+    if (this.repository.replaceEmbeddedItems === undefined) {
       throw new Error('The itinerary repository does not support replacement.');
     }
     const removedItemIds = conflicts.map((conflict) => conflict.id);
     if (replacedItemId !== undefined) {
       removedItemIds.push(replacedItemId);
     }
-    const replaced = await replaceEmbeddedItems.call(
-      this.repository,
+    const replaced = await this.repository.replaceEmbeddedItems(
       userId,
       itineraryId,
       removedItemIds,

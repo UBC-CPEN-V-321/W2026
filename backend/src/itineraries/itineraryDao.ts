@@ -24,7 +24,7 @@ import type {
   TransportationSegmentUpdate,
 } from './itineraryTypes';
 
-type ItineraryDocument = {
+interface ItineraryDocument {
   _id: ObjectId;
   ownerId: ObjectId;
   name: string;
@@ -36,7 +36,7 @@ type ItineraryDocument = {
   saved: boolean;
   inRecommendation: boolean;
   score: ItineraryScore;
-};
+}
 
 export class ItineraryDao implements ItineraryRepository {
   private readonly itineraries: Collection<ItineraryDocument>;

@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.exploreUBC.cpen321application.MainActivity2
+import com.exploreUBC.cpen321application.data.AppConstants
+import com.exploreUBC.cpen321application.data.network.ApiRequest
 import com.exploreUBC.cpen321application.data.users.BudgetPreference
 import com.exploreUBC.cpen321application.data.users.InterestPreference
 import com.exploreUBC.cpen321application.data.users.TransportationMode
@@ -20,6 +22,7 @@ import com.exploreUBC.cpen321application.testutil.CREATE_PROFILE_USER_ID
 import com.exploreUBC.cpen321application.testutil.LOGOUT_PROFILE_SESSION_TOKEN
 import com.exploreUBC.cpen321application.testutil.LOGOUT_PROFILE_USER_ID
 import com.exploreUBC.cpen321application.testutil.REAL_BACKEND_TIMEOUT_MS
+import com.exploreUBC.cpen321application.testutil.beforeActivityRule
 import com.exploreUBC.cpen321application.testutil.realBackendClient
 import com.exploreUBC.cpen321application.testutil.signedInTestUserRule
 import kotlinx.coroutines.runBlocking
@@ -27,6 +30,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
+import org.json.JSONObject
 
 /** First-login profile creation through the real authenticated app and backend. */
 class CreateProfileE2ETest {
@@ -34,7 +38,17 @@ class CreateProfileE2ETest {
 
     @get:Rule
     val rules: RuleChain = RuleChain
-        .outerRule(
+        .outerRule(beforeActivityRule {
+            val response = runBlocking {
+                realBackendClient(CREATE_PROFILE_USER_ID, CREATE_PROFILE_SESSION_TOKEN)
+                    .execute(ApiRequest(method = "GET", path = AppConstants.Auth.CURRENT_SESSION_PATH))
+            }
+            check(JSONObject(response).getJSONObject("user").isNull("onboardingCompletedAt")) {
+                "The E2E create-profile user already completed onboarding. " +
+                    "Run ./scripts/run-frontend-e2e-tests.sh to reset the isolated E2E database."
+            }
+        })
+        .around(
             signedInTestUserRule(CREATE_PROFILE_USER_ID, CREATE_PROFILE_SESSION_TOKEN),
         )
         .around(composeRule)

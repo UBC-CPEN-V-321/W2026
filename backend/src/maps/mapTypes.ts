@@ -1,44 +1,44 @@
 import type { TransportationMode } from "../users/userTypes";
 
-export type MapCoordinates = {
+export interface MapCoordinates {
   latitude: number;
   longitude: number;
-};
+}
 
-export type GeocodedLocation = {
+export interface GeocodedLocation {
   coordinates: MapCoordinates;
   formattedAddress: string;
   placeId: string;
   isApproximate: boolean;
-};
+}
 
-export type MapMarker = {
+export interface MapMarker {
   activityId: string;
   title: string;
   address: string;
   placeId: string;
   coordinates: MapCoordinates;
   isApproximate: boolean;
-};
+}
 
-export type UnmappedActivity = {
+export interface UnmappedActivity {
   activityId: string;
   title: string;
   address: string;
-};
+}
 
-export type RouteStep = {
+export interface RouteStep {
   instruction: string;
-};
+}
 
-export type TravelOption = {
+export interface TravelOption {
   encodedPolyline: string;
   distanceMeters: number;
   durationSeconds: number;
   steps: RouteStep[];
-};
+}
 
-export type MapRoute = {
+export interface MapRoute {
   fromActivityId: string;
   toActivityId: string;
   transportationMode: TransportationMode;
@@ -47,9 +47,9 @@ export type MapRoute = {
   durationSeconds: number;
   walking: TravelOption | null;
   driving: TravelOption | null;
-};
+}
 
-export type ItineraryMap = {
+export interface ItineraryMap {
   itineraryId: string;
   ownerId: string;
   itineraryUpdatedAt: string;
@@ -57,4 +57,4 @@ export type ItineraryMap = {
   routes: MapRoute[];
   unmappedActivities: UnmappedActivity[];
   generatedAt: string;
-};
+}

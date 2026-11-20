@@ -7,7 +7,7 @@ import { InvalidRecommendationOwnerError } from './recommendationErrors';
 import type { RecommendationRepository } from './recommendationRepository';
 import type { RecommendedItineraryInput } from './recommendationTypes';
 
-type RecommendationDocument = {
+interface RecommendationDocument {
   _id: ObjectId;
   ownerId: ObjectId;
   name: string;
@@ -19,7 +19,7 @@ type RecommendationDocument = {
   saved: boolean;
   inRecommendation: boolean;
   score: Record<string, number>;
-};
+}
 
 export class RecommendationDao implements RecommendationRepository {
   private readonly itineraries: Collection<RecommendationDocument>;
