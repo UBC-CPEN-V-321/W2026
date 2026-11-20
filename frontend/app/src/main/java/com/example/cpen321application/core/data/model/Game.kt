@@ -34,6 +34,7 @@ data class Player(
     val ratingAfter: Double? = null,
     // Matched games only: null until the player accepts
     val acceptedAt: Instant? = null,
+    val photoUrl: String? = null,
     // When the player agreed to the score waiting for confirmation; null until they do
     val scoreConfirmedAt: Instant? = null
 )

@@ -183,13 +183,15 @@ private fun ScoreCard(match: MatchResult) {
                 name = "You" + teammatesSuffix(match.partners),
                 avatarName = match.me.name,
                 setScores = match.myScores.map { it.first },
-                otherSetScores = match.myScores.map { it.second }
+                otherSetScores = match.myScores.map { it.second },
+                avatarUrl = match.me.photoUrl,
             ),
             ScoreboardSide(
                 name = playerNames(match.opponents),
                 avatarName = match.opponents.firstOrNull()?.name.orEmpty(),
                 setScores = match.myScores.map { it.second },
-                otherSetScores = match.myScores.map { it.first }
+                otherSetScores = match.myScores.map { it.first },
+                avatarUrl = match.opponents.firstOrNull()?.photoUrl,
             )
         ),
         footer = if (before != null && after != null) {
@@ -259,7 +261,7 @@ private fun PlayerRowWithFriendButton(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        PlayerAvatar(name = player.name)
+        PlayerAvatar(name = player.name, avatarUrl = player.photoUrl)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             // Not the username: until onboarding lets players pick one, it is their email

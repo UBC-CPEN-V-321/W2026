@@ -57,13 +57,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             session.logout()
             signOut(getApplication())
             // The old token stops working, so this phone gets no more pushes for the signed-out user
-            FirebaseMessaging.getInstance().deleteToken()
+            runCatching { FirebaseMessaging.getInstance().deleteToken() }
         }
     }
 
     private fun registerPushToken() {
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            viewModelScope.launch { pushTokens.register(token) }
+        runCatching {
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                viewModelScope.launch { pushTokens.register(token) }
+            }
         }
     }
 }

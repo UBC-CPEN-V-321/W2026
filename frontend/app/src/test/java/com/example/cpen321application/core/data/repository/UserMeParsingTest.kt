@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -22,6 +23,7 @@ class UserMeParsingTest {
 
     @Before
     fun startServer() {
+        UserPhotoCache.clear()
         server.start()
     }
 
@@ -67,7 +69,7 @@ class UserMeParsingTest {
         server.enqueue(
             MockResponse().setBody(
                 """{ "friends": [ { "id": "u2", "username": "rally@example.com", "name": "Rally Partner",
-                "rating": 1519.6, "friendsSince": "2026-10-01T12:00:00.000Z", "playing": null } ] }"""
+                "rating": 1519.6, "photoUrl": "https://example.com/rally.jpg", "friendsSince": "2026-10-01T12:00:00.000Z", "playing": null } ] }"""
             )
         )
         val (repository, session) = repository()
@@ -76,6 +78,7 @@ class UserMeParsingTest {
 
         assertEquals(1519.6, friend.rating!!, 0.0)
         assertEquals("Rally Partner", friend.displayName)
+        assertEquals("https://example.com/rally.jpg", friend.avatarUrl)
     }
 
     // Input: GET /friends/requests with one incoming and one outgoing request, shaped like the backend's
@@ -102,5 +105,28 @@ class UserMeParsingTest {
         assertEquals("u4", outgoing.userId)
         assertEquals("2026-11-18T09:00:00.000Z", outgoing.requestedAt)
         assertEquals(1612.5, outgoing.rating!!, 0.0)
+    }
+
+    @Test
+    fun getUserPhotoReturnsPhotoUrlFromEndpoint() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody("""{ "photoUrl": "https://lh3.googleusercontent.com/avatar.jpg" }""")
+        )
+        val (repository, session) = repository()
+
+        val photoUrl = repository.getUserPhoto(session, "u1").getOrThrow()
+
+        assertEquals("https://lh3.googleusercontent.com/avatar.jpg", photoUrl)
+        assertEquals("/user/u1/photo", server.takeRequest().path)
+    }
+
+    @Test
+    fun getUserPhotoReturnsNullWhenPhotoNotFound() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(404))
+        val (repository, session) = repository()
+
+        val result = repository.getUserPhoto(session, "u1")
+
+        Assert.assertTrue(result.isFailure)
     }
 }

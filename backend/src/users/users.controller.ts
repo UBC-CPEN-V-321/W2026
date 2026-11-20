@@ -4,20 +4,26 @@ import { authedUserId, requireAuth } from '../auth/requireAuth';
 import { parseRequest } from '../errors';
 import {
     addEquipment,
+    addPreferredCourt,
     editEquipment,
     getEquipment,
+    getPreferredCourts,
     getProfile,
+    getUserPhoto,
     login,
     removeEquipment,
+    removePreferredCourt,
     saveFcmToken,
 } from './users.service';
 import {
     createEquipmentSchema,
+    courtIdSchema,
     equipmentIdSchema,
     fcmTokenSchema,
     loginSchema,
     refreshTokenSchema,
     updateEquipmentSchema,
+    userIdSchema,
 } from './users.schemas';
 
 export const usersRouter = Router();
@@ -78,8 +84,31 @@ usersRouter.get('/me', requireAuth, async (req: Request, res: Response) => {
     res.status(200).json({ user });
 });
 
+usersRouter.get('/:userId/photo', requireAuth, async (req: Request, res: Response) => {
+    const userId = parseRequest(userIdSchema, req.params.userId);
+    const photoUrl = await getUserPhoto(userId);
+    res.status(200).json({ photoUrl });
+});
+
 usersRouter.put('/me/fcm-token', requireAuth, async (req: Request, res: Response) => {
     const { token } = parseRequest(fcmTokenSchema, req.body);
     await saveFcmToken(authedUserId(req), token);
+    res.sendStatus(204);
+});
+
+usersRouter.put('/me/preferred-courts/:courtId', requireAuth, async (req: Request, res: Response) => {
+    const courtId = parseRequest(courtIdSchema, req.params.courtId);
+    await addPreferredCourt(authedUserId(req), courtId);
+    res.sendStatus(204);
+});
+
+usersRouter.get('/me/preferred-courts', requireAuth, async (req: Request, res: Response) => {
+    const preferredCourts = await getPreferredCourts(authedUserId(req));
+    res.status(200).json({ preferredCourts });
+});
+
+usersRouter.delete('/me/preferred-courts/:courtId', requireAuth, async (req: Request, res: Response) => {
+    const courtId = parseRequest(courtIdSchema, req.params.courtId);
+    await removePreferredCourt(authedUserId(req), courtId);
     res.sendStatus(204);
 });

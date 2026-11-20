@@ -181,6 +181,7 @@ private fun FriendRequestRow(
 ) {
     PersonRow(
         name = request.displayName,
+        avatarUrl = request.avatarUrl,
         supportingContent = { PersonSubtitle(username = request.username) { MutedLine("Wants to be your friend") } },
     ) {
         Button(
@@ -236,6 +237,7 @@ private fun FriendRow(
     val isPlaying = friend.playing != null
     PersonRow(
         name = friend.displayName,
+        avatarUrl = friend.avatarUrl,
         modifier = if (isPlaying) {
             Modifier.clickable(onClickLabel = "See ${friend.displayName}'s game", onClick = onOpenPlaying)
         } else {

@@ -42,6 +42,7 @@ import com.example.cpen321application.core.data.model.Tournament
 import com.example.cpen321application.core.data.model.TournamentPlayer
 import com.example.cpen321application.core.data.model.TournamentStatus
 import com.example.cpen321application.core.data.model.playersOnTeam
+//import com.example.cpen321application.core.data.repository.safeLog
 import com.example.cpen321application.core.ui.FollowWhileVisible
 import com.example.cpen321application.core.ui.components.BackHeader
 import com.example.cpen321application.core.ui.components.ChipStyle
@@ -316,8 +317,8 @@ private fun RegisteredPlayers(players: List<TournamentPlayer>) {
                     modifier = Modifier.padding(start = 68.dp, end = 20.dp)
                 )
             }
-            // Not the username: until onboarding lets players pick one, it is their email
-            PersonRow(name = player.name) {
+            // safeLog("TournamentDetail", "RegisteredPlayers rendering ${player.name} (${player.id}): avatarUrl = ${player.photoUrl}")
+            PersonRow(name = player.name, avatarUrl = player.photoUrl) {
                 Text(text = player.rating.roundToInt().toString(), style = DonutTextStyles.numericSmall)
             }
         }

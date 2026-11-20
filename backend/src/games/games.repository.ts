@@ -13,6 +13,7 @@ const playerUserSelect = {
   username: true,
   name: true,
   rating: true,
+  photoUrl: true,
 } satisfies Prisma.UserSelect;
 
 // A game with its court, players, rounds and tournament, as shown on the game screen and the feed

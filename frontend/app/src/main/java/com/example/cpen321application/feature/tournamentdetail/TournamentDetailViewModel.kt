@@ -1,10 +1,13 @@
 package com.example.cpen321application.feature.tournamentdetail
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.data.model.Tournament
+import com.example.cpen321application.core.data.repository.FriendsRepository
+import com.example.cpen321application.core.data.repository.FriendsRepositoryImpl
 import com.example.cpen321application.core.data.repository.TournamentsRepository
 import com.example.cpen321application.core.data.repository.reconnecting
+import com.example.cpen321application.core.data.repository.safeLog
 import com.example.cpen321application.core.network.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,11 +21,15 @@ import java.time.Instant
  * @param tournamentId the tournament on screen
  * @param tournamentsRepository the /tournaments routes
  * @param currentUsername the signed-in user's username, null if signed out
+ * @param session the user's AuthSession for fetching missing player photos
+ * @param friendsRepository repository for user photo lookups
  */
 class TournamentDetailViewModel(
     private val tournamentId: String,
     private val tournamentsRepository: TournamentsRepository,
-    private val currentUsername: () -> String?
+    private val currentUsername: () -> String?,
+    private val session: AuthSession? = null,
+    private val friendsRepository: FriendsRepository = FriendsRepositoryImpl()
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(TournamentDetailUiState())
     val uiState: StateFlow<TournamentDetailUiState> = _uiState.asStateFlow()
@@ -98,6 +105,58 @@ class TournamentDetailViewModel(
     private fun showTournament(tournament: Tournament) {
         val actions = tournamentActions(tournament, currentUsername(), Instant.now())
         _uiState.update { it.copy(tournament = tournament, actions = actions) }
+        enrichMissingPhotos(tournament)
+    }
+
+    private fun enrichMissingPhotos(tournament: Tournament) {
+        val sess = session ?: return
+        val missingPlayers = tournament.players.filter { it.photoUrl.isNullOrBlank() }
+        val missingCreator = tournament.creator.photoUrl.isNullOrBlank()
+
+        if (missingPlayers.isEmpty() && !missingCreator) return
+
+        viewModelScope.launch {
+            var updatedPlayers = tournament.players
+            var updatedCreator = tournament.creator
+            var changed = false
+
+            for (player in missingPlayers) {
+                val result = friendsRepository.getUserPhoto(sess, player.id)
+                result.onSuccess { photoUrl ->
+                    if (!photoUrl.isNullOrBlank()) {
+                        safeLog("TournamentDetail", "Fetched photoUrl for player ${player.name} (${player.id}): $photoUrl")
+                        updatedPlayers = updatedPlayers.map { p ->
+                            if (p.id == player.id) p.copy(photoUrl = photoUrl) else p
+                        }
+                        changed = true
+                    } else {
+                        safeLog("TournamentDetail", "No photoUrl for player ${player.name} (${player.id})")
+                    }
+                }.onFailure { err ->
+                    safeLog("TournamentDetail", "Failed to fetch photoUrl for ${player.name}: ${err.message}")
+                }
+            }
+
+            if (missingCreator) {
+                val creatorResult = friendsRepository.getUserPhoto(sess, tournament.creator.id)
+                creatorResult.onSuccess { photoUrl ->
+                    if (!photoUrl.isNullOrBlank()) {
+                        com.example.cpen321application.core.data.repository.safeLog("TournamentDetail", "Fetched photoUrl for creator ${tournament.creator.name}: $photoUrl")
+                        updatedCreator = updatedCreator.copy(photoUrl = photoUrl)
+                        changed = true
+                    }
+                }
+            }
+
+            if (changed) {
+                val updatedTournament = tournament.copy(
+                    players = updatedPlayers,
+                    creator = updatedCreator
+                )
+                val actions = tournamentActions(updatedTournament, currentUsername(), Instant.now())
+                _uiState.update { it.copy(tournament = updatedTournament, actions = actions) }
+            }
+        }
     }
 
     private suspend fun reload() {

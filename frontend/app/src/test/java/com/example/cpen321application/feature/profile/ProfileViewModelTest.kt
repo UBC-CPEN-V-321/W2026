@@ -2,7 +2,9 @@ package com.example.cpen321application.feature.profile
 
 import com.example.cpen321application.core.auth.AuthSession
 import com.example.cpen321application.core.auth.User
+import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.data.model.Game
+import com.example.cpen321application.core.data.repository.CourtsRepository
 import com.example.cpen321application.core.data.repository.EquipmentRepository
 import com.example.cpen321application.core.data.repository.FriendsRepository
 import com.example.cpen321application.core.network.ApiService
@@ -77,6 +79,10 @@ class FakeFriendsRepository : FriendsRepository {
     override suspend fun getMatchHistory(session: AuthSession): Result<List<Game>> {
         return Result.success(matchesList)
     }
+
+    override suspend fun getUserPhoto(session: AuthSession, userId: String): Result<String?> {
+        return Result.success("https://example.com/photo.jpg")
+    }
 }
 
 class FakeEquipmentRepository : EquipmentRepository {
@@ -132,19 +138,57 @@ class FakeEquipmentRepository : EquipmentRepository {
     }
 }
 
+class FakeCourtsRepository : CourtsRepository {
+    val allCourtsList = mutableListOf(
+        Court(1, "Kitsilano Courts", 49.27, -123.15),
+        Court(2, "Stanley Park Courts", 49.29, -123.14)
+    )
+    val preferredCourtsList = mutableListOf(
+        Court(1, "Kitsilano Courts", 49.27, -123.15)
+    )
+
+    override suspend fun getCourts(): Result<List<Court>> {
+        return Result.success(allCourtsList)
+    }
+
+    override suspend fun getCourts(session: AuthSession): Result<List<Court>> {
+        return Result.success(allCourtsList)
+    }
+
+    override suspend fun getPreferredCourts(session: AuthSession): Result<List<Court>> {
+        return Result.success(preferredCourtsList)
+    }
+
+    override suspend fun addPreferredCourt(session: AuthSession, courtId: Int): Result<Unit> {
+        val court = allCourtsList.firstOrNull { it.id == courtId }
+        if (court != null && preferredCourtsList.none { it.id == courtId }) {
+            preferredCourtsList.add(court)
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun removePreferredCourt(session: AuthSession, courtId: Int): Result<Unit> {
+        preferredCourtsList.removeAll { it.id == courtId }
+        return Result.success(Unit)
+    }
+}
+
 class ProfileViewModelTest {
 
     private lateinit var repository: FakeFriendsRepository
     private lateinit var equipmentRepository: FakeEquipmentRepository
+    private lateinit var courtsRepository: FakeCourtsRepository
     private lateinit var viewModel: ProfileViewModel
 
     @Before
     fun setUp() {
         repository = FakeFriendsRepository()
         equipmentRepository = FakeEquipmentRepository()
+        courtsRepository = FakeCourtsRepository()
         viewModel = ProfileViewModel(
             repository = repository,
             equipmentRepository = equipmentRepository,
+            courtsRepository = courtsRepository,
             ioDispatcher = Dispatchers.Unconfined
         )
     }
@@ -156,6 +200,8 @@ class ProfileViewModelTest {
         assertEquals(ProfileTab.MATCH_HISTORY, viewModel.uiState.value.selectedTab)
         viewModel.selectTab(ProfileTab.EQUIPMENT)
         assertEquals(ProfileTab.EQUIPMENT, viewModel.uiState.value.selectedTab)
+        viewModel.selectTab(ProfileTab.PREFERRED_COURTS)
+        assertEquals(ProfileTab.PREFERRED_COURTS, viewModel.uiState.value.selectedTab)
     }
 
     @Test
@@ -163,6 +209,42 @@ class ProfileViewModelTest {
         viewModel.clearMessages()
         assertNull(viewModel.uiState.value.errorMessage)
         assertNull(viewModel.uiState.value.successMessage)
+    }
+
+    @Test
+    fun testFetchPreferredCourts() {
+        val dummyUser = User("Alice", "access", "refresh")
+        val session = createDummySession(dummyUser)
+
+        viewModel.fetchPreferredCourts(session)
+
+        val preferred = viewModel.uiState.value.preferredCourts
+        assertEquals(1, preferred.size)
+        assertEquals("Kitsilano Courts", preferred.first().name)
+    }
+
+    @Test
+    fun testAddPreferredCourt() {
+        val dummyUser = User("Alice", "access", "refresh")
+        val session = createDummySession(dummyUser)
+
+        viewModel.addPreferredCourt(session, Court(2, "Stanley Park Courts", 49.29, -123.14))
+
+        val preferred = viewModel.uiState.value.preferredCourts
+        assertEquals(2, preferred.size)
+        assertEquals("Preferred court added", viewModel.uiState.value.successMessage)
+    }
+
+    @Test
+    fun testDeletePreferredCourt() {
+        val dummyUser = User("Alice", "access", "refresh")
+        val session = createDummySession(dummyUser)
+
+        viewModel.deletePreferredCourt(session, 1)
+
+        val preferred = viewModel.uiState.value.preferredCourts
+        assertEquals(0, preferred.size)
+        assertEquals("Preferred court removed", viewModel.uiState.value.successMessage)
     }
 
     @Test
@@ -204,6 +286,7 @@ class ProfileViewModelTest {
                 override suspend fun refreshTokens(request: RefreshRequestDto) = TODO()
                 override suspend fun logout(request: RefreshRequestDto) = TODO()
                 override suspend fun getUserMe(authorization: String) = TODO()
+                override suspend fun getUserPhoto(authorization: String, userId: String) = TODO()
                 override suspend fun getEquipment(authorization: String) = TODO()
                 override suspend fun createEquipment(authorization: String, request: CreateEquipmentRequestDto) = TODO()
                 override suspend fun updateEquipment(authorization: String, id: Int, request: UpdateEquipmentRequestDto) = TODO()
@@ -219,6 +302,9 @@ class ProfileViewModelTest {
                 override suspend fun sendFriendRequest(authorization: String, request: SendFriendRequestDto) = TODO()
                 override suspend fun getLeaderboard(authorization: String, limit: Int?) = TODO()
                 override suspend fun getCourts(authorization: String) = TODO()
+                override suspend fun getPreferredCourts(authorization: String) = TODO()
+                override suspend fun addPreferredCourt(authorization: String, courtId: Int) = TODO()
+                override suspend fun removePreferredCourt(authorization: String, courtId: Int) = TODO()
             },
             initialUser = user,
             onUserChanged = {}

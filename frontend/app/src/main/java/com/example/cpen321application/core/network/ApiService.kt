@@ -39,6 +39,12 @@ interface ApiService {
     @GET("user/me")
     suspend fun getUserMe(@Header("Authorization") authorization: String): JsonElement
 
+    @GET("user/{userId}/photo")
+    suspend fun getUserPhoto(
+        @Header("Authorization") authorization: String,
+        @Path("userId") userId: String,
+    ): JsonElement
+
     @GET("user/equipment")
     suspend fun getEquipment(@Header("Authorization") authorization: String): JsonElement
 
@@ -112,4 +118,19 @@ interface ApiService {
 
     @GET("courts")
     suspend fun getCourts(@Header("Authorization") authorization: String): CourtsResponseDto
+
+    @GET("user/me/preferred-courts/")
+    suspend fun getPreferredCourts(@Header("Authorization") authorization: String): JsonElement
+
+    @PUT("user/me/preferred-courts/{courtId}")
+    suspend fun addPreferredCourt(
+        @Header("Authorization") authorization: String,
+        @Path("courtId") courtId: Int,
+    ): Response<ResponseBody>
+
+    @DELETE("user/me/preferred-courts/{courtId}")
+    suspend fun removePreferredCourt(
+        @Header("Authorization") authorization: String,
+        @Path("courtId") courtId: Int,
+    ): Response<ResponseBody>
 }

@@ -3,16 +3,21 @@ import { AppError, commonErrors, type ErrorDefinition } from '../errors';
 import { sendPush, type PushMessage } from '../external/fcm';
 import { validateToken } from './helpers/validateToken';
 import {
+  addPreferredCourt as addPreferredCourtRecord,
   clearFcmTokens,
   createEquipment as createEquipmentRecord,
   createUser,
   getFcmTokens,
+  getUserPhoto as getUserPhotoRecord,
+  listPreferredCourts as listPreferredCourtsRecord,
   getUserByGoogleSub,
   getUserById,
   listEquipment as listEquipmentRecords,
   retireEquipment as retireEquipmentRecord,
+  removePreferredCourt as removePreferredCourtRecord,
   saveFcmToken as saveFcmTokenRecord,
   updateEquipment as updateEquipmentRecord,
+  updateUserPhotoUrl as updateUserPhotoUrlRecord,
 } from './users.repository';
 import type { CreateEquipmentInput, UpdateEquipmentInput } from './users.schemas';
 
@@ -48,6 +53,9 @@ export async function login(idToken: string): Promise<LoginResult> {
 
   const existingUser = await getUserByGoogleSub(payload.sub);
   if (existingUser) {
+    if (payload.picture !== undefined) {
+      await updateUserPhotoUrlRecord(existingUser.id, payload.picture);
+    }
     const tokens = await issueTokens(existingUser.id);
     return {
       isNewUser: false,
@@ -78,6 +86,7 @@ export async function login(idToken: string): Promise<LoginResult> {
     username: email, // temporary until user sets their username with onboarding
     name,
     email,
+    photoUrl: payload.picture ?? null,
   });
 
   const tokens = await issueTokens(newUser.id);
@@ -103,12 +112,74 @@ export async function getProfile(userId: string) {
 }
 
 /**
+ * Gets the signed-in user's photo URL.
+ * @param userId The signed-in user
+ * @returns The photo URL, or null when none is available
+ * @throws AppError 404 if the user does not exist
+ */
+export async function getUserPhoto(userId: string): Promise<string | null> {
+  const user = await getUserPhotoRecord(userId);
+  if (!user) {
+    throw new AppError(commonErrors.UserNotFound);
+  }
+  return user.photoUrl;
+}
+
+/**
  * Saves the device the user's push notifications go to.
  * @param userId The signed-in user's ID
  * @param token The device's FCM token
  */
 export async function saveFcmToken(userId: string, token: string) {
   await saveFcmTokenRecord(userId, token);
+}
+
+/**
+ * Throws the court-not-found error when a preferred-court write matched nothing.
+ * Kept synchronous so the async callers below only await and then assert.
+ * @param found The result of the repository write
+ * @throws AppError 404 if the court was not found
+ */
+function assertCourtFound(found: unknown): asserts found {
+  if (!found) {
+    throw new AppError(commonErrors.CourtNotFound);
+  }
+}
+
+/**
+ * Adds a court to the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @param courtId The court to add
+ * @throws AppError 404 if the court does not exist
+ */
+export async function addPreferredCourt(userId: string, courtId: number): Promise<void> {
+  const added = await addPreferredCourtRecord(userId, courtId);
+  assertCourtFound(added);
+}
+
+/**
+ * Removes a court from the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @param courtId The court to remove
+ * @throws AppError 404 if the court does not exist
+ */
+export async function removePreferredCourt(userId: string, courtId: number): Promise<void> {
+  const removed = await removePreferredCourtRecord(userId, courtId);
+  assertCourtFound(removed);
+}
+
+/**
+ * Gets the signed-in user's preferred courts.
+ * @param userId The signed-in user
+ * @returns The user's preferred courts
+ * @throws AppError 404 if the user does not exist
+ */
+export async function getPreferredCourts(userId: string) {
+  const preferredCourts = await listPreferredCourtsRecord(userId);
+  if (!preferredCourts) {
+    throw new AppError(commonErrors.UserNotFound);
+  }
+  return preferredCourts;
 }
 
 /**

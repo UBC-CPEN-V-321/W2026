@@ -1,5 +1,6 @@
 package com.example.cpen321application.feature.profile
 
+import com.example.cpen321application.core.data.model.Court
 import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.network.dto.EquipmentType
 import com.example.cpen321application.core.network.dto.FriendDto
@@ -12,24 +13,31 @@ enum class ProfileTab {
     MATCH_HISTORY,
     FRIENDS,
     EQUIPMENT,
+    PREFERRED_COURTS,
 }
 
 data class ProfileUiState(
     val username: String = "",
     val name: String = "",  // the real name, empty until the profile loads
+    val avatarUrl: String? = null,
     val elo: Int = 1500,
     val selectedTab: ProfileTab = ProfileTab.FRIENDS,
     val friends: List<FriendDto> = emptyList(),
     val friendRequests: List<FriendRequestDto> = emptyList(),
     val matchHistory: List<MatchResult> = emptyList(),  // most recent first
     val equipment: List<EquipmentDto> = emptyList(),
+    val preferredCourts: List<Court> = emptyList(),
+    val allCourts: List<Court> = emptyList(),
     val isLoadingUserMe: Boolean = false,
     val isLoadingFriends: Boolean = false,
     val isLoadingRequests: Boolean = false,
     val isLoadingMatches: Boolean = false,
     val isLoadingEquipment: Boolean = false,
+    val isLoadingPreferredCourts: Boolean = false,
+    val isLoadingAllCourts: Boolean = false,
     val isActionInProgress: Boolean = false,
     val showEquipmentDialog: Boolean = false,
+    val showAddCourtDialog: Boolean = false,
     val editingEquipment: EquipmentDto? = null,
     val equipmentNameInput: String = "",
     val equipmentTypeInput: EquipmentType = EquipmentType.RACKET,
@@ -39,7 +47,7 @@ data class ProfileUiState(
 ) {
     val friendCount: Int get() = friends.size
     val isLoadingAny: Boolean
-        get() = isLoadingUserMe || isLoadingFriends || isLoadingRequests || isLoadingMatches || isLoadingEquipment
+        get() = isLoadingUserMe || isLoadingFriends || isLoadingRequests || isLoadingMatches || isLoadingEquipment || isLoadingPreferredCourts
 }
 
 // The rating graph needs this many matches with a recorded rating

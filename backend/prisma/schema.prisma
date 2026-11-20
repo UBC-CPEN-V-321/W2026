@@ -87,6 +87,7 @@ model User {
   username  String   @unique
   name      String // real name from Google
   email     String
+  photoUrl  String?
   fcmToken  String? // for push notifications
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
