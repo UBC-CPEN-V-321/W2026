@@ -82,9 +82,9 @@ The features in this app will facilitate the entire trip planning process for UB
 
 #### Use Cases for Feature 4: Authentication
 
-1. **Sign In with Google**: The user obtains a Google identity credential through Android Credential Manager. The backend verifies the credential's signature, issuer, audience, and expiration, resolves the linked ExploreUBC account, and issues an ExploreUBC session.
-2. **Sign Up with Google**: A first-time user authenticates with a verified Google identity. The backend creates exactly one ExploreUBC account for that Google subject and issues an ExploreUBC session; subsequent authentication with the same subject resolves the existing account.
-3. **Sign Out**: The user ends the current ExploreUBC session. The backend revokes that session, the frontend clears its locally stored session and Google credential state, and the application returns to the authentication screen.
+1. **Sign In with Google**: The user signs in with Google to access their existing ExploreUBC account.
+2. **Sign Up with Google**: A first-time user signs up with Google to create an ExploreUBC account. Signing in again with the same Google account opens that ExploreUBC account.
+3. **Sign Out**: The user signs out of ExploreUBC and returns to the authentication screen. Accessing their account again requires signing in.
 
 #### Use Cases for Feature 5: Google Maps Integration
 

@@ -87,8 +87,4 @@ info "Launching app..."
 "$ADB" -s "$EMULATOR_SERIAL" shell monkey -p "$APPLICATION_ID" -c android.intent.category.LAUNCHER 1 >/dev/null
 
 echo
-if [[ "${FRONTEND_TESTS_REQUIRE_SIGN_IN:-1}" == "1" ]]; then
-  info "Done. Sign in on the emulator to verify."
-else
-  info "Done. The test runner will install its session fixtures."
-fi
+info "Done. Sign in on the emulator to verify."
