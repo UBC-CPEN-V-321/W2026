@@ -117,26 +117,29 @@ class CampusMapController(
     }
 
     fun showItineraryMap(itineraryMap: ItineraryMap, title: String) = onMainThread {
-        if (mode != MapLayerMode.TRIP_ROUTES) return@onMainThread
-        pendingItineraryMap = itineraryMap
-        pendingOverlayTitle = title
-        if (::map.isInitialized) {
-            renderItineraryMap(itineraryMap, title)
+        if (mode == MapLayerMode.TRIP_ROUTES) {
+            pendingItineraryMap = itineraryMap
+            pendingOverlayTitle = title
+            if (::map.isInitialized) {
+                renderItineraryMap(itineraryMap, title)
+            }
         }
     }
 
     fun setPopularPlacesEnabled(enabled: Boolean) = onMainThread {
-        if (popularPlacesEnabled == enabled) return@onMainThread
-        popularPlacesEnabled = enabled
-        if (!::map.isInitialized) return@onMainThread
-        if (enabled) {
-            popularPlacesJob = scope.launch { loadPopularPlaces() }
-        } else {
-            popularPlacesJob?.cancel()
-            popularMarkers.forEach { it.remove() }
-            popularMarkers.clear()
-            if (mode == MapLayerMode.POPULAR_PLACES) {
-                binding.textMapStatus.setText(R.string.map_popular_hidden)
+        if (popularPlacesEnabled != enabled) {
+            popularPlacesEnabled = enabled
+            if (::map.isInitialized) {
+                if (enabled) {
+                    popularPlacesJob = scope.launch { loadPopularPlaces() }
+                } else {
+                    popularPlacesJob?.cancel()
+                    popularMarkers.forEach { it.remove() }
+                    popularMarkers.clear()
+                    if (mode == MapLayerMode.POPULAR_PLACES) {
+                        binding.textMapStatus.setText(R.string.map_popular_hidden)
+                    }
+                }
             }
         }
     }
@@ -156,12 +159,13 @@ class CampusMapController(
     }
 
     fun setTravelMode(tripMode: TripTravelMode) = onMainThread {
-        if (mode != MapLayerMode.TRIP_ROUTES) return@onMainThread
-        val shouldRedraw = travelMode != tripMode && ::map.isInitialized
-        travelMode = tripMode
-        if (shouldRedraw) {
-            redrawTravelPolylines()
-            updateTravelLegend()
+        if (mode == MapLayerMode.TRIP_ROUTES) {
+            val shouldRedraw = travelMode != tripMode && ::map.isInitialized
+            travelMode = tripMode
+            if (shouldRedraw) {
+                redrawTravelPolylines()
+                updateTravelLegend()
+            }
         }
     }
 
