@@ -4,6 +4,7 @@
 
 | **Change Date**   | **Modified Sections** | **Rationale** |
 | ----------------- | --------------------- | ------------- |
+| November 20, 2026 | 2.1.2, 2.3–2.5 | Reran the backend test suites and refreshed the commit, results, coverage figures, and HTML report screenshots. |
 | November 20, 2026 | 2.1, 3.1, 3.2, 4.1   | Separated functional Authentication coverage from the Security NFR, documented session and ownership coverage, and clarified that Authentication is outside the selected frontend feature-E2E scope. |
 | November 20, 2026 | 2.1, 4.2              | Named the mocked Security dependencies and verified that every frontend use-case scenario references its Section 3.4 use-case number. |
 | November 19, 2026 | 2.1, 4.1, 4.2         | Named the actual mocked dependencies, aligned frontend scenario labels with Section 3.4, and converted frontend E2E suites to the real authenticated app and backend. |
@@ -50,7 +51,7 @@
 
 #### 2.1.2. Commit Hash Where Tests Run
 
-`e6ef990670878b6254742872eb9716887a76a2d7`
+`28a87f5a9ac0bd34055d657babae829028c40d5a`
 
 #### 2.1.3. Explanation on How to Run the Tests
 
@@ -78,21 +79,21 @@
 
 Run `npm run test:mock` to generate the HTML report under `backend/coverage/mock`.
 ![Mocked test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-mock.png)
-The mocked suites cover 76.40% of statements, 66.62% of branches, 79.69% of functions, and 77.40% of lines. The map router has 100% coverage in this run. Lower standalone mock coverage is expected because these tests focus on provider failures, database exceptions, vector edge cases, and concurrency-related error handling rather than normal API behavior.
+The latest `npm run test:mock` run passed all 13 suites and all 225 tests in 2.148 seconds. It covers 76.83% of statements, 67.29% of branches, 79.10% of functions, and 77.46% of lines. The map router has 100% coverage in this run. Lower standalone mock coverage is expected because these tests focus on provider failures, database exceptions, vector edge cases, and concurrency-related error handling rather than normal API behavior.
 
 ### 2.4. Jest Coverage Report Screenshots Without Mocks
 
 
 Run `npm run test:no-mock` to generate the HTML report under `backend/coverage/no-mock`.
 ![No-mock test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-no-mock.png)
-The latest `npm run test:no-mock` run passed all 10 suites and all 291 tests in 131.444 seconds. It covers 96.07% of statements, 90.68% of branches, 99.65% of functions, and 96.21% of lines. The enforced no-mock thresholds are 95% of statements, 89% of branches, 99% of functions, and 95% of lines. The map suite exercises the real Express router, services, MongoDB DAOs, session ownership middleware, Google Geocoding API, and Google Routes API. External-provider clients use real HTTP against deterministic local provider servers where practical, while MongoDB and application components remain unmocked.
+The latest `npm run test:no-mock` run passed all 10 suites and all 291 tests in 153.056 seconds. It covers 96.07% of statements, 90.68% of branches, 99.65% of functions, and 96.21% of lines. The enforced no-mock thresholds are 95% of statements, 89% of branches, 99% of functions, and 95% of lines. The map suite exercises the real Express router, services, MongoDB DAOs, session ownership middleware, Google Geocoding API, and Google Routes API. External-provider clients use real HTTP against deterministic local provider servers where practical, while MongoDB and application components remain unmocked.
 
 ### 2.5. Jest Coverage Report Screenshots (Mock + No-Mocks)
 
 
 Run `npm run test:combined` to generate the HTML report under `backend/coverage/combined`.
 ![Combined test coverage](https://raw.githubusercontent.com/islamhampriv/ExploreUBC/main/documentation/images/tests-combined.png)
-The latest `npm run test:combined` run passed all 23 suites and all 529 tests in 214.405 seconds. It covers 98.94% of statements, 97.26% of branches, 100% of functions, and 99.03% of lines. The maps feature reaches 98.97% of statements, 98.49% of branches, 100% of functions, and 98.95% of lines. This exceeds the combined global thresholds of 98% statements, 96% branches, 99% functions, and 98% lines.
+The latest `npm run test:combined` run passed all 23 suites and all 516 tests in 169.297 seconds. It covers 98.90% of statements, 97.24% of branches, 100% of functions, and 99.00% of lines. The maps feature reaches 98.97% of statements, 98.49% of branches, 100% of functions, and 98.95% of lines. This exceeds the combined global thresholds of 98% statements, 96% branches, 99% functions, and 98% lines.
 
 ### 2.6. Coverage Justifications
 
