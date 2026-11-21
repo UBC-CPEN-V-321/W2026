@@ -50,6 +50,23 @@ function countLookups() {
 
 // Interface POST /api/groups/:groupId/split-sessions
 describe('Mocked: POST /api/groups/:groupId/split-sessions', () => {
+
+  // Input: a duplicate-key race whose winner is absent or stored a different receipt.
+  // Expected status code: 500 without a winning record or 409 when its details differ.
+  // Expected behavior: never replay an unrelated receipt.
+  // Expected output: error and only the winning record, if any.
+  test.each([false, true])('validates the racing insert, winner=%s', async winner => {
+    const insert = SplitSessionModel.create.bind(SplitSessionModel);
+    jest.spyOn(SplitSessionModel, 'create').mockImplementationOnce((async (value: object) => {
+      if (winner) await insert({ ...value, description: 'Other dinner' });
+      throw Object.assign(databaseFailure(), { code: 11000 });
+    }) as never);
+    const response = await start();
+    expect(response.status).toBe(winner ? 409 : 500);
+    expect(response.body).not.toHaveProperty('session');
+    expect(await SplitSessionModel.countDocuments()).toBe(winner ? 1 : 0);
+  });
+
   // Input: an empty start request from the owner; mock: spies on the session, user and group lookups
   // Expected status code: 400
   // Expected behavior: authentication and membership are each read exactly once
@@ -76,6 +93,24 @@ describe('Mocked: POST /api/groups/:groupId/split-sessions', () => {
 
 // Interface GET /api/groups/:groupId/snapshot
 describe('Mocked: GET /api/groups/:groupId/snapshot', () => {
+
+  // Input: a pending intent has lost its operation metadata or an expense insert is temporarily unavailable.
+  // Expected status code: 503 for incomplete state or 500 for a storage error.
+  // Expected behavior: withhold incomplete summaries and preserve the pending state.
+  // Expected output: a recovery error without a posted expense.
+  test.each(['missing intent', 'database offline'])('rejects incomplete recovery: %s', async failure => {
+    const id = await startedSession();
+    expect((await claim(id)).status).toBe(200);
+    jest.spyOn(ExpenseModel, 'create').mockRejectedValueOnce(databaseFailure());
+    expect((await finalize(id)).status).toBe(500);
+    if (failure === 'missing intent') await SplitSessionModel.updateOne({ _id: id }, { $unset: { finalizeActorId: '' } });
+    else jest.spyOn(ExpenseModel, 'create').mockRejectedValueOnce(databaseFailure());
+    const response = await request(fixture.app).get(`/api/groups/${fixture.groupId}/snapshot`).set('Authorization', fixture.memberAuth);
+    expect(response.status).toBe(failure === 'missing intent' ? 503 : 500);
+    expect(response.body).not.toHaveProperty('expenses');
+    expect(await ExpenseModel.countDocuments({ splitSessionId: id })).toBe(0);
+  });
+
   // Input: a snapshot request from the owner; mock: spies on the session, user and group lookups
   // Expected status code: 200
   // Expected behavior: authentication and membership are each read exactly once
@@ -103,6 +138,46 @@ describe('Mocked: GET /api/groups/:groupId/snapshot', () => {
 
 // Interface POST /api/split-sessions/:sessionId/claims
 describe('Mocked: POST /api/split-sessions/:sessionId/claims', () => {
+
+  // Input: the claim's conditional write misses or encounters a competing unique operation key.
+  // Expected status code: 409.
+  // Expected behavior: supply the last authorized snapshot even if the record disappears before the recovery read.
+  // Expected output: conflict diagnostic, version zero and no successful operation.
+  test.each([
+    { duplicate: false, remove: true }, { duplicate: true, remove: false }, { duplicate: true, remove: true },
+  ])('recovers a lost conditional claim %#', async ({ duplicate, remove }) => {
+    const id = await startedSession();
+    const write = SplitSessionModel.findOneAndUpdate();
+    jest.spyOn(write, 'exec').mockImplementationOnce(async () => {
+      if (remove) await SplitSessionModel.deleteOne({ _id: id });
+      if (duplicate) throw Object.assign(databaseFailure(), { code: 11000 });
+      return null;
+    });
+    jest.spyOn(SplitSessionModel, 'findOneAndUpdate').mockReturnValueOnce(write);
+    const response = await claim(id);
+    expect(response.status).toBe(409);
+    expect(response.body.session).toMatchObject({ id, version: 0 });
+    expect(response.body).not.toHaveProperty('operation');
+  });
+
+  // Input: an identical claim is committed between the read and the losing conditional write.
+  // Expected status code: 200.
+  // Expected behavior: recover the committed operation.
+  // Expected output: the original operation and one stored claim.
+  test('recovers the winning identical claim after a conditional write miss', async () => {
+    const id = await startedSession();
+    const write = SplitSessionModel.findOneAndUpdate();
+    jest.spyOn(write, 'exec').mockImplementationOnce(async () => {
+      expect((await claim(id)).status).toBe(200);
+      return null;
+    });
+    jest.spyOn(SplitSessionModel, 'findOneAndUpdate').mockReturnValueOnce(write);
+    const response = await claim(id);
+    expect(response.status).toBe(200);
+    expect(response.body.operation.operationKey).toBe('mock-claim-000000001');
+    expect((await SplitSessionModel.findById(id).lean())?.operations).toHaveLength(1);
+  });
+
   // Input: a member claims an open item; mock: the conditional claim write rejects
   // Expected status code: 500
   // Expected behavior: the item stays unclaimed, the version is unchanged and nothing is published
@@ -137,6 +212,64 @@ describe('Mocked: POST /api/split-sessions/:sessionId/claims', () => {
 
 // Interface POST /api/split-sessions/:sessionId/finalize
 describe('Mocked: POST /api/split-sessions/:sessionId/finalize', () => {
+
+  // Input: a competing request holds or completes the lock, loses its expense or session, or collides on the operation key.
+  // Expected status code: 200 for a recovered operation, 503 for a missing expense and 409 for a missing session or key collision.
+  // Expected behavior: return only a persisted result for the requested operation.
+  // Expected output: one finalized expense or the matching recovery diagnostic.
+  test.each(['pending', 'complete', 'expense missing', 'session missing', 'duplicate key'] as const)(
+    'recovers a finalize lock race: %s', async outcome => {
+      const id = await startedSession();
+      expect((await claim(id)).status).toBe(200);
+      const write = SplitSessionModel.findOneAndUpdate();
+      jest.spyOn(write, 'exec').mockImplementationOnce(async () => {
+        if (outcome === 'duplicate key') throw Object.assign(databaseFailure(), { code: 11000 });
+        if (outcome === 'session missing') await SplitSessionModel.deleteOne({ _id: id });
+        else if (outcome === 'pending') {
+          jest.spyOn(ExpenseModel, 'create').mockRejectedValueOnce(databaseFailure());
+          expect((await finalize(id)).status).toBe(500);
+          expect((await SplitSessionModel.findById(id))?.status).toBe('finalizing');
+        } else {
+          expect((await finalize(id)).status).toBe(200);
+          if (outcome === 'expense missing') await ExpenseModel.deleteOne({ splitSessionId: id });
+        }
+        return null;
+      });
+      jest.spyOn(SplitSessionModel, 'findOneAndUpdate').mockReturnValueOnce(write);
+      const response = await finalize(id);
+      if (outcome === 'complete' || outcome === 'pending') {
+        expect(response.status).toBe(200);
+        expect(response.body.operation.expenseId).toBe(response.body.expense.id);
+        expect(await ExpenseModel.countDocuments({ splitSessionId: id })).toBe(1);
+      } else {
+        expect(response.status).toBe(outcome === 'expense missing' ? 503 : 409);
+        expect(response.body).not.toHaveProperty('expense');
+      }
+    });
+
+  // Input: an interrupted finalization retried with a different key, then a write that misses the pending session.
+  // Expected status code: 409 for a competing action and 503 for a missed completion.
+  // Expected behavior: retain the existing intent, so another retry can recover the posted expense.
+  // Expected output: one expense and the original operation key.
+  test('fences a pending intent and recovers after a missed completion', async () => {
+    const id = await startedSession();
+    expect((await claim(id)).status).toBe(200);
+    jest.spyOn(ExpenseModel, 'create').mockRejectedValueOnce(databaseFailure());
+    expect((await finalize(id)).status).toBe(500);
+    const conflicting = await request(fixture.app).post(`/api/split-sessions/${id}/finalize`)
+      .set('Authorization', fixture.ownerAuth).send({ version: 1, operationKey: 'a-new-finalize-request' });
+    expect(conflicting.status).toBe(409);
+    const lookup = await request(fixture.app).get('/api/operations/mock-final-000000001').set('Authorization', fixture.ownerAuth);
+    expect(lookup.body.operation.state).toBe('pending');
+    expect(lookup.body).not.toHaveProperty('expense');
+    const write = SplitSessionModel.findOneAndUpdate();
+    jest.spyOn(write, 'exec').mockResolvedValueOnce(null);
+    jest.spyOn(SplitSessionModel, 'findOneAndUpdate').mockReturnValueOnce(write);
+    expect((await finalize(id)).status).toBe(503);
+    expect((await finalize(id)).body.operation.state).toBe('complete');
+    expect(await ExpenseModel.countDocuments({ splitSessionId: id })).toBe(1);
+  });
+
   // Input: a retry after finalization; mock: authorization reads the pre-finalization snapshot
   // Expected status code: 200 for identical details; 409 for a changed version
   // Expected behavior: a concurrent completion is replayed, but changed payloads are still rejected
@@ -197,6 +330,20 @@ describe('Mocked: POST /api/split-sessions/:sessionId/finalize', () => {
 
 // Interface GET /api/operations/:operationKey
 describe('Mocked: GET /api/operations/:operationKey', () => {
+  // Input: the storage adapter returns a session without the requested operation.
+  // Expected status code: 404.
+  // Expected behavior: withhold any unrelated session data.
+  // Expected output: the normal operation-not-found response.
+  test('rejects a mismatched storage result', async () => {
+    const session = await SplitSessionModel.findById(await startedSession());
+    const query = SplitSessionModel.findOne();
+    jest.spyOn(query, 'exec').mockResolvedValueOnce(session);
+    jest.spyOn(SplitSessionModel, 'findOne').mockReturnValueOnce(query);
+    const response = await request(fixture.app).get('/api/operations/mock-claim-000000001').set('Authorization', fixture.memberAuth);
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'Operation not found.' });
+  });
+
   // Input: the actor looks up a completed claim; mock: the operation query rejects
   // Expected status code: 500
   // Expected behavior: a failure is not reported as an unknown operation

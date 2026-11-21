@@ -2,6 +2,9 @@ import request from 'supertest';
 import { createApp } from '../../src/app';
 import { startSession } from '../../src/session';
 import { MAX_SAVE_RECORDS } from '../../src/ledgerSaves';
+import * as money from '../../src/money';
+import * as domain from '../../src/ledger/domain';
+import { LedgerSaveModel } from '../../src/ledgerSaveStore';
 import { memoryStores } from '../helpers/memoryStores';
 import { memoryLedgerSaves, savedRecord } from '../helpers/ledgerSaves';
 
@@ -26,6 +29,34 @@ afterEach(() => jest.restoreAllMocks());
 
 // Interface GET /api/ledger-saves
 describe('Mocked: GET /api/ledger-saves', () => {
+  // Input: a storage provider returns an older summary without a name.
+  // Expected status code: 200.
+  // Expected behavior: retain the slot and normalize its missing display name.
+  // Expected output: slot 2 with an empty name.
+  test('lists unnamed summaries from older stores', async () => {
+    const { app, auth, ledgerSaves } = await setup();
+    jest.spyOn(ledgerSaves, 'list').mockResolvedValueOnce([{
+      slot: 2, revision: 1, savedAt: new Date(), deviceName: 'Pixel', baseCurrency: 'CAD', recordCount: 0,
+    }]);
+    const result = await request(app).get('/api/ledger-saves').set('Authorization', auth);
+    expect(result.status).toBe(200);
+    expect(result.body.slots).toEqual([expect.objectContaining({ slot: 2, name: '' })]);
+  });
+
+
+  // Input: an authenticated legacy store returns an invalid MongoDB account ID.
+  // Expected status code: 200 for the list and 404 for a single slot.
+  // Expected behavior: keep any other user's slots private and skip invalid database queries.
+  // Expected output: empty slot list and empty-slot diagnostic.
+  test('treats an incompatible account identifier as having no stored ledger', async () => {
+    const stores = memoryStores();
+    const user = await stores.users.create({ displayName: 'Legacy' });
+    const { token } = await startSession(stores.sessions, user);
+    const app = createApp(stores);
+    expect((await request(app).get('/api/ledger-saves').auth(token, { type: 'bearer' })).body).toEqual({ slots: [] });
+    expect((await request(app).get('/api/ledger-saves/1').auth(token, { type: 'bearer' })).status).toBe(404);
+  });
+
   // Input: list with no saves, then after saving slot 2
   // Expected status code: 200
   // Expected behavior: only summaries are listed, never transaction contents
@@ -119,6 +150,40 @@ describe('Mocked: GET /api/ledger-saves/:slot', () => {
 
 // Interface PUT /api/ledger-saves/:slot
 describe('Mocked: PUT /api/ledger-saves/:slot', () => {
+
+  // Input: a valid save while MongoDB reports an unexpected insert failure.
+  // Expected status code: 500.
+  // Expected behavior: propagate the storage failure and withhold the save acknowledgement.
+  // Expected output: generic error without a save.
+  test('reports a failed MongoDB insert', async () => {
+    silenceErrors();
+    const stores = memoryStores();
+    const user = await stores.users.create({ displayName: 'Saver' });
+    const { token } = await startSession(stores.sessions, user);
+    jest.spyOn(LedgerSaveModel, 'create').mockRejectedValueOnce(new Error('database unavailable'));
+    const response = await request(createApp(stores)).put('/api/ledger-saves/1').auth(token, { type: 'bearer' }).send(body());
+    expect(response.status).toBe(500);
+    expect(response.body).not.toHaveProperty('save');
+  });
+
+
+  // Input: a valid save while an amount parser, formatter or currency conversion fails unexpectedly.
+  // Expected status code: 500.
+  // Expected behavior: propagate an internal failure and never write a partial save.
+  // Expected output: generic error and an empty store.
+  test.each(['parse', 'format', 'convert'])('preserves the slot on an unexpected %s error', async step => {
+    silenceErrors();
+    const { app, auth, saves } = await setup();
+    const failure = () => { throw new Error('internal amount service error'); };
+    if (step === 'parse') jest.spyOn(money, 'parseMoney').mockImplementationOnce(failure);
+    else if (step === 'format') jest.spyOn(money, 'formatMinorUnits').mockImplementationOnce(failure);
+    else jest.spyOn(domain, 'convertMinor').mockImplementationOnce(failure);
+    const response = await request(app).put('/api/ledger-saves/1').set('Authorization', auth).send(body());
+    expect(response.status).toBe(500);
+    expect(response.body.error).not.toContain('internal amount');
+    expect(saves.size).toBe(0);
+  });
+
   // Input: save without a session
   // Expected status code: 401
   // Expected behavior: nothing is stored
@@ -236,6 +301,21 @@ describe('Mocked: PUT /api/ledger-saves/:slot', () => {
 
 // Interface PATCH /api/ledger-saves/:slot
 describe('Mocked: PATCH /api/ledger-saves/:slot', () => {
+
+  // Input: a valid rename against an older store without a rename method.
+  // Expected status code: 500.
+  // Expected behavior: keep the original slot intact.
+  // Expected output: generic failure and unchanged name and revision.
+  test('leaves the slot intact when the store lacks rename support', async () => {
+    silenceErrors();
+    const { app, auth, ledgerSaves } = await setup();
+    const saved = await request(app).put('/api/ledger-saves/1').set('Authorization', auth).send(body());
+    delete ledgerSaves.rename;
+    const response = await request(app).patch('/api/ledger-saves/1').set('Authorization', auth).send({ name: 'Trip', revision: 1 });
+    expect(response.status).toBe(500);
+    expect((await request(app).get('/api/ledger-saves').set('Authorization', auth)).body.slots).toEqual([saved.body.save]);
+  });
+
   // Input: rename revision 1 of slot 1 to " Trip "
   // Expected status code: 200
   // Expected behavior: the trimmed name is stored and the revision advances; records are kept

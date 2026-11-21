@@ -7,7 +7,7 @@ import { groupExpensesRouter } from './groupExpenses';
 import { invitationWebRouter } from './groupManagement';
 import { createLedgerRouter } from './ledger/router';
 import { ledgerSavesRouter } from './ledgerSaves';
-import { mongoLedgerSaveStore, type LedgerSaveStore } from './ledgerSaveStore';
+import type { LedgerSaveStore } from './ledgerSaveStore';
 import { createSplitSessionsRouter } from './splitSessions';
 import { requireSession } from './session';
 
@@ -42,7 +42,7 @@ export function createApp(dependencies: Partial<AppDependencies> = {}): Express 
   app.use('/api/auth', accountAuthRouter(users, sessions));
   app.use('/api/users', userRouter(users, sessions));
   app.use('/api/users', accountSettingsRouter(users, sessions, verifyToken));
-  app.use('/api/ledger-saves', ledgerSavesRouter(users, sessions, dependencies.ledgerSaves ?? mongoLedgerSaveStore));
+  app.use('/api/ledger-saves', ledgerSavesRouter(users, sessions, dependencies.ledgerSaves));
   // Match split routes before the general groups router so each authenticates once.
   app.use('/api', (req, res, next) => {
     if (/^\/(?:groups\/[^/]+\/(?:split-sessions|snapshot)|split-sessions\/[^/]+\/(?:claims|finalize)|operations\/[^/]+)\/?$/.test(req.path)) {

@@ -182,7 +182,7 @@ describe('Unmocked: POST /api/auth/login', () => {
     const stored = await UserModel.findOne({ username: 'pat_kim' }).lean();
     const legacy = { timeZone: 'Pacific/Kiritimati', defaultCurrency: 'JPY' };
     // Bypass the current schema to reproduce a pre-retirement database record.
-    await UserModel.collection.updateOne({ _id: stored!._id }, { $set: legacy });
+    await UserModel.collection.updateOne({ _id: stored!._id }, { $set: legacy, $unset: { phoneNumber: '', avatarDataUrl: '', sessionVersion: '' } });
     const login = await request(app).post('/api/auth/login').send(account);
     expect(login.status).toBe(200);
     const auth = `Bearer ${login.body.token}`;
@@ -220,6 +220,21 @@ describe('Unmocked: POST /api/auth/login', () => {
 
 // Interface GET /api/users/me
 describe('Unmocked: GET /api/users/me', () => {
+
+  // Input: an account is removed while its session still exists.
+  // Expected status code: 401.
+  // Expected behavior: delete the orphan session during authentication.
+  // Expected output: a Bearer challenge and no profile.
+  test('removes the session of a deleted account', async () => {
+    const registered = await registerAccount(app, { username: 'former_user', password: 'good password' });
+    expect(registered.status).toBe(201);
+    await UserModel.deleteOne({ username: 'former_user' });
+    const result = await request(app).get('/api/users/me').auth(registered.body.token, { type: 'bearer' });
+    expect(result.status).toBe(401);
+    expect(result.headers['www-authenticate']).toBe('Bearer');
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
   // Input: bearer token from registration
   // Expected status code: 200
   // Expected behavior: account is read from MongoDB; no credential fields are exposed

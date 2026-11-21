@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../src/app';
 import { memoryStores } from '../helpers/memoryStores';
 import { startSession } from '../../src/session';
-import { DuplicateAccountError } from '../../src/userStore';
+import { DuplicateAccountError, mongoUserStore, UserModel } from '../../src/userStore';
 import { verifyPassword } from '../../src/password';
 import { registerAccount } from '../helpers/registration';
 
@@ -21,6 +21,43 @@ const login = (app: ReturnType<typeof createApp>, body: object = original) => re
 
 // Interface PATCH /api/users/me
 describe('Mocked: PATCH /api/users/me', () => {
+
+  // Input: a valid profile update with an invalid stored ID or a failed MongoDB conditional write.
+  // Expected status code: 401, 409 or 500.
+  // Expected behavior: preserve the existing profile when its update fails.
+  // Expected output: error without user data.
+  test.each(['bad ID', 'duplicate', 'unavailable'])('handles a MongoDB update failure: %s', async outcome => {
+    const { stores, auth } = await setup();
+    const persisted = stores.userList[0]!;
+    const id = outcome === 'bad ID' ? persisted.id : '000000000000000000000001';
+    const app = createApp({ sessions: stores.sessions, users: { ...mongoUserStore, findById: async () => ({ ...persisted, id }) } });
+    if (outcome !== 'bad ID') {
+      const query = UserModel.findByIdAndUpdate();
+      jest.spyOn(query, 'exec').mockRejectedValueOnce(Object.assign(new Error('write failed'), { code: outcome === 'duplicate' ? 11000 : 42 }));
+      jest.spyOn(UserModel, 'findByIdAndUpdate').mockReturnValueOnce(query);
+    }
+    try {
+      const response = await patch(app, auth, { displayName: 'Changed' });
+      expect(response.status).toBe(outcome === 'bad ID' ? 401 : outcome === 'duplicate' ? 409 : 500);
+      expect(response.body).not.toHaveProperty('user');
+    } finally { jest.restoreAllMocks(); }
+  });
+
+
+  // Input: a confirmation without edits, a disappearing account or a legacy account without sign-in credentials.
+  // Expected status code: 400, 401 and 403.
+  // Expected behavior: refuse an empty edit or an edit that cannot be authorized.
+  // Expected output: diagnostic and no profile changes.
+  test('rejects no-op edits and unavailable accounts', async () => {
+    const { stores, app, auth } = await setup();
+    expect((await patch(app, auth, { currentPassword: original.password })).status).toBe(400);
+    jest.spyOn(stores.users, 'update').mockResolvedValueOnce(null);
+    expect((await patch(app, auth, { displayName: 'Updated' })).status).toBe(401);
+    delete stores.userList[0]!.passwordHash;
+    expect((await patch(app, auth, { newPassword: 'another password', currentPassword: original.password })).status).toBe(403);
+    expect(stores.userList[0]?.displayName).toBe(original.username);
+  });
+
   // Input: display name with extra spaces and a phone number
   // Expected status code: 200
   // Expected behavior: fields are normalized and a refresh returns the same account; credentials are never exposed
@@ -41,7 +78,7 @@ describe('Mocked: PATCH /api/users/me', () => {
   // Expected behavior: the account is unchanged
   // Expected output: error message
   test.each([{}, { id: 'another-user' }, { displayName: '' }, { email: 'bad' }, { phoneNumber: '123' },
-    { phoneNumber: 123456789 },
+    { phoneNumber: 123456789 }, { displayName: 'invalid\u007fname' },
     { avatarDataUrl: 'https://external.example/photo.jpg' }, { avatarDataUrl: 'data:image/jpeg;base64,YWJj' },
     { avatarDataUrl: 'a'.repeat(180001) }, { newPassword: 'short' }])('Rejects invalid updates %#', async changes => {
     const { app, auth, stores } = await setup();

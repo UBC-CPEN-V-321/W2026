@@ -73,6 +73,25 @@ const ownerAuth = () => accounts[0]!.auth;
 
 // Interface POST /api/groups
 describe('Unmocked: POST /api/groups', () => {
+
+  // Input: an absent name followed by a valid group with optional fields omitted.
+  // Expected status code: 400, 201 and 200 on replay.
+  // Expected behavior: apply the default currency and accept a legacy null description.
+  // Expected output: one CAD group with an empty description.
+  test('normalizes optional fields on creation and replay', async () => {
+    expect((await create({ name: null })).status).toBe(400);
+    const optional = { description: undefined, currency: undefined };
+    const created = await create(optional);
+    expect(created.status).toBe(201);
+    await GroupModel.updateOne({ _id: created.body.group.id }, { description: null });
+    const replay = await create(optional);
+    expect(replay.status).toBe(200);
+    expect(replay.body.group).toMatchObject({ id: created.body.group.id, description: '', currency: 'CAD' });
+    const invalidRename = await request(app).put(`/api/groups/${created.body.group.id}/name`)
+      .set('Authorization', accounts[0]!.auth).send({});
+    expect(invalidRename.status).toBe(400);
+  });
+
   testsRejectInvalidSessions(() => request(app).post('/api/groups')
     .send({ name: 'Unauthorized group', requestId: 'unauthorized-group-request' }), ownerAuth, snapshot);
 
@@ -150,6 +169,19 @@ describe('Unmocked: POST /api/groups', () => {
 
 // Interface GET /api/groups/invitations/:token
 describe('Unmocked: GET /api/groups/invitations/:token', () => {
+
+  // Input: a live invitation whose inviter account was deleted.
+  // Expected status code: 404.
+  // Expected behavior: withhold group and inviter details.
+  // Expected output: an unavailable invitation.
+  test('hides invitations from a deleted inviter', async () => {
+    const token = tokenOf(await create());
+    await UserModel.deleteOne({ _id: accounts[0]!.id });
+    const response = await get(`/api/groups/invitations/${token}`, 1);
+    expect(response.status).toBe(404);
+    expect(response.body).not.toHaveProperty('group');
+  });
+
   testsRejectInvalidSessions(() => request(app).get(`/api/groups/invitations/${shared.token}`), ownerAuth, snapshot, prepareSharedGroup);
 
   // Input: invitation token previewed by a signed-in nonmember
@@ -234,6 +266,24 @@ describe('Unmocked: POST /api/groups/invitations/:token/accept', () => {
 
 // Interface POST /api/groups/:groupId/invitations
 describe('Unmocked: POST /api/groups/:groupId/invitations', () => {
+
+  // Input: the public origin uses HTTP in production.
+  // Expected status code: 503.
+  // Expected behavior: reject the invitation before inserting another token.
+  // Expected output: configuration diagnostic and the original invitation count.
+  test('rejects an insecure production invitation origin', async () => {
+    const group = await create();
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    process.env.PUBLIC_APP_URL = 'http://ledger.example';
+    try {
+      const response = await post(`/api/groups/${group.body.group.id}/invitations`);
+      expect(response.status).toBe(503);
+      expect(response.body.error).toContain('HTTPS');
+      expect(await GroupInvitationModel.countDocuments()).toBe(1);
+    } finally { process.env.NODE_ENV = originalEnv; }
+  });
+
   testsRejectInvalidSessions(() => request(app).post(`/api/groups/${shared.groupId}/invitations`), ownerAuth, snapshot, prepareSharedGroup);
 
   // Input: a regular member creates an invitation; a nonmember tries to

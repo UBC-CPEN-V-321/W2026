@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { createApp } from '../../src/app';
-import { MAX_REASSIGNMENT_MUTATIONS, splitSessionEvents, type SplitSessionUpdate } from '../../src/splitSessions';
+import { MAX_REASSIGNMENT_MUTATIONS, publishSplitSessionUpdate, splitSessionEvents, type SplitSessionUpdate } from '../../src/splitSessions';
 import { GroupModel, ExpenseModel } from '../../src/groupStore';
-import { initSplitSessionStore, SplitSessionModel } from '../../src/splitSessionStore';
+import { initSplitSessionStore, SplitSessionModel, type SplitSessionRecord } from '../../src/splitSessionStore';
 import { connectDatabase, disconnectDatabase, mongoSessionStore, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
 import { startSession } from '../../src/session';
 import { MAX_AMOUNT_MINOR } from '../../src/money';
@@ -96,6 +96,45 @@ async function prepareSharedSession() { sharedSessionId = await createdSession({
 
 // Interface POST /api/groups/:groupId/split-sessions
 describe('Unmocked: POST /api/groups/:groupId/split-sessions', () => {
+  // Input: republish a committed claim and a legacy snapshot lacking its event history.
+  // Expected status code: 200 for the claim.
+  // Expected behavior: use the persisted event identity when available, otherwise use the creator.
+  // Expected output: claim key and member ID, then only the creator ID.
+  test('recovers event metadata for subscribers from stored snapshots', async () => {
+    const id = await createdSession();
+    expect((await claim(id, 'burger-1')).status).toBe(200);
+    const session = await SplitSessionModel.findById(id).lean<SplitSessionRecord>().orFail();
+    const updates: SplitSessionUpdate[] = [];
+    splitSessionEvents.on('onGroupUpdated', (update: SplitSessionUpdate) => updates.push(update));
+    publishSplitSessionUpdate(session, 'claim');
+    publishSplitSessionUpdate({ ...session, events: [] }, 'created');
+    expect(updates[0]?.event).toMatchObject({ actorId: memberId, operationKey: 'claim-op-burger-1-00001' });
+    expect(updates[1]?.event.actorId).toBe(ownerId);
+    expect(updates[1]?.event).not.toHaveProperty('operationKey');
+  });
+
+
+  // Input: a missing group, an absent body, or invalid line items in a reviewed split.
+  // Expected status code: 404 for the missing group and 400 for invalid input.
+  // Expected behavior: validate the receipt before persisting a session.
+  // Expected output: diagnostic for the rejected field and zero sessions.
+  test('validates receipt item IDs, descriptions, amounts and bounds', async () => {
+    expect((await create({}, outsiderAuth)).status).toBe(404);
+    const absent = await request(app).post(`/api/groups/${groupId}/split-sessions`).set('Authorization', ownerAuth);
+    expect(absent.status).toBe(400);
+    const unit = items[0]!;
+    for (const [units, error] of [
+      [[], 'between 1 and 200'], [Array(201).fill(unit), 'between 1 and 200'],
+      [[null], 'unit ID'], [[unit, unit], 'unit ID'], [[{ ...unit, description: null }], 'description'],
+      [[{ ...unit, amountCents: -1 }], 'positive integer-cent'],
+    ] as const) {
+      const response = await create({ units });
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain(error);
+    }
+    expect(await SplitSessionModel.countDocuments()).toBe(0);
+  });
+
   testsRejectInvalidSessions(() => request(app).post(`/api/groups/${groupId}/split-sessions`).send({}), () => ownerAuth, storedState);
 
   // Input: start by a member, unreviewed items, items that do not reconcile, a valid start, its retry, and a changed retry
@@ -247,6 +286,27 @@ describe('Unmocked: GET /api/groups/:groupId/snapshot', () => {
 
 // Interface POST /api/split-sessions/:sessionId/claims
 describe('Unmocked: POST /api/split-sessions/:sessionId/claims', () => {
+
+  // Input: an unknown item, an unowned release, a duplicate claim and a key reused in another session.
+  // Expected status code: 404 for the unknown item and 409 for state conflicts.
+  // Expected behavior: only the first valid claim advances the session.
+  // Expected output: an authoritative conflict snapshot and one stored claim.
+  test('rejects conflicting claims and releases at the current version', async () => {
+    const id = await createdSession();
+    expect((await claim(id, 'missing')).status).toBe(404);
+    const empty = await claim(id, 'burger-1', memberAuth, { action: 'unclaim' });
+    expect(empty.status).toBe(409);
+    expect(empty.body.error).toContain('not claimed');
+    expect((await claim(id, 'burger-1')).status).toBe(200);
+    const again = await claim(id, 'burger-1', ownerAuth, { version: 1, operationKey: 'second-claim-same-unit' });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toContain('already claimed');
+    const second = await createdSession({ requestId: 'other-split-request' });
+    expect((await claim(second, 'burger-1')).status).toBe(409);
+    expect((await SplitSessionModel.findById(id).lean())?.operations).toHaveLength(1);
+    expect((await SplitSessionModel.findById(second).lean())?.operations).toHaveLength(0);
+  });
+
   testsRejectInvalidSessions(() => request(app).post(`/api/split-sessions/${sharedSessionId}/claims`)
     .send({ unitId: 'burger-1', action: 'claim', version: 0, operationKey: 'unauthorized-claim-01' }), () => memberAuth, storedState, prepareSharedSession);
 
@@ -375,6 +435,92 @@ describe('Unmocked: POST /api/split-sessions/:sessionId/claims', () => {
 
 // Interface POST /api/split-sessions/:sessionId/finalize
 describe('Unmocked: POST /api/split-sessions/:sessionId/finalize', () => {
+  // Input: a persisted receipt whose units no longer add up to the recorded total.
+  // Expected status code: 400.
+  // Expected behavior: refuse to post or lock the session.
+  // Expected output: reconciliation error and zero expenses.
+  test('checks stored receipt totals before posting', async () => {
+    const id = (await create({ units: [items[0]], amountCents: 1200 })).body.session.id;
+    expect((await claim(id, 'burger-1')).status).toBe(200);
+    await SplitSessionModel.updateOne({ _id: id }, { $inc: { amountCents: 1 } });
+    const result = await finalize(id, 1, 'reconcile-final-0001');
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('do not reconcile');
+    expect(await ExpenseModel.countDocuments()).toBe(0);
+  });
+
+  // Input: replay a finalized receipt written without an operation entry, then without an expense link.
+  // Expected status code: 200 followed by 503.
+  // Expected behavior: replay the original expense when available and never create another.
+  // Expected output: the saved expense without an operation, then a recovery diagnostic.
+  test('replays an older finalization with incomplete metadata', async () => {
+    const id = (await create({ units: [items[0]], amountCents: 1200 })).body.session.id;
+    await claim(id, 'burger-1');
+    const key = 'legacy-finalize-0001';
+    const posted = await finalize(id, 1, key);
+    expect(posted.status).toBe(200);
+    await SplitSessionModel.updateOne({ _id: id }, { $pull: { operations: { operationKey: key } } });
+    const replay = await finalize(id, 1, key);
+    expect(replay.status).toBe(200);
+    expect(replay.body.expense).toEqual(posted.body.expense);
+    expect(replay.body).not.toHaveProperty('operation');
+    await SplitSessionModel.updateOne({ _id: id }, { $unset: { finalizedExpenseId: '' } });
+    expect((await finalize(id, 1, key)).status).toBe(503);
+    expect(await ExpenseModel.countDocuments()).toBe(1);
+  });
+
+  // Input: a pending finalization with the matching owner and key but an outdated version.
+  // Expected status code: 409.
+  // Expected behavior: preserve the pending intent.
+  // Expected output: current session version and no expense.
+  test('checks the receipt version during recovery', async () => {
+    const id = (await create()).body.session.id;
+    const key = 'legacy-pending-00001';
+    await SplitSessionModel.updateOne({ _id: id }, { $set: {
+      status: 'finalizing', version: 2, finalizeOperationKey: key, finalizeActorId: ownerId,
+    } });
+    const response = await finalize(id, 1, key);
+    expect(response.status).toBe(409);
+    expect(response.body.session.version).toBe(2);
+    expect(await ExpenseModel.countDocuments()).toBe(0);
+  });
+
+
+  // Input: an outsider, a non-owner, a stale version and a previously used claim key.
+  // Expected status code: 404, 403, 409 and 409.
+  // Expected behavior: refuse finalization before taking a lock or posting an expense.
+  // Expected output: access or version diagnostic and zero expenses.
+  test('enforces ownership, version and operation identity', async () => {
+    const id = await createdSession();
+    const key = 'owner-finalize-request';
+    expect((await finalize(id, 0, key, outsiderAuth)).status).toBe(404);
+    expect((await finalize(id, 0, key, memberAuth)).status).toBe(403);
+    expect((await finalize(id, 1, key)).status).toBe(409);
+    expect((await claim(id, 'burger-1', ownerAuth, { operationKey: key })).status).toBe(200);
+    expect((await finalize(id, 1, key)).status).toBe(409);
+    expect(await ExpenseModel.countDocuments()).toBe(0);
+  });
+
+  // Input: a legacy split without tax/tip, then a retry of an already finalized session.
+  // Expected status code: 200 for the replay and finish, 409 for a new key and 503 for a missing posted expense.
+  // Expected behavior: use zero extras for old records and retain the original finalization result.
+  // Expected output: the original expense or a recovery diagnostic.
+  test('recovers a legacy split and reports a missing finalized expense', async () => {
+    const id = await createdSession();
+    await SplitSessionModel.updateOne({ _id: id }, { $unset: { taxCents: '', tipCents: '' } });
+    expect((await create()).body.session).toMatchObject({ id, taxCents: 0, tipCents: 0 });
+    expect((await claim(id, 'burger-1')).status).toBe(200);
+    expect((await claim(id, 'fries-1', ownerAuth, { version: 1 })).status).toBe(200);
+    const key = 'legacy-finalize-request';
+    const finished = await finalize(id, 2, key);
+    expect(finished.status).toBe(200);
+    expect(finished.body.expense).toMatchObject({ subtotalCents: 1800, taxCents: 0, tipCents: 0 });
+    expect((await finalize(id, 2, 'another-finalize-key')).status).toBe(409);
+    await ExpenseModel.deleteOne({ _id: finished.body.expense.id });
+    expect((await finalize(id, 2, key)).status).toBe(503);
+    expect((await finalize(id, 2, 'another-finalize-key')).status).toBe(503);
+  });
+
   testsRejectInvalidSessions(() => request(app).post(`/api/split-sessions/${sharedSessionId}/finalize`)
     .send({ version: 0, operationKey: 'unauthorized-final-01' }), () => ownerAuth, storedState, prepareSharedSession);
 

@@ -17,6 +17,17 @@ beforeEach(() => { jest.spyOn(console, 'error').mockImplementation(() => undefin
 
 // Interface POST /api/groups/:groupId/shared-entries
 describe('Mocked: POST /api/groups/:groupId/shared-entries', () => {
+
+  // Input: the insert reports a duplicate but the conflicting document has already disappeared.
+  // Expected status code: 500.
+  // Expected behavior: fail the request without pretending it was replayed.
+  // Expected output: generic error and no shared copy.
+  test('reports an unrecoverable duplicate', async () => {
+    jest.spyOn(ExpenseModel, 'create').mockRejectedValueOnce(Object.assign(databaseFailure(), { code: 11000 }));
+    expectDatabaseError(await share());
+    expect(await sharedCopies()).toBe(0);
+  });
+
   // Input: valid personal expense shared twice; mock: the first insert rejects
   // Expected status code: 500, then 201
   // Expected behavior: the failure saves nothing; the retry saves one copy

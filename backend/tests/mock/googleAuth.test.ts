@@ -1,5 +1,7 @@
 import request from 'supertest';
-import type { TokenPayload } from 'google-auth-library';
+import { LoginTicket, OAuth2Client, type TokenPayload } from 'google-auth-library';
+import { DuplicateAccountError, UserModel, SessionModel, mongoUserStore } from '../../src/userStore';
+import { useIsolatedMongo } from '../helpers/isolatedMongo';
 import { createApp } from '../../src/app';
 import type { TokenVerifier } from '../../src/googleAuth';
 import { hashPassword, verifyPassword } from '../../src/password';
@@ -30,6 +32,23 @@ afterAll(() => {
 
 // Interface POST /api/auth/google
 describe('Mocked: POST /api/auth/google', () => {
+
+  // Input: the OAuth client verifies a ticket with partial or absent profile fields.
+  // Expected status code: 200.
+  // Expected behavior: use available name fields and tolerate a missing email.
+  // Expected output: a registration profile and the audience used for verification.
+  test.each([['Joy', 'Joy Tao'], [undefined, '']])('reads the verified ticket profile %#', async (given, displayName) => {
+    const { name, email, given_name, family_name, ...identity } = payload;
+    const ticket = new LoginTicket(undefined, { ...identity, ...(given ? { given_name: given, family_name: 'Tao' } : {}) });
+    const verify = jest.spyOn(OAuth2Client.prototype, 'verifyIdToken').mockResolvedValue(ticket as never);
+    try {
+      const response = await request(createApp(memoryStores())).post('/api/auth/google').send({ idToken: 'credential' });
+      expect(response.status).toBe(200);
+      expect(response.body.profile).toEqual({ displayName, email: '' });
+      expect(verify).toHaveBeenCalledWith({ idToken: 'credential', audience });
+    } finally { verify.mockRestore(); }
+  });
+
   // Input: verified token for a new Google user that also sends a displayName
   // Expected status code: 200
   // Expected behavior: no account or session is created yet; the client-supplied name is ignored
@@ -261,6 +280,53 @@ describe('Mocked: POST /api/auth/google/register', () => {
 
 // Interface POST /api/auth/google/link
 describe('Mocked: POST /api/auth/google/link', () => {
+
+  describe('MongoDB link writes with a verified identity', () => {
+    useIsolatedMongo('google-link-contract', [UserModel, SessionModel]);
+    afterEach(() => jest.restoreAllMocks());
+
+    // Input: verified credentials while the database link write succeeds, conflicts, or fails.
+    // Expected status code: 200, 409 or 500.
+    // Expected behavior: only persist a link and issue a session for a successful write.
+    // Expected output: signed-in account or a diagnostic with unchanged account links.
+    test.each(['linked', 'duplicate', 'unavailable', 'invalid account ID'])('handles a %s result', async outcome => {
+      const app = createApp({ verifyToken: verifier() });
+      const registration = await registerAccount(app, credentials);
+      expect(registration.status).toBe(201);
+      if (outcome === 'invalid account ID') {
+        const user = await mongoUserStore.findById(registration.body.user.id);
+        jest.spyOn(mongoUserStore, 'findByUsername').mockResolvedValueOnce({ ...user!, id: 'invalid' });
+      } else if (outcome !== 'linked') {
+        const update = UserModel.findOneAndUpdate();
+        jest.spyOn(update, 'exec').mockRejectedValueOnce(Object.assign(new Error('write failed'), { code: outcome === 'duplicate' ? 11000 : 42 }));
+        jest.spyOn(UserModel, 'findOneAndUpdate').mockReturnValueOnce(update);
+      }
+      const response = await request(app).post('/api/auth/google/link').send(googleBody);
+      expect(response.status).toBe(outcome === 'linked' ? 200 : outcome === 'unavailable' ? 500 : 409);
+      const linked = await UserModel.findOne({ googleId: payload.sub }).lean();
+      if (outcome === 'linked') expect(linked?._id.toString()).toBe(registration.body.user.id);
+      else expect(linked).toBeNull();
+      expect(await SessionModel.countDocuments()).toBe(outcome === 'linked' ? 2 : 1);
+    });
+  });
+
+
+  // Input: verified credentials while the conditional Google link write fails.
+  // Expected status code: 409 for duplicate identity or 500 for a storage error.
+  // Expected behavior: withhold the session after a failed write.
+  // Expected output: error and unchanged sign-in methods.
+  test.each([[new DuplicateAccountError(), 409], [new Error('storage failure'), 500]] as const)(
+    'reports a failed link write %#', async (error, status) => {
+      const stores = memoryStores();
+      const app = createApp({ ...stores, verifyToken: verifier() });
+      await registerAccount(app, credentials);
+      jest.spyOn(stores.users, 'linkGoogle').mockRejectedValueOnce(error);
+      const response = await request(app).post('/api/auth/google/link').send(googleBody);
+      expect(response.status).toBe(status);
+      expect(response.body).not.toHaveProperty('token');
+      expect(stores.userList[0]?.googleId).toBeUndefined();
+    });
+
   // Input: verified token with the correct username (any case) and password of an existing account
   // Expected status code: 200; a repeat is also 200
   // Expected behavior: only the Google ID is added; the original user and profile are preserved

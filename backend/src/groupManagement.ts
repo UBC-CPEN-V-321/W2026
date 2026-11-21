@@ -187,7 +187,7 @@ export function invitationWebRouter(users: UserStore): Router {
     res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
       'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'" });
     // Valid base64url tokens are unchanged; other input cannot become a deep-link URL component.
-    const token = encodeURIComponent(typeof req.params.token === 'string' ? req.params.token : '');
+    const token = encodeURIComponent(req.params.token);
     const details = await invitationDetails(token, users);
     const message = details ? `${details.inviter.displayName} invites you to “${details.group.name}”` : 'This invitation has expired or is no longer available.';
     const safeToken = sanitizeHtml(token);

@@ -73,7 +73,7 @@ export function convertMinor(amountMinor: number, from: string, to: string, rate
   if (rate.length > 32 || !/^\d+(?:\.\d{1,12})?$/.test(rate)) {
     throw new LedgerValidationError({ rate: 'Exchange rate must be a positive decimal with at most 12 decimal places.' });
   }
-  const [whole = '', fraction = ''] = rate.split('.');
+  const [whole, fraction = ''] = rate.split('.');
   const rateNumerator = BigInt(whole + fraction);
   if (rateNumerator <= 0n) {
     throw new LedgerValidationError({ rate: 'Exchange rate must be greater than zero.' });
