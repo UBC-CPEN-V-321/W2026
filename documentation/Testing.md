@@ -182,18 +182,75 @@ To be done within CP3. Not covered yet.
 
 ## Jest Coverage
 
-The current Jest configuration collects coverage from all `src/**/*.ts` backend files. The combined **interface** run excludes `tests/unit/` and NFR tests.
+The Jest configuration collects coverage from all `src/**/*.ts` backend files. The combined **interface** run excludes `tests/unit/` and NFR tests.
 
-| Run | Evidence at CI commit `f3dfa900e507eb333eacc7755b08786902dd8598` |
-| --- | --- |
-| No mocks | 12 suites / 334 tests passed; statements 70.72%, branches 62.47%, functions 79.45%, lines 71.07%. Artifact: `backend-no-mock-<SHA>`. |
-| Mocks | 12 suites / 233 tests passed; statements 66.70%, branches 54.90%, functions 72.43%, lines 67.10%. Artifact: `backend-mock-<SHA>`. |
-| Combined interfaces | 24 suites / 567 tests passed; statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. Artifact: `backend-interface-<SHA>`. |
-| All backend tests (including unit suites) | 32 suites / 707 tests passed; statements 87.47%, branches 83.43%, functions 89.18%, lines 88.12%. Artifact: `backend-all-<SHA>`. |
+The screenshots below come from the actual HTML reports uploaded by [successful GitHub Actions run 44837686701](https://github.com/WYJ529/Ledger/actions/runs/44837686701), tested commit `43b5d0a98c945682308c3457408b1921c91715dc`, on Node 22.23.5 / npm 10.9.9. They cover all 33 backend source files: 27 in `src`, 1 in `src/config`, and 5 in `src/ledger`. Each group includes the whole-backend summary and every directory's file table, with Statements, Branches, Functions, and Lines. Click a screenshot to view it at full resolution.
 
-The [CI summary](res/testing/backend-ci-2026-11-20.txt) preserves the coverage totals. Download the per-file HTML/LCOV reports from [the verified run](https://github.com/WYJ529/Ledger/actions/runs/44835505893). The three old `res/testing/bill-import/*.png` screenshots remain absent; these new reports do not recreate historical screenshots. Capture the required screenshots from the new reports for submission.
+| Run | Passed suites / tests | Statements | Branches | Functions | Lines |
+| --- | --- | --- | --- | --- | --- |
+| No mocks | 12 / 334 | 70.64% | 62.28% | 79.45% | 70.99% |
+| Mocks | 12 / 235 | 67.09% | 55.35% | 72.70% | 67.52% |
+| Combined interfaces | 24 / 569 | 80.70% | 74.61% | 85.67% | 81.15% |
 
-Coverage is below 100%: interface tests do not launch the production entry point or seed script; several parser/domain cases are tested only in the separate unit suite, and additional error branches remain uncovered. These are coverage gaps, not a claim that every uncovered branch is unreachable. Before submission, capture the separate and combined whole-backend reports and explain remaining uncovered paths.
+The same CI run also passed all 709 backend tests (32 suites), including unit tests. The three screenshot groups specifically document the course's separate and combined interface runs. The [earlier CI summary](res/testing/backend-ci-2026-11-20.txt) is historical evidence from before the concurrent-finalization repair and its two new regression tests.
+
+Source artifact IDs, ZIP checksums, report paths, screenshot hashes, and rendering details are recorded in [provenance.txt](res/testing/coverage-43b5d0a/provenance.txt). The PNGs are direct browser captures of the downloaded Jest/Istanbul pages; coverage values and rows were not edited. They replace the obsolete `res/testing/bill-import/*.png` references. These committed images remain available after the downloadable CI artifacts expire.
+
+Coverage is below 100%: interface tests do not launch the production entry point (`src/index.ts`), environment bootstrap (`src/config/env.ts`), or seed script (`src/seedExpenseGroup.ts`). Several parser/domain cases are tested only in the separate unit suite; notably, the interface runs exercise little of `src/ledger/statements.ts`. Additional error and fallback branches remain uncovered. These are coverage gaps, not claims that uncovered code is unreachable; the screenshots preserve all low-coverage and zero-coverage rows.
+
+### Without mocks
+
+**Whole backend:**
+
+![No-mock Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/no-mock-overview.png)
+
+**All 27 files in `src`:**
+
+![No-mock Jest coverage: every src file](res/testing/coverage-43b5d0a/no-mock-src.png)
+
+**`src/config`:**
+
+![No-mock Jest coverage: environment configuration](res/testing/coverage-43b5d0a/no-mock-config.png)
+
+**All 5 files in `src/ledger`:**
+
+![No-mock Jest coverage: every ledger file](res/testing/coverage-43b5d0a/no-mock-ledger.png)
+
+### With mocks
+
+**Whole backend:**
+
+![Mocked Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/mock-overview.png)
+
+**All 27 files in `src`:**
+
+![Mocked Jest coverage: every src file](res/testing/coverage-43b5d0a/mock-src.png)
+
+**`src/config`:**
+
+![Mocked Jest coverage: environment configuration](res/testing/coverage-43b5d0a/mock-config.png)
+
+**All 5 files in `src/ledger`:**
+
+![Mocked Jest coverage: every ledger file](res/testing/coverage-43b5d0a/mock-ledger.png)
+
+### Without and with mocks combined
+
+**Whole backend:**
+
+![Combined-interface Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/interface-overview.png)
+
+**All 27 files in `src`:**
+
+![Combined-interface Jest coverage: every src file](res/testing/coverage-43b5d0a/interface-src.png)
+
+**`src/config`:**
+
+![Combined-interface Jest coverage: environment configuration](res/testing/coverage-43b5d0a/interface-config.png)
+
+**All 5 files in `src/ledger`:**
+
+![Combined-interface Jest coverage: every ledger file](res/testing/coverage-43b5d0a/interface-ledger.png)
 
 ## How to run Tests
 

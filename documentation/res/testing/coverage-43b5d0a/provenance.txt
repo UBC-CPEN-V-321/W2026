@@ -1,0 +1,33 @@
+Coverage screenshots captured 2026-11-20 from unmodified Jest/Istanbul HTML reports.
+Source SHA: 43b5d0a98c945682308c3457408b1921c91715dc
+GitHub run: https://github.com/WYJ529/Ledger/actions/runs/44837686701
+Runtime: Node 22.23.5 / npm 10.9.9; Ubuntu 24.04.
+Artifacts:
+  no-mock: 14678923126; SHA256 42f9603612b5afa016d2d81650d3875713ab05a9726ee824c37d4d29249626e5
+  mock: 14679327674; SHA256 33122aa882c3acd4a62b6ebee233f6280f0dbdc8782f05cc6f6c2445ab87e58f
+  interface: 14679910731; SHA256 f34221c79f0ab723ce93eb23400447bad7b6283c0f6cdba15b79edaf9782d6cc
+Downloaded ZIP hashes matched the GitHub artifact digests.
+Report paths within each artifact:
+  coverage/<suite>/index.html -> <suite>-overview.png
+  coverage/<suite>/src/index.html -> <suite>-src.png
+  coverage/<suite>/src/config/index.html -> <suite>-config.png
+  coverage/<suite>/src/ledger/index.html -> <suite>-ledger.png
+Source coverage per group: src (27 files), src/config (1), src/ledger (5); total 33.
+Rendering: Microsoft Edge headless, width 1440, scale factor 1, no HTML/CSS edits.
+Height: max(450, 330 + 38 * number of table rows including header).
+Screenshots are full-page viewport captures, not reconstructed data tables.
+Source report timestamps remain visible in the footer; no screenshot values were edited.
+
+PNG SHA256 checksums:
+C3F3FF7F20A92406BA8EFFA19D0C172A8BBCBC3BF155537A95C32F09D31F8C1D  interface-config.png
+8AE644E5A1F49ED91B7353AB6F0AACC7A14E7008E5C67160EE476587A05A51E1  interface-ledger.png
+3B2E00B332A204DF992293F9EB87DF470F00576179A1BB84F7FC3749698E9841  interface-overview.png
+E0949B6902B710932F9E6D22ACC34FA55B4478F31E1FD889FDF529DACD336B44  interface-src.png
+F0586F90F94B318F84D0D733420A0B2CE8BB82AD19F657812DCECB92AAE0656A  mock-config.png
+0AC87F73EA2A208FFEF346ACD5987004333A00AA79987EB60DB687A97BFE5F8D  mock-ledger.png
+D103A2E66ED937DA985442ECC3C3A5565DCE02B87DE869A6DD86F4A3CD93FD1A  mock-overview.png
+97A3EF00841F9722F40EB5914BA8CFE9967F67D281446B3C25F3A730F3B9339F  mock-src.png
+409C0FA801D6E5149FD4D4076BE649A153B22D37F6E47C729DBA25890126A5CB  no-mock-config.png
+4DF9234F218C68A6D2B18177BA8200B95D444CA25613CF93259EA7601FE85A10  no-mock-ledger.png
+AF53F2B21894F21C451CF233942DC624CBAECBF7D3D59ED877CBBC2E5CD1D928  no-mock-overview.png
+CDAE4AB1F3D365DFDDC2B474C2D6AF1883C77D12D2987EDAD8F4757DB8FA802F  no-mock-src.png
