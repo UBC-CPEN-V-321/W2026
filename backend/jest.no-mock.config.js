@@ -2,12 +2,6 @@ require('dotenv/config');
 
 const baseConfig = require('./jest.config');
 
-const recommendationClient =
-  process.env.RECOMMENDATION_CLIENT?.trim().toLowerCase() || 'soclaas';
-const unusedRecommendationClient = recommendationClient === 'qwen'
-  ? '!src/recommendation/soclaasClient.ts'
-  : '!src/recommendation/qwenClient.ts';
-
 module.exports = {
   ...baseConfig,
   testMatch: [
@@ -24,7 +18,6 @@ module.exports = {
     'src/itineraries/**/*.ts',
     'src/maps/**/*.ts',
     'src/recommendation/**/*.ts',
-    unusedRecommendationClient,
     'src/auth/**/*.ts',
     'src/session/**/*.ts',
     'src/events/**/*.ts',

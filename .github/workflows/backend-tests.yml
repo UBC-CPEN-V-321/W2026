@@ -23,12 +23,6 @@ jobs:
       MONGODB_URI: mongodb://127.0.0.1:27017/exploreubc_test
       EVENT_SEARCH_STATE_CODE: BC
       EVENT_SEARCH_COUNTRY_CODE: CA
-      RECOMMENDATION_CLIENT: ${{ secrets.RECOMMENDATION_CLIENT }}
-      SOCLAAS_ENDPOINT: ${{ secrets.SOCLAAS_ENDPOINT }}
-      SOCLAAS_API_KEY: ${{ secrets.SOCLAAS_API_KEY }}
-      SOCLAAS_MODEL: ${{ secrets.SOCLAAS_MODEL }}
-      SOCLAAS_MAX_OUTPUT_TOKENS: ${{ secrets.SOCLAAS_MAX_OUTPUT_TOKENS }}
-      SOCLAAS_TIMEOUT_MS: ${{ secrets.SOCLAAS_TIMEOUT_MS }}
       QWEN_ENDPOINT: ${{ secrets.QWEN_ENDPOINT }}
       QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
       QWEN_MODEL: ${{ secrets.QWEN_MODEL }}

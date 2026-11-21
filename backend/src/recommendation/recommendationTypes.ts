@@ -27,17 +27,3 @@ export interface ItineraryRanker {
   ): Promise<RecommendedItineraryInput[]>;
 }
 
-export interface SoclaasResponsesApiResponse {
-  status?: string;
-  incomplete_details?: {
-    reason?: string;
-  };
-  output_text?: string;
-  output?: {
-    content?: {
-      type?: string;
-      text?: string;
-    }[];
-  }[];
-  error?: string | { message?: string };
-}

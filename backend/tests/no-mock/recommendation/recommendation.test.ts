@@ -21,7 +21,6 @@ import {
 import { parseItineraries } from '../../../src/recommendation/recommendationParser';
 import { QwenClient } from '../../../src/recommendation/qwenClient';
 import { RecommendationService } from '../../../src/recommendation/recommendationService';
-import { SoclaasClient } from '../../../src/recommendation/soclaasClient';
 import type { ItineraryGenerator } from '../../../src/recommendation/recommendationTypes';
 import {
   cleanTextForRanking,
@@ -35,15 +34,10 @@ import {
 
 // The live generation test may make a second provider request. Allow both
 // requests to reach their configured timeouts, plus ranking and MongoDB work.
-const providerTimeoutMs = env.recommendationClient === 'qwen'
-  ? env.qwen.timeoutMs
-  : env.soclaas.timeoutMs;
-jest.setTimeout(providerTimeoutMs * 2 + 60_000);
+jest.setTimeout(env.qwen.timeoutMs * 2 + 60_000);
 
 function configuredGenerator(): ItineraryGenerator {
-  return env.recommendationClient === 'qwen'
-    ? new QwenClient(env.qwen)
-    : new SoclaasClient(env.soclaas);
+  return new QwenClient(env.qwen);
 }
 
 const USER_ID = new ObjectId();
@@ -325,11 +319,10 @@ describe('POST /api/v1/users/:userId/recommendations — no mocks', () => {
 
   test('returns RECOMMENDATION_NOT_CONFIGURED for missing LLM settings', async () => {
     const notConfiguredApp = createApp({
-      recommendationGenerator: new SoclaasClient({
+      recommendationGenerator: new QwenClient({
         endpoint: ' ',
         apiKey: undefined,
         model: '',
-        maxOutputTokens: 1,
         timeoutMs: 120_000,
       }),
       recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
@@ -347,11 +340,10 @@ describe('POST /api/v1/users/:userId/recommendations — no mocks', () => {
 
   test('maps a real provider connection failure to a 502 response', async () => {
     const unavailableProviderApp = createApp({
-      recommendationGenerator: new SoclaasClient({
+      recommendationGenerator: new QwenClient({
         endpoint: 'http://127.0.0.1:65534',
         apiKey: 'no-mock-test-key',
         model: 'no-mock-test-model',
-        maxOutputTokens: 1,
         timeoutMs: 1_000,
       }),
       recommendationRanker: new UniversalSentenceEncoderItineraryRanker(),
@@ -478,11 +470,10 @@ describe('Recommendation response parsing — no mocks', () => {
   });
 
   test('maps a real connection failure to a generation error', async () => {
-    const unreachableClient = new SoclaasClient({
+    const unreachableClient = new QwenClient({
       endpoint: 'http://127.0.0.1:65534',
       apiKey: 'no-mock-test-key',
       model: 'no-mock-test-model',
-      maxOutputTokens: 1,
       timeoutMs: 1_000,
     });
 

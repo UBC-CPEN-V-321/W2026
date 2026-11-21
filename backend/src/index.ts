@@ -29,7 +29,6 @@ import { RecommendationDao } from './recommendation/recommendationDao';
 import type { RecommendationRepository } from './recommendation/recommendationRepository';
 import { createRecommendationRouter } from './recommendation/recommendationRouter';
 import { RecommendationService } from './recommendation/recommendationService';
-import { SoclaasClient } from './recommendation/soclaasClient';
 import type {
   ItineraryGenerator,
   ItineraryRanker,
@@ -168,10 +167,7 @@ const sessionService = new SessionService(
   new SessionDao(database),
   env.sessionTtlDays,
 );
-const recommendationGenerator: ItineraryGenerator =
-  env.recommendationClient === 'qwen'
-    ? new QwenClient(env.qwen)
-    : new SoclaasClient(env.soclaas);
+const recommendationGenerator: ItineraryGenerator = new QwenClient(env.qwen);
 const app = createApp({
   authService: new AuthService(
     new GoogleIdTokenVerifier(env.googleClientId),
