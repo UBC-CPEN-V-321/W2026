@@ -12,13 +12,16 @@ import com.example.cpen321application.core.network.dto.InviteFriendResponseDto
 import com.example.cpen321application.core.network.dto.JoinGameRequestDto
 import com.example.cpen321application.core.network.dto.LeaveGameRequestDto
 import com.example.cpen321application.core.network.dto.ReportScoreRequestDto
+import com.example.cpen321application.core.network.dto.SetGameEquipmentRequestDto
 import com.example.cpen321application.core.network.dto.StartGameRequestDto
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Query
 
 /**
@@ -98,6 +101,12 @@ interface GamesApi {
         @Header("Authorization") authorization: String,
         @Body request: ChangeGameLocationRequestDto
     )
+
+    @PUT("games/equipment")
+    suspend fun setGameEquipment(
+        @Header("Authorization") authorization: String,
+        @Body request: SetGameEquipmentRequestDto
+    ): Response<Unit>
 
     // The score waits for every other player to confirm it
     @POST("games/score")

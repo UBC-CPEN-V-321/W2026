@@ -10,7 +10,7 @@ import {
 } from "../generated/prisma/enums";
 import type { Game } from "../generated/prisma/client";
 import { IncompleteTeamsError } from "../ranking/ranking.service";
-import { pushToUsers, userErrors } from "../users/users.service";
+import { getEquipment, pushToUsers, userErrors } from "../users/users.service";
 import {
   acceptMatch as recordAcceptance,
   addPlayerToTeam,
@@ -101,6 +101,15 @@ export async function newGame(game: CreateGameInput, userId: string) {
   const created = await mapPrismaErrors(createGame({ ...game, status: GameStatus.OPEN }, userId), {
     P2003: commonErrors.CourtNotFound,
   });
+  try {
+    const userEquipment = await getEquipment(userId);
+    const defaultIds = userEquipment.filter((eq) => eq.isDefault).map((eq) => eq.id);
+    if (defaultIds.length > 0) {
+      await replaceGameEquipment(created.id, userId, defaultIds);
+    }
+  } catch (err) {
+    console.error("Could not set default equipment for new game", err);
+  }
   // On the feed, and in the creator's games
   gameChanged({ gameId: created.id });
   return created;
@@ -248,6 +257,16 @@ export async function joinGame(gameId: string, userId: string, team: number): Pr
     { P2002: gameErrors.AlreadyInGame, P2003: gameErrors.GameOrUserNotFound },
   );
   if (result === "added") {
+    try {
+      const userEquipment = await getEquipment(userId);
+      const defaultIds = userEquipment.filter((eq) => eq.isDefault).map((eq) => eq.id);
+      if (defaultIds.length > 0) {
+        await replaceGameEquipment(gameId, userId, defaultIds);
+      }
+    } catch (err) {
+      console.error("Could not set default equipment on join", err);
+    }
+
     gameChanged({ gameId });
     return;
   }

@@ -9,6 +9,7 @@ import com.example.cpen321application.core.data.model.Player
 import com.example.cpen321application.core.data.repository.CourtsRepository
 import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.feature.profile.FakeFriendsRepository
+import com.example.cpen321application.testing.UnusedEquipmentRepository
 import com.example.cpen321application.testing.UnusedGamesRepository
 import com.example.cpen321application.testing.signedInSession
 import kotlinx.coroutines.Dispatchers
@@ -81,7 +82,8 @@ class GameDetailFollowTest {
         courtsRepository = UnusedCourts,
         currentUsername = { "bob" },
         friendsRepository = FakeFriendsRepository(),
-        session = session
+        session = session,
+        equipmentRepository = UnusedEquipmentRepository()
     )
 
     @Before

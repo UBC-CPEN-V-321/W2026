@@ -5,10 +5,14 @@ import com.example.cpen321application.core.auth.User
 import com.example.cpen321application.core.data.model.Format
 import com.example.cpen321application.core.data.model.Game
 import com.example.cpen321application.core.data.model.Tournament
+import com.example.cpen321application.core.data.repository.EquipmentRepository
 import com.example.cpen321application.core.data.repository.GameUpdate
 import com.example.cpen321application.core.data.repository.GamesRepository
 import com.example.cpen321application.core.data.repository.TournamentsRepository
 import com.example.cpen321application.core.network.ApiService
+import com.example.cpen321application.core.network.dto.CreateEquipmentRequestDto
+import com.example.cpen321application.core.network.dto.EquipmentDto
+import com.example.cpen321application.core.network.dto.UpdateEquipmentRequestDto
 import kotlinx.coroutines.flow.Flow
 import java.lang.reflect.Proxy
 import java.time.Instant
@@ -32,6 +36,7 @@ open class UnusedGamesRepository : GamesRepository {
     override suspend fun startGame(gameId: String): Result<Unit> = error("unused")
     override suspend fun changeGameTime(gameId: String, startsAt: Instant): Result<Unit> = error("unused")
     override suspend fun changeGameLocation(gameId: String, courtId: Int): Result<Unit> = error("unused")
+    override suspend fun setGameEquipment(gameId: String, equipmentIds: List<Int>): Result<Unit> = error("unused")
     override suspend fun reportScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
     override suspend fun confirmScore(gameId: String, rounds: List<Pair<Int, Int>>): Result<Unit> = error("unused")
     override fun gameUpdates(gameId: String): Flow<GameUpdate> = error("unused")
@@ -54,6 +59,13 @@ open class UnusedTournamentsRepository : TournamentsRepository {
     override suspend fun leaveTournament(tournamentId: String): Result<Unit> = error("unused")
     override suspend fun cancelTournament(tournamentId: String): Result<Unit> = error("unused")
     override fun tournamentUpdates(tournamentId: String): Flow<Tournament> = error("unused")
+}
+
+open class UnusedEquipmentRepository : EquipmentRepository {
+    override suspend fun getEquipment(session: AuthSession): Result<List<EquipmentDto>> = Result.success(emptyList())
+    override suspend fun createEquipment(session: AuthSession, request: CreateEquipmentRequestDto): Result<EquipmentDto> = error("unused")
+    override suspend fun updateEquipment(session: AuthSession, id: Int, request: UpdateEquipmentRequestDto): Result<EquipmentDto> = error("unused")
+    override suspend fun deleteEquipment(session: AuthSession, id: Int): Result<Unit> = error("unused")
 }
 
 /**

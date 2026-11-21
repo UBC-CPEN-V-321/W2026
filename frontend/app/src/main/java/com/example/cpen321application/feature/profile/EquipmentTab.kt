@@ -46,6 +46,7 @@ import com.example.cpen321application.core.ui.components.SectionLabel
 import com.example.cpen321application.core.ui.components.SmallButtonHeight
 import com.example.cpen321application.core.ui.components.StatusChip
 import com.example.cpen321application.core.ui.theme.TextFieldShape
+import java.util.Locale
 
 private const val TENNIS_BALLS_NAME = "Tennis Balls"
 
@@ -228,6 +229,15 @@ private fun EquipmentItemInfo(
                 }
             }
         }
+        val gamesCount = equipment.effectiveGamesUsed
+        val hoursCount = equipment.effectiveHoursUsed
+        val hoursText = if (hoursCount % 1.0 == 0.0) hoursCount.toInt().toString() else String.format(
+            Locale.US, "%.1f", hoursCount)
+        Text(
+            text = "$gamesCount ${if (gamesCount == 1) "game" else "games"} used · $hoursText ${if (hoursCount == 1.0) "hr" else "hrs"} used",
+            style = MaterialTheme.typography.bodySmall,
+            color = muted,
+        )
         if (equipment.nextMaintenanceAt != null) {
             Text(
                 text = "Service due ${equipment.nextMaintenanceAt.take(10)}",

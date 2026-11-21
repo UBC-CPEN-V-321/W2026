@@ -3,6 +3,8 @@ package com.example.cpen321application.feature.gamedetail
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -14,7 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +36,10 @@ import com.example.cpen321application.core.data.model.GameStatus
 import com.example.cpen321application.core.data.model.GameTournament
 import com.example.cpen321application.core.data.model.Round
 import com.example.cpen321application.core.data.model.TEAMS
+import com.example.cpen321application.core.data.model.isClosed
 import com.example.cpen321application.core.data.model.playersOnTeam
 import com.example.cpen321application.core.data.model.teamSize
+import com.example.cpen321application.core.network.dto.EquipmentDto
 import com.example.cpen321application.core.ui.components.ChipStyle
 import com.example.cpen321application.core.ui.components.DestructiveButton
 import com.example.cpen321application.core.ui.components.DonutCard
@@ -235,6 +242,109 @@ internal fun GamePlayerActions(
         }
         if (actions.canCancel) {
             DestructiveButton(text = "Cancel game", enabled = !isSaving, onClick = { onOpenDialog(GameDialog.CANCEL) })
+        }
+    }
+}
+
+/**
+ * Equipment section: user's equipment as checkable chips, with selection checked.
+ * Hides/disables picker for closed games. Shows link to equipment screen if no equipment yet.
+ * Optionally shows other players' items read-only.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun EquipmentSection(
+    game: Game,
+    userEquipment: List<EquipmentDto>,
+    selectedEquipmentIds: Set<Int>,
+    isLoadingEquipment: Boolean,
+    equipmentErrorMessage: String?,
+    onToggleEquipment: (Int) -> Unit,
+    onOpenEquipmentScreen: () -> Unit
+) {
+    DonutCard {
+        SectionLabel(text = "Equipment")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isLoadingEquipment && userEquipment.isEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+        } else if (userEquipment.isEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "No equipment yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onOpenEquipmentScreen) {
+                    Text("Go to equipment screen")
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (game.isClosed) {
+                    Text(
+                        text = "This game is completed or cancelled. Equipment selection is locked.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    userEquipment.forEach { item ->
+                        val selected = item.id in selectedEquipmentIds
+                        FilterChip(
+                            selected = selected,
+                            onClick = { onToggleEquipment(item.id) },
+                            enabled = !game.isClosed,
+                            label = { Text(item.name) },
+                            leadingIcon = if (selected) {
+                                {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_check),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+            }
+        }
+
+        // Other players' items (read-only)
+        if (game.equipment.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Players' equipment",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            game.equipment.forEach { eq ->
+                val player = game.players.firstOrNull { it.id == eq.userId }
+                val playerName = player?.name ?: player?.username ?: "Player"
+                Text(
+                    text = "• ${eq.name} ($playerName)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (equipmentErrorMessage != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = equipmentErrorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
         }
     }
 }
