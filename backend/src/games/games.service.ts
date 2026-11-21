@@ -10,7 +10,7 @@ import {
 } from "../generated/prisma/enums";
 import type { Game } from "../generated/prisma/client";
 import { IncompleteTeamsError } from "../ranking/ranking.service";
-import { pushToUsers } from "../users/users.service";
+import { pushToUsers, userErrors } from "../users/users.service";
 import {
   acceptMatch as recordAcceptance,
   addPlayerToTeam,
@@ -27,6 +27,7 @@ import {
   type GameDetails,
   isUserInGame,
   recordScore,
+  replaceGameEquipment,
   startBookedGame,
   updateGame,
 } from "./games.repository";
@@ -346,6 +347,32 @@ export async function leaveGame(gameId: string, userId: string): Promise<void> {
   }
 
   await mapPrismaErrors(deleteGameUser(gameId, userId), { P2025: gameErrors.PlayerNotFound });
+  gameChanged({ gameId });
+}
+
+/**
+ * Sets which of their own equipment a player uses in a game, replacing what they picked before. Each item's games and
+ * hours used are counted when the game completes, so the selection can change until then
+ * @param gameId the game ID of the game
+ * @param userId the player, who must be in the game
+ * @param equipmentIds the IDs of the player's active equipment to use; empty to use none
+ * @throws AppError if the game is not found, closed, or the user is not in it, or an item is not the user's active equipment
+ */
+export async function setGameEquipment(gameId: string, userId: string, equipmentIds: number[]): Promise<void> {
+  await checkCanEditGame(gameId, userId);
+
+  // The repository checks the game again once it holds the lock, in case it changed since
+  const result = await replaceGameEquipment(gameId, userId, equipmentIds);
+  if (result === "closed") {
+    throw new AppError(gameErrors.Closed);
+  }
+  if (result === "notInGame") {
+    throw new AppError(gameErrors.NotInGame);
+  }
+  if (result === "equipmentNotFound") {
+    throw new AppError(userErrors.EquipmentNotFound);
+  }
+
   gameChanged({ gameId });
 }
 
