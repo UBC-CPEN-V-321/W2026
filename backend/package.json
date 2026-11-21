@@ -29,7 +29,7 @@
     "escape-html": "^1.0.3",
     "express": "^5.2.1",
     "google-auth-library": "11.1.0",
-    "mongoose": "^9.11.2",
+    "mongoose": "^9.11.4",
     "pdfjs-dist": "6.4.299",
     "socket.io": "4.8.3"
   },

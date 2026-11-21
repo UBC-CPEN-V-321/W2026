@@ -303,9 +303,9 @@ describe('Mocked: POST /api/auth/google/link', () => {
       }
       const response = await request(app).post('/api/auth/google/link').send(googleBody);
       expect(response.status).toBe(outcome === 'linked' ? 200 : outcome === 'unavailable' ? 500 : 409);
-      const linked = await UserModel.findOne({ googleId: payload.sub }).lean();
-      if (outcome === 'linked') expect(linked?._id.toString()).toBe(registration.body.user.id);
-      else expect(linked).toBeNull();
+      const account = await UserModel.findOne({ username: 'joy_tao' }).lean();
+      expect(account?._id.toString()).toBe(registration.body.user.id);
+      expect(account?.googleId).toBe(outcome === 'linked' ? payload.sub : undefined);
       expect(await SessionModel.countDocuments()).toBe(outcome === 'linked' ? 2 : 1);
     });
   });
