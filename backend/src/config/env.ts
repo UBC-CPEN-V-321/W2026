@@ -60,22 +60,6 @@ const eventSearchStateCode =
 const eventSearchCountryCode =
   process.env.EVENT_SEARCH_COUNTRY_CODE?.trim() || "CA";
 
-const rawSoclaasMaxOutputTokens = process.env.SOCLAAS_MAX_OUTPUT_TOKENS;
-const soclaasMaxOutputTokens =
-  rawSoclaasMaxOutputTokens === undefined || rawSoclaasMaxOutputTokens === ""
-    ? 16_384
-    : Number.parseInt(rawSoclaasMaxOutputTokens, 10);
-
-if (
-  !Number.isInteger(soclaasMaxOutputTokens) ||
-  soclaasMaxOutputTokens < 1 ||
-  soclaasMaxOutputTokens > 16_384
-) {
-  throw new Error(
-    `Invalid SOCLAAS_MAX_OUTPUT_TOKENS: ${rawSoclaasMaxOutputTokens}`,
-  );
-}
-
 function parsePositiveMilliseconds(
   variableName: string,
   defaultValue: number,
@@ -91,26 +75,13 @@ function parsePositiveMilliseconds(
   return value;
 }
 
-const soclaasTimeoutMs = parsePositiveMilliseconds(
-  "SOCLAAS_TIMEOUT_MS",
-  120_000,
-);
 const qwenTimeoutMs = parsePositiveMilliseconds("QWEN_TIMEOUT_MS", 120_000);
-
-const recommendationClient =
-  process.env.RECOMMENDATION_CLIENT?.trim().toLowerCase() || "soclaas";
-if (recommendationClient !== "soclaas" && recommendationClient !== "qwen") {
-  throw new Error(
-    `Invalid RECOMMENDATION_CLIENT: ${process.env.RECOMMENDATION_CLIENT}`,
-  );
-}
 
 export const env = {
   port,
   mongodbUri,
   googleClientId,
   sessionTtlDays,
-  recommendationClient,
   ticketmaster: {
     apiKey: process.env.TICKETMASTER_API_KEY,
     baseUrl:
@@ -119,13 +90,6 @@ export const env = {
     stateCode: eventSearchStateCode,
     countryCode: eventSearchCountryCode,
     pageSize: eventSearchPageSize,
-  },
-  soclaas: {
-    endpoint: process.env.SOCLAAS_ENDPOINT?.trim(),
-    apiKey: process.env.SOCLAAS_API_KEY?.trim(),
-    model: process.env.SOCLAAS_MODEL?.trim(),
-    maxOutputTokens: soclaasMaxOutputTokens,
-    timeoutMs: soclaasTimeoutMs,
   },
   qwen: {
     endpoint: process.env.QWEN_ENDPOINT?.trim(),

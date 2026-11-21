@@ -76,7 +76,7 @@ Configure the corresponding values in `backend/.env` as needed:
 - **Server and sessions:** `PORT` defaults to `3000`; `NODE_ENV` defaults to `development`; `SESSION_TTL_DAYS` defaults to `1`.
 - **Live events:** `TICKETMASTER_API_KEY` is needed to sync or search events. `TICKETMASTER_BASE_URL` defaults to `https://app.ticketmaster.com/discovery/v2`; `EVENT_SEARCH_STATE_CODE`, `EVENT_SEARCH_COUNTRY_CODE`, and `EVENT_SEARCH_PAGE_SIZE` default to `BC`, `CA`, and `200`.
 - **Google Maps Platform:** set `MAPS_API_KEY`, `GEOCODING_API_KEY`, `ROUTES_API_KEY`, and `PLACES_API_KEY` for the corresponding map, geocoding, directions, and places features.
-- **Itinerary generation:** `RECOMMENDATION_CLIENT` selects `soclaas` (default) or `qwen`. Configure the selected provider with `SOCLAAS_ENDPOINT`, `SOCLAAS_API_KEY`, `SOCLAAS_MODEL` or `QWEN_ENDPOINT`, `QWEN_API_KEY`, `QWEN_MODEL`; the example defaults are SoCLaaS (`https://soclaas-api.comp.nus.edu.sg/v1`, `qwen3.6:35b`) and Qwen (`https://us-east-1.maas.qwencloudapi.com/compatible-mode/v1`, `qwen3.6-flash`). `SOCLAAS_TIMEOUT_MS` and `QWEN_TIMEOUT_MS` default to `120000` ms; `SOCLAAS_MAX_OUTPUT_TOKENS` defaults to `16384`.
+- **Itinerary generation:** Configure Qwen with `QWEN_ENDPOINT`, `QWEN_API_KEY`, and `QWEN_MODEL`. The example endpoint and model are `https://us-east-1.maas.qwencloudapi.com/compatible-mode/v1` and `qwen3.6-flash`. `QWEN_TIMEOUT_MS` defaults to `120000` ms.
 
 The example includes placeholder values for optional feature credentials. Replace them with valid credentials to use those features. Do not commit `backend/.env`.
 
