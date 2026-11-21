@@ -41,6 +41,20 @@ async function splitWithSubscribers() {
 
 // Interface Socket.IO /dutch connection
 describe('Unmocked: Socket.IO /dutch connection', () => {
+
+  // Input: a handshake after logout with a well-formed former token.
+  // Expected status code: connect_error.
+  // Expected behavior: reject the revoked session before joining any room.
+  // Expected output: Session expired.
+  test('rejects a revoked token at handshake', async () => {
+    expect((await logout(member)).status).toBe(204);
+    const client = clientFor(member.token);
+    const rejected = nextEvent<Error>(client, 'connect_error');
+    client.connect();
+    expect((await rejected).message).toBe('Session expired.');
+    expect(socketServer.of('/dutch').sockets.size).toBe(0);
+  });
+
   // Input: connection attempt without a Ledger session token
   // Expected status code: none (Socket.IO connect_error)
   // Expected behavior: the handshake is refused and no socket is kept
@@ -95,6 +109,25 @@ describe('Unmocked: Socket.IO /dutch connection', () => {
     const rejected = nextEvent<Error>(retry, 'connect_error');
     retry.connect();
     expect((await rejected).message).toMatch(/closed/);
+  });
+});
+
+describe('Unmocked: Socket.IO /dutch unsubscribe', () => {
+  // Input: invalid unsubscribe payloads followed by a valid group ID.
+  // Expected status code: none (Socket.IO).
+  // Expected behavior: invalid messages preserve membership, and a valid message leaves only the group room.
+  // Expected output: the server room membership reflects each event.
+  test('leaves the subscribed group and retains the connection', async () => {
+    const client = await subscribed(member);
+    const room = () => socketServer.of('/dutch').adapter.rooms.get(groupId);
+    for (const message of [null, { groupId: 'invalid' }, { groupId }]) {
+      client.emit('unsubscribe', message);
+      // The acknowledgement on this socket follows the unsubscribe in transport order.
+      const acknowledgement = await client.emitWithAck('subscribe', null);
+      expect(acknowledgement).toEqual({ ok: false, error: 'Group not found.' });
+      expect(Boolean(room()?.has(client.id!))).toBe(message?.groupId !== groupId);
+    }
+    expect(client.connected).toBe(true);
   });
 });
 

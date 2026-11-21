@@ -4,6 +4,7 @@
 
 | Date | Description |
 | --- | --- |
+| 11/20/2026 | Verified 100% combined backend coverage for all four Jest metrics and refreshed the per-suite results and screenshots. |
 | 11/02/2026 | Creation of this file. Reporting E2E testing results for Feature 1 and backend testing results for Bill Import component. |
 | 11/19/2026 | Reconciled paths, test inventory, execution prerequisites and evidence status with the repository; marked missing historical artifacts explicitly. |
 | 11/19/2026 | Checked the CP2 backend structure against Project Description section 9 and Testing II slides 58-61; moved registration/login input-validation, password-confirmation and rate-limit cases to real MongoDB tests; added mocked dependency-isolation checks for public endpoints. |
@@ -12,7 +13,7 @@
 
 ## Locations of Backend Tests
 
-Local structure-fix verification (2026-11-19): executed on the working-tree code subsequently committed and merged to main as `6a9dfdfeaf16e1bf006741138cffc6e114e19993`. `npm run typecheck` passed; `npm run test:interface -- --silent` passed **24 suites / 567 tests**. Combined coverage: statements 80.36%, branches 74.28%, functions 85.67%, lines 80.80%. This run used Node 24.11.1 / npm 11.6.2; the supported project environment remains Node 22.x. This is the backend validation baseline only; Android tests were not rerun in that validation. The console summary is preserved in [backend-interface-summary.txt](res/testing/backend-interface-summary.txt).
+For the current local results and screenshots, see [Jest Coverage](#jest-coverage). The [November 19 console summary](res/testing/backend-interface-summary.txt) records the earlier structure check.
 
 Backend test conventions (Project Description, section 9):
 
@@ -24,56 +25,57 @@ Backend test conventions (Project Description, section 9):
 - Public infrastructure endpoints have mocked authentication-store failures to verify they remain independent of those stores; these are availability/isolation checks, not invented error responses. Live Google/OpenAI success paths are not established by forged-token/configuration tests.
 
 
-Each interface has one `describe` without mocks (`backend/tests/no-mock/`) and one with mocks (`backend/tests/mock/`), both named after the interface (`Unmocked: <interface>` / `Mocked: <interface>`). Every test starts with the four comments `Input`, `Expected status code`, `Expected behavior` and `Expected output`. The unmocked groups run the real Express app, sessions and MongoDB (an isolated in-memory `mongod` per suite); authenticated interfaces also include the shared missing/unknown/expired-session checks from [sessionRejection.ts](../backend/tests/helpers/sessionRejection.ts). Socket.IO interfaces are listed by namespace and event. Store-level checks that call no interface are in [backend/tests/unit/](../backend/tests/unit/).
+The table links to the mocked and unmocked HTTP and Socket.IO tests. Authenticated HTTP routes share checks for missing, unknown and expired sessions. The unmocked socket tests use a real server and an isolated MongoDB process. [Shared session checks](../backend/tests/helpers/sessionRejection.ts).
 
 | Interfaces | Describe group without mocks | Describe group with mocks | Components mocked |
 | --- | --- | --- | --- |
-| `POST /api/auth/register` | [accountAuth.test.ts:14](../backend/tests/no-mock/accountAuth.test.ts#L14) | [accountAuth.test.ts:24](../backend/tests/mock/accountAuth.test.ts#L24) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/login` | [accountAuth.test.ts:127](../backend/tests/no-mock/accountAuth.test.ts#L127) | [accountAuth.test.ts:82](../backend/tests/mock/accountAuth.test.ts#L82) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `GET /api/users/me` | [accountAuth.test.ts:222](../backend/tests/no-mock/accountAuth.test.ts#L222) | [accountAuth.test.ts:167](../backend/tests/mock/accountAuth.test.ts#L167) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/logout` | [accountAuth.test.ts:248](../backend/tests/no-mock/accountAuth.test.ts#L248) | [accountAuth.test.ts:129](../backend/tests/mock/accountAuth.test.ts#L129) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/register` | [accountAuth.test.ts:14](../backend/tests/no-mock/accountAuth.test.ts#L14) | [accountAuth.test.ts:25](../backend/tests/mock/accountAuth.test.ts#L25) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/login` | [accountAuth.test.ts:127](../backend/tests/no-mock/accountAuth.test.ts#L127) | [accountAuth.test.ts:185](../backend/tests/mock/accountAuth.test.ts#L185) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `GET /api/users/me` | [accountAuth.test.ts:222](../backend/tests/no-mock/accountAuth.test.ts#L222) | [accountAuth.test.ts:285](../backend/tests/mock/accountAuth.test.ts#L285) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/logout` | [accountAuth.test.ts:263](../backend/tests/no-mock/accountAuth.test.ts#L263) | [accountAuth.test.ts:247](../backend/tests/mock/accountAuth.test.ts#L247) | MongoDB user and session stores (in-memory replacements whose methods fail or race) |
 | `PATCH /api/users/me` | [accountSettings.test.ts:12](../backend/tests/no-mock/accountSettings.test.ts#L12) | [accountSettings.test.ts:23](../backend/tests/mock/accountSettings.test.ts#L23) | MongoDB user and session stores (in-memory replacements whose methods fail or race); Google ID-token verifier |
 | `POST /api/groups/:groupId/shared-entries` | [entrySharing.test.ts:27](../backend/tests/no-mock/entrySharing.test.ts#L27) | [entrySharing.test.ts:19](../backend/tests/mock/entrySharing.test.ts#L19) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
-| `GET /api/groups/:groupId/expenses/:expenseId/personal-entry` | [entrySharing.test.ts:124](../backend/tests/no-mock/entrySharing.test.ts#L124) | [entrySharing.test.ts:62](../backend/tests/mock/entrySharing.test.ts#L62) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
-| `POST /api/groups/:groupId/expenses/:expenseId/personal-entry/imported` | [entrySharing.test.ts:191](../backend/tests/no-mock/entrySharing.test.ts#L191) | [entrySharing.test.ts:87](../backend/tests/mock/entrySharing.test.ts#L87) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
-| `POST /api/auth/google` | [googleAuth.test.ts:20](../backend/tests/no-mock/googleAuth.test.ts#L20) | [googleAuth.test.ts:32](../backend/tests/mock/googleAuth.test.ts#L32) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/google/register` | [googleAuth.test.ts:43](../backend/tests/no-mock/googleAuth.test.ts#L43) | [googleAuth.test.ts:175](../backend/tests/mock/googleAuth.test.ts#L175) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
-| `POST /api/auth/google/link` | [googleAuth.test.ts:56](../backend/tests/no-mock/googleAuth.test.ts#L56) | [googleAuth.test.ts:263](../backend/tests/mock/googleAuth.test.ts#L263) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `GET /api/groups/:groupId/expenses/:expenseId/personal-entry` | [entrySharing.test.ts:124](../backend/tests/no-mock/entrySharing.test.ts#L124) | [entrySharing.test.ts:73](../backend/tests/mock/entrySharing.test.ts#L73) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
+| `POST /api/groups/:groupId/expenses/:expenseId/personal-entry/imported` | [entrySharing.test.ts:191](../backend/tests/no-mock/entrySharing.test.ts#L191) | [entrySharing.test.ts:98](../backend/tests/mock/entrySharing.test.ts#L98) | Mongoose `ExpenseModel` and `GroupModel` via `jest.spyOn`: rejected reads/writes, duplicate-key race |
+| `POST /api/auth/google` | [googleAuth.test.ts:20](../backend/tests/no-mock/googleAuth.test.ts#L20) | [googleAuth.test.ts:34](../backend/tests/mock/googleAuth.test.ts#L34) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/google/register` | [googleAuth.test.ts:43](../backend/tests/no-mock/googleAuth.test.ts#L43) | [googleAuth.test.ts:194](../backend/tests/mock/googleAuth.test.ts#L194) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
+| `POST /api/auth/google/link` | [googleAuth.test.ts:56](../backend/tests/no-mock/googleAuth.test.ts#L56) | [googleAuth.test.ts:282](../backend/tests/mock/googleAuth.test.ts#L282) | Google ID-token verifier; MongoDB user and session stores (in-memory replacements whose methods fail or race) |
 | `GET /api/groups` | [groupExpenses.test.ts:72](../backend/tests/no-mock/groupExpenses.test.ts#L72) | [groupExpenses.test.ts:21](../backend/tests/mock/groupExpenses.test.ts#L21) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
 | `GET /api/groups/:groupId/summary` | [groupExpenses.test.ts:88](../backend/tests/no-mock/groupExpenses.test.ts#L88) | [groupExpenses.test.ts:38](../backend/tests/mock/groupExpenses.test.ts#L38) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `POST /api/groups/:groupId/expenses` | [groupExpenses.test.ts:147](../backend/tests/no-mock/groupExpenses.test.ts#L147) | [groupExpenses.test.ts:82](../backend/tests/mock/groupExpenses.test.ts#L82) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `PUT /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:431](../backend/tests/no-mock/groupExpenses.test.ts#L431) | [groupExpenses.test.ts:130](../backend/tests/mock/groupExpenses.test.ts#L130) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `DELETE /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:661](../backend/tests/no-mock/groupExpenses.test.ts#L661) | [groupExpenses.test.ts:174](../backend/tests/mock/groupExpenses.test.ts#L174) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/:groupId/expenses` | [groupExpenses.test.ts:162](../backend/tests/no-mock/groupExpenses.test.ts#L162) | [groupExpenses.test.ts:97](../backend/tests/mock/groupExpenses.test.ts#L97) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `PUT /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:496](../backend/tests/no-mock/groupExpenses.test.ts#L496) | [groupExpenses.test.ts:145](../backend/tests/mock/groupExpenses.test.ts#L145) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `DELETE /api/groups/:groupId/expenses/:expenseId` | [groupExpenses.test.ts:738](../backend/tests/no-mock/groupExpenses.test.ts#L738) | [groupExpenses.test.ts:189](../backend/tests/mock/groupExpenses.test.ts#L189) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
 | `POST /api/groups` | [groupManagement.test.ts:75](../backend/tests/no-mock/groupManagement.test.ts#L75) | [groupManagement.test.ts:15](../backend/tests/mock/groupManagement.test.ts#L15) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `GET /api/groups/invitations/:token` | [groupManagement.test.ts:152](../backend/tests/no-mock/groupManagement.test.ts#L152) | [groupManagement.test.ts:53](../backend/tests/mock/groupManagement.test.ts#L53) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `POST /api/groups/invitations/:token/accept` | [groupManagement.test.ts:191](../backend/tests/no-mock/groupManagement.test.ts#L191) | [groupManagement.test.ts:69](../backend/tests/mock/groupManagement.test.ts#L69) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `POST /api/groups/:groupId/invitations` | [groupManagement.test.ts:236](../backend/tests/no-mock/groupManagement.test.ts#L236) | [groupManagement.test.ts:109](../backend/tests/mock/groupManagement.test.ts#L109) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `PUT /api/groups/:groupId/name` | [groupManagement.test.ts:253](../backend/tests/no-mock/groupManagement.test.ts#L253) | [groupManagement.test.ts:126](../backend/tests/mock/groupManagement.test.ts#L126) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `DELETE /api/groups/:groupId` | [groupManagement.test.ts:281](../backend/tests/no-mock/groupManagement.test.ts#L281) | [groupManagement.test.ts:156](../backend/tests/mock/groupManagement.test.ts#L156) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `GET /invite/:token` | [groupManagement.test.ts:316](../backend/tests/no-mock/groupManagement.test.ts#L316) | [groupManagement.test.ts:175](../backend/tests/mock/groupManagement.test.ts#L175) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
-| `GET /.well-known/assetlinks.json` | [groupManagement.test.ts:350](../backend/tests/no-mock/groupManagement.test.ts#L350) | [publicEndpoints.test.ts:30](../backend/tests/mock/publicEndpoints.test.ts#L30) | Authentication-store reads reject if called; verify neither store is consulted |
+| `GET /api/groups/invitations/:token` | [groupManagement.test.ts:171](../backend/tests/no-mock/groupManagement.test.ts#L171) | [groupManagement.test.ts:53](../backend/tests/mock/groupManagement.test.ts#L53) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/invitations/:token/accept` | [groupManagement.test.ts:223](../backend/tests/no-mock/groupManagement.test.ts#L223) | [groupManagement.test.ts:69](../backend/tests/mock/groupManagement.test.ts#L69) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `POST /api/groups/:groupId/invitations` | [groupManagement.test.ts:268](../backend/tests/no-mock/groupManagement.test.ts#L268) | [groupManagement.test.ts:109](../backend/tests/mock/groupManagement.test.ts#L109) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `PUT /api/groups/:groupId/name` | [groupManagement.test.ts:303](../backend/tests/no-mock/groupManagement.test.ts#L303) | [groupManagement.test.ts:126](../backend/tests/mock/groupManagement.test.ts#L126) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `DELETE /api/groups/:groupId` | [groupManagement.test.ts:331](../backend/tests/no-mock/groupManagement.test.ts#L331) | [groupManagement.test.ts:156](../backend/tests/mock/groupManagement.test.ts#L156) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /invite/:token` | [groupManagement.test.ts:366](../backend/tests/no-mock/groupManagement.test.ts#L366) | [groupManagement.test.ts:188](../backend/tests/mock/groupManagement.test.ts#L188) | Mongoose models (`GroupModel`, `GroupInvitationModel`, `ExpenseModel`) via `jest.spyOn`: rejected writes/reads, or no matching document |
+| `GET /.well-known/assetlinks.json` | [groupManagement.test.ts:400](../backend/tests/no-mock/groupManagement.test.ts#L400) | [publicEndpoints.test.ts:30](../backend/tests/mock/publicEndpoints.test.ts#L30) | Authentication-store reads reject if called; verify neither store is consulted |
 | `POST /api/groups/:groupId/leave` | [groupMembership.test.ts:26](../backend/tests/no-mock/groupMembership.test.ts#L26) | [groupMembership.test.ts:22](../backend/tests/mock/groupMembership.test.ts#L22) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
 | `DELETE /api/groups/:groupId/members/:memberId` | [groupMembership.test.ts:94](../backend/tests/no-mock/groupMembership.test.ts#L94) | [groupMembership.test.ts:42](../backend/tests/mock/groupMembership.test.ts#L42) | Mongoose `GroupModel.findOneAndUpdate`: rejects or finds no group |
 | `GET /health` | [health.test.ts:6](../backend/tests/no-mock/health.test.ts#L6) | [publicEndpoints.test.ts:15](../backend/tests/mock/publicEndpoints.test.ts#L15) | Authentication-store reads reject if called; verify neither store is consulted |
-| `GET /api/ledger-saves` | [ledgerSaves.test.ts:44](../backend/tests/no-mock/ledgerSaves.test.ts#L44) | [ledgerSaves.test.ts:28](../backend/tests/mock/ledgerSaves.test.ts#L28) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
-| `GET /api/ledger-saves/:slot` | [ledgerSaves.test.ts:62](../backend/tests/no-mock/ledgerSaves.test.ts#L62) | [ledgerSaves.test.ts:76](../backend/tests/mock/ledgerSaves.test.ts#L76) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
-| `PUT /api/ledger-saves/:slot` | [ledgerSaves.test.ts:79](../backend/tests/no-mock/ledgerSaves.test.ts#L79) | [ledgerSaves.test.ts:121](../backend/tests/mock/ledgerSaves.test.ts#L121) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
-| `PATCH /api/ledger-saves/:slot` | [ledgerSaves.test.ts:137](../backend/tests/no-mock/ledgerSaves.test.ts#L137) | [ledgerSaves.test.ts:238](../backend/tests/mock/ledgerSaves.test.ts#L238) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
-| `DELETE /api/ledger-saves/:slot` | [ledgerSaves.test.ts:169](../backend/tests/no-mock/ledgerSaves.test.ts#L169) | [ledgerSaves.test.ts:290](../backend/tests/mock/ledgerSaves.test.ts#L290) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
-| `GET /api/ledger/meta` | [ledgerServices.test.ts:30](../backend/tests/no-mock/ledgerServices.test.ts#L30) | [ledgerServices.test.ts:39](../backend/tests/mock/ledgerServices.test.ts#L39) | Document extractor and FX provider; `OPENAI_API_KEY` placeholders |
-| `GET /api/ledger/exchange` | [ledgerServices.test.ts:46](../backend/tests/no-mock/ledgerServices.test.ts#L46) | [ledgerServices.test.ts:62](../backend/tests/mock/ledgerServices.test.ts#L62) | Frankfurter HTTP `fetch` (real FX provider) and the FX provider `quote` |
-| `POST /api/ledger/imports/preview` | [ledgerServices.test.ts:70](../backend/tests/no-mock/ledgerServices.test.ts#L70) | [ledgerServices.test.ts:117](../backend/tests/mock/ledgerServices.test.ts#L117) | OpenAI HTTP `fetch` (real recognition adapter) and the document extractor `extract` |
-| `POST /api/ledger/imports/statement-preview` | [ledgerServices.test.ts:115](../backend/tests/no-mock/ledgerServices.test.ts#L115) | [ledgerServices.test.ts:315](../backend/tests/mock/ledgerServices.test.ts#L315) | Local statement extractor and AI extractor `extract` (spy that must not be called) |
+| `GET /api/ledger-saves` | [ledgerSaves.test.ts:44](../backend/tests/no-mock/ledgerSaves.test.ts#L44) | [ledgerSaves.test.ts:31](../backend/tests/mock/ledgerSaves.test.ts#L31) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `GET /api/ledger-saves/:slot` | [ledgerSaves.test.ts:62](../backend/tests/no-mock/ledgerSaves.test.ts#L62) | [ledgerSaves.test.ts:107](../backend/tests/mock/ledgerSaves.test.ts#L107) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `PUT /api/ledger-saves/:slot` | [ledgerSaves.test.ts:94](../backend/tests/no-mock/ledgerSaves.test.ts#L94) | [ledgerSaves.test.ts:152](../backend/tests/mock/ledgerSaves.test.ts#L152) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `PATCH /api/ledger-saves/:slot` | [ledgerSaves.test.ts:184](../backend/tests/no-mock/ledgerSaves.test.ts#L184) | [ledgerSaves.test.ts:303](../backend/tests/mock/ledgerSaves.test.ts#L303) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `DELETE /api/ledger-saves/:slot` | [ledgerSaves.test.ts:216](../backend/tests/no-mock/ledgerSaves.test.ts#L216) | [ledgerSaves.test.ts:370](../backend/tests/mock/ledgerSaves.test.ts#L370) | Ledger save store and user/session stores (in-memory; `list`/`find`/`put`/`rename`/`delete` fail) |
+| `GET /api/ledger/meta` | [ledgerServices.test.ts:30](../backend/tests/no-mock/ledgerServices.test.ts#L30) | [ledgerServices.test.ts:45](../backend/tests/mock/ledgerServices.test.ts#L45) | Document extractor and FX provider; `OPENAI_API_KEY` placeholders |
+| `GET /api/ledger/exchange` | [ledgerServices.test.ts:46](../backend/tests/no-mock/ledgerServices.test.ts#L46) | [ledgerServices.test.ts:68](../backend/tests/mock/ledgerServices.test.ts#L68) | Frankfurter HTTP `fetch` (real FX provider) and the FX provider `quote` |
+| `POST /api/ledger/imports/preview` | [ledgerServices.test.ts:70](../backend/tests/no-mock/ledgerServices.test.ts#L70) | [ledgerServices.test.ts:166](../backend/tests/mock/ledgerServices.test.ts#L166) | OpenAI HTTP `fetch` (real recognition adapter) and the document extractor `extract` |
+| `POST /api/ledger/imports/statement-preview` | [ledgerServices.test.ts:115](../backend/tests/no-mock/ledgerServices.test.ts#L115) | [ledgerServices.test.ts:457](../backend/tests/mock/ledgerServices.test.ts#L457) | Local statement extractor and AI extractor `extract` (spy that must not be called) |
 | `Socket.IO /dutch connection` | [splitSessionLive.test.ts:43](../backend/tests/no-mock/splitSessionLive.test.ts#L43) | [splitSessionLive.test.ts:39](../backend/tests/mock/splitSessionLive.test.ts#L39) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
-| `Socket.IO /dutch subscribe` | [splitSessionLive.test.ts:102](../backend/tests/no-mock/splitSessionLive.test.ts#L102) | [splitSessionLive.test.ts:55](../backend/tests/mock/splitSessionLive.test.ts#L55) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
-| `Socket.IO /dutch onGroupUpdated` | [splitSessionLive.test.ts:156](../backend/tests/no-mock/splitSessionLive.test.ts#L156) | [splitSessionLive.test.ts:81](../backend/tests/mock/splitSessionLive.test.ts#L81) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
-| `Socket.IO /dutch onGroupChanged` | [splitSessionLive.test.ts:265](../backend/tests/no-mock/splitSessionLive.test.ts#L265) | [splitSessionLive.test.ts:102](../backend/tests/mock/splitSessionLive.test.ts#L102) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
-| `Socket.IO /dutch onGroupMembershipChanged` | [splitSessionLive.test.ts:301](../backend/tests/no-mock/splitSessionLive.test.ts#L301) | [splitSessionLive.test.ts:121](../backend/tests/mock/splitSessionLive.test.ts#L121) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch unsubscribe` | [splitSessionLive.test.ts:115](../backend/tests/no-mock/splitSessionLive.test.ts#L115) | — | Real socket room membership |
+| `Socket.IO /dutch subscribe` | [splitSessionLive.test.ts:135](../backend/tests/no-mock/splitSessionLive.test.ts#L135) | [splitSessionLive.test.ts:81](../backend/tests/mock/splitSessionLive.test.ts#L81) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupUpdated` | [splitSessionLive.test.ts:189](../backend/tests/no-mock/splitSessionLive.test.ts#L189) | [splitSessionLive.test.ts:128](../backend/tests/mock/splitSessionLive.test.ts#L128) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupChanged` | [splitSessionLive.test.ts:298](../backend/tests/no-mock/splitSessionLive.test.ts#L298) | [splitSessionLive.test.ts:149](../backend/tests/mock/splitSessionLive.test.ts#L149) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
+| `Socket.IO /dutch onGroupMembershipChanged` | [splitSessionLive.test.ts:334](../backend/tests/no-mock/splitSessionLive.test.ts#L334) | [splitSessionLive.test.ts:199](../backend/tests/mock/splitSessionLive.test.ts#L199) | Session store `find` and the live publisher's `GroupModel.findOne` reject |
 | `POST /api/groups/:groupId/split-sessions` | [splitSessions.test.ts:98](../backend/tests/no-mock/splitSessions.test.ts#L98) | [splitSessions.test.ts:52](../backend/tests/mock/splitSessions.test.ts#L52) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
-| `GET /api/groups/:groupId/snapshot` | [splitSessions.test.ts:187](../backend/tests/no-mock/splitSessions.test.ts#L187) | [splitSessions.test.ts:78](../backend/tests/mock/splitSessions.test.ts#L78) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
-| `POST /api/split-sessions/:sessionId/claims` | [splitSessions.test.ts:249](../backend/tests/no-mock/splitSessions.test.ts#L249) | [splitSessions.test.ts:105](../backend/tests/mock/splitSessions.test.ts#L105) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
-| `POST /api/split-sessions/:sessionId/finalize` | [splitSessions.test.ts:377](../backend/tests/no-mock/splitSessions.test.ts#L377) | [splitSessions.test.ts:139](../backend/tests/mock/splitSessions.test.ts#L139) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
-| `GET /api/operations/:operationKey` | [splitSessions.test.ts:517](../backend/tests/no-mock/splitSessions.test.ts#L517) | [splitSessions.test.ts:199](../backend/tests/mock/splitSessions.test.ts#L199) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `GET /api/groups/:groupId/snapshot` | [splitSessions.test.ts:226](../backend/tests/no-mock/splitSessions.test.ts#L226) | [splitSessions.test.ts:95](../backend/tests/mock/splitSessions.test.ts#L95) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `POST /api/split-sessions/:sessionId/claims` | [splitSessions.test.ts:288](../backend/tests/no-mock/splitSessions.test.ts#L288) | [splitSessions.test.ts:140](../backend/tests/mock/splitSessions.test.ts#L140) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `POST /api/split-sessions/:sessionId/finalize` | [splitSessions.test.ts:437](../backend/tests/no-mock/splitSessions.test.ts#L437) | [splitSessions.test.ts:214](../backend/tests/mock/splitSessions.test.ts#L214) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
+| `GET /api/operations/:operationKey` | [splitSessions.test.ts:663](../backend/tests/no-mock/splitSessions.test.ts#L663) | [splitSessions.test.ts:332](../backend/tests/mock/splitSessions.test.ts#L332) | Mongoose models (`SplitSessionModel`, `ExpenseModel`, `GroupModel`) and session/user store spies: rejected reads/writes, lookup counts |
 
 Unknown routes are covered by `Unmocked: GET /does-not-exist` in [health.test.ts](../backend/tests/no-mock/health.test.ts#L20) and `Mocked: GET /does-not-exist` in [publicEndpoints.test.ts](../backend/tests/mock/publicEndpoints.test.ts#L56) (404 fallback).
 
@@ -182,79 +184,75 @@ To be done within CP3. Not covered yet.
 
 ## Jest Coverage
 
-The Jest configuration collects coverage from all `src/**/*.ts` backend files. The combined **interface** run excludes `tests/unit/` and NFR tests.
+On November 20, 2026, the combined Jest run passed **27 suites and 717 tests** across all 33 TypeScript files in `backend/src`. It covered **2,357/2,357 statements, 1,775/1,775 branches, 332/332 functions and 1,824/1,824 lines**. Jest maps coverage to TypeScript source and imports compiler helpers from `tslib`. The combined command enforces 100% on each metric.
 
-The screenshots below come from the actual HTML reports uploaded by [successful GitHub Actions run 44837686701](https://github.com/WYJ529/Ledger/actions/runs/44837686701), tested commit `43b5d0a98c945682308c3457408b1921c91715dc`, on Node 22.23.5 / npm 10.9.9. They cover all 33 backend source files: 27 in `src`, 1 in `src/config`, and 5 in `src/ledger`. Each group includes the whole-backend summary and every directory's file table, with Statements, Branches, Functions, and Lines. Click a screenshot to view it at full resolution.
+| Local run | Passed suites / tests | Statements | Branches | Functions | Lines |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Without mocks | 13 / 359 | 74.41% | 69.74% | 82.53% | 79.33% |
+| With mocks | 14 / 358 | 85.65% | 76.45% | 89.15% | 90.29% |
+| **Combined** | **27 / 717** | **100%** | **100%** | **100%** | **100%** |
 
-| Run | Passed suites / tests | Statements | Branches | Functions | Lines |
-| --- | --- | --- | --- | --- | --- |
-| No mocks | 12 / 334 | 70.64% | 62.28% | 79.45% | 70.99% |
-| Mocks | 12 / 235 | 67.09% | 55.35% | 72.70% | 67.52% |
-| Combined interfaces | 24 / 569 | 80.70% | 74.61% | 85.67% | 81.15% |
+The combined command runs `tests/mock/` and `tests/no-mock/` together. Alongside HTTP and Socket.IO scenarios, it includes server startup and shutdown, the seed command, and three tests that call the exported monetary calculation interfaces directly. The combined run selects only these two directories. The full backend run, including unit tests, passed all 857 tests in 35 suites. [Server lifecycle](../backend/tests/mock/serverCommand.test.ts) · [Seed command](../backend/tests/mock/seedExpenseGroup.test.ts) · [Calculation tests](../backend/tests/no-mock/ledgerCalculationContracts.test.ts).
 
-The same CI run also passed all 709 backend tests (32 suites), including unit tests. The three screenshot groups specifically document the course's separate and combined interface runs. The [earlier CI summary](res/testing/backend-ci-2026-11-20.txt) is historical evidence from before the concurrent-finalization repair and its two new regression tests.
+The screenshots show the Istanbul HTML reports generated locally on Windows with Node 22.23.3, npm 12.0.1 and MongoDB 8.2.6. Each group shows the overall report and the file tables for all three source directories. [Console results and commands](res/testing/coverage-2026-11-20/results.txt).
 
-Source artifact IDs, ZIP checksums, report paths, screenshot hashes, and rendering details are recorded in [provenance.txt](res/testing/coverage-43b5d0a/provenance.txt). The PNGs are direct browser captures of the downloaded Jest/Istanbul pages; coverage values and rows were not edited. They replace the obsolete `res/testing/bill-import/*.png` references. These committed images remain available after the downloadable CI artifacts expire.
-
-Coverage is below 100%: interface tests do not launch the production entry point (`src/index.ts`), environment bootstrap (`src/config/env.ts`), or seed script (`src/seedExpenseGroup.ts`). Several parser/domain cases are tested only in the separate unit suite; notably, the interface runs exercise little of `src/ledger/statements.ts`. Additional error and fallback branches remain uncovered. These are coverage gaps, not claims that uncovered code is unreachable; the screenshots preserve all low-coverage and zero-coverage rows.
+The previous GitHub Actions evidence for commit `43b5d0a` is archived separately. [Historical CI run](https://github.com/WYJ529/Ledger/actions/runs/44837686701) · [Artifact provenance](res/testing/coverage-43b5d0a/provenance.txt).
 
 ### Without mocks
 
 **Whole backend:**
 
-![No-mock Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/no-mock-overview.png)
+![No-mock Jest coverage: whole-backend totals and directories](res/testing/coverage-2026-11-20/no-mock-overview.png)
 
 **All 27 files in `src`:**
 
-![No-mock Jest coverage: every src file](res/testing/coverage-43b5d0a/no-mock-src.png)
+![No-mock Jest coverage: every src file](res/testing/coverage-2026-11-20/no-mock-src.png)
 
 **`src/config`:**
 
-![No-mock Jest coverage: environment configuration](res/testing/coverage-43b5d0a/no-mock-config.png)
+![No-mock Jest coverage: environment configuration](res/testing/coverage-2026-11-20/no-mock-config.png)
 
 **All 5 files in `src/ledger`:**
 
-![No-mock Jest coverage: every ledger file](res/testing/coverage-43b5d0a/no-mock-ledger.png)
+![No-mock Jest coverage: every ledger file](res/testing/coverage-2026-11-20/no-mock-ledger.png)
 
 ### With mocks
 
 **Whole backend:**
 
-![Mocked Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/mock-overview.png)
+![Mocked Jest coverage: whole-backend totals and directories](res/testing/coverage-2026-11-20/mock-overview.png)
 
 **All 27 files in `src`:**
 
-![Mocked Jest coverage: every src file](res/testing/coverage-43b5d0a/mock-src.png)
+![Mocked Jest coverage: every src file](res/testing/coverage-2026-11-20/mock-src.png)
 
 **`src/config`:**
 
-![Mocked Jest coverage: environment configuration](res/testing/coverage-43b5d0a/mock-config.png)
+![Mocked Jest coverage: environment configuration](res/testing/coverage-2026-11-20/mock-config.png)
 
 **All 5 files in `src/ledger`:**
 
-![Mocked Jest coverage: every ledger file](res/testing/coverage-43b5d0a/mock-ledger.png)
+![Mocked Jest coverage: every ledger file](res/testing/coverage-2026-11-20/mock-ledger.png)
 
 ### Without and with mocks combined
 
 **Whole backend:**
 
-![Combined-interface Jest coverage: whole-backend totals and directories](res/testing/coverage-43b5d0a/interface-overview.png)
+![Combined-interface Jest coverage: whole-backend totals and directories](res/testing/coverage-2026-11-20/interface-overview.png)
 
 **All 27 files in `src`:**
 
-![Combined-interface Jest coverage: every src file](res/testing/coverage-43b5d0a/interface-src.png)
+![Combined-interface Jest coverage: every src file](res/testing/coverage-2026-11-20/interface-src.png)
 
 **`src/config`:**
 
-![Combined-interface Jest coverage: environment configuration](res/testing/coverage-43b5d0a/interface-config.png)
+![Combined-interface Jest coverage: environment configuration](res/testing/coverage-2026-11-20/interface-config.png)
 
 **All 5 files in `src/ledger`:**
 
-![Combined-interface Jest coverage: every ledger file](res/testing/coverage-43b5d0a/interface-ledger.png)
+![Combined-interface Jest coverage: every ledger file](res/testing/coverage-2026-11-20/interface-ledger.png)
 
 ## How to run Tests
-
-Backend code baseline on main: `6a9dfdfeaf16e1bf006741138cffc6e114e19993`. The previous document recorded `c7f846ad5694316405565dc4ca3bded281079416`; its historical results must not be treated as a run of the current baseline.
 
 **Test running prerequisites:**
 

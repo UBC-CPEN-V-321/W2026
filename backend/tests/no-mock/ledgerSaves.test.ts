@@ -1,7 +1,7 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { createApp } from '../../src/app';
-import { LedgerSaveModel } from '../../src/ledgerSaveStore';
+import { LedgerSaveModel, mongoLedgerSaveStore } from '../../src/ledgerSaveStore';
 import { startSession } from '../../src/session';
 import { connectDatabase, disconnectDatabase, mongoSessionStore, mongoUserStore, SessionModel, UserModel } from '../../src/userStore';
 import { savedRecord } from '../helpers/ledgerSaves';
@@ -60,6 +60,21 @@ describe('Unmocked: GET /api/ledger-saves', () => {
 
 // Interface GET /api/ledger-saves/:slot
 describe('Unmocked: GET /api/ledger-saves/:slot', () => {
+
+  // Input: stored slot from a client that omitted its optional name and records.
+  // Expected status code: 200.
+  // Expected behavior: restore an empty ledger with the original revision.
+  // Expected output: empty name and records.
+  test('restores an older empty slot', async () => {
+    const owner = await UserModel.findOne().orFail();
+    const summary = await mongoLedgerSaveStore.put(owner.id, 1, { deviceName: 'Pixel', baseCurrency: 'CAD', records: [] }, null);
+    expect(summary.name).toBe('');
+    await LedgerSaveModel.updateOne({ slot: 1 }, { $unset: { name: '', records: '' } });
+    const response = await request(app).get('/api/ledger-saves/1').set('Authorization', auth);
+    expect(response.status).toBe(200);
+    expect(response.body.save).toMatchObject({ name: '', records: [], revision: 1 });
+  });
+
   testsRejectInvalidSessions(() => request(app).get('/api/ledger-saves/1'), () => auth, savedSlots);
 
   // Input: restore slot 3 after saving one record, and an empty slot 2
@@ -77,6 +92,38 @@ describe('Unmocked: GET /api/ledger-saves/:slot', () => {
 
 // Interface PUT /api/ledger-saves/:slot
 describe('Unmocked: PUT /api/ledger-saves/:slot', () => {
+
+  // Input: invalid nested transaction data and valid, missing optional legacy fields.
+  // Expected status code: 400 for invalid records and 200 for the legacy save.
+  // Expected behavior: reject an entire invalid save and supply defaults for optional fields.
+  // Expected output: the specific validation error or the normalized, persisted save.
+  test('validates transaction details and normalizes old device records', async () => {
+    const record = savedRecord();
+    for (const [input, error] of [
+      [null, 'object'], [{ ...record.input, extra: '' }, 'Unsupported'],
+      [{ ...record.input, merchant: 5 }, 'must be text'], [{ ...record.input, currency: 'ZZZ' }, 'Currency'],
+      [{ ...record.input, merchant: 'x'.repeat(121) }, '120 characters'],
+      [{ ...record.input, notes: 'x'.repeat(1001) }, '1000 characters'],
+    ] as const) {
+      const response = await put(1, { ...body(null), records: [{ ...record, input }] });
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain(error);
+    }
+    for (const rate of ['0', '9999999999999999999999']) {
+      const response = await put(1, { ...body(null), records: [{ ...record, fx: { ...record.fx, rate } }] });
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('exchange rate');
+    }
+    expect(await LedgerSaveModel.countDocuments()).toBe(0);
+    const response = await put(1, { ...body(null), deviceName: undefined, records: [
+      { ...record, input: { ...record.input, notes: undefined }, sourceFileName: undefined },
+    ] });
+    expect(response.status).toBe(200);
+    expect(response.body.save.deviceName).toBe('Android device');
+    const restored = await request(app).get('/api/ledger-saves/1').set('Authorization', auth);
+    expect(restored.body.save.records).toEqual([record]);
+  });
+
   testsRejectInvalidSessions(() => request(app).put('/api/ledger-saves/1').send(body(null)), () => auth, savedSlots);
 
   // Input: save to an empty slot without a name, then overwrite revision 1 with no records

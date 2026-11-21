@@ -1,5 +1,7 @@
 module.exports = {
-  preset: 'ts-jest',
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { sourceMap: true, importHelpers: true } }],
+  },
   testEnvironment: 'node',
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   collectCoverageFrom: ['src/**/*.ts'],

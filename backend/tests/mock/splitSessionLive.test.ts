@@ -1,5 +1,5 @@
 import { GroupModel } from '../../src/groupStore';
-import type { GroupChange, GroupMembershipChange } from '../../src/groupMembershipEvents';
+import { groupMembershipEvents, type GroupChange, type GroupMembershipChange } from '../../src/groupMembershipEvents';
 import type { SplitSessionUpdate } from '../../src/splitSessions';
 import { hashToken } from '../../src/session';
 import { mongoSessionStore } from '../../src/userStore';
@@ -37,6 +37,32 @@ const publishSettled = () => new Promise(resolve => setTimeout(resolve, 150));
 
 // Interface Socket.IO /dutch connection
 describe('Mocked: Socket.IO /dutch connection', () => {
+  // Input: shutdown while verifying a valid token or after the handshake middleware accepts it.
+  // Expected status code: none (Socket.IO).
+  // Expected behavior: prevent a new connection from remaining in the closed namespace.
+  // Expected output: handshake error or immediate disconnect, with no live sockets.
+  test.each(['during verification', 'after verification'])('closes a connection %s', async phase => {
+    const namespace = harness.socketServer.of('/dutch');
+    const client = clientFor(harness.member.token);
+    if (phase === 'during verification') {
+      const find = mongoSessionStore.find.bind(mongoSessionStore);
+      jest.spyOn(mongoSessionStore, 'find').mockImplementationOnce(async key => {
+        const session = await find(key);
+        harness.live.close();
+        return session;
+      });
+      const error = nextEvent<Error>(client, 'connect_error');
+      client.connect();
+      expect((await error).message).toBe('Live updates are closed.');
+    } else {
+      namespace.use((_socket, next) => { harness.live.close(); next(); });
+      const disconnected = nextEvent<string>(client, 'disconnect');
+      client.connect();
+      expect(await disconnected).toBe('io server disconnect');
+    }
+    expect(namespace.sockets.size).toBe(0);
+  });
+
   // Input: connection with a valid token; mock: the session store lookup rejects
   // Expected status code: none (Socket.IO connect_error)
   // Expected behavior: the handshake fails closed instead of admitting an unverified socket
@@ -53,6 +79,27 @@ describe('Mocked: Socket.IO /dutch connection', () => {
 
 // Interface Socket.IO /dutch subscribe
 describe('Mocked: Socket.IO /dutch subscribe', () => {
+  // Input: shutdown while a subscription's session lookup is in flight.
+  // Expected status code: none (Socket.IO).
+  // Expected behavior: finish the in-flight check without joining or acknowledging success.
+  // Expected output: no room and no acknowledgement.
+  test('discards an in-flight subscription on shutdown', async () => {
+    const client = await connect(harness.member.token);
+    const namespace = harness.socketServer.of('/dutch');
+    const socket = namespace.sockets.get(client.id!)!;
+    const find = mongoSessionStore.find.bind(mongoSessionStore);
+    jest.spyOn(mongoSessionStore, 'find').mockImplementationOnce(async key => {
+      const saved = await find(key);
+      harness.live.close();
+      return saved;
+    });
+    const ack = jest.fn();
+    const [subscribeListener] = socket.listeners('subscribe');
+    await subscribeListener!({ groupId: harness.groupId }, ack);
+    expect(namespace.adapter.rooms.has(harness.groupId)).toBe(false);
+    expect(ack).not.toHaveBeenCalled();
+  });
+
   // Input: a member subscribes to their group; mock: the membership lookup rejects once
   // Expected status code: none (acknowledgement)
   // Expected behavior: the socket does not join the room; a retry succeeds
@@ -100,6 +147,37 @@ describe('Mocked: Socket.IO /dutch onGroupUpdated', () => {
 
 // Interface Socket.IO /dutch onGroupChanged (server push)
 describe('Mocked: Socket.IO /dutch onGroupChanged', () => {
+  // Input: an already-dispatched group change during deletion, removal or shutdown.
+  // Expected status code: none (Socket.IO).
+  // Expected behavior: discard stale changes and evict a former member from the room.
+  // Expected output: no group event for the subscriber.
+  test.each(['missing group', 'deleted group', 'former member', 'already closed', 'closing during delivery'])(
+    'withholds a queued change for a %s', async state => {
+      const client = await connect(harness.member.token);
+      expect((await subscribe(client)).ok).toBe(true);
+      const namespace = harness.socketServer.of('/dutch');
+      const socket = namespace.sockets.get(client.id!)!;
+      const emit = jest.spyOn(socket, 'emit');
+      // EventEmitter snapshots its listeners at dispatch. Await the registered publisher to
+      // distinguish a suppressed event from one that is still reading membership or sessions.
+      const [publish] = groupMembershipEvents.listeners('groupChanged');
+      if (state === 'missing group') await GroupModel.deleteOne({ _id: harness.groupId });
+      if (state === 'deleted group') await GroupModel.updateOne({ _id: harness.groupId }, { deletedAt: new Date() });
+      if (state === 'former member') await GroupModel.updateOne({ _id: harness.groupId }, { $pull: { memberIds: harness.member.id } });
+      if (state === 'already closed') harness.live.close();
+      if (state === 'closing during delivery') {
+        const find = mongoSessionStore.find.bind(mongoSessionStore);
+        jest.spyOn(mongoSessionStore, 'find').mockImplementationOnce(async key => {
+          const session = await find(key);
+          harness.live.close();
+          return session;
+        });
+      }
+      await publish!({ groupId: harness.groupId, type: 'renamed' });
+      expect(emit).not.toHaveBeenCalledWith('onGroupChanged', expect.anything());
+      if (state === 'former member') expect(socket.rooms.has(harness.groupId)).toBe(false);
+    });
+
   // Input: the owner renames the group while a member is subscribed; mock: the subscriber's session re-check rejects
   // Expected status code: 200 for the rename
   // Expected behavior: the event is withheld when the session cannot be verified; the rename is still stored

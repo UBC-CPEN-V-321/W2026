@@ -154,6 +154,19 @@ describe('Mocked: PUT /api/groups/:groupId/name', () => {
 
 // Interface DELETE /api/groups/:groupId
 describe('Mocked: DELETE /api/groups/:groupId', () => {
+
+  // Input: another process finishes deletion after the owner is authorized.
+  // Expected status code: 204.
+  // Expected behavior: acknowledge the idempotent deletion without republishing it.
+  // Expected output: no second membership-change event.
+  test('does not announce a concurrent deletion twice', async () => {
+    jest.spyOn(GroupModel, 'updateOne').mockResolvedValueOnce({ modifiedCount: 0 } as never);
+    const publish = jest.spyOn(groupMembershipEvents, 'emit');
+    const response = await request(fixture.app).delete(`/api/groups/${fixture.groupId}`).set('Authorization', fixture.ownerAuth);
+    expect(response.status).toBe(204);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   // Input: owner deletes an active group; mock: the soft-delete write rejects
   // Expected status code: 500
   // Expected behavior: the group stays active and its invitation still works

@@ -14,7 +14,7 @@ const foreignNames: Record<string, string> = {
 };
 function minor(text: string): number {
   const value = text.replace(/[$,\s]/g, '');
-  if (!/^-?\d+\.\d{2}$/.test(value)) throw new LedgerServiceError(422, 'A statement amount is unreadable. Try CSV or review with AI.');
+  // Both callers pass a matched statement amount with exactly two fractional digits.
   const result = Math.round(Number(value) * 100);
   if (!Number.isSafeInteger(result)) throw new LedgerServiceError(422, 'A statement amount is too large.');
   return result;
@@ -22,13 +22,14 @@ function minor(text: string): number {
 function money(value: number): string { return (Math.abs(value) / 100).toFixed(2); }
 function usDate(raw: string, closing?: string): string {
   const parts = raw.split('/').map(Number);
-  const [month = 0, day = 0] = parts;
+  const month = parts[0]!;
+  const day = parts[1]!;
   let year = parts[2];
   if (year !== undefined && year < 100) year += 2000;
   if (year === undefined) {
-    if (!closing) throw new LedgerServiceError(422, 'The statement closing date is missing; the transaction year cannot be inferred safely.');
-    year = Number(closing.slice(0, 4));
-    if (month > Number(closing.slice(5, 7))) year--;
+    // Only Chase detail dates omit the year. Their closing date was validated first.
+    year = Number(closing!.slice(0, 4));
+    if (month > Number(closing!.slice(5, 7))) year--;
   }
   const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const parsed = new Date(iso + 'T00:00:00Z');

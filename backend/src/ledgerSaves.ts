@@ -69,7 +69,8 @@ function saveRecord(value: unknown, baseCurrency: string, today: Date): LedgerSa
 function saveContent(body: unknown): { content: LedgerSaveContent; replaces: number | null } {
   if (!hasOnly(body, ['name', 'deviceName', 'baseCurrency', 'records', 'replaces'])) throw new SaveInputError('Provide a valid ledger save.');
   const { baseCurrency, records, replaces } = body;
-  const name = saveName(body.name);
+  const name = body.name === undefined ? '' : saveName(body.name);
+  if (name === null) throw new SaveInputError(INVALID_SAVE_NAME);
   if (!isSupportedCurrencyCode(baseCurrency)) throw new SaveInputError('Choose a supported reporting currency.');
   if (replaces !== null && (!Number.isSafeInteger(replaces) || (replaces as number) < 1)) throw new SaveInputError('Provide the save being replaced.');
   if (!Array.isArray(records)) throw new SaveInputError('Provide the ledger transactions to save.');
@@ -81,10 +82,11 @@ function saveContent(body: unknown): { content: LedgerSaveContent; replaces: num
   return { content: { name, deviceName: deviceName || 'Android device', baseCurrency, records: saved }, replaces: replaces as number | null };
 }
 
-function saveName(value: unknown): string {
-  if (value === undefined) return '';
-  if (typeof value !== 'string' || !value.trim() || value.trim().length > 40) throw new SaveInputError('Enter a save name of 1–40 characters.');
-  return value.trim();
+const INVALID_SAVE_NAME = 'Enter a save name of 1–40 characters.';
+
+function saveName(value: unknown): string | null {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return name.length >= 1 && name.length <= 40 ? name : null;
 }
 
 function slotParam(value: unknown): number | null {
@@ -136,11 +138,8 @@ export function ledgerSavesRouter(users: UserStore, sessions: SessionStore, stor
   router.patch('/:slot', async (req, res) => {
     const slot = slotParam(req.params.slot);
     const revision: unknown = req.body?.revision;
-    let name: string;
-    try {
-      if (!hasOnly(req.body, ['name', 'revision']) || req.body.name === undefined) throw new SaveInputError('Enter a save name of 1–40 characters.');
-      name = saveName(req.body.name);
-    } catch (error) { if (!(error instanceof SaveInputError)) throw error; res.status(400).json({ error: error.message }); return; }
+    const name = hasOnly(req.body, ['name', 'revision']) ? saveName(req.body.name) : null;
+    if (name === null) { res.status(400).json({ error: INVALID_SAVE_NAME }); return; }
     if (slot === null || !Number.isSafeInteger(revision) || (revision as number) < 1) { res.status(400).json({ error: 'Choose a save slot and its current revision.' }); return; }
     const { user } = res.locals as AuthenticatedLocals;
     try {

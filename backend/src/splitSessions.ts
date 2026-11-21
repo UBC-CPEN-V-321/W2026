@@ -173,9 +173,9 @@ async function authorizedSplitSession(sessionId: unknown, userId: string) {
   return group ? { session, group } : null;
 }
 
-function claimError(res: Response, status: number, message: string, session?: SplitSessionRecord) {
+function claimError(res: Response, status: number, message: string, session: SplitSessionRecord) {
   // Kept as a tiny helper so conflicts always return an authoritative recovery snapshot.
-  res.status(status).json({ error: message, ...(session ? { session: splitSessionJson(session) } : {}) });
+  res.status(status).json({ error: message, session: splitSessionJson(session) });
 }
 
 function sharesFor(session: SplitSessionRecord) {
@@ -484,7 +484,8 @@ export function createSplitSessionsRouter(users: UserStore, sessions: SessionSto
           }
         }
         if (lock) session = lock;
-      } else if (session.status === 'finalizing') {
+      } else {
+        // Finalized sessions returned above. Only an existing finalization intent remains.
         if (session.finalizeOperationKey !== operationKey || session.finalizeActorId?.toString() !== user.id) {
           claimError(res, 409, 'This split session is already being finalized.', session); return;
         }

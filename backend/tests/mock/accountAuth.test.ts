@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
+import { UserModel, mongoUserStore } from '../../src/userStore';
 import { hashToken, SESSION_TTL_MS } from '../../src/session';
 import { memoryStores } from '../helpers/memoryStores';
 import { registerAccount } from '../helpers/registration';
@@ -22,6 +23,108 @@ async function registered() {
 
 // Interface POST /api/auth/register
 describe('Mocked: POST /api/auth/register', () => {
+  // Input: 2,000 distinct proxy clients submit invalid registrations within one window.
+  // Expected status code: 400 for invalid input, 503 at capacity, then 400 after expiry.
+  // Expected behavior: bound active client buckets and reclaim them when the window expires.
+  // Expected output: the registration busy response only while all buckets are occupied.
+  test('recovers registration capacity at the window boundary', async () => {
+    const app = createApp(memoryStores());
+    app.set('trust proxy', 1);
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(1000000);
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await new Promise<void>(resolve => server.once('listening', resolve));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+      const register = async (index: number) => {
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/auth/register`, {
+          method: 'POST', headers: { 'X-Forwarded-For': `10.0.${Math.floor(index / 255)}.${index % 255}`, 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        return { status: response.status, body: await response.json() };
+      };
+      for (let offset = 0; offset < 2000; offset += 20) {
+        const batch = await Promise.all(Array.from({ length: 20 }, (_, i) => register(offset + i)));
+        expect(batch.every(result => result.status === 400)).toBe(true);
+      }
+      expect(await register(2000)).toEqual({ status: 503, body: { error: 'Registration is busy. Please try again later.' } });
+      clock.mockReturnValue(1600000);
+      expect((await register(2000)).status).toBe(400);
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  }, 60000);
+
+  // Input: registration requests through a transport with no Express IP, with or without a socket address.
+  // Expected status code: 400 then 429 for each independent address bucket.
+  // Expected behavior: limit requests consistently for fallback and unidentified clients.
+  // Expected output: the retry interval after 30 submissions per bucket.
+  test('limits registrations from transports with partial address metadata', async () => {
+    const app = createApp(memoryStores());
+    Object.defineProperty(app.request, 'ip', { get: () => undefined });
+    const server = app.listen(0, '127.0.0.1');
+    server.prependListener('request', (req, _res) => {
+      if (req.headers['x-test-no-peer']) Object.defineProperty(req.socket, 'remoteAddress', { value: undefined });
+    });
+    try {
+      for (const unknown of [false, true]) {
+        for (let i = 0; i <= 30; i++) {
+          const submission = request(server).post('/api/auth/register').send({});
+          if (unknown) submission.set('x-test-no-peer', '1');
+          const response = await submission;
+          expect(response.status).toBe(i === 30 ? 429 : 400);
+        }
+      }
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
+
+
+  // Input: an available username while the MongoDB insert fails.
+  // Expected status code: 500.
+  // Expected behavior: propagate non-duplicate database errors without creating a session.
+  // Expected output: a generic failure.
+  test('propagates a MongoDB insert error', async () => {
+    const stores = memoryStores();
+    jest.spyOn(mongoUserStore, 'findByUsername').mockResolvedValueOnce(null);
+    jest.spyOn(UserModel, 'create').mockRejectedValueOnce(new Error('write failed'));
+    const response = await registerAccount(createApp({ users: mongoUserStore, sessions: stores.sessions }), account);
+    expect(response.status).toBe(500);
+    expect(stores.sessionMap.size).toBe(0);
+  });
+
+
+  // Input: the native password derivation callback reports a failure.
+  // Expected status code: 500.
+  // Expected behavior: abort registration before storing an account or starting a session.
+  // Expected output: generic error without secrets.
+  test('aborts registration when password hashing fails', async () => {
+    const crypto: typeof import('node:crypto') = jest.requireActual('node:crypto');
+    jest.spyOn(crypto, 'scrypt').mockImplementationOnce((_password, _salt, _length, _options, callback) => {
+      callback(new Error('hash failure'), Buffer.alloc(0));
+    });
+    const stores = memoryStores();
+    const response = await registerAccount(createApp(stores), account);
+    expect(response.status).toBe(500);
+    expect(stores.userList).toHaveLength(0);
+    expect(stores.sessionMap.size).toBe(0);
+  });
+
+
+  // Input: the user insert rejects with a non-Error database diagnostic.
+  // Expected status code: 500.
+  // Expected behavior: omit internal details and do not start a session.
+  // Expected output: generic failure.
+  test('reports an unexpected account insert failure', async () => {
+    const stores = memoryStores();
+    jest.spyOn(stores.users, 'create').mockRejectedValueOnce('database offline');
+    const response = await registerAccount(createApp(stores), account);
+    expect(response.status).toBe(500);
+    expect(response.body.error).not.toContain('database offline');
+    expect(stores.sessionMap.size).toBe(0);
+  });
+
   // Input: valid username, password and confirmation
   // Expected status code: 201
   // Expected behavior: a scrypt hash is stored; a session starts; no secret is returned
@@ -80,6 +183,21 @@ describe('Mocked: POST /api/auth/register', () => {
 
 // Interface POST /api/auth/login
 describe('Mocked: POST /api/auth/login', () => {
+
+  // Input: a legacy account with a malformed stored password hash.
+  // Expected status code: 401.
+  // Expected behavior: reject authentication and leave existing sessions untouched.
+  // Expected output: credential error without a token.
+  test.each(['legacy', 'scrypt$bad$8$1$c2FsdA==$a2V5', 'scrypt$0$8$1$c2FsdA==$a2V5'])(
+    'rejects a malformed stored password hash %#', async stored => {
+      const { app, stores } = await registered();
+      stores.userList[0]!.passwordHash = stored;
+      const response = await request(app).post('/api/auth/login').send(account);
+      expect(response.status).toBe(401);
+      expect(response.body).not.toHaveProperty('token');
+      expect(stores.sessionMap.size).toBe(1);
+    });
+
   // Input: correct credentials with the username in another case
   // Expected status code: 200
   // Expected behavior: a new session is stored for the account
@@ -165,6 +283,49 @@ describe('Mocked: POST /api/auth/logout', () => {
 
 // Interface GET /api/users/me
 describe('Mocked: GET /api/users/me', () => {
+  // Input: an existing session whose store predates per-account session versions.
+  // Expected status code: 200 on the original account version and 401 after rotation.
+  // Expected behavior: treat an absent version as zero while honoring later revocation.
+  // Expected output: the original user followed by a Bearer challenge.
+  test('honors rotation for legacy sessions', async () => {
+    const { stores, app, token } = await registered();
+    delete stores.sessionMap.get(hashToken(token))!.sessionVersion;
+    const me = () => request(app).get('/api/users/me').auth(token, { type: 'bearer' });
+    expect((await me()).status).toBe(200);
+    stores.userList[0]!.sessionVersion = 1;
+    expect((await me()).status).toBe(401);
+  });
+
+  // Input: the session provider returns a user identifier incompatible with MongoDB.
+  // Expected status code: 401.
+  // Expected behavior: invalidate the session and withhold account details.
+  // Expected output: a Bearer challenge and deletion of the stale token.
+  test('invalidates a session with a malformed account identifier', async () => {
+    const stores = memoryStores();
+    const app = createApp({ users: mongoUserStore, sessions: stores.sessions });
+    const token = 'malformed-account-id-session';
+    jest.spyOn(stores.sessions, 'find').mockResolvedValue({ userId: 'invalid-id', expiresAt: new Date(Date.now() + 60000) });
+    const remove = jest.spyOn(stores.sessions, 'delete');
+    const response = await request(app).get('/api/users/me').auth(token, { type: 'bearer' });
+    expect(response.status).toBe(401);
+    expect(remove).toHaveBeenCalledWith(hashToken(token));
+  });
+
+
+  // Input: the account disappears after the session lookup completes.
+  // Expected status code: 401.
+  // Expected behavior: invalidate the orphan session.
+  // Expected output: a Bearer challenge and no user data.
+  test('revokes a session when the user lookup races with deletion', async () => {
+    const { app, stores, token } = await registered();
+    jest.spyOn(stores.sessions, 'find').mockResolvedValueOnce(stores.sessionMap.get(hashToken(token))!);
+    jest.spyOn(stores.users, 'findById').mockResolvedValueOnce(null);
+    const response = await request(app).get('/api/users/me').auth(token, { type: 'bearer' });
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(stores.sessionMap.size).toBe(0);
+  });
+
   // Input: valid bearer token
   // Expected status code: 200
   // Expected behavior: the account is read without its password hash

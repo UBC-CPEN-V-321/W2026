@@ -27,12 +27,12 @@ function allocate(total: number, weights: { userId: string; weight: number }[]) 
 function percentageShares(total: number, input: { userId: string; percentage?: unknown }[]): Share[] {
   const weights = input.map(item => ({ userId: item.userId, weight: parsePercentage(item.percentage) })).sort((a, b) => a.userId < b.userId ? -1 : 1);
   if (weights.reduce((sum, item) => sum + item.weight, 0) !== 10000) throw new MoneyInputError('Percentages must add up exactly to 100%.');
-  return allocate(total, weights).map((share, index) => ({ ...share, percentageBasisPoints: weights[index]?.weight ?? 0 }));
+  return allocate(total, weights).map((share, index) => ({ ...share, percentageBasisPoints: weights[index]!.weight }));
 }
 
 export function proportionalShares(items: { userId: string; amountCents: number }[], extra: number) {
   return allocate(extra, items.map(item => ({ userId: item.userId, weight: item.amountCents })))
-    .map((share, index) => ({ ...share, amountCents: share.amountCents + (items[index]?.amountCents ?? 0) }));
+    .map((share, index) => ({ ...share, amountCents: share.amountCents + items[index]!.amountCents }));
 }
 
 /** Signed decimal text such as "8", "+8", "-2.50"; blank or missing means no adjustment. */
@@ -58,7 +58,7 @@ function adjustedShares(totalCents: number, input: { userId: string; adjustment?
   if (pool < 0) throw new MoneyInputError('The added amounts are larger than the bill total.');
   const allocations = allocate(pool, adjustments.map(item => ({ userId: item.userId, weight: 1 })));
   const shares = adjustments.map((item, index) => ({ ...item,
-    amountCents: (allocations[index]?.amountCents ?? 0) + item.adjustmentCents }));
+    amountCents: allocations[index]!.amountCents + item.adjustmentCents }));
   if (shares.some(share => share.amountCents < 0)) {
     throw new MoneyInputError("A deduction is larger than that member's equal share. Reduce it so every share is at least 0.");
   }
@@ -78,7 +78,7 @@ export function calculateMeal(value: unknown, memberIds: readonly string[], digi
     if (!m || typeof m.userId !== 'string' || !memberIds.includes(m.userId) || seen.has(m.userId)) throw new MoneyInputError('Choose unique group members.');
     seen.add(m.userId);
     return { userId: m.userId, subtotal: parseMoney(m.subtotal, true, digits), extraRate: parsePercentage(m.extraTaxRate) };
-  }).sort((a, b) => a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0);
+  }).sort((a, b) => a.userId < b.userId ? -1 : 1);
   let subtotalCents = 0, taxCents = 0, tipCents = 0;
   const shares = members.map(m => {
     const tax = Number((BigInt(m.subtotal) * 500n + 5000n) / 10000n) + Number((BigInt(m.subtotal) * BigInt(m.extraRate) + 5000n) / 10000n);

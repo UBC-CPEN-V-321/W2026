@@ -86,6 +86,21 @@ describe('Unmocked: GET /api/groups', () => {
 
 // Interface GET /api/groups/:groupId/summary
 describe('Unmocked: GET /api/groups/:groupId/summary', () => {
+
+  // Input: a legacy bill whose participant account and imported-by metadata are absent.
+  // Expected status code: 200.
+  // Expected behavior: retain the bill and represent the missing member in the roster.
+  // Expected output: former-member label and an unimported expense.
+  test('keeps historical shares when an account has been removed', async () => {
+    const created = await post(bill());
+    await UserModel.deleteOne({ _id: ids[1] });
+    await ExpenseModel.updateOne({ _id: created.body.expense.id }, { $unset: { importedBy: '' } });
+    const response = await summary();
+    expect(response.status).toBe(200);
+    expect(response.body.group.members).toContainEqual({ id: ids[1], displayName: 'Former member', role: 'member' });
+    expect(response.body.expenses[0].importedByMe).toBe(false);
+  });
+
   testsRejectInvalidSessions(() => request(app).get(`/api/groups/${groupId}/summary`), () => auth, groupState);
 
   // Input: summary of a group without expenses
@@ -145,6 +160,56 @@ describe('Unmocked: GET /api/groups/:groupId/summary', () => {
 
 // Interface POST /api/groups/:groupId/expenses
 describe('Unmocked: POST /api/groups/:groupId/expenses', () => {
+
+  // Input: an authenticated expense submission without a JSON body.
+  // Expected status code: 400.
+  // Expected behavior: reject the absent expense before storage.
+  // Expected output: the required-description diagnostic.
+  test('requires a body to create an expense', async () => {
+    const response = await request(app).post(`/api/groups/${groupId}/expenses`).set('Authorization', auth);
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('description');
+    expect(await ExpenseModel.countDocuments()).toBe(0);
+  });
+
+
+  // Input: invalid splits and adjusted/meal calculations on a valid bill.
+  // Expected status code: 400.
+  // Expected behavior: reject the explanation or allocation before writing an expense.
+  // Expected output: a field-specific error and no expense.
+  test('rejects invalid share and meal calculations', async () => {
+    for (const [change, error] of [
+      [{ description: null }, 'description'], [{ splitMode: 'other' }, 'splitting'],
+      [{ shares: [null] }, 'member ID'], [{ shares: [{ userId: 4 }] }, 'member ID'],
+      ...[42, 'plus'].map(adjustment => [{ splitMode: 'adjusted', shares: [{ userId: ids[0], adjustment }] }, 'valid adjustment']),
+      [{ splitMode: 'adjusted', shares: [{ userId: ids[0], adjustment: '11' }] }, 'larger than'],
+      ...[[], undefined, Array(101).fill({})].map(members => [{ customCalculation: { tipRate: '0', members } }, '1 and 100']),
+      ...[[null], [{ userId: 'other' }], [0, 0].map(() => ({ userId: ids[0], subtotal: '1', extraTaxRate: '0' }))].map(
+        members => [{ customCalculation: { tipRate: '0', members } }, 'unique group members']),
+      [{ customCalculation: { tipRate: '0', members: [{ userId: ids[0], subtotal: '0', extraTaxRate: '0' }] } }, 'Meal total'],
+    ] as [Record<string, unknown>, string][]) {
+      const response = await post(bill(change));
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain(error);
+    }
+    expect(await ExpenseModel.countDocuments()).toBe(0);
+  });
+
+  // Input: an adjusted bill with blank adjustments and a legacy retry without explicit subtotal, tax or tip.
+  // Expected status code: 201, then 200.
+  // Expected behavior: treat blank adjustments and absent legacy extras as zero.
+  // Expected output: the original expense and an unchanged expense count.
+  test('replays older expense records with omitted extras', async () => {
+    const payload = bill({ splitMode: 'adjusted', shares: ids.map(userId => ({ userId, adjustment: '  ' })) });
+    const created = await post(payload);
+    expect(created.status).toBe(201);
+    await ExpenseModel.updateOne({ _id: created.body.expense.id }, { $unset: { subtotalCents: '', taxCents: '', tipCents: '' } });
+    const replay = await post(payload);
+    expect(replay.status).toBe(200);
+    expect(replay.body.expense.id).toBe(created.body.expense.id);
+    expect(await ExpenseModel.countDocuments()).toBe(1);
+  });
+
   testsRejectInvalidSessions(() => request(app).post(`/api/groups/${groupId}/expenses`).send(bill()), () => auth, groupState);
 
   // Input: the largest allowed amount in CAD or JPY with a percentage split, then one minor unit more
@@ -429,6 +494,18 @@ describe('Unmocked: POST /api/groups/:groupId/expenses', () => {
 
 // Interface PUT /api/groups/:groupId/expenses/:expenseId
 describe('Unmocked: PUT /api/groups/:groupId/expenses/:expenseId', () => {
+
+  // Input: an expense edit without any body.
+  // Expected status code: 400.
+  // Expected behavior: refuse to edit the saved expense.
+  // Expected output: validation error and unchanged revision.
+  test('rejects an empty expense edit', async () => {
+    const id = (await post(bill())).body.expense.id;
+    const response = await request(app).put(`/api/groups/${groupId}/expenses/${id}`).set('Authorization', auth);
+    expect(response.status).toBe(400);
+    expect((await ExpenseModel.findById(id).lean())?.__v).toBe(0);
+  });
+
   testsRejectInvalidSessions(() => request(app).put(`/api/groups/${groupId}/expenses/${sharedExpenseId}`).send({ ...bill(), revision: 0 }),
     () => auth, groupState, prepareSharedExpense);
 
@@ -659,6 +736,21 @@ describe('Unmocked: PUT /api/groups/:groupId/expenses/:expenseId', () => {
 
 // Interface DELETE /api/groups/:groupId/expenses/:expenseId
 describe('Unmocked: DELETE /api/groups/:groupId/expenses/:expenseId', () => {
+
+  // Input: a malformed expense ID and an immutable finalized allocation.
+  // Expected status code: 404 and 409.
+  // Expected behavior: preserve the original allocation.
+  // Expected output: error and one persisted expense.
+  test('protects finalized allocations from deletion', async () => {
+    const created = await post(bill());
+    const id = created.body.expense.id;
+    await ExpenseModel.updateOne({ _id: id }, { splitSessionId: groupId });
+    const remove = (expense: string) => request(app).delete(`/api/groups/${groupId}/expenses/${expense}?revision=0`).set('Authorization', auth);
+    expect((await remove('invalid')).status).toBe(404);
+    expect((await remove(id)).status).toBe(409);
+    expect(await ExpenseModel.exists({ _id: id })).toBeTruthy();
+  });
+
   testsRejectInvalidSessions(() => request(app).delete(`/api/groups/${groupId}/expenses/${sharedExpenseId}?revision=0`),
     () => auth, groupState, prepareSharedExpense);
 

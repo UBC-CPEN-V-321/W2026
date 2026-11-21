@@ -36,6 +36,21 @@ describe('Mocked: GET /api/groups', () => {
 
 // Interface GET /api/groups/:groupId/summary
 describe('Mocked: GET /api/groups/:groupId/summary', () => {
+
+  // Input: MongoDB returns an empty facet result or an unrepresentable total.
+  // Expected status code: 200 or 422.
+  // Expected behavior: provide empty collections for an empty group and reject unsafe totals.
+  // Expected output: a zero summary or a range diagnostic.
+  test.each([false, true])('validates the aggregate result; overflow=%s', async overflow => {
+    const query = ExpenseModel.aggregate();
+    jest.spyOn(query, 'exec').mockResolvedValueOnce(overflow ? [{ totals: [{ totalCents: 2 ** 53 }] }] : []);
+    jest.spyOn(ExpenseModel, 'aggregate').mockReturnValueOnce(query);
+    const response = await request(fixture.app).get(`/api/groups/${fixture.groupId}/summary`).set('Authorization', fixture.ownerAuth);
+    expect(response.status).toBe(overflow ? 422 : 200);
+    if (overflow) expect(response.body.error).toContain('integer range');
+    else expect(response.body).toMatchObject({ totalCents: 0, memberShares: [], expenses: [] });
+  });
+
   // Input: a group member; mock: the membership lookup rejects
   // Expected status code: 500
   // Expected behavior: no aggregation is attempted and no summary is disclosed
