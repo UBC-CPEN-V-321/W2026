@@ -2,9 +2,9 @@
 
 ## 1. Change History
 
-| **Change Date**   | **Modified Sections** | **Rationale** |
-| ----------------- | --------------------- | ------------- |
-| _Nothing to show_ |
+| **Change Date** | **Modified Sections** | **Rationale** |
+| --------------- | --------------------- | ------------- |
+| November 20, 2026 | 2.1–2.4, 3.2, 3.3 | Recorded the latest main-branch commit, marked the remaining Codacy issues as N/A, and documented the received peer-review results and security changes. |
 
 ---
 
@@ -12,28 +12,19 @@
 
 ### 2.1. Commit Hash Where Codacy Ran
 
-`[Insert Commit SHA here]`
+`135f875084366d8d8a280df4cdf35a5ef6c4885b`
 
 ### 2.2. Unfixed Issues per Codacy Category
 
-_(Placeholder for screenshots of Codacy's Category Breakdown table in Overview)_
+N/A (no issues remaining)
 
 ### 2.3. Unfixed Issues per Codacy Code Pattern
 
-_(Placeholder for screenshots of Codacy's Issues page)_
+N/A (no issues remaining)
 
 ### 2.4. Justifications for Unfixed Issues
 
-- **Code Pattern: [Usage of Deprecated Modules](#)**
-
-  1. **Issue**
-
-     - **Location in Git:** [`src/services/chatService.js#L31`](#)
-     - **Justification:** ...
-
-  2. ...
-
-- ...
+N/A (no issues remaining)
 
 ---
 
@@ -44,7 +35,7 @@ _(Placeholder for screenshots of Codacy's Issues page)_
 - **Peer group reviewed:** Trailmix
 - **Commit SHA reviewed:** `6d12cd1496c569073a144350f8fe535b93f53d54`
 - **Date the artifacts were exchanged:** Nov 4, 2026
-- **Review report submitted:** [`<CP#>_<YourPeerGroupName>_Review.pdf`](#)
+- **Review report submitted:** [CP3_TrailMix_Review.pdf](./CP3_TrailMix_Review.pdf)
 
 | **Section**          | **Item**                                                                                                                                             | **Score** |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
@@ -73,34 +64,37 @@ _(Placeholder for screenshots of Codacy's Issues page)_
 
 ### 3.2. Review You Received
 
-- **Reviewing group:** [WRITE_HERE]
-- **Commit SHA that was reviewed:** `[Insert Commit SHA here]`
-- **Review report received:** [`<CP#>_<YourGroupName>_Review.pdf`](#)
+- **Reviewing group:** Trailmix (Timmy, Matthew, Payton, Adam)
+- **Commit SHA that was reviewed:** `c8fa76d72ecaa6c403e29545cf280c3547885ad0`
+- **Review report received:** [CP3_ExploreUBC_Review_REVISED.docx.pdf](../../../../CP3_ExploreUBC_Review_REVISED.docx.pdf)
 
 | **Section**          | **Item**                                                                                                                                             | **Score** |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Manual code review   | Code is maintainable, efficient, handles error cases well                                                                                               | x/10      |
-| Manual test review   | Tests are complete, errors and edge cases are thoroughly tested, correct assertions are used                                                            | x/10      |
-| Manual test review   | Test code is maintainable and well-structured                                                                                                          | x/10      |
-| Manual test review   | Test implementation matches the requirements and design                                                                                                | x/10      |
-| Manual test review   | Non-functional requirements are tested well                                                                                                            | x/10      |
-| Manual test review   | Tests achieve high coverage and cases of < 100% coverage are well-justified                                                                            | x/10      |
-| Manual test review   | All back-end tests can be run automatically                                                                                                            | x/10      |
-| Automated code review| Codacy runs with the required setup                                                                                                                    | x/10      |
-| Automated code review| All remaining Codacy issues are well-justified                                                                                                          | x/10      |
+| Manual code review   | Code is maintainable, efficient, and handles error cases well | **3/10** |
+| Manual test review   | Tests are complete, errors and edge cases are thoroughly tested, and correct assertions are used | **7/10** |
+| Manual test review   | Test code is maintainable and well-structured | **8/10** |
+| Manual test review   | Test implementation matches the requirements and design | **6/10** |
+| Manual test review   | Non-functional requirements are tested well | **5/10** |
+| Manual test review   | Tests achieve high coverage and cases of less than 100% coverage are well-justified | **8/10** |
+| Manual test review   | All back-end tests can be run automatically | **9/10** |
+| Automated code review | Codacy runs with the required setup | **6/10** |
+| Automated code review | All remaining Codacy issues are well-justified | **3/10** |
+| | **Total** | **55/90** |
 
 **Major fault reported against your project**
 
-- **Description:** ...
-- **Severity:** ...
+- **Description:** The backend has no authentication or authorization. NFR1 in Requirements_and_Design.md requires the backend to verify the Google ID token (signature, issuer, audience, expiry) and issue a session credential, and the design section notes that the authentication endpoint, verification and session issuance "remain to be implemented". At the reviewed commit:
+  - The backend trusts the URL. No middleware checks a token. Every route takes userId from the URL path, and the DAO's ownerId filter compares against that same value, so the ownership check does not protect anything. JWT_SECRET and GOOGLE_CLIENT_ID are listed in .env.example and the README, but no code in backend/src reads them.
+  - Sign-in does not reach the backend. MainActivity.kt reads only the display name from the Google credential, shows it in a toast, and opens MainActivity2. The ID token is never sent to the backend.
+  - Every user shares one account. MainActivity2.kt line 100 hard-codes userId = "6acd519c76376cefc61e97f1"; line 99, which read the ID from the intent, is commented out.
+- **Severity:** Critical. Anyone who knows or guesses a user ID can read or change that user's profile, and read, create, edit or delete their itineraries, activities and transportation segments, without any credentials. Because the app uses one hard-coded identity, all real users also see and overwrite each other's data. An automated tool would not flag this: each file is well-formed and passes linting, and the fault only appears when the implementation is compared with NFR1.
 
 ### 3.3. Actions Taken in Response to the Review
 
 | **Finding** | **Action Taken** | **Commit / Location in Git** |
 | ----------- | ---------------- | ---------------------------- |
-| ...         | ...              | [`src/...`](#)               |
-| ...         | ...              | ...                          |
-
-- **Findings not acted on.** For each finding you decided not to address, give the reason:
-  1. **Finding:** ...
-     - **Justification:** ...
+| Missing Google identity verification and account binding | Added a backend Google sign-in endpoint that verifies ID token claims and looks up or creates the user by Google subject. | [171bcbe](https://github.com/islamhampriv/ExploreUBC/commit/171bcbe0ca8efd3562dc980a900ee10095bccc6c), [792cd97](https://github.com/islamhampriv/ExploreUBC/commit/792cd97fa468a959dcda81368419a583aff057d8); [googleTokenVerifier.ts](../backend/src/auth/googleTokenVerifier.ts), [authRouter.ts](../backend/src/auth/authRouter.ts), [authService.ts](../backend/src/auth/authService.ts), [userDao.ts](../backend/src/users/userDao.ts) |
+| Unauthenticated and cross-user access to user-scoped routes | Added bearer-session authentication and ownership middleware to the user and itinerary route tree; missing or invalid sessions receive `401`, and another user's ID receives `403`. | [e5bdacd](https://github.com/islamhampriv/ExploreUBC/commit/e5bdacdaa71664e7ed7df7872922f792d6621960), [4eb99dd](https://github.com/islamhampriv/ExploreUBC/commit/4eb99ddce38cfcf93b912e84934b3a09f7e26a9d); [index.ts](../backend/src/index.ts), [authMiddleware.ts](../backend/src/auth/authMiddleware.ts) |
+| Missing secure session lifecycle | Added revocable server sessions, token-hash persistence, expiry checks and renewal; the Android app encrypts stored sessions and clears rejected sessions. | [171bcbe](https://github.com/islamhampriv/ExploreUBC/commit/171bcbe0ca8efd3562dc980a900ee10095bccc6c), [69ce773](https://github.com/islamhampriv/ExploreUBC/commit/69ce77357090acd43bd0cf9deab94013d6c2286f), [4eb99dd](https://github.com/islamhampriv/ExploreUBC/commit/4eb99ddce38cfcf93b912e84934b3a09f7e26a9d); [sessionService.ts](../backend/src/session/sessionService.ts), [sessionDao.ts](../backend/src/session/sessionDao.ts), [SessionStore.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/SessionStore.kt), [SessionStartupCoordinator.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/SessionStartupCoordinator.kt) |
+| Google sign-in bypassed the backend and the app used a shared hard-coded user ID | Connected Android Google credentials to backend sign-in, used the authenticated session's user ID for app data, and sent the session on API requests. | [69ce773](https://github.com/islamhampriv/ExploreUBC/commit/69ce77357090acd43bd0cf9deab94013d6c2286f), [e5bdacd](https://github.com/islamhampriv/ExploreUBC/commit/e5bdacdaa71664e7ed7df7872922f792d6621960), [4eb99dd](https://github.com/islamhampriv/ExploreUBC/commit/4eb99ddce38cfcf93b912e84934b3a09f7e26a9d); [MainActivity.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/MainActivity.kt), [MainActivity2.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/MainActivity2.kt), [AuthRepository.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/auth/AuthRepository.kt), [ApiClient.kt](../frontend/app/src/main/java/com/exploreUBC/cpen321application/data/network/ApiClient.kt) |
+| Missing security tests | Added mocked and database-backed auth/session tests plus Android session-restoration and real-backend missing-session/cross-user tests. | [4eb99dd](https://github.com/islamhampriv/ExploreUBC/commit/4eb99ddce38cfcf93b912e84934b3a09f7e26a9d), [247f3cc](https://github.com/islamhampriv/ExploreUBC/commit/247f3ccb4ed1444ecb42947a0a7e6bb257afc6f2); [auth.test.ts (mock)](../backend/tests/mock/auth/auth.test.ts), [auth.test.ts (no mock)](../backend/tests/no-mock/auth/auth.test.ts), [session.test.ts (mock)](../backend/tests/nfr/mock/session/session.test.ts), [session.test.ts (no mock)](../backend/tests/nfr/no-mock/session/session.test.ts), [SessionRestorationNfrTest.kt](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/SessionRestorationNfrTest.kt), [AuthorizationNfrTest.kt](../frontend/app/src/androidTest/java/com/exploreUBC/cpen321application/nfr/AuthorizationNfrTest.kt) |
