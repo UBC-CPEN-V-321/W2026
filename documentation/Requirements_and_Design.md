@@ -13,7 +13,7 @@
 
 ## 2. Project Description
 
-Our project is called Explore UBC - a travel itinerary planner for UBC users who want to explore British Columbia. It is an Android application built with Kotlin and JetPack Compose for the front-end, Node.js for the backend, MongoDB for the database and uses Vercel for deployment.
+Our project is called Explore UBC - a travel itinerary planner for UBC users who want to explore British Columbia. It is an Android application built with Kotlin and JetPack Compose for the front-end, Node.js for the backend, and MongoDB for the database.
 
 Planning a trip often means finding ideas, checking routes, and building a schedule. Travellers can sign up to create a profile with their interests, budget preference, and preferred transportation mode. They can also update their profile at any time. Our application uses Google Credential manager for authentication and session management.
 

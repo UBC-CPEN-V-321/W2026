@@ -1,4 +1,3 @@
-import { attachDatabasePool } from '@vercel/functions';
 import express, { type Express } from 'express';
 import { MongoClient } from 'mongodb';
 
@@ -154,10 +153,6 @@ export function createApp(dependencies: AppDependencies = {}): Express {
 }
 
 const mongoClient = new MongoClient(env.mongodbUri);
-if (process.env.VERCEL === '1') {
-  attachDatabasePool(mongoClient);
-}
-
 const database = mongoClient.db('cpen321');
 const eventDao = new EventDao(database);
 const userDao = new UserDao(database);

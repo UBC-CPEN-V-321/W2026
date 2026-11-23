@@ -94,7 +94,7 @@ The example includes placeholder values for optional feature credentials. Replac
    docker compose up -d mongo
    ```
 
-   The backend `.env.example` uses `mongodb://localhost:27017/cpen321`, which connects to this local database.
+   The backend `.env.example` uses `mongodb://localhost:27017/cpen321`, which connects to this local database. MongoDB runs the scripts in `database/init/` when the local data volume is first created.
 
 2. Install backend dependencies:
 
@@ -103,13 +103,7 @@ The example includes placeholder values for optional feature credentials. Replac
    npm install
    ```
 
-3. **Initialize the database** (creates the collections, validation rules, indexes, and seed data):
-
-   ```bash
-   npm run db:init
-   ```
-
-4. **Sync Ticketmaster events** to MongoDB before starting the API:
+3. **Sync Ticketmaster events** to MongoDB before starting the API:
 
    ```bash
    npm run sync:events
@@ -117,13 +111,13 @@ The example includes placeholder values for optional feature credentials. Replac
 
    This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Event searches default to British Columbia, Canada; set `EVENT_SEARCH_STATE_CODE` or `EVENT_SEARCH_COUNTRY_CODE` to override either value. Run the sync again whenever you want to refresh the event catalog.
 
-5. **Development** (TypeScript with auto-reload):
+4. **Development** (TypeScript with auto-reload):
 
    ```bash
    npm run dev
    ```
 
-6. **Production build** (optional):
+5. **Production build** (optional):
 
    ```bash
    npm run build

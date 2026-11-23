@@ -1,0 +1,41 @@
+name: cpen321-project
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: true
+    environment:
+      PORT: "3000"
+    ports:
+      - "${PROD_PORT:-3000}:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: ["sh", "-c", "if [ -n \"$${TICKETMASTER_API_KEY:-}\" ]; then npm run sync:events; fi; exec npm start"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+      - ./database/init/001-users.js:/docker-entrypoint-initdb.d/001-users.js:ro
+      - ./database/init/002-itineraries.js:/docker-entrypoint-initdb.d/002-itineraries.js:ro
+      - ./database/init/004-sessions.js:/docker-entrypoint-initdb.d/004-sessions.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo-data:

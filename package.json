@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "@vercel/functions": "^3.10.1",
     "mongodb": "^7.7.0"
   }
 }
