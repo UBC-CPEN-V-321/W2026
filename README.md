@@ -1,4 +1,4 @@
-# CPEN321_26W1_ProjectName
+# CPEN321_26W1_ExploreUBC
 
 _Keep this README up to date with the steps required to build and run the frontend and backend (including any scripts, config files, and environment variables). TAs ill follow these instructions._
 
@@ -34,13 +34,21 @@ Install the following before the frontend or backend setup steps:
    Set at least:
    - `sdk.dir`: path to your Android SDK. Android Studio usually writes this the first time you open `frontend/`. On Mac it is often `sdk.dir=/Users/<username>/Library/Android/sdk`.
    - `API_BASE_URL`: backend URL baked into the APK. Use `http://10.0.2.2:3000` for the emulator (`10.0.2.2` is the host machine). For a physical device on the same Wi-Fi, use `http://<your-lan-ip>:3000`.
+   - `GOOGLE_CLIENT_ID`: Google OAuth web client ID used for sign-in.
+   - `MAPS_API_KEY`: API key used for Google Maps functionality.
+   - `PLACES_API_KEY`: Google Places API key used for address autocomplete and popular-place pins.
 
 
 ### Build and Run
 
-- **Debug build**: Click the green play button in the toolbar, to compile the code, package a debug APK, and install it on the connected device or running emulator. Alternatively, from the project root, run `./scripts/run-frontend.sh`.
+- **Debug build**: Click the green play button in the toolbar, to compile the code, package a debug APK, and install it on the connected device or running emulator. Alternatively, from the project root, run `./scripts/run-frontend.sh`. The script sets the emulator's simulated location to UBC (latitude `49.2606`, longitude `-123.2460`) before launching the app. Override it with `LOCATION_LATITUDE` and `LOCATION_LONGITUDE` if needed.
 - **Release build**: Go to Build -> Generate Signed App Bundle or APK -> APK. Follow the on-screen instructions to create a key, and select the "release" build variant. You will then have to manually install the generated APK on your device or the running emulator.
 
+When running the app manually from Android Studio, set the emulator's location after it has started:
+
+1. Open the emulator's **Extended controls** using the three-dot button beside the emulator.
+2. Select **Location**, enter UBC's coordinates (latitude `49.2606`, longitude `-123.2460`), and click **Set location** or **Send**.
+3. Tap the app's locate button to view the updated location.
 
 ### Backend Configuration
 
@@ -63,33 +71,53 @@ From the project root:
 cp backend/.env.example backend/.env
 ```
 
-Set at least:
-- `JWT_SECRET`: a long random string used to sign auth tokens.
-- `MONGODB_URI`: only needed for local development (default in `.env.example` assumes MongoDB on `localhost:27017`). Ignored when running via Docker Compose.
-- `PORT` (optional): defaults to `3000` if unset.
+Configure the corresponding values in `backend/.env` as needed:
+- **Required to start the backend:** `MONGODB_URI` (local Compose MongoDB: `mongodb://localhost:27017/cpen321`) and `GOOGLE_CLIENT_ID` (Google OAuth web client ID).
+- **Server and sessions:** `PORT` defaults to `3000`; `NODE_ENV` defaults to `development`; `SESSION_TTL_DAYS` defaults to `1`.
+- **Live events:** `TICKETMASTER_API_KEY` is needed to sync or search events. `TICKETMASTER_BASE_URL` defaults to `https://app.ticketmaster.com/discovery/v2`; `EVENT_SEARCH_STATE_CODE`, `EVENT_SEARCH_COUNTRY_CODE`, and `EVENT_SEARCH_PAGE_SIZE` default to `BC`, `CA`, and `200`.
+- **Google Maps Platform:** set `MAPS_API_KEY`, `GEOCODING_API_KEY`, `ROUTES_API_KEY`, and `PLACES_API_KEY` for the corresponding map, geocoding, directions, and places features.
+- **Itinerary generation:** Configure Qwen with `QWEN_ENDPOINT`, `QWEN_API_KEY`, and `QWEN_MODEL`. The example endpoint and model are `https://us-east-1.maas.qwencloudapi.com/compatible-mode/v1` and `qwen3.6-flash`. `QWEN_TIMEOUT_MS` defaults to `120000` ms.
 
+The example includes placeholder values for optional feature credentials. Replace them with valid credentials to use those features. Do not commit `backend/.env`.
 
 ### Option 1: Run locally
 
 **Requirements:** 
 - [Node.js](https://nodejs.org/en/download/) 22+
 - [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) 10+
+- [Docker Compose](https://docs.docker.com/compose/install/) v2.24+
 
 **Setup:** 
-1. Install dependencies:
+1. Start the local MongoDB database from the project root:
+
+   ```bash
+   docker compose up -d mongo
+   ```
+
+   The backend `.env.example` uses `mongodb://localhost:27017/cpen321`, which connects to this local database. MongoDB runs the scripts in `database/init/` when the local data volume is first created.
+
+2. Install backend dependencies:
 
    ```bash
    cd backend
    npm install
    ```
 
-2. **Development** (TypeScript with auto-reload):
+3. **Sync Ticketmaster events** to MongoDB before starting the API:
+
+   ```bash
+   npm run sync:events
+   ```
+
+   This requires `MONGODB_URI` and `TICKETMASTER_API_KEY` to be set in `backend/.env`. Event searches default to British Columbia, Canada; set `EVENT_SEARCH_STATE_CODE` or `EVENT_SEARCH_COUNTRY_CODE` to override either value. Run the sync again whenever you want to refresh the event catalog.
+
+4. **Development** (TypeScript with auto-reload):
 
    ```bash
    npm run dev
    ```
 
-3. **Production build** (optional):
+5. **Production build** (optional):
 
    ```bash
    npm run build
@@ -115,12 +143,12 @@ Set at least:
    docker compose up --build -d
    ```
 
+   The backend syncs Ticketmaster events into MongoDB before starting the API.
+   Ensure `TICKETMASTER_API_KEY` is set in `backend/.env`; if the sync fails,
+   the backend will not start and the error will appear in `docker compose logs backend`.
+
 2. **Stop**:
 
    ```bash
    docker compose down
    ```
-
-## Additional Setup
-
-_Please specify any other additional setup steps non-specific to either frontend nor backend_

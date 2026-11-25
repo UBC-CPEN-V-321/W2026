@@ -1,0 +1,43 @@
+---
+config:
+  layout: elk
+---
+flowchart LR
+    android[Android App]
+
+    subgraph backend[Node.js Backend]
+        api[API Router]
+        auth[Auth / Session]
+
+        users[Users]
+        itinerary[Itineraries]
+        recommendation[Recommendations]
+        liveEvents[Live Events / Sync]
+        maps[Itinerary Maps]
+
+        api -->|Protected requests| auth
+        auth --> users & itinerary & recommendation & liveEvents & maps
+    end
+
+    mongo[(MongoDB)]
+
+    subgraph external[External Services]
+        googleAuth[Google Auth]
+        mapsSdk[Google Maps SDK]
+        places[Google Places API]
+        mapsApi[Google Geocoding / Routes APIs]
+        llm[LLM Service]
+        eventApi[Ticketmaster API]
+    end
+
+    android -->|REST| api
+    android -.-> googleAuth & mapsSdk & places
+
+    auth -.-> googleAuth
+    backend --> mongo
+    recommendation -.-> llm
+    liveEvents -.-> eventApi
+    maps -.-> mapsApi
+
+    style backend fill:#C2E5FF,stroke:#3DADFF
+    style external fill:#FFECBD,stroke:#FFC943
