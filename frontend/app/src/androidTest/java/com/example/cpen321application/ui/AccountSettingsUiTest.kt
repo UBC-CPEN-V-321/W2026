@@ -97,15 +97,15 @@ class AccountSettingsUiTest {
         assertTrue(otherAccount.enabled(NotificationPreference.ExpenseActivity))
     }
 
-    @Test fun supportAndRatingFallbackAreReachable() {
+    @Test fun supportIsReachableAndRatingFollowsStoreConfiguration() {
         openAccount()
         compose.onNodeWithTag("account-row-Contact Us").performScrollTo().performClick()
         compose.onNodeWithText("Open support page").assertIsDisplayed()
         Espresso.pressBack()
         if (BuildConfig.LEDGER_STORE_URL.isBlank()) {
-            compose.onNodeWithTag("account-row-Rate Ledger").performScrollTo().performClick()
-            compose.onNodeWithText("Store ratings are not available", substring = true).assertIsDisplayed()
-            compose.onNodeWithText("Close").performClick()
+            compose.onNodeWithTag("account-row-Rate Ledger").assertDoesNotExist()
+        } else {
+            compose.onNodeWithTag("account-row-Rate Ledger").performScrollTo().assertIsDisplayed()
         }
         compose.onNodeWithTag("log-out").performScrollTo().performClick()
         compose.onNodeWithText("Log out?").assertIsDisplayed()
